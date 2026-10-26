@@ -271,6 +271,37 @@ report, zip and pack downloads returned 200.
 
 ---
 
+### Quick task: fine-tune the caption window
+
+**Goal:** stop assuming 30 s; pick the default from data.
+
+Candidates: **10, 15, 20, 30, 45, 60 s**. Keep everything else fixed: 3 frames/window, same VLM
+and synthesis prompts, same evidence/report/pack pipeline, same 30 questions.
+
+Measure per candidate:
+
+- ledger raw + zlib bytes, windows/episode, VLM calls and wall time;
+- unique objects/actions and whether specific actions are missed;
+- memory-pack chars/tokens (~4 chars/token);
+- deterministic 30-question accuracy (expect 30/30; catches event regressions);
+- Qwen pack 30-question accuracy/latency via `llm_pack_baseline.py`.
+
+Suggested procedure:
+
+1. Start with **cook** at 10/20/30 s (fastest signal).
+2. Run the winner plus 15/45/60 s on **walking + hololens**.
+3. Build a copy of each vault per setting, attach the new ledger, rebuild the pack.
+4. Choose the **smallest window that keeps pack accuracy 30/30 and loses no important
+   objects/actions** versus 30 s; break ties toward 30 s.
+5. Record a small table in `docs/JOURNAL.md`; do not change the default without the table.
+
+Also ablate the **event-ledger periodic anchor** interval separately (`compile.py` `WINDOW_S = 30`)
+from the **caption window** (`caption_ledger.py --window-s`). They are currently both 30 s but
+serve different purposes.
+
+Acceptance: one command/setting change (`--window-s`) and a documented recommendation. Budget:
+~2–3 hours, dominated by VLM calls.
+
 ## 6. Deployment, captioners and new uploads
 
 ### 6.1 Florence vs Qwen (captioner choice)

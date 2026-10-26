@@ -425,6 +425,9 @@ playback. The LLM must consume the compiled output.
 2. Add optional graph ingest for uploads when the main perception stack is available.
 3. Perceptual-hash dedup for evidence; timeline thumbnails.
 4. External benchmark subset and physical-count calibration.
+5. Fine-tune the caption window: 10/15/20/30/45/60 s with fixed frames/prompts; pick the smallest
+   window that keeps the pack at 30/30 without object/action loss. Also ablate the periodic event
+   anchor separately. See `HANDOFF.md` "Quick task".
 
 ---
 

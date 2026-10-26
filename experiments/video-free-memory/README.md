@@ -317,6 +317,10 @@ three frames per window.
 The structured questions do not change because events answer exact times; the dense ledger is
 for recall and paraphrase/object coverage. **Default: 30 s windows, three frames.**
 
+**Next experiment:** sweep 10/15/20/30/45/60 s with everything else fixed; choose the smallest
+window that keeps the Qwen pack at 30/30 and loses no important objects/actions. Budget ~2–3 h;
+details and acceptance criteria are in `HANDOFF.md`. Do not change the default without the table.
+
 ## Original Chronicle vs VFM (same 30 questions)
 
 Ran the original `ChronicleRuntime.ask()` path (graph + Qwen2.5:7b-instruct) against the
