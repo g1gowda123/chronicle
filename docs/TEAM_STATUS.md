@@ -1,6 +1,6 @@
 # Team status and role assignments
 
-**Updated:** 2026-10-26
+**Updated:** 2026-10-27
 **Integration owner:** dashboard/runtime integration (me)
 **Branch:** `main`
 
@@ -39,6 +39,190 @@ embeddings + template GraphRAG). The HoloLens clip is available as
   `docs/INTEGRATION.md`.
 
 ## Recent changes
+
+### NB-13 — dashboard entry points documented
+
+- Added a “Two dashboards, one canonical entry point” table to
+  `docs/INTEGRATION.md`:
+  - `./chronicle.sh start` / `chronicle serve` on `:8080` is the **canonical
+    operator dashboard** used by the ten-minute script and preflight.
+  - `./chronicle.sh mission` / `python run_dashboard.py` on `:8081` is the
+    standalone zine mission control for demo replay, JSONL/SQLite producers or
+    live `POST /api/ingest`; it is optional and not a replacement.
+- Updated `README.md` and `docs/DEMO_PREFLIGHT.md` to name the canonical entry
+  point explicitly and mark mission control as the optional second screen.
+
+### NB-11 — SQLite write throttling
+
+- Added `persistence_interval_s = 0.5` to `ChronicleMemory`. Entity and support
+  rows now persist on a state change or the interval, not every frame;
+  observations keep their existing `0.1 s` trajectory cadence.
+- Walking clip, 180 frames / 3 entities: **entity upserts 172 → 59** (66 %
+  fewer) with the in-memory snapshot unchanged.
+- Added `test_entity_and_support_writes_are_throttled`; focused graph,
+  integration and furniture tests pass.
+- Docs: `docs/ROLE_B.md` now explains the projection cadence.
+
+### NB-10 partial — support anchors collapse into durable furniture anchors
+
+- Reordered `ChronicleMemory.observe()` so furniture routing runs before Role A
+  support anchors are created, and added
+  `FurnitureRegistry.match_surface()`. A `support-sofa-N` candidate with the same
+  detection box now reuses `anchor:sofa-N` instead of minting a second
+  background node.
+- Replayed the living-room clip with production backends:
+  **furniture rows dropped from 67 to 18**, and **all `anchor:support-*`
+  duplicates disappeared**. The regression test is
+  `test_role_a_support_anchor_reuses_durable_furniture_anchor`.
+- Remaining gap: the clip still has six `sofa` anchors. The video visibly
+  contains one sofa and one armchair, but YOLO-World labels the armchair as
+  `sofa`, and short detections (`sofa-12`, 0.1 s) still pass the two-hit gate.
+  Consolidation correctly refuses to merge co-visible boxes, so this needs a
+  label/vocabulary + fixture pass (NB-20), not a looser merge threshold.
+- NB-10 stays open until a replay leaves one anchor per physical sofa.
+
+### NB-12 — appearance attributes in the spec and evaluation
+
+- Added the **Object appearance attributes** subsection to
+  `docs/chronicle-spec-condensed.tex`: dominant-colour k-means, background
+  suppression, colour/shape/size/brightness/saturation/texture/position
+  thresholds and the colour-stability rule. Rebuilt
+  `docs/chronicle-spec-condensed.pdf` with `docs/build-spec.sh`.
+- Added four GraphRAG evaluation cases: colour, size, describe and
+  missing-appearance. The set is now **13/13, 100 % pass / 100 % citation
+  precision**.
+- Updated the evaluation docstring, `docs/ROLE_C.md`, `README.md`,
+  `docs/SUGGESTIONS.txt` and `docs/TEAM_STATUS.md` from 9 to 13 cases.
+- Tests: `tests/test_evaluation.py` asserts the four appearance cases pass and
+  that colour answers carry the `APPEARANCE` relation and correct timestamp.
+
+### NB-07 — HoloAssist action timeline labelled and scored
+
+- Added `docs/action_timeline.holoassist.json` (7 scorable events from the
+  published HoloAssist annotations) and
+  `docs/action_timeline.holoassist.report.json`.
+- Ran the full HoloAssist clip with production backends
+  (YOLO-World + MediaPipe + OpenCLIP): 1019 frames, 4 entities, 16 actions,
+  16 clips.
+- Timeline score: **1/7 matched, precision 6.3%, recall 14.3%, mean |Δt|
+  0.06 s, FAIL**. The timestamp is right; the action class is not.
+- Root cause: Florence-2 is not installed, so `StubCaptioner` returns
+  `"the hand grasps the joy-con"` for every strip and the rule classifier can
+  only produce `PICK_UP`. Documented in `docs/PERCEPTION.md` and
+  `docs/ROLE_C.md`.
+- Follow-up **NB-19**: rerun with Florence-2 (or a vision LLM) captions and
+  re-calibrate. The scorer, label file and commands are ready; only the VLM
+  captions are missing.
+
+### NB-06 — real-clip evidence images
+
+- Added `scripts/build_evidence_fixtures.py`: it writes a portable
+  `evidence/index.jsonl` beside each episode database. The synthetic clip
+  reuses its interaction strips/crops, HoloAssist reuses the seven real
+  interaction strips, and each Aria clip gets three zone keyframes.
+- `ChronicleRuntime._answer_frame()` now prefers stored evidence and falls
+  back to video-frame extraction only when no stored image fits. Stored images
+  are ranked by kind, entity/label match, citation time and playhead
+  (`chronicle/frames.py`).
+- Stored evidence is returned as a self-contained
+  `data:image/...;base64,...` URL, so CLI and UI need no extra media route.
+- Preflight now reports **5/5 sources have stored evidence frames**; the
+  previous `Evidence` warning is gone for bundled clips.
+- Verified demo questions return stored strips:
+  `where are my keys?` → keys `PICK_UP` strip at 11.15 s,
+  `where is the joy-con?` → Joy-Con strip at 6.55 s,
+  `what did I see?` → newest Joy-Con strip. The video fallback remains for
+  uploaded clips without an evidence folder.
+- Coverage: `tests/test_query_frames.py` (index loading, label ranking,
+  data-URL encoding, runtime preference) and `tests/test_demo_preflight.py`
+  indirectly through the evidence check.
+
+### NB-05 — every bundled source verified end to end
+
+- Ran all five registered sources (`synthetic`, `tabletop`, `walking`, `cook`,
+  `play`) through `chronicle.benchmark` with full clips and offline fallbacks:
+  **all 5 sources completed and passed 9/9 snapshot invariants**.
+- Ran a bounded production pass (180 frames, YOLO-World + MediaPipe + OpenCLIP)
+  on the four real clips: all four passed 9/9; tabletop produced 127 detections
+  / 2 entities / 4 actions, cook 574 / 9 / 1, play 918 / 5 / 0, walking
+  193 / 3 / 0. Full tables and commands are in `docs/PERCEPTION.md`.
+- Confirmed the lead-in issue: a 30-frame tabletop run starts before the first
+  Joy-Con action at 4.2 s and may report zero detections; use at least 180
+  frames (or seek past the lead-in) for the HoloLens rehearsal.
+- Added a headless dashboard check that every registered clip is served by
+  `/source-video` with HTTP 200 and a `video/*` content type
+  (`tests/test_dashboard_smoke.py`). The interactive dropdown/video player
+  remains the UI owner's later pass.
+- No source has a blocking failure. The only gap is Aria action accuracy,
+  which needs annotations; structure/query completion is green.
+
+### NB-04 — demo preflight
+
+- Added `scripts/demo_preflight.py` and `./chronicle.sh preflight`: one command
+  checks Python/venv, the data dir, dashboard deps, every bundled video
+  (first + middle frame), SQLite WAL/`quick_check`/checkpoint, the configured
+  detector/hands/embedder on a real frame, stored evidence or frame extraction,
+  Ollama/model warm state, `pytest`, and a 30-frame synthetic ingestion run.
+- Output is a `PASS` / `WARN` / `FAIL` table with the exact next command;
+  `--strict` makes warnings fail, `--json` is available for CI, and
+  `--warm-llm` loads Qwen before the demo.
+- Silent colour fallbacks are surfaced as `WARN` on real sources, so the
+  preflight never claims YOLO/MediaPipe/OpenCLIP when the runtime fell back.
+- Added `docs/DEMO_PREFLIGHT.md` (stage-day checklist and failure playbook) and
+  model-free tests in `tests/test_demo_preflight.py`.
+- Issues called out by the first run: no stored evidence images yet for the
+  bundled clips (video-frame fallback works), tracked as the evidence follow-up
+  under NB-06/NB-16.
+
+### TASK-F4 — Source vocabulary & production-detector benchmark
+
+- chronicle run --source tabletop now passes ClipSource.vocabulary into _perception_config(), ensuring YOLO-World prompts include joy-con, switch console, 	able, etc.
+- Added --conf (confidence threshold) and --imgsz (input image size) flags to chronicle run for detector tuning.
+- Benchmark results recorded in docs/PERCEPTION.md: with the source vocabulary, YOLO-World correctly detects joy-con entities with 100% entity accuracy and reduces mean timestamp error from 0.28 s to 0.06 s on the matched PICK_UP joy-con action.
+- Added unit tests in 	ests/test_cli.py covering vocabulary extraction, CLI flag parsing, and runtime propagation.
+
+### NB-08 — real HoloAssist action calibration
+
+- Added `docs/calibration_labels.holoassist.json`: 19 hand-labelled captions
+  grounded in the published HoloAssist Joy-Con timeline, including scene and
+  pre-grasp `OTHER` negatives. The file records timestamps and original event
+  strings so every label is traceable; captions are labels, not model output.
+- Ran `python -m chronicle.semantic.calibration` at a 0.9 precision target:
+  **19 labels, 14 accepted, 5 correct rejections, precision 1.000, recall
+  1.000, F1 1.000** after NB-18; committed the report to
+  `docs/calibration.holoassist.report.json`.
+- Updated `DEFAULT_ACTION_THRESHOLDS` to the calibrated values (`PICK_UP` 0.74,
+  `PUT_DOWN` 0.76, `INSERT_INTO` 0.80, `REMOVE_FROM` 0.78, `HOLD` 0.62,
+  `PUSH` 0.68); actions without real labels keep their seed cutoffs.
+- Correct `OTHER` rejections no longer count as false negatives, and the report
+  exposes `rejected_correct`, so negative examples cannot artificially collapse
+  recall.
+- Real labels exposed two rule-classifier regex gaps: "slide …" was not
+  `PUSH` and "withdraw …" was not `REMOVE_FROM`. Both are fixed in
+  `chronicle/semantic/actions.py` with regression tests.
+- The one remaining false positive was a pre-grasp "reaches toward …" caption
+  classified as `PICK_UP`; NB-18 fixed it with negation-aware rule matching
+  (see below), and the report now has precision 1.000 / recall 1.000.
+- Reproduce from `docs/CALIBRATION.md`; model-free coverage is in
+  `tests/test_calibration.py` and `tests/test_actions.py`.
+
+### NB-18 — pre-grasp `PICK_UP` false positive closed
+
+- `RuleBasedActionClassifier` now rejects negated action verbs
+  (`does not grasp`, `doesn't pick up`, `without pulling`, …) before the
+  positive regexes run. The pre-grasp caption
+  `"The hand reaches toward the Joy-Con but does not grasp it."` becomes
+  `OTHER`; the three true pickups stay accepted.
+- Re-ran the real-label calibration: **19 labels, 14 accepted, 5 correct
+  rejections, precision 1.000, recall 1.000, F1 1.000**. The per-action
+  thresholds are unchanged (`PICK_UP` 0.74) — this was a phrasing fix, not a
+  threshold hack.
+- `docs/CALIBRATION.md`, `docs/ROLE_C.md` and
+  `docs/calibration.holoassist.report.json` now show the new numbers; tests
+  cover negation, a true action with "without dropping", and the calibration
+  target.
+- Shipped on `main` (`9ed6735..d5870b3`; full `pytest` green, 142 unittest
+  tests, ruff clean, evaluation 13/13).
 
 ### TASK-E2 — zone-clustered graph
 
@@ -86,8 +270,9 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 - When no earlier location exists the answer is an ungrounded
   `"I don't have an earlier location..."` fallback, so a multi-hop question can
   never invent a location.
-- Added `before-placement` to the GraphRAG evaluation set (now 9/9, 100 %
-  citation precision) and model-free coverage in `tests/test_graphrag.py`.
+- Added `before-placement` to the GraphRAG evaluation set (now 13/13 with the
+  later appearance cases, 100 % citation precision) and model-free coverage in
+  `tests/test_graphrag.py`.
 
 ### TASK-F1 — HoloLens tabletop action benchmark
 
@@ -193,6 +378,7 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-F3** | **P2** | **Live stream source implementation**<br>Implement live video capture ingestion loop for the `live` ClipSource placeholder (`chronicle run --source live`). | `chronicle/sources.py`<br>`chronicle/perception/pipeline.py` | `[SUPERSEDED]` | karthiknk7019 |
 | **TASK-A2** | **P0** | **Simple object attributes in perception**<br>Extract dominant colour, swatch, brightness, saturation, shape/aspect, relative size, texture and frame position for every detection; stabilise colour across frames; carry through tracker, graph and SQLite. | `chronicle/perception/attributes.py`<br>`chronicle/perception/tracker.py`<br>`chronicle/graph/{adapter,memory,foreground}.py`<br>`tests/test_attributes.py` | `[DONE]` | Orchestrator |
 | **TASK-D7** | **P1** | **Appearance in UI, exports and GraphRAG**<br>Snapshot/CSV colour+attribute columns, graph colour rings/tooltips, entity filter + swatch column, colour/size/describe questions and colour inventory queries. | `chronicle/integration.py`<br>`chronicle/graph/query.py`<br>`chronicle/semantic/graphrag.py`<br>`chronicle/ui/{app,graph_view}.py` | `[DONE]` | Orchestrator |
+| **TASK-F4** | **P1** | **Source vocabulary & production-detector benchmark**<br>`chronicle run --source tabletop` currently ignores `ClipSource.vocabulary`, so YOLO-World prompts never include `joy-con`. Apply the source vocabulary, expose `--conf`/`--imgsz`, then benchmark the HoloLens clip with the real detector and record action-timeline numbers. | `chronicle/cli.py`<br>`tests/test_cli.py`<br>`docs/PERCEPTION.md` | `[IN PROGRESS (Role C)]` | karthiknk7019 |
 
 ## What I am working on right now
 
@@ -283,9 +469,9 @@ location.
 - [x] Extract `container` from the strip/caption reliably; add tests for
   `INSERT_INTO` / `REMOVE_FROM`. `extract_container()` / `resolve_container()`.
 - [x] Add a GraphRAG evaluation set: exact location, last-seen time, action,
-  temporal "before" questions, and “I don’t know” cases. Track citation
-  precision. `evaluation.py` (9 cases, currently 100 % pass / 100 % citation
-  precision).
+  temporal "before" questions, colour, size, describe, missing-appearance and
+  “I don’t know” cases. Track citation precision. `evaluation.py` (13 cases,
+  currently 100 % pass / 100 % citation precision).
 - [x] Answer multi-hop temporal questions ("where was X before it was placed on
   Y?") by walking the entity timeline back to the prior location fact, with an
   ungrounded fallback when no earlier fact exists.
@@ -296,8 +482,11 @@ location.
   `VERIFICATION_LATENCY`, plus `runtime.verification_stats`.
 - [x] Measure the “done when” bar: `chronicle/semantic/timeline.py` matches
   verified actions to a labelled timeline (precision/recall, timestamp error,
-  entity/container agreement) and gates CI via its CLI. Remaining input is the
-  labelled HoloLens pass (`docs/action_timeline.example.json` shows the format).
+  entity/container agreement) and gates CI via its CLI. The real HoloAssist
+  pass is `docs/action_timeline.holoassist.json`; NB-07 scores it at 1/7
+  (precision 6.3 %, recall 14.3 %, mean |Δt| 0.06 s). The timestamp bar is met;
+  action classification is not, because Florence-2 is unavailable and the stub
+  captioner collapses every strip to `PICK_UP`.
 
 **Done when:** the HoloLens clip’s verified actions match the labelled timeline
 within tolerance, and a hallucinated timestamp is always rejected.
@@ -309,20 +498,23 @@ within tolerance, and a hallucinated timestamp is always rejected.
 (`tests/test_graphrag.py`). Verification on the merged tree: `pytest` 250
 collected (249 passed, 1 dashboard test skipped without the `ui` extra),
 `unittest discover -s tests` 128 passed, `ruff check chronicle tests` clean,
-`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (9/9 cases,
+`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (13/13 cases,
 100 % citation precision), and `chronicle.semantic.timeline` reports PASS
 (1/1 label, 0.07 s error) on a snapshot exported from
 `chronicle run --source synthetic --max-frames 360`. `snapshot()` now embeds
 `verification_stats` (TASK-C1, `ee9fed7`), so the dashboard can poll queue
 depth/dropped/latency without a second call. Labelled captions can be calibrated
 from a JSON/JSONL file with
-`python -m chronicle.semantic.calibration --labels <file>` (see
-`docs/calibration_labels.example.json`), and the timeline scorer takes the same
-kind of external label file, so calibrating and gating on the HoloLens pass need
-no code changes. The only cross-role edit is the internal `_clip_queue` /
+`python -m chronicle.semantic.calibration --labels <file>`; the shipped defaults
+now come from the real HoloAssist pass in
+`docs/calibration_labels.holoassist.json` (see `docs/CALIBRATION.md`), and the
+timeline scorer takes the same kind of external label file, so calibrating and
+gating on the HoloLens pass need no code changes. The only cross-role edit is the internal `_clip_queue` /
 `_drain_clips` seam in `chronicle/integration.py` (bounded queue + latency
-marks). Ambient caption phrasing still needs a labelled HoloLens pass before the
-“done when” line can be ticked.
+marks). The “done when” line is **not ticked**: NB-07 has the labels and the
+scorer, and NB-19 is the concrete next task — rerun with Florence-2/vision-LLM
+captions because the stub captioner cannot produce `PUT_DOWN`, `INSERT_INTO` or
+`REMOVE_FROM`.
 
 ### Role D — dashboard and product surface
 
@@ -333,6 +525,9 @@ marks). Ambient caption phrasing still needs a labelled HoloLens pass before the
 - [x] In-dashboard video source switching (`synthetic`, `tabletop`, `cook`, `play`, `walking`)
   directly in the UI dropdown without terminal commands.
 - [x] Service launcher script (`./chronicle.sh`) for daemon lifecycle management.
+- [x] Demo preflight (`./chronicle.sh preflight`) with a `PASS`/`WARN`/`FAIL`
+  table for videos, SQLite/WAL, backends, evidence, Ollama, tests and a
+  30-frame smoke run (`scripts/demo_preflight.py`, `docs/DEMO_PREFLIGHT.md`).
 - [x] Export/import: download the current snapshot as JSON/CSV, reload it
 - [x] Export/import: download the current snapshot as JSON/CSV, reload it
   without re-ingesting (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`),

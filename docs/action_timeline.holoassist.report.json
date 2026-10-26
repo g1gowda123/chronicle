@@ -1,0 +1,213 @@
+{
+  "labels": 7,
+  "predictions": 16,
+  "rejected_predictions": 0,
+  "matched": 1,
+  "unmatched_labels": 6,
+  "unmatched_predictions": 15,
+  "tolerance": 2.2,
+  "precision": 0.0625,
+  "recall": 0.1429,
+  "f1": 0.087,
+  "mean_timestamp_error": 0.0588,
+  "max_timestamp_error": 0.0588,
+  "entity_accuracy": null,
+  "container_accuracy": null,
+  "container_comparable": 0,
+  "passed": false,
+  "matches": [
+    {
+      "label": {
+        "timestamp": 4.2,
+        "action": "PICK_UP",
+        "entity": "joy-con",
+        "container": null,
+        "confidence": null,
+        "accepted": true
+      },
+      "prediction": {
+        "timestamp": 4.141,
+        "action": "PICK_UP",
+        "entity": "joy-con",
+        "container": null,
+        "confidence": 0.74,
+        "accepted": true
+      },
+      "timestamp_error": 0.059,
+      "entity_ok": null,
+      "container_ok": null
+    }
+  ],
+  "extras": [
+    {
+      "timestamp": 31.46,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 30.792,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 25.081,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 22.843,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 15.696,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 13.492,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 12.424,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 9.485,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 8.683,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 6.947,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 6.479,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 5.01,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 4.475,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 4.141,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    },
+    {
+      "timestamp": 3.64,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": 0.74,
+      "accepted": true
+    }
+  ],
+  "misses": [
+    {
+      "timestamp": 18.1,
+      "action": "PUT_DOWN",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": null,
+      "accepted": true
+    },
+    {
+      "timestamp": 19.09,
+      "action": "INSERT_INTO",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": null,
+      "accepted": true
+    },
+    {
+      "timestamp": 22.1,
+      "action": "REMOVE_FROM",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": null,
+      "accepted": true
+    },
+    {
+      "timestamp": 25.1,
+      "action": "PUT_DOWN",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": null,
+      "accepted": true
+    },
+    {
+      "timestamp": 31.35,
+      "action": "REMOVE_FROM",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": null,
+      "accepted": true
+    },
+    {
+      "timestamp": 31.98,
+      "action": "PUT_DOWN",
+      "entity": "joy-con",
+      "container": null,
+      "confidence": null,
+      "accepted": true
+    }
+  ]
+}

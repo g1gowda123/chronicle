@@ -18,7 +18,9 @@ Nothing here writes into the UI package or assumes NiceGUI is installed.
 from __future__ import annotations
 
 import base64
+import json
 import math
+import mimetypes
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -123,6 +125,7 @@ def pick_frame_candidate(
     playhead: float,
     anchor_t: float | None = None,
     matched_entity: str | None = None,
+    matched_label: str | None = None,
     citation_entities: Iterable[str] = (),
     citation_labels: Iterable[str] = (),
     route: str = "entity",
@@ -142,6 +145,8 @@ def pick_frame_candidate(
 
         if matched_entity and candidate.entity_id == matched_entity:
             score += 0.30
+        elif matched_label and candidate.label.casefold() == matched_label.casefold():
+            score += 0.28
         elif candidate.entity_id and candidate.entity_id in entity_ids:
             score += 0.14
 
@@ -167,6 +172,163 @@ def pick_frame_candidate(
             best = candidate
 
     return best
+
+
+@dataclass(frozen=True, slots=True)
+class StoredEvidence:
+    """One image already stored beside an episode database."""
+
+    path: Path
+    t: float
+    kind: str
+    label: str = ""
+    entity_id: str | None = None
+    zone_id: str | None = None
+    action: str | None = None
+    caption: str = ""
+    clip_sim: float | None = None
+    bbox: tuple[float, float, float, float] | None = None
+
+    def to_frame_candidate(self) -> FrameCandidate | None:
+        """Read the image and return a self-contained data URL candidate."""
+
+        try:
+            payload = self.path.read_bytes()
+        except OSError:
+            return None
+        if not payload:
+            return None
+        mime = mimetypes.guess_type(self.path.name)[0] or "image/jpeg"
+        encoded = base64.b64encode(payload).decode("ascii")
+        return FrameCandidate(
+            url=f"data:{mime};base64,{encoded}",
+            t=self.t,
+            kind=self.kind,
+            entity_id=self.entity_id,
+            zone_id=self.zone_id,
+            label=self.label,
+            action=self.action,
+            caption=self.caption,
+            clip_sim=self.clip_sim,
+            bbox=self.bbox,
+        )
+
+    def _proxy(self) -> FrameCandidate:
+        return FrameCandidate(
+            url=str(self.path),
+            t=self.t,
+            kind=self.kind,
+            entity_id=self.entity_id,
+            zone_id=self.zone_id,
+            label=self.label,
+            action=self.action,
+            caption=self.caption,
+            clip_sim=self.clip_sim,
+            bbox=self.bbox,
+        )
+
+
+def load_stored_evidence(episode_dir: str | Path) -> tuple[StoredEvidence, ...]:
+    """Read ``<episode>/evidence/index.jsonl`` if it exists.
+
+    Each line is a JSON object with at least ``t`` and ``file``.  Optional keys
+    mirror :class:`FrameCandidate`: ``kind``, ``label``, ``entity_id``,
+    ``zone_id``/``zone``, ``action``, ``caption``, ``clip_sim`` and ``bbox``.
+    Missing files are skipped so a moved clip degrades to video extraction.
+    """
+
+    base = Path(episode_dir).expanduser()
+    index = base / "evidence" / "index.jsonl"
+    if not index.is_file():
+        return ()
+    rows: list[StoredEvidence] = []
+    for line in index.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            raw = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(raw, Mapping):
+            continue
+        timestamp = raw.get("t", raw.get("timestamp"))
+        relative = raw.get("file") or raw.get("rel_path")
+        if timestamp is None or not relative:
+            continue
+        path = index.parent / str(relative)
+        if not path.is_file() and raw.get("rel_path"):
+            path = base / str(raw["rel_path"])
+        if not path.is_file():
+            continue
+        try:
+            t = float(timestamp)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(t):
+            continue
+        bbox_raw = raw.get("bbox")
+        bbox: tuple[float, float, float, float] | None = None
+        if isinstance(bbox_raw, (list, tuple)) and len(bbox_raw) == 4:
+            try:
+                bbox = tuple(float(value) for value in bbox_raw)  # type: ignore[assignment]
+            except (TypeError, ValueError):
+                bbox = None
+        clip_sim_raw = raw.get("clip_sim")
+        try:
+            clip_sim = float(clip_sim_raw) if clip_sim_raw is not None else None
+        except (TypeError, ValueError):
+            clip_sim = None
+        rows.append(
+            StoredEvidence(
+                path=path,
+                t=t,
+                kind=str(raw.get("kind") or "interaction_strip"),
+                label=str(raw.get("label") or raw.get("action") or ""),
+                entity_id=str(raw["entity_id"]) if raw.get("entity_id") else None,
+                zone_id=str(raw.get("zone_id") or raw.get("zone") or "") or None,
+                action=str(raw["action"]) if raw.get("action") else None,
+                caption=str(raw.get("caption") or ""),
+                clip_sim=clip_sim,
+                bbox=bbox,
+            )
+        )
+    return tuple(rows)
+
+
+def pick_stored_evidence(
+    candidates: Iterable[StoredEvidence],
+    *,
+    playhead: float,
+    anchor_t: float | None = None,
+    matched_entity: str | None = None,
+    matched_label: str | None = None,
+    citation_entities: Iterable[str] = (),
+    citation_labels: Iterable[str] = (),
+    route: str = "entity",
+    matched_zone: str | None = None,
+) -> FrameCandidate | None:
+    """Rank stored images and encode only the winner as a data URL."""
+
+    rows = list(candidates)
+    if not rows:
+        return None
+    by_path = {str(row.path): row for row in rows}
+    picked = pick_frame_candidate(
+        (row._proxy() for row in rows),
+        playhead=playhead,
+        anchor_t=anchor_t,
+        matched_entity=matched_entity,
+        matched_label=matched_label,
+        citation_entities=citation_entities,
+        citation_labels=citation_labels,
+        route=route,
+        matched_zone=matched_zone,
+    )
+    if picked is None:
+        return None
+    stored = by_path.get(str(picked.url))
+    return stored.to_frame_candidate() if stored is not None else None
 
 
 def _read_video_frame(video: Path, t: float) -> tuple[Any, float] | None:

@@ -5,11 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from shapely.geometry import Polygon
 
 from chronicle.config import FurnitureConfig
 from chronicle.graph.furniture import FurnitureRegistry, bbox_iou
 from chronicle.graph.memory import ChronicleMemory
-from chronicle.types import CameraMotion, FrameContext, ObjectObservation
+from chronicle.types import (
+    CameraMotion,
+    FrameContext,
+    ObjectObservation,
+    SupportSurface,
+)
 
 
 def sofa(
@@ -107,6 +113,36 @@ def test_memory_accumulates_camera_motion_between_furniture_frames() -> None:
         furniture = memory.background.furniture()
         assert len(furniture) == 1
         assert furniture[0]["attrs"]["track_ids"] == [1, 9]
+    finally:
+        memory.close()
+
+
+def test_role_a_support_anchor_reuses_durable_furniture_anchor() -> None:
+    memory = ChronicleMemory(
+        ":memory:",
+        furniture_config=FurnitureConfig(min_hits=1),
+    )
+    try:
+        support = SupportSurface(
+            anchor_id="support-sofa-1",
+            label="sofa",
+            polygon=Polygon.from_bounds(100.0, 100.0, 300.0, 250.0),
+            zone_id="living-room",
+        )
+        memory.observe(
+            FrameContext(
+                t=0.0,
+                objects=(sofa(),),
+                supports=(support,),
+                zone_id="living-room",
+                frame_size=(800, 600),
+            )
+        )
+
+        furniture = memory.background.furniture()
+        assert len(furniture) == 1
+        assert furniture[0]["label"] == "sofa"
+        assert "support-sofa-1" not in str(furniture[0]["anchor_id"])
     finally:
         memory.close()
 

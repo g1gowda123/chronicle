@@ -2,15 +2,18 @@
 # ==============================================================================
 # Chronicle Management Control Script
 # Usage:
-#   ./chronicle.sh                         - Launch Chronicle dashboard
+#   ./chronicle.sh                         - Launch the zine mission control (:8080)
 #   ./chronicle.sh --no-llm                - Launch with deterministic answers
 #   ./chronicle.sh --llm ollama            - Force the local Qwen backend
 #   ./chronicle.sh --llm-model qwen2.5:7b-instruct
+#   ./chronicle.sh pipeline [source] [port]- Live-pipeline demo UI (foreground)
 #   ./chronicle.sh stop                    - Stop running dashboard
 #   ./chronicle.sh restart                 - Restart dashboard
 #   ./chronicle.sh status                  - Check server status & health
 #   ./chronicle.sh logs                    - Tail server log output
 #   ./chronicle.sh test                    - Run fast test suite
+#   ./chronicle.sh preflight               - PASS/WARN/FAIL demo readiness check
+#   ./chronicle.sh preflight --warm-llm    - Also load Qwen before the demo
 # ==============================================================================
 
 set -euo pipefail
@@ -158,6 +161,7 @@ llm_summary_info() {
 }
 
 start_server() {
+    # The zine mission control is THE dashboard: run_dashboard.py (NiceGUI).
     local source="${1:-$DEFAULT_SOURCE}"
     local port="${2:-$DEFAULT_PORT}"
 
@@ -178,54 +182,76 @@ start_server() {
         return 1
     fi
 
-    echo -e "${BOLD}${CYAN}Starting Chronicle dashboard...${NC}"
+    # Map the chronicle.sh LLM flags onto run_dashboard.py env vars.
+    local info
+    info=$(effective_llm)
+    local llm_backend="${info%%|*}"
+    local llm_model="${info##*|}"
+    case "${llm_backend}" in
+        ollama)       export CHRONICLE_LLM_BACKEND="ollama" ;;
+        template)     export CHRONICLE_LLM_BACKEND="template" ;;
+        transformers) export CHRONICLE_LLM_BACKEND="template" ;;
+        none)         export CHRONICLE_LLM_BACKEND="none" ;;
+        *)            export CHRONICLE_LLM_BACKEND="auto" ;;
+    esac
+    export CHRONICLE_LLM_MODEL="${llm_model}"
+    export CHRONICLE_OLLAMA_URL="${OLLAMA_URL}"
+
+    echo -e "${BOLD}${CYAN}Starting Chronicle zine mission control...${NC}"
     echo -e "  Source:   ${GREEN}${source}${NC}"
     echo -e "  Port:     ${GREEN}${port}${NC}"
     echo -e "  $(llm_summary)"
     echo -e "  Log file: ${BLUE}${LOG_FILE}${NC}"
 
-    # Export deterministic embedder if running synthetic to guarantee zero downloads
-    if [ "${source}" = "synthetic" ]; then
-        export CHRONICLE_EMBEDDER_BACKEND="deterministic"
+    # The mission control replays the bundled synthetic demo episode. Any other
+    # source name runs in live mode and waits for POST /api/ingest.
+    local dash_source="demo"
+    if [ "${source}" != "synthetic" ]; then
+        dash_source="live"
+        echo -e "  ${YELLOW}note: ${source} has no bundled replay — starting in live mode${NC}"
+        echo -e "  ${YELLOW}(feed it with POST /api/ingest, CHRONICLE_EVENTS_JSONL or CHRONICLE_DB)${NC}"
     fi
+    echo -e "  ${YELLOW}live-pipeline demo (clip switching, exports): ./chronicle.sh pipeline${NC}"
 
-    nohup setsid "${CHRONICLE_BIN}" serve \
-        --source "${source}" \
+    nohup setsid "${PYTHON_BIN}" run_dashboard.py \
+        --source "${dash_source}" \
         --port "${port}" \
         --host "127.0.0.1" \
-        "${LLM_ARGS[@]}" \
         >> "${LOG_FILE}" 2>&1 < /dev/null &
 
     local pid=$!
     disown "${pid}" 2>/dev/null || true
     echo "${pid}" > "${PID_FILE}"
     echo "${port}" > "${PORT_FILE}"
-    effective_llm > "${LLM_FILE}"
+    echo "${info}" > "${LLM_FILE}"
 
-    # Wait up to 5 seconds for the server to bind
-    local timeout=10
+    # Wait up to 8 seconds for NiceGUI to bind
+    local timeout=16
     local ready=false
     while [ "${timeout}" -gt 0 ]; do
-        if is_running; then
-            if grep -q "Uvicorn running on" "${LOG_FILE}" 2>/dev/null || grep -q "NiceGUI ready" "${LOG_FILE}" 2>/dev/null; then
-                ready=true
-                break
-            fi
-            sleep 0.5
-            timeout=$((timeout - 1))
-        else
+        if grep -q "NiceGUI ready" "${LOG_FILE}" 2>/dev/null; then
+            ready=true
             break
         fi
+        if curl -sf --max-time 1 "http://127.0.0.1:${port}/api/health" >/dev/null 2>&1; then
+            ready=true
+            break
+        fi
+        if ! kill -0 "${pid}" 2>/dev/null; then
+            break
+        fi
+        sleep 0.5
+        timeout=$((timeout - 1))
     done
 
-    if is_running; then
-        echo -e "${GREEN}✓ Chronicle dashboard successfully started!${NC} (PID: ${pid})"
+    if [ "${ready}" = true ]; then
+        echo -e "${GREEN}✓ Chronicle mission control started!${NC} (PID: ${pid})"
         echo -e "\n  ${BOLD}URL:${NC} ${CYAN}http://127.0.0.1:${port}${NC}\n"
-        echo -e "Switch between videos (${CYAN}synthetic${NC}, ${CYAN}tabletop${NC}, ${CYAN}cook${NC}, ${CYAN}play${NC}, ${CYAN}walking${NC}) directly in the UI dropdown."
         echo -e "\nUseful commands:"
         echo -e "  ${YELLOW}./chronicle.sh stop${NC}    - Stop the server"
         echo -e "  ${YELLOW}./chronicle.sh status${NC}  - Check status"
         echo -e "  ${YELLOW}./chronicle.sh logs${NC}    - View live logs"
+        echo -e "  ${YELLOW}./chronicle.sh pipeline${NC} - Live-pipeline demo (foreground)"
     else
         echo -e "${RED}✗ Failed to start server. Check logs:${NC}"
         tail -n 15 "${LOG_FILE}"
@@ -285,27 +311,34 @@ server_status() {
         pid=$(get_pid)
         port="${DEFAULT_PORT}"
         [ -f "${PORT_FILE}" ] && port=$(cat "${PORT_FILE}")
-        info="$(effective_llm)"
-        [ -f "${LLM_FILE}" ] && info=$(cat "${LLM_FILE}")
-        echo -e "${GREEN}● Chronicle dashboard is RUNNING${NC} (PID: ${pid})"
+        [ -f "${LLM_FILE}" ] && info=$(cat "${LLM_FILE}") || info="$(effective_llm)"
+        echo -e "${GREEN}● Chronicle mission control is RUNNING${NC} (PID: ${pid})"
         echo -e "  URL:      ${CYAN}http://127.0.0.1:${port}${NC}"
         echo -e "  Log file: ${BLUE}${LOG_FILE}${NC}"
         echo -e "  $(llm_summary_info "${info}")"
         echo -e "\n${BOLD}Recent Log Output (last 8 lines):${NC}"
         tail -n 8 "${LOG_FILE}" 2>/dev/null || echo "No logs yet."
     else
-        echo -e "${RED}○ Chronicle dashboard is STOPPED${NC}"
+        echo -e "${RED}○ Chronicle mission control is STOPPED${NC}"
         rm -f "${PID_FILE}" "${PORT_FILE}" "${LLM_FILE}"
     fi
 }
 
 serve_foreground() {
+    # The live-pipeline demo UI (chronicle serve): real perception, clip
+    # switching between sources, evidence exports. Kept for the full A→B→C
+    # pipeline demos and ./chronicle.sh preflight; the default `start` is the
+    # zine mission control.
     local source="${1:-$DEFAULT_SOURCE}"
     local port="${2:-$DEFAULT_PORT}"
 
-    echo -e "${BOLD}${CYAN}Launching Chronicle dashboard in foreground...${NC}"
+    echo -e "${BOLD}${CYAN}Launching the live-pipeline demo UI in foreground...${NC}"
     echo -e "  $(llm_summary)"
     echo -e "Access at: ${CYAN}http://127.0.0.1:${port}${NC} (Press Ctrl+C to stop)\n"
+
+    if [ "${source}" = "synthetic" ]; then
+        export CHRONICLE_EMBEDDER_BACKEND="deterministic"
+    fi
 
     exec "${CHRONICLE_BIN}" serve \
         --source "${source}" \
@@ -338,31 +371,35 @@ print_help() {
     echo -e "${BOLD}Usage:${NC} ./chronicle.sh <command> [options]"
     echo
     echo -e "${BOLD}Commands:${NC}"
-    echo -e "  ${GREEN}start${NC} [source] [port]   Start the web dashboard in background"
-    echo -e "                          Available sources: ${CYAN}synthetic${NC}, ${CYAN}tabletop${NC}, ${CYAN}cook${NC}, ${CYAN}play${NC}, ${CYAN}walking${NC}"
-    echo -e "  ${GREEN}stop${NC} [port]             Stop the background dashboard"
-    echo -e "  ${GREEN}restart${NC} [source] [port] Restart the background dashboard"
+    echo -e "  ${GREEN}start${NC} [source] [port]   Start the zine mission control in background (port ${CYAN}8080${NC})"
+    echo -e "                          ${CYAN}synthetic${NC} replays the bundled demo; other sources wait for live ingest"
+    echo -e "  ${GREEN}stop${NC} [port]             Stop the background mission control"
+    echo -e "  ${GREEN}restart${NC} [source] [port] Restart the background mission control"
     echo -e "  ${GREEN}status${NC}                  Show server status, PID and recent logs"
     echo -e "  ${GREEN}logs${NC}                    Tail live log output (-f)"
-    echo -e "  ${GREEN}serve${NC} [source] [port]   Run the web dashboard in foreground"
+    echo -e "  ${GREEN}pipeline${NC} [source] [port] Run the live-pipeline demo UI in foreground"
+    echo -e "                          (chronicle serve: real perception, clip switching, exports)"
+    echo -e "  ${GREEN}serve${NC}                   Alias of pipeline"
     echo -e "  ${GREEN}test${NC}                    Run full test & verification suite"
+    echo -e "  ${GREEN}preflight${NC} [options]     Check videos, SQLite, backends, LLM, tests"
+    echo -e "                          and a 30-frame run before the demo"
     echo -e "  ${GREEN}sources${NC}                 List all registered video sources"
     echo -e "  ${GREEN}help${NC}                    Show this help message"
     echo
-    echo -e "${BOLD}LLM options${NC} (start/restart/serve):"
+    echo -e "${BOLD}LLM options${NC} (start/restart/pipeline):"
     echo -e "  ${GREEN}--no-llm${NC}               Deterministic graph answers (no Ollama)"
     echo -e "  ${GREEN}--llm${NC} BACKEND          ${CYAN}auto${NC}|${CYAN}ollama${NC}|${CYAN}transformers${NC}|${CYAN}template${NC} (default: ${LLM_BACKEND})"
     echo -e "  ${GREEN}--llm-model${NC} NAME       Ollama model (default: ${LLM_MODEL})"
     echo
     echo -e "${BOLD}Examples:${NC}"
-    echo -e "  ./chronicle.sh start                    # Start with synthetic fixture on port 8080"
-    echo -e "  ./chronicle.sh start tabletop           # Start with HoloLens tabletop on port 8080"
-    echo -e "  ./chronicle.sh start cook 8085          # Start with Aria cook clip on port 8085"
-    echo -e "  ./chronicle.sh start --llm-model qwen2.5:1.5b  # Faster local model"
+    echo -e "  ./chronicle.sh start                    # Start at http://127.0.0.1:8080"
     echo -e "  ./chronicle.sh start --no-llm           # Deterministic answers only"
+    echo -e "  ./chronicle.sh pipeline tabletop        # Live-pipeline demo UI (foreground)"
     echo -e "  ./chronicle.sh stop                     # Stop running server"
     echo -e "  ./chronicle.sh status                   # Check if running"
     echo -e "  ./chronicle.sh test                     # Run all 250+ tests & benchmarks"
+    echo -e "  ./chronicle.sh preflight                # Check demo readiness"
+    echo -e "  ./chronicle.sh preflight --warm-llm     # Load Qwen before the demo"
 }
 
 # ------------------------------------------------------------------------------
@@ -397,12 +434,15 @@ case "${ACTION}" in
     logs|log)
         show_logs
         ;;
-    serve|run)
+    serve|run|pipeline)
         parse_llm_flags "$@"
         serve_foreground "${PARSE_POSITIONAL[0]:-$DEFAULT_SOURCE}" "${PARSE_POSITIONAL[1]:-$DEFAULT_PORT}"
         ;;
     test|tests)
         run_tests
+        ;;
+    preflight|doctor)
+        exec "${PYTHON_BIN}" "${ROOT_DIR}/scripts/demo_preflight.py" "$@"
         ;;
     sources)
         "${CHRONICLE_BIN}" sources

@@ -180,6 +180,32 @@ def test_observations_are_throttled(memory: ChronicleMemory) -> None:
     assert 8 <= memory.store.count("observations") <= 14
 
 
+def test_entity_and_support_writes_are_throttled(memory: ChronicleMemory) -> None:
+    counts = {"entity": 0, "furniture": 0}
+    original_entity = memory.store.upsert_entity
+    original_furniture = memory.store.upsert_furniture
+
+    def count_entity(*args, **kwargs):
+        counts["entity"] += 1
+        return original_entity(*args, **kwargs)
+
+    def count_furniture(*args, **kwargs):
+        counts["furniture"] += 1
+        return original_furniture(*args, **kwargs)
+
+    memory.store.upsert_entity = count_entity  # type: ignore[method-assign]
+    memory.store.upsert_furniture = count_furniture  # type: ignore[method-assign]
+    try:
+        feed(memory, 0.0, 3.0, DT, lambda t: [cup()])
+    finally:
+        memory.store.upsert_entity = original_entity  # type: ignore[method-assign]
+        memory.store.upsert_furniture = original_furniture  # type: ignore[method-assign]
+
+    # 90 frames: the graph changes every frame, but SQLite should not.
+    assert counts["entity"] < 60
+    assert counts["furniture"] <= 10
+
+
 def test_zone_relocalization_threshold(memory: ChronicleMemory) -> None:
     kitchen = memory.enter_zone("kitchen", 0.0, embedding=[1.0, 0.0, 0.0])
     assert kitchen == "zone:kitchen"

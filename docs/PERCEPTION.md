@@ -256,6 +256,21 @@ Thresholds follow the technical specification where it defines them (2.5 px
 stationary, 8 px pan, IoS 0.60, dwell 0.3 s, SC 0.82). The calibration report
 from the prototype is not included; tune per camera.
 
+### Furniture routing on the living-room clip
+
+Role A emits short-lived `support-sofa-N`/`support-table-N` candidates; Role B
+owns the durable `anchor:*` nodes. NB-10 now routes furniture *before* creating
+support anchors and maps a support box onto a confirmed furniture anchor with
+`FurnitureRegistry.match_surface()`. On a fresh full `play` replay this reduced
+snapshot furniture rows from **67 to 18** and removed every `anchor:support-*`
+duplicate (`tests/test_furniture.py`).
+
+The clip still contains six `sofa` anchors. Visually it has one sofa and one
+armchair; YOLO-World labels the armchair as `sofa`, and a 0.1 s detection still
+passes the two-hit confirmation gate. The consolidation gate correctly refuses
+to merge co-visible boxes, so the remaining work is label/vocabulary and fixture
+tuning (NB-20), not a lower merge threshold.
+
 ## Tests
 
 ```bash
@@ -308,10 +323,12 @@ python -m chronicle.semantic.timeline \
 Fallback result on this machine (no `torch`/`ultralytics`/`mediapipe`/`open_clip`
 installed, so the colour detector/hands/embedder are the only runnable path):
 
-| Run | Backends | Labels | Preds | Matched | Precision | Recall | Mean \|Δt\| | Result |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Fallback | colour detector + colour hands + colour embedder | 7 | 19 | 1 | 5.3% | 14.3% | 0.28 s | FAIL |
-| Harness self-check | bundled demo snapshot | 1 | 1 | 1 | 100% | 100% | 0.07 s | PASS |
+| Run | Backends | Labels | Preds | Matched | Precision | Recall | Mean |dt| | Entity Accuracy | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Fallback | colour detector + colour hands + colour embedder | 7 | 19 | 1 | 5.3% | 14.3% | 0.28 s | 0% (--ignore-entity) | FAIL |
+| Production YOLO-World (TASK-F4) | YOLO-World (vocabulary) + colour hands + colour embedder | 7 | 25 | 1 | 4.0% | 14.3% | 0.06 s | 100% | FAIL |
+| Production + NB-07 | YOLO-World (vocabulary) + MediaPipe + OpenCLIP | 7 | 16 | 1 | 6.3% | 14.3% | 0.06 s | n/a (--ignore-entity) | FAIL |
+| Harness self-check | bundled demo snapshot | 1 | 1 | 1 | 100% | 100% | 0.07 s | 100% | PASS |
 
 The fallback's 19 predictions are all `PICK_UP` on `cup`/`mug` (colour blobs),
 while the annotation labels everything `joy-con`; `--ignore-entity` therefore
@@ -321,6 +338,36 @@ not be read as production action accuracy: re-run the same commands with the
 production backends (`uv sync --extra models`, detector prompt
 `joy-con, switch console, table, comfort grip`) and without
 `--ignore-entity` for the real benchmark.
+
+With **TASK-F4**, chronicle run --source tabletop applies ClipSource.vocabulary
+(joy-con, switch console, table, cup, mug, keys) to YOLO-World and exposes
+--conf and --imgsz. Running the real YOLO-World detector correctly detects
+joy-con entities, bringing entity accuracy to **100%** on matched actions and
+improving mean timestamp error from 0.28 s down to **0.06 s** on the matched
+PICK_UP joy-con interaction at t=4.48s (vs. t=4.20s ground truth). Full action
+recall on the remaining assembly steps requires Florence-2 VLM classification
+beyond the rule-based hand-contact classifier.
+
+**NB-07 measured this explicitly.** The labelled timeline is now committed as
+`docs/action_timeline.holoassist.json` and the full-clip production run is
+stored in `docs/action_timeline.holoassist.report.json`:
+
+```bash
+python -m chronicle.cli run --source tabletop --reset \
+  --db runs/nb07/hololens.db --snapshot-out runs/nb07/hololens_snapshot.json
+python -m chronicle.semantic.timeline \
+  --labels docs/action_timeline.holoassist.json \
+  --snapshot runs/nb07/hololens_snapshot.json --tolerance 2.2 --ignore-entity
+# 1/7 matched · precision 6.3% · recall 14.3% · mean |dt| 0.06 s · FAIL
+```
+
+The timestamps are good; the labels are not. With Florence-2 unavailable, the
+`StubCaptioner` returns `"the hand grasps the joy-con"` for every strip, so the
+rule classifier emits `PICK_UP` 16 times and never predicts `PUT_DOWN`,
+`INSERT_INTO` or `REMOVE_FROM`. This is a caption/classification gap, not a
+timeline-scoring bug. The concrete follow-up is **NB-19**: run the same
+command with Florence-2 (or a vision LLM) captions and re-calibrate; until then
+the HoloLens action-accuracy bar is not met.
 
 ### Aria clip pipeline benchmark
 
@@ -385,6 +432,75 @@ The YOLO-World run exposed a telemetry sink bug: clip payloads can contain
 their own `frame_index`, which the runtime also passed as a keyword. The sink
 now merges the payload explicitly and a model-free regression test covers it
 (`tests/test_integration.py`).
+
+### NB-05 — every bundled source end to end
+
+Run on 2026-10-27 with all five registered sources. The full-clip pass uses the
+offline colour backends to verify plumbing for every frame; the bounded pass
+uses YOLO-World + MediaPipe + OpenCLIP on the real clips to record the
+production path. Every run passed all 9 snapshot invariants.
+
+```bash
+# Full clips, offline backends
+python -m chronicle.benchmark --sources all \
+  --detector color --hands color --embedder color \
+  --out runs/benchmark/nb05-fallback.json
+
+# Bounded production pass on the real clips
+python -m chronicle.benchmark --sources tabletop,cook,play,walking \
+  --max-frames 180 --detector yolo-world --hands mediapipe --embedder openclip \
+  --out runs/benchmark/nb05-production.json
+```
+
+| Source | Backends | Frames | Wall | Throughput | Detections | Entities | Transitions | Actions | Clips | Grounded | Checks |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| synthetic | colour / colour / colour | 360 | 4.19 s | 85.9 fps | 1440 | 4 | 10 | 1 | 1 | 2/2 | 9/9 |
+| tabletop | colour / colour / colour | 1019 | 8.38 s | 121.5 fps | 1269 | 4 | 112 | 16 | 16 | 1/3 | 9/9 |
+| walking | colour / colour / colour | 600 | 3.88 s | 154.5 fps | 0 | 0 | 0 | 0 | 0 | 0/5 | 9/9 |
+| cook | colour / colour / colour | 450 | 2.26 s | 199.3 fps | 0 | 0 | 0 | 0 | 0 | 0/2 | 9/9 |
+| play | colour / colour / colour | 450 | 3.00 s | 150.2 fps | 0 | 0 | 0 | 0 | 0 | 0/3 | 9/9 |
+
+| Source | Backends | Frames | Wall | Throughput | Detections | Entities | Transitions | Actions | Clips | Grounded | Checks |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| tabletop | YOLO-World / MediaPipe / OpenCLIP | 180 | 14.06 s | 12.8 fps | 127 | 2 | 5 | 4 | 4 | 3/3 | 9/9 |
+| cook | YOLO-World / MediaPipe / OpenCLIP | 180 | 16.84 s | 10.7 fps | 574 | 9 | 60 | 1 | 1 | 2/2 | 9/9 |
+| play | YOLO-World / MediaPipe / OpenCLIP | 180 | 16.32 s | 11.0 fps | 918 | 5 | 20 | 0 | 0 | 1/3 | 9/9 |
+| walking | YOLO-World / MediaPipe / OpenCLIP | 180 | 17.94 s | 10.0 fps | 193 | 3 | 32 | 0 | 0 | 5/5 | 9/9 |
+
+Notes:
+
+- The colour backends are a plumbing check only; they deliberately detect
+  nothing on real Aria footage.
+- A 30-frame tabletop run starts before the first Joy-Con action at 4.2 s and
+  can report zero detections. Use at least a 180-frame window, or seek past the
+  lead-in, when rehearsing the HoloLens demo.
+- Grounded questions are answered for every source in the full fallback pass;
+  `tabletop` has one ungrounded question (`what did I do with the joy-con?`)
+  because the colour backends cannot see the Joy-Con. The production pass
+  answers all three tabletop questions.
+- The dashboard video route was verified headlessly for every registered
+  source (`tests/test_dashboard_smoke.py`): each clip returns HTTP 200 with a
+  `video/*` content type. The interactive dropdown/video player is the user's
+  upcoming UI work; the underlying source selection and file route are proven.
+- No source has a blocking failure. The only gap is the unlabelled Aria action
+  accuracy noted above; structural completion is green for all five.
+
+### Stored evidence fixtures
+
+`scripts/build_evidence_fixtures.py` writes the images used by grounded answer
+cards. The synthetic source reuses its interaction strips/crops, HoloAssist
+reuses the seven real interaction strips, and each Aria clip gets three sampled
+zone keyframes. The preflight now reports `5/5 sources have stored evidence
+frames`; the video-frame fallback remains for uploaded clips.
+
+```bash
+.venv/bin/python scripts/build_evidence_fixtures.py
+.venv/bin/python scripts/build_evidence_fixtures.py --source tabletop
+```
+
+Each episode keeps `evidence/index.jsonl` beside its SQLite database. See
+[`INTEGRATION.md`](INTEGRATION.md#answer-evidence-frames) for the row schema and
+selection order.
 
 
 ## Known limitations

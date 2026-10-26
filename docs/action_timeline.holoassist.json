@@ -1,0 +1,54 @@
+{
+  "clip": "data/real/holoassist_switch_34s.mp4",
+  "dataset": "HoloAssist",
+  "session": "z210-sep-29-22-switch",
+  "license": "CDLA-Permissive-2.0",
+  "fps": 29.943,
+  "duration_s": 34.0,
+  "tolerance_s": 2.2,
+  "notes": "Hand-labelled action timeline for the published HoloAssist Joy-Con clip. One row per ground_truth.actions entry whose first candidate maps to a Chronicle primitive; movement-only rows (MOVE/VISIBLE_MOVING) are omitted. The entity vocabulary is HoloAssist's joy-con, so score with --ignore-entity until the detector is trained on the same labels.",
+  "labels": [
+    {
+      "timestamp": 4.2,
+      "action": "PICK_UP",
+      "entity": "joy-con",
+      "source_event": "grab joy_con_controller"
+    },
+    {
+      "timestamp": 18.1,
+      "action": "PUT_DOWN",
+      "entity": "joy-con",
+      "source_event": "place joy_con_controller"
+    },
+    {
+      "timestamp": 19.09,
+      "action": "INSERT_INTO",
+      "entity": "joy-con",
+      "source_event": "insert joy_con_controller"
+    },
+    {
+      "timestamp": 22.1,
+      "action": "REMOVE_FROM",
+      "entity": "joy-con",
+      "source_event": "withdraw joy_con_controller"
+    },
+    {
+      "timestamp": 25.1,
+      "action": "PUT_DOWN",
+      "entity": "joy-con",
+      "source_event": "place joy_con_controller"
+    },
+    {
+      "timestamp": 31.35,
+      "action": "REMOVE_FROM",
+      "entity": "joy-con",
+      "source_event": "withdraw joy_con_controller"
+    },
+    {
+      "timestamp": 31.98,
+      "action": "PUT_DOWN",
+      "entity": "joy-con",
+      "source_event": "place joy_con_controller"
+    }
+  ]
+}

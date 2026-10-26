@@ -1,0 +1,118 @@
+{
+  "thresholds": {
+    "CLOSE": 0.6,
+    "HAND_OFF": 0.6,
+    "HOLD": 0.62,
+    "INSERT_INTO": 0.8,
+    "OPEN": 0.6,
+    "OTHER": 1.0,
+    "PICK_UP": 0.74,
+    "PULL": 0.55,
+    "PUSH": 0.68,
+    "PUT_DOWN": 0.76,
+    "REMOVE_FROM": 0.78
+  },
+  "report": {
+    "samples": 19,
+    "accepted": 14,
+    "rejected_correct": 5,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "thresholds": {
+      "CLOSE": 0.6,
+      "HAND_OFF": 0.6,
+      "HOLD": 0.62,
+      "INSERT_INTO": 0.8,
+      "OPEN": 0.6,
+      "OTHER": 1.0,
+      "PICK_UP": 0.74,
+      "PULL": 0.55,
+      "PUSH": 0.68,
+      "PUT_DOWN": 0.76,
+      "REMOVE_FROM": 0.78
+    },
+    "per_action": {
+      "HOLD": {
+        "support": 3,
+        "correct": 3,
+        "accepted": 3,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positives": 3,
+        "false_positives": 0,
+        "false_negatives": 0
+      },
+      "INSERT_INTO": {
+        "support": 1,
+        "correct": 1,
+        "accepted": 1,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positives": 1,
+        "false_positives": 0,
+        "false_negatives": 0
+      },
+      "OTHER": {
+        "support": 5,
+        "correct": 5,
+        "accepted": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "true_positives": 0,
+        "false_positives": 0,
+        "false_negatives": 0
+      },
+      "PICK_UP": {
+        "support": 3,
+        "correct": 3,
+        "accepted": 3,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positives": 3,
+        "false_positives": 0,
+        "false_negatives": 0
+      },
+      "PUSH": {
+        "support": 2,
+        "correct": 2,
+        "accepted": 2,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positives": 2,
+        "false_positives": 0,
+        "false_negatives": 0
+      },
+      "PUT_DOWN": {
+        "support": 3,
+        "correct": 3,
+        "accepted": 3,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positives": 3,
+        "false_positives": 0,
+        "false_negatives": 0
+      },
+      "REMOVE_FROM": {
+        "support": 2,
+        "correct": 2,
+        "accepted": 2,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positives": 2,
+        "false_positives": 0,
+        "false_negatives": 0
+      }
+    }
+  },
+  "env": {
+    "CHRONICLE_ACTION_THRESHOLDS": "CLOSE=0.6,HAND_OFF=0.6,HOLD=0.62,INSERT_INTO=0.8,OPEN=0.6,OTHER=1,PICK_UP=0.74,PULL=0.55,PUSH=0.68,PUT_DOWN=0.76,REMOVE_FROM=0.78"
+  }
+}

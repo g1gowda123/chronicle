@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 from conftest import DT, cup, make_frame
@@ -190,6 +192,146 @@ def test_integrated_runtime_attaches_frame_to_answer(
         assert answer.frame is not None
         assert answer.frame["kind"] == "video_frame"
         assert answer.to_dict()["frame"] == answer.frame
+    finally:
+        runtime.close()
+
+
+def _write_evidence_index(
+    episode_dir: Path,
+    rows: list[dict],
+    *,
+    missing: bool = False,
+) -> None:
+    evidence = episode_dir / "evidence"
+    evidence.mkdir(parents=True, exist_ok=True)
+    for row in rows:
+        if missing and row["file"].startswith("missing"):
+            continue
+        image = evidence / row["file"]
+        assert cv2.imwrite(str(image), np.zeros((8, 8, 3), dtype=np.uint8))
+    (evidence / "index.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
+    )
+
+
+def test_load_stored_evidence_reads_index_and_skips_missing(
+    tmp_path: Path,
+) -> None:
+    episode = tmp_path / "episode"
+    rows = [
+        {
+            "file": "shown.jpg",
+            "t": 4.0,
+            "kind": "interaction_strip",
+            "label": "cup",
+            "entity_id": "cup_1",
+            "action": "PICK_UP",
+        },
+        {
+            "file": "missing.jpg",
+            "t": 5.0,
+            "kind": "zone_keyframe",
+            "label": "kitchen",
+        },
+    ]
+    _write_evidence_index(episode, rows, missing=True)
+
+    loaded = frame_utils.load_stored_evidence(episode)
+
+    assert len(loaded) == 1
+    assert loaded[0].path.name == "shown.jpg"
+    assert loaded[0].entity_id == "cup_1"
+
+
+def test_pick_stored_evidence_prefers_matching_label_and_encodes_data_url(
+    tmp_path: Path,
+) -> None:
+    episode = tmp_path / "episode"
+    rows = [
+        {
+            "file": "cup.jpg",
+            "t": 5.0,
+            "kind": "interaction_strip",
+            "label": "cup",
+            "entity_id": "cup_1",
+            "action": "PICK_UP",
+        },
+        {
+            "file": "zone.jpg",
+            "t": 0.0,
+            "kind": "zone_keyframe",
+            "label": "kitchen",
+            "zone_id": "kitchen",
+        },
+    ]
+    _write_evidence_index(episode, rows)
+    loaded = frame_utils.load_stored_evidence(episode)
+
+    picked = frame_utils.pick_stored_evidence(
+        loaded,
+        playhead=10.0,
+        anchor_t=5.0,
+        matched_label="cup",
+    )
+
+    assert picked is not None
+    assert picked.kind == "interaction_strip"
+    assert picked.label == "cup"
+    assert picked.url.startswith("data:image/jpeg;base64,")
+
+
+def test_bundled_evidence_indexes_are_usable() -> None:
+    indexes = sorted(ROOT.glob("data/**/evidence/index.jsonl"))
+    assert indexes, "no bundled evidence indexes found"
+    for index in indexes:
+        rows = frame_utils.load_stored_evidence(index.parent.parent)
+        assert rows, index
+        assert all(row.path.is_file() for row in rows)
+
+
+def test_integrated_runtime_prefers_stored_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    episode = tmp_path / "episode"
+    _write_evidence_index(
+        episode,
+        [
+            {
+                "file": "cup.jpg",
+                "t": 0.5,
+                "kind": "interaction_strip",
+                "label": "cup",
+                "entity_id": "cup_1",
+                "action": "PICK_UP",
+            }
+        ],
+    )
+    runtime = ChronicleRuntime(
+        str(episode / "chronicle.db"),
+        semantic_enabled=False,
+        zone_label="kitchen",
+        reset=True,
+    )
+    try:
+        for index in range(30):
+            runtime.memory.observe(
+                make_frame(index * DT, objects=[cup()], zone_label="kitchen")
+            )
+        runtime._video = "video-placeholder.mp4"  # noqa: SLF001
+        monkeypatch.setattr(
+            "chronicle.integration.extract_video_frame_data_url",
+            lambda path, t: (_ for _ in ()).throw(
+                AssertionError("stored evidence should win")
+            ),
+        )
+
+        answer = runtime.ask("where is my cup?")
+
+        assert answer.frame is not None
+        assert answer.frame["kind"] == "interaction_strip"
+        assert answer.frame["label"] == "cup"
+        assert answer.frame["url"].startswith("data:image/jpeg;base64,")
     finally:
         runtime.close()
 

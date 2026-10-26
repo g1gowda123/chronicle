@@ -28,6 +28,8 @@ from chronicle.semantic import (
 )
 from chronicle.semantic.florence import StubCaptioner
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 class ContainerExtractionTest(unittest.TestCase):
     def test_insert_and_remove_phrases(self) -> None:
@@ -242,6 +244,40 @@ class CalibrationReportTest(unittest.TestCase):
             '"evidence": "hand grabs keys"}'
         )
         self.assertTrue(calibrator.apply(parsed).accepted)
+
+    def test_correct_other_rejections_do_not_lower_recall(self) -> None:
+        samples = (
+            CalibrationSample(ActionPrimitive.PICK_UP, 0.9, True),
+            CalibrationSample(ActionPrimitive.OTHER, 0.25, True),
+            CalibrationSample(ActionPrimitive.OTHER, 0.25, True),
+        )
+        report = evaluate_calibration(samples, thresholds={"PICK_UP": 0.5})
+        self.assertEqual(report.recall, 1.0)
+        self.assertEqual(report.precision, 1.0)
+        self.assertEqual(report.rejected_correct, 2)
+
+    def test_real_holoassist_labels_meet_precision_target(self) -> None:
+        labels = REPO_ROOT / "docs" / "calibration_labels.holoassist.json"
+        result = calibrate_from_file(labels, target_precision=0.9)
+        report = result.report
+        self.assertGreaterEqual(report.samples, 18)
+        self.assertGreater(report.accepted, 0)
+        self.assertEqual(report.precision, 1.0)
+        self.assertEqual(report.recall, 1.0)
+        self.assertGreaterEqual(report.rejected_correct, 1)
+        pick_up = dict(report.metrics)["PICK_UP"]
+        self.assertEqual(pick_up.precision, 1.0)
+        self.assertEqual(pick_up.recall, 1.0)
+        thresholds = dict(result.thresholds)
+        for action, expected in (
+            ("PICK_UP", 0.74),
+            ("HOLD", 0.62),
+            ("PUSH", 0.68),
+            ("PUT_DOWN", 0.76),
+            ("INSERT_INTO", 0.80),
+            ("REMOVE_FROM", 0.78),
+        ):
+            self.assertAlmostEqual(thresholds[action], expected)
 
 
 class ConfigTest(unittest.TestCase):

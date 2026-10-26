@@ -1,6 +1,6 @@
 # Chronicle Notice Board
 
-**Last synced:** 2026-10-26  
+**Last synced:** 2026-10-27
 **Source of truth for scope:** `docs/chronicle-spec-condensed.tex` + current code  
 **Detailed status / history:** [`TEAM_STATUS.md`](TEAM_STATUS.md)
 
@@ -48,20 +48,23 @@ PR so parallel work does not collide.
 | NB-01 | P0 | Clickable citations seek the video | UI | READY | unclaimed |
 | NB-02 | P0 | Show the evidence frame under each answer | UI | READY | unclaimed |
 | NB-03 | P0 | Grounding / rejection provenance in the query panel | UI | READY | unclaimed |
-| NB-04 | P0 | Demo preflight script and checklist | Ops | READY | unclaimed |
-| NB-05 | P0 | Verify every bundled source end to end | QA | READY | unclaimed |
-| NB-06 | P0 | Real-clip evidence images for demo answers | Perception | READY | unclaimed |
-| NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
-| NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | READY | unclaimed |
+| NB-04 | P0 | Demo preflight script and checklist | Ops | DONE | opencode (AI) |
+| NB-05 | P0 | Verify every bundled source end to end | QA | DONE | opencode (AI) |
+| NB-06 | P0 | Real-clip evidence images for demo answers | Perception | DONE | opencode (AI) |
+| NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | DONE | opencode (AI) |
+| NB-19 | P1 | Re-run HoloAssist action timeline with Florence-2 captions | Semantic | READY | unclaimed |
+| NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | DONE | opencode (AI) |
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
-| NB-10 | P1 | Tune consolidation on the living-room clip | Graph | READY | unclaimed |
-| NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | READY | unclaimed |
-| NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | READY | unclaimed |
-| NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | READY | unclaimed |
+| NB-10 | P1 | Tune consolidation on the living-room clip | Graph | IN PROGRESS | opencode (AI) |
+| NB-20 | P1 | Add living-room furniture labels and stop armchair/sofa conflation | Graph / Perception | READY | unclaimed |
+| NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | DONE | opencode (AI) |
+| NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | DONE | opencode (AI) |
+| NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | DONE | opencode (AI) |
 | NB-14 | P2 | Search and filter actions / transitions | UI | READY | unclaimed |
 | NB-15 | P2 | Colour filter dropdown for entities | UI | READY | unclaimed |
 | NB-16 | P2 | Export evidence frames with the snapshot | UI / Integration | READY | unclaimed |
 | NB-17 | P2 | Responsive and accessibility pass | UI | READY | unclaimed |
+| NB-18 | P1 | Reduce the pre-grasp PICK_UP false positive | Semantic | DONE | opencode (AI) |
 
 ---
 
@@ -108,72 +111,31 @@ PR so parallel work does not collide.
   answer shows `template`; no hallucinated timestamp is presented as grounded.
 - **Spec:** §Query step 4.
 
-### NB-04 · Demo preflight script and checklist
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Ops
-- **Why:** the spec lists stage pitfalls: Qwen cold load, missing evidence
-  images, un-checkpointed WAL, and claiming unavailable model backends.
-- **Scope:**
-  - Add a script (e.g. `scripts/demo_preflight.py` or `chronicle.sh preflight`)
-    that checks:
-    - selected video files exist and decode,
-    - SQLite opens and WAL can be checkpointed,
-    - configured detector/hands/embedder actually load,
-    - Ollama status and model name,
-    - evidence images or video-frame extraction work,
-    - `pytest` and `chronicle run --max-frames 30` pass.
-  - Print a short PASS/FAIL table with exact next commands.
-- **Files:** `scripts/`, `chronicle.sh`, `docs/`
-- **Acceptance:** one command reports a clear PASS/FAIL list before the demo.
-- **Spec:** §Ten-minute demo script, “Pitfalls to rehearse”.
-
-### NB-05 · Verify every bundled source end to end
-- **Status:** READY · **Owner:** unclaimed · **Lane:** QA
-- **Why:** the demo switches between synthetic, HoloLens and Aria clips.
-  A source that cannot ingest is a live failure.
-- **Scope:** run `chronicle run` for `synthetic`, `tabletop`, `cook`, `play`,
-  `walking`; record frames, entities, actions, errors, and backends used.
-  Check the dashboard source dropdown and video player for each.
-- **Files:** `docs/TEAM_STATUS.md` (table), no code unless a source is broken
-- **Acceptance:** every source either passes or has a documented blocking reason.
-- **Spec:** §Interfaces and operations; §Demo pitfalls.
-
-### NB-06 · Real-clip evidence images for demo answers
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Perception
-- **Why:** evidence frames fall back to video extraction when no stored image
-  exists. That can fail on stage or return a blank frame.
-- **Scope:** ensure interaction strips, object crops or zone keyframes exist for
-  the HoloLens/Aria clips used in the demo; verify `_answer_frame()` selects them.
-- **Files:** `chronicle/frames.py`, `chronicle/integration.py`, `runs/` fixtures
-- **Acceptance:** each demo question returns a frame candidate; fallback video
-  extraction is only used when expected.
-- **Spec:** §Query evidence frame; §Demo pitfalls (iv).
-
 ---
 
 ## P1 — quality and correctness
 
-### NB-07 · Label the HoloLens action timeline and run the scorer
+### NB-19 · Re-run HoloAssist action timeline with Florence-2 captions
 - **Status:** READY · **Owner:** unclaimed · **Lane:** Semantic
-- **Why:** the action-timeline harness exists, but the “done when” bar is still
-  gated on a hand-labelled real clip.
-- **Scope:** label actions in the HoloAssist clip using
-  `docs/action_timeline.example.json`; run
-  `python -m chronicle.semantic.timeline --annotations ... --snapshot ...`.
-- **Files:** `docs/action_timeline.example.json` (new real label file),
-  `docs/TEAM_STATUS.md`
-- **Acceptance:** timeline scorer exits 0 or the remaining mismatches are
-  documented with a concrete tuning task.
+- **Why:** NB-07 labelled the timeline and scored the production run. The
+  timestamps are excellent (mean |Δt| 0.06 s) but every prediction is
+  `PICK_UP` because Florence-2 is unavailable and `StubCaptioner` emits
+  `"the hand grasps the joy-con"` for every strip.
+- **Scope:** install/point at Florence-2 (or a vision LLM), run
+  `chronicle run --source tabletop` with real captions, then rescore:
+  ```bash
+  python -m chronicle.semantic.timeline \
+    --labels docs/action_timeline.holoassist.json \
+    --snapshot runs/nb07/hololens_snapshot.json \
+    --tolerance 2.2 --ignore-entity
+  ```
+- **Files:** `chronicle/semantic/florence.py`, `docs/action_timeline.holoassist.report.json`,
+  `docs/PERCEPTION.md`, `docs/TEAM_STATUS.md`
+- **Acceptance:** at least `PUT_DOWN`, `INSERT_INTO` and `REMOVE_FROM` appear
+  in predictions; document the new precision/recall and any threshold change.
+  If the VLM is still unavailable, record the blocker and stop claiming action
+  accuracy.
 - **Spec:** §Quality; §Ten-minute demo script step 5.
-
-### NB-08 · Calibrate action thresholds against real labels
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Semantic
-- **Why:** shipped thresholds come from a 16-caption seed set.
-- **Scope:** build a JSON/JSONL label file, run
-  `python -m chronicle.semantic.calibration --labels <file>`, commit the
-  resulting `CHRONICLE_ACTION_THRESHOLDS` recommendation.
-- **Files:** `chronicle/semantic/calibration.py` (only if needed), docs
-- **Acceptance:** precision target met and the threshold source is documented.
-- **Spec:** §Quality, calibration.
 
 ### NB-09 · Review drawer for rejected / ambiguous actions
 - **Status:** READY · **Owner:** unclaimed · **Lane:** UI
@@ -186,58 +148,44 @@ PR so parallel work does not collide.
 - **Spec:** §Quality (verification queue); SUGGESTIONS 5.2.
 
 ### NB-10 · Tune consolidation on the living-room clip
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Graph
+- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Graph
+- **Started:** 2026-10-27 · **Branch:** `task/nb-10-furniture-support-mapping` · **Partial commit:** `689f471`
 - **Why:** the “done when” bar for Role B is one anchor per physical sofa after
   replaying the living-room clip.
 - **Scope:** run the clip, inspect `memory.stats()["merges"]`, tune association
   and merge gates if duplicates remain; add a regression fixture.
 - **Files:** `chronicle/graph/consolidation.py`,
-  `chronicle/graph/furniture.py`, `tests/test_consolidation.py`
+  `chronicle/graph/furniture.py`, `chronicle/graph/memory.py`,
+  `tests/test_furniture.py`, docs.
 - **Acceptance:** exactly one anchor per real sofa and no merged co-visible
   instances; tests pass.
+- **Progress note:** support-anchor duplicates are fixed. Replaying the clip
+  dropped furniture rows **67 → 18** and removed every `anchor:support-*`
+  duplicate. Six `sofa` anchors remain because YOLO-World labels the armchair
+  as a sofa and a 0.1 s detection survives the two-hit gate; consolidation
+  correctly refuses to merge co-visible boxes. That label/fixture work is
+  **NB-20**; NB-10 is not done until the sofa count is right.
 - **Spec:** §Data model; TEAM_STATUS Role B “Done when”.
 
-### NB-11 · Reduce per-frame support / SQLite write cost
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Graph
-- **Why:** TEAM_STATUS lists repeated support updates and per-frame SQLite
-  writes as the remaining runtime-efficiency work.
-- **Scope:** deduplicate unchanged support writes, batch entity/observation
-  writes, and keep snapshots cheap enough for 30 fps.
-- **Files:** `chronicle/graph/memory.py`,
-  `chronicle/storage/sqlite_store.py`, benchmark script
-- **Acceptance:** measurable write reduction on the walking clip with identical
-  snapshot content and passing tests.
-- **Spec:** §Storage; TEAM_STATUS “Runtime efficiency”.
-
-### NB-12 · Add appearance attributes to the spec + evaluation
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Docs / Semantic
-- **Why:** colour/shape/size/texture attributes are implemented and used by the
-  UI and GraphRAG, but the LaTeX spec and evaluation set do not mention them.
-- **Scope:**
-  - Add an “Object appearance attributes” subsection to
-    `docs/chronicle-spec-condensed.tex` (formula + thresholds).
-  - Add colour/size/describe cases to the GraphRAG evaluation set.
-  - Rebuild the PDF with `docs/build-spec.sh`.
-- **Files:** `docs/chronicle-spec-condensed.tex`,
-  `chronicle/semantic/evaluation.py`, `docs/chronicle-spec-condensed.pdf`
-- **Acceptance:** spec builds; evaluation passes with the new cases and reports
-  citation precision.
-- **Spec:** §Perception; new feature in `chronicle/perception/attributes.py`.
+### NB-20 · Add living-room furniture labels and stop armchair/sofa conflation
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Graph / Perception
+- **Why:** NB-10 removed support duplicates, but the living-room clip still
+  yields six `sofa` anchors for one sofa + one armchair. YOLO-World sees the
+  armchair as `sofa`, and two-hit confirmation lets a 0.1 s detection through.
+- **Scope:** add `armchair` (and any missing furniture labels) to the `play`
+  vocabulary and furniture config, require a minimum visible duration in
+  addition to `min_hits`, and add a hand-labelled living-room fixture with the
+  expected anchor count. Do not loosen the co-visible merge gate.
+- **Files:** `chronicle/sources.py`, `chronicle/config.py`,
+  `chronicle/graph/furniture.py`, `tests/test_furniture.py`,
+  `tests/test_consolidation.py`, `docs/PERCEPTION.md`
+- **Acceptance:** replaying the living-room clip leaves one anchor per physical
+  sofa and one per armchair; the co-visible two-sofa test still passes.
+- **Spec:** §Data model; TEAM_STATUS Role B “Done when”.
 
 ---
 
 ## P2 — polish
-
-### NB-13 · Retire or clearly separate the duplicate dashboard
-- **Status:** READY · **Owner:** unclaimed · **Lane:** UI / Docs
-- **Why:** the spec lists both `chronicle serve` (operator dashboard) and
-  `run_dashboard.py` (mission-control dashboard). Keeping both without labels
-  confuses teammates and judges.
-- **Scope:** document which is canonical for the demo; either retire the other
-  or label it clearly and document its unique features.
-- **Files:** `README.md`, `docs/INTEGRATION.md`, `run_dashboard.py`
-- **Acceptance:** one obvious entry point in the README and demo docs.
-- **Spec:** §Interfaces and operations.
 
 ### NB-14 · Search and filter actions / transitions
 - **Status:** READY · **Owner:** unclaimed · **Lane:** UI
@@ -292,6 +240,147 @@ PR so parallel work does not collide.
 | NB-D03 | Appearance in snapshot, CSV, GraphRAG and UI | orchestrator | `docs/INTEGRATION.md`, `docs/PERCEPTION.md` |
 | NB-D04 | Dashboard video upload + drag-and-drop | orchestrator | `tests/test_uploads.py` |
 | NB-D05 | Snapshot import / export | orchestrator | `tests/test_snapshot_io.py`, `tests/test_dashboard_smoke.py` |
+| NB-08 | Calibrate action thresholds against real labels | opencode (AI) | `9ed6735`; `docs/CALIBRATION.md`; 19 labels, precision 1.00 / recall 1.00 |
+| NB-04 | Demo preflight script and checklist | opencode (AI) | `3b74ef5`; `scripts/demo_preflight.py`; `docs/DEMO_PREFLIGHT.md` |
+| NB-05 | Verify every bundled source end to end | opencode (AI) | `f8fcd0e`; `docs/PERCEPTION.md` NB-05 tables; 5/5 sources 9/9 checks |
+| NB-06 | Real-clip evidence images for demo answers | opencode (AI) | `f967a71`; `data/*/evidence/`; `scripts/build_evidence_fixtures.py` |
+| NB-07 | Label the HoloLens action timeline and run the scorer | opencode (AI) | `68b1432`; `docs/action_timeline.holoassist.json`; 1/7, 6.3% precision |
+| NB-18 | Reduce the pre-grasp PICK_UP false positive | opencode (AI) | `dfcd4d7`; negation-aware rule matching; precision 1.00 / recall 1.00 |
+| NB-12 | Add appearance attributes to the spec + evaluation | opencode (AI) | `5518a91`; spec PDF + 4 appearance cases; evaluation 13/13 |
+| NB-11 | Reduce per-frame support/SQLite write cost | opencode (AI) | `ac067df`; walking 180f entity upserts 172 → 59 |
+| NB-13 | Retire or clearly separate the duplicate dashboard | opencode (AI) | `40f2700`; canonical `chronicle serve` vs optional mission control |
+
+### NB-13 details
+
+- **Branch:** `task/nb-13-dashboard-docs` · **Commit:** `40f2700`
+- **Canonical:** `./chronicle.sh start` / `chronicle serve` on `:8080`
+  (operator dashboard, live A→B→C, preflight, spec demo).
+- **Optional:** `./chronicle.sh mission` / `python run_dashboard.py` on `:8081`
+  (standalone zine mission control; demo replay, JSONL/SQLite producers, live
+  `POST /api/ingest`). Never required for the operator walkthrough.
+- **Docs:** `README.md`, `docs/INTEGRATION.md#two-dashboards-one-canonical-entry-point`,
+  `docs/DEMO_PREFLIGHT.md`, `docs/TEAM_STATUS.md`.
+
+### NB-11 details
+
+- **Branch:** `task/nb-11-write-cost` · **Commit:** `ac067df`
+- **Change:** `persistence_interval_s = 0.5` batches entity/support projection
+  writes; a state change still writes immediately. Observations keep their
+  `0.1 s` trajectory cadence.
+- **Measured:** walking clip, 180 frames / 3 entities: entity upserts
+  **172 → 59** (66 % fewer); in-memory snapshot unchanged.
+- **Regression:** `tests/test_graph_storage.py::test_entity_and_support_writes_are_throttled`.
+- **Docs:** `docs/ROLE_B.md` documents the projection cadence.
+
+### NB-12 details
+
+- **Branch:** `task/nb-12-appearance-spec` · **Commit:** `5518a91`
+- **Spec:** added the “Object appearance attributes” subsection to
+  `docs/chronicle-spec-condensed.tex` (k-means colour formula, background
+  suppression, colour word bands, shape/size/brightness/saturation/texture
+  thresholds, colour stability) and rebuilt the PDF.
+- **Evaluation:** added colour, size, describe and missing-appearance cases;
+  `chronicle.semantic.evaluation` is now **13/13, 100 % citation precision**.
+- **Docs:** updated `README.md`, `docs/ROLE_C.md`, `docs/SUGGESTIONS.txt`,
+  `docs/TEAM_STATUS.md` and `tests/test_evaluation.py` from 9 to 13 cases.
+- **Acceptance:** `docs/build-spec.sh` exits 0; evaluation passes with the new
+  cases.
+
+### NB-18 details
+
+- **Branch:** `task/nb-18-pickup-negation` · **Commit:** `dfcd4d7`
+- **Fix:** `RuleBasedActionClassifier` rejects negated action verbs before the
+  positive patterns, so a pre-grasp "reaches … does not grasp" caption becomes
+  `OTHER`; true pickups still match.
+- **Result:** real-label calibration is now 19 labels, 14 accepted, 5 correct
+  rejections, **precision 1.000 / recall 1.000**; thresholds unchanged
+  (`PICK_UP` 0.74). This is a phrasing fix, not a cutoff change.
+- **Docs/tests:** `docs/CALIBRATION.md`, `docs/ROLE_C.md`, report JSON,
+  `tests/test_actions.py` (negation + true action with "without dropping") and
+  `tests/test_calibration.py` (PICK_UP precision/recall).
+
+### NB-07 details
+
+- **Branch:** `task/nb-07-holoassist-timeline` · **Commit:** `68b1432`
+- **Labels:** `docs/action_timeline.holoassist.json` (7 scorable events from
+  the published HoloAssist annotations, with source event strings).
+- **Run:** full 1019-frame tabletop clip with YOLO-World + MediaPipe + OpenCLIP
+  (4 entities, 16 actions, 16 clips); snapshot and report are local under
+  `runs/nb07/` and `docs/action_timeline.holoassist.report.json`.
+- **Score:** 1/7 matched, precision 6.3%, recall 14.3%, mean |Δt| 0.06 s,
+  **FAIL**.
+- **Root cause:** no Florence-2 → `StubCaptioner` returns one generic
+  `PICK_UP` caption for every strip. Timestamp extraction is excellent; action
+  classification is the gap.
+- **Follow-up:** **NB-19** reruns with real VLM captions.
+
+### NB-06 details
+
+- **Branch:** `task/nb-06-evidence-fixtures` · **Commit:** `f967a71`
+- **Delivered:** `scripts/build_evidence_fixtures.py`, stored
+  `evidence/index.jsonl` + images for all five sources, stored-evidence
+  selection in `chronicle/frames.py`, and `_answer_frame()` wiring in
+  `chronicle/integration.py`.
+- **Selection order:** stored strip/crop/zone image first, ranked by kind,
+  entity/label, citation time and playhead; video-frame extraction only when no
+  stored image fits (uploaded clips still use the fallback).
+- **Encoding:** the chosen stored image is returned as a
+  `data:image/...;base64,...` URL, so the CLI and future UI need no media route.
+- **Verified:** `where are my keys?` → keys `PICK_UP` strip at 11.15 s;
+  `where is the joy-con?` → Joy-Con strip at 6.55 s; `what did I see?` → newest
+  Joy-Con strip. Preflight now reports **5/5 sources have stored evidence**.
+- **Coverage:** `tests/test_query_frames.py` (index loading, missing files,
+  label ranking, data URLs, runtime preference, bundled indexes).
+- **Spec:** §Query evidence frame; §Demo pitfalls (iv).
+
+### NB-05 details
+
+- **Branch:** `task/nb-05-source-verification` · **Commit:** `f8fcd0e`
+- **Full-clip fallback:** all five sources completed with 9/9 snapshot
+  invariants (`synthetic` 360 frames, `tabletop` 1019, `walking` 600, `cook`
+  450, `play` 450).
+- **Bounded production:** 180 frames with YOLO-World + MediaPipe + OpenCLIP on
+  all four real clips; all 9/9 (`tabletop` 4 actions, `cook` 1, `play` 0,
+  `walking` 0).
+- **Dashboard:** headless `/source-video` check returns HTTP 200 + `video/*` for
+  every registered clip; the interactive dropdown/player remains the later UI
+  pass.
+- **Acceptance:** every source passes; the only documented gap is Aria action
+  accuracy (no labels), not ingestion.
+- **Artifacts:** `runs/benchmark/nb05-*.json` (local, not committed) and the
+  tables in `docs/PERCEPTION.md`.
+
+### NB-04 details
+
+- **Branch:** `task/nb-04-demo-preflight` · **Commit:** `3b74ef5`
+- **Delivered:** `scripts/demo_preflight.py`, `./chronicle.sh preflight`,
+  `docs/DEMO_PREFLIGHT.md`, and `tests/test_demo_preflight.py`.
+- **Checks:** Python/venv, data dir, dashboard deps, every source's first +
+  middle frame, SQLite WAL/`quick_check`/checkpoint, detector/hands/embedder on
+  a real frame, stored evidence or fallback extraction, Ollama/model warm state,
+  `pytest`, and 30-frame synthetic ingestion.
+- **Usability:** silent colour fallbacks become `WARN`; `--strict` promotes
+  warnings; `--json` is CI-friendly; `--warm-llm` loads Qwen; `--skip-*` makes
+  a fast venue check possible.
+- **Acceptance:** one command prints a `PASS`/`WARN`/`FAIL` table with exact
+  next commands. First full run on this machine: 15 PASS, 1 WARN (no stored
+  evidence yet; video-frame fallback works), 0 FAIL.
+- **Result:** `READY` on the current tree.
+
+### NB-08 details
+
+- **Branch:** `task/nb-08-real-calibration` · **Merged:** `9ed6735..d5870b3` on `main`
+- **Why:** shipped thresholds came from a 16-caption seed set.
+- **Delivered:** `docs/calibration_labels.holoassist.json` (19 traceable labels
+  from the published HoloAssist timeline), `docs/calibration.holoassist.report.json`,
+  `docs/CALIBRATION.md`, calibrated defaults in `actions.py`, and fixes for the
+  two regex gaps the real labels exposed ("slide …" → `PUSH`, "withdraw …" →
+  `REMOVE_FROM`).
+- **Acceptance:** precision target 0.9 met (now 1.000 after NB-18), threshold
+  source documented, model-free regression tests added.
+- **Known follow-up:** the pre-grasp "reaches toward …" caption is still a
+  `PICK_UP` false positive. Raising the threshold would reject true pickups, so
+  it needs a classifier/phrasing fix rather than a threshold change.
 
 ---
 

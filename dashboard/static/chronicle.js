@@ -1,22 +1,56 @@
 /* ==========================================================================
-   Chronicle · Role D client runtime
+   Chronicle · Role D client runtime — zine edition
    - synchronises the hidden video clock with the server playhead
    - draws object overlays inside the letterboxed video content area
-   - owns Vis.js graph instances, the transport, drawer and query hooks
+   - owns the Vis.js memory graph, chat engine, entity list, event strips
    ========================================================================== */
 
 (function () {
   "use strict";
 
-  const CHANNEL_MARKERS = {
-    GEOM: "#38bdf8",
-    TRACK: "#a78bfa",
-    STATE: "#fbbf24",
-    VLM: "#e879f9",
-    GRAPH: "#34d399",
-    QUERY: "#f472b6",
-    SYSTEM: "#94a3b8",
+  /* ---------------- zine palette ---------------- */
+
+  var STATE_ZINE = {
+    NEW: "#a8a29e",
+    VISIBLE_STATIC: "#37c585",
+    INTERACTED: "#ffd34d",
+    VISIBLE_MOVING: "#56b8d8",
+    HELD: "#b08bd9",
+    CONTAINED: "#56d0c0",
+    OCCLUDED: "#b7ae98",
+    OUT_OF_VIEW: "#ff9eb5",
+    LOST: "#ff6b4a",
+    ANCHOR: "#26221a",
+    AGENT: "#ff6b4a",
   };
+
+  var EV_COLORS = {
+    state: "#56b8d8",
+    interaction: "#ff6b4a",
+    edge: "#37c585",
+    zone: "#b08bd9",
+  };
+
+  var ACTION_REL = {
+    PICKED_UP: 1,
+    PICK_UP: 1,
+    PUT_DOWN: 1,
+    PLACED_IN: 1,
+    INSERT_INTO: 1,
+    PLACED_ON: 1,
+    TOUCHED: 1,
+    OPENED: 1,
+    CLOSED: 1,
+    USED: 1,
+    MOVED: 1,
+  };
+
+  var THINKING_LINES = [
+    "flipping through my memory…",
+    "rewatching the good parts…",
+    "cross-checking my notes…",
+    "squinting at frame buffers…",
+  ];
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
@@ -35,9 +69,9 @@
   }
 
   function hexAlpha(hex, alpha) {
-    let value = String(hex || "#94a3b8").replace("#", "");
+    let value = String(hex || "#ffd34d").replace("#", "");
     if (value.length === 3) value = value.split("").map((c) => c + c).join("");
-    if (value.length !== 6) return "rgba(148,163,184," + alpha + ")";
+    if (value.length !== 6) return "rgba(255,211,77," + alpha + ")";
     const r = parseInt(value.slice(0, 2), 16);
     const g = parseInt(value.slice(2, 4), 16);
     const b = parseInt(value.slice(4, 6), 16);
@@ -58,8 +92,12 @@
     return Number.isFinite(number) ? number : fallback;
   }
 
+  function zineColor(state) {
+    return STATE_ZINE[String(state || "").toUpperCase()] || "#ffd34d";
+  }
+
   /* ---------------------------------------------------------------------- */
-  /* Vis.js graph                                                           */
+  /* Vis.js graph — zine theme                                              */
   /* ---------------------------------------------------------------------- */
 
   class ChronicleGraph {
@@ -97,11 +135,11 @@
             shadow: false,
             chosen: true,
             font: {
-              color: "#c5d7e8",
+              color: "#26221a",
               size: 12,
-              face: "ui-monospace, Cascadia Code, monospace",
-              strokeWidth: 3,
-              strokeColor: "#060b12",
+              face: "'DM Sans', 'Bricolage Grotesque', sans-serif",
+              strokeWidth: 4,
+              strokeColor: "#fffcf4",
             },
           },
           edges: {
@@ -110,11 +148,11 @@
             selectionWidth: 2,
             hoverWidth: 1.6,
             font: {
-              color: "#9db0c4",
-              size: 9,
-              face: "ui-monospace, Cascadia Code, monospace",
-              strokeWidth: 3,
-              strokeColor: "#060b12",
+              color: "#7c7361",
+              size: 10,
+              face: "'IBM Plex Mono', monospace",
+              strokeWidth: 4,
+              strokeColor: "#fdf8ea",
               align: "middle",
             },
           },
@@ -182,15 +220,103 @@
       }
     }
 
+    /* Restyle a payload node for the paper look */
+    restyleNode(node) {
+      const state = String(node.state || "NEW").toUpperCase();
+      const kind = String(node.kind || "entity");
+      const dot = zineColor(state);
+      if (kind === "entity") {
+        node.color = {
+          background: dot,
+          border: "#26221a",
+          highlight: { background: dot, border: "#26221a" },
+          hover: { background: dot, border: "#26221a" },
+        };
+        node.borderWidth = node.dim ? 1.5 : 2.5;
+        node.opacity = node.dim ? 0.35 : 1;
+        node.font = {
+          color: "#26221a",
+          size: 12,
+          face: "'DM Sans', 'Bricolage Grotesque', sans-serif",
+          strokeWidth: 4,
+          strokeColor: "#fffcf4",
+        };
+      } else if (kind === "zone") {
+        node.color = {
+          background: "rgba(255,211,77,0.18)",
+          border: "rgba(38,34,26,0.9)",
+          highlight: { background: "rgba(255,211,77,0.6)", border: "#26221a" },
+          hover: { background: "rgba(255,211,77,0.4)", border: "#26221a" },
+        };
+        node.borderWidth = 2;
+        node.shapeProperties = { borderDashes: node.dim ? [4, 3] : false };
+        node.font = {
+          color: node.active ? "#26221a" : "#7c7361",
+          size: 14,
+          face: "'IBM Plex Mono', monospace",
+          strokeWidth: 4,
+          strokeColor: "#fdf8ea",
+          vadjust: -30,
+        };
+      } else if (kind === "anchor") {
+        node.color = {
+          background: "rgba(124,115,97,0.16)",
+          border: "rgba(38,34,26,0.55)",
+          highlight: { background: "rgba(124,115,97,0.4)", border: "#26221a" },
+        };
+        node.font = {
+          color: "#7c7361",
+          size: 11,
+          face: "'IBM Plex Mono', monospace",
+          strokeWidth: 4,
+          strokeColor: "#fdf8ea",
+        };
+      } else if (kind === "user") {
+        node.color = {
+          background: "#ff6b4a",
+          border: "#26221a",
+          highlight: { background: "#ff6b4a", border: "#26221a" },
+        };
+        node.font = {
+          color: "#26221a",
+          size: 12,
+          face: "'DM Sans', sans-serif",
+          strokeWidth: 4,
+          strokeColor: "#fffcf4",
+        };
+      }
+      return node;
+    }
+
+    restyleEdge(edge) {
+      const relation = String(edge.relation || "").toUpperCase();
+      const isAction = !!ACTION_REL[relation];
+      const color = isAction ? "#ffd34d" : relation === "INSIDE" || relation === "CONTAINED_IN" ? "#56d0c0" : "#37c585";
+      edge.color = {
+        color: hexAlpha(color, edge.dim ? 0.35 : 0.95),
+        highlight: color,
+        hover: color,
+      };
+      edge.dashes = edge.dashes !== false;
+      edge.font = {
+        color: "#7c7361",
+        size: 10,
+        face: "'IBM Plex Mono', monospace",
+        strokeWidth: 4,
+        strokeColor: "#fdf8ea",
+        align: "middle",
+      };
+      return edge;
+    }
+
     update(graph) {
       if (!this.network || !graph) return;
-      const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
-      const edges = Array.isArray(graph.edges) ? graph.edges : [];
+      const nodes = Array.isArray(graph.nodes) ? graph.nodes.map((node) => this.restyleNode(Object.assign({}, node))) : [];
+      const edges = Array.isArray(graph.edges) ? graph.edges.map((edge) => this.restyleEdge(Object.assign({}, edge))) : [];
 
       const nextNodeSig = nodes.map((node) => String(node.id)).sort().join("|");
       const nextEdgeSig = edges.map((edge) => String(edge.id) + ":" + edge.from + ">" + edge.to).sort().join("|");
       const structural = nextNodeSig !== this.nodeSig;
-      const edgeStructural = nextEdgeSig !== this.edgeSig;
 
       const existingNodes = this.nodes.getIds();
       const currentNodeIds = new Set(nodes.map((node) => String(node.id)));
@@ -215,9 +341,6 @@
       } else if (!this.loaded && nodes.length) {
         this.loaded = true;
         this.stabilize(240);
-      } else if (!structural && edgeStructural && nodes.length && !this.loaded) {
-        this.loaded = true;
-        this.stabilize(200);
       }
 
       if (this.selected) {
@@ -266,27 +389,39 @@
     dragTimer: null,
     lastVideoUrl: null,
     clockTimer: null,
+    /* client state */
+    selected: null,
+    entities: [],
+    markers: [],
+    entFilter: "",
+    chatBusy: false,
+    chatId: 0,
+    lastHtml: {},   /* render caches */
+    suggestions: [],
 
     boot() {
       if (this.booted) return true;
       this.attempts += 1;
 
-      const shell = document.querySelector(".video-shell");
-      this.video = document.querySelector(".chron-video video") || document.querySelector(".video-shell video");
-      this.overlay = byId("chron-overlay");
+      const shell = byId("chron-shell");
+      this.video = document.querySelector("#chron-shell video") || document.querySelector(".chron-video");
+      this.overlay = null;
 
-      if (!shell || !this.video || !this.overlay) {
+      if (!shell || (this.video === null && document.querySelector("#stage-hint") === null)) {
         if (this.attempts < 80) setTimeout(() => this.boot(), 100);
         return false;
       }
 
-      this.video.muted = true;
-      this.video.playsInline = true;
-      this.video.loop = true;
-      this.video.preload = "auto";
-      this.video.setAttribute("muted", "");
-      this.video.setAttribute("playsinline", "");
-      this.video.style.pointerEvents = "none";
+      if (this.video) {
+        this.video = this.video;
+        this.video.muted = true;
+        this.video.playsInline = true;
+        this.video.loop = true;
+        this.video.preload = "auto";
+        this.video.setAttribute("muted", "");
+        this.video.setAttribute("playsinline", "");
+        this.video.style.pointerEvents = "none";
+      }
 
       if (byId("chron-graph")) {
         this.graph = new ChronicleGraph("chron-graph");
@@ -304,7 +439,6 @@
           this.commit(value);
         });
         scrub.addEventListener("pointerup", () => {
-          /* change fires after pointerup; keep the local preview briefly */
           if (this.dragTimer) clearTimeout(this.dragTimer);
           this.dragTimer = setTimeout(() => {
             this.dragging = false;
@@ -362,7 +496,7 @@
       } else if (event.key === "g" || event.key === "G") {
         this.setGraphMode(this.graphMode === "live" ? "full" : "live");
       } else if (event.key === "Escape") {
-        this.closeDrawer();
+        this.closeInspector();
       }
     },
 
@@ -377,13 +511,25 @@
       this.rate = safeFloat(data.rate, 1);
 
       this.syncVideo(data);
-      this.renderBoxes(data.boxes || [], data);
       this.renderHud(data.hud || {}, data);
       this.setTransport(data);
       this.setStats(data.stats || {}, data);
 
       if (this.graph && data.graph) {
         this.graph.update(data.graph);
+      }
+      if (data.entities) {
+        this.entities = data.entities;
+        this.renderEntities();
+        this.updateChatStatus(data);
+      }
+      if (data.markers) {
+        this.markers = data.markers;
+        this.renderEvents();
+        this.renderActions();
+      }
+      if (data.suggestions) {
+        this.setSuggestions(data.suggestions);
       }
     },
 
@@ -430,76 +576,11 @@
           const promise = video.play();
           if (promise && promise.catch) promise.catch(() => {});
         }
+        const hint = byId("stage-hint");
+        if (hint) hint.remove();
       } else if (!video.paused) {
         video.pause();
       }
-    },
-
-    renderBoxes(boxes, data) {
-      const overlay = this.overlay;
-      const video = this.video;
-      if (!overlay || !video || !boxes.length) {
-        if (overlay) overlay.innerHTML = "";
-        return;
-      }
-
-      const overlayRect = overlay.getBoundingClientRect();
-      const videoRect = video.getBoundingClientRect();
-      if (!overlayRect.width || !overlayRect.height) return;
-
-      const vw = video.videoWidth || safeFloat(data && data.width, 1280);
-      const vh = video.videoHeight || safeFloat(data && data.height, 720);
-      const scale = Math.min(videoRect.width / vw, videoRect.height / vh);
-      const contentW = vw * scale;
-      const contentH = vh * scale;
-      const offsetX = videoRect.left - overlayRect.left + (videoRect.width - contentW) / 2;
-      const offsetY = videoRect.top - overlayRect.top + (videoRect.height - contentH) / 2;
-
-      const html = [];
-      boxes.forEach((box) => {
-        const bbox = Array.isArray(box.bbox) ? box.bbox : null;
-        if (!bbox || bbox.length < 4) return;
-        const x1 = Math.max(0, Math.min(1, safeFloat(bbox[0], 0)));
-        const y1 = Math.max(0, Math.min(1, safeFloat(bbox[1], 0)));
-        const x2 = Math.max(0, Math.min(1, safeFloat(bbox[2], 0)));
-        const y2 = Math.max(0, Math.min(1, safeFloat(bbox[3], 0)));
-        const width = (x2 - x1) * contentW;
-        const height = (y2 - y1) * contentH;
-        if (width < 4 || height < 4) return;
-
-        const color = box.color || "#38bdf8";
-        const state = String(box.state || "NEW").replace(/_/g, " ");
-        const label = String(box.label || box.id || "").toUpperCase();
-        const held = box.held ? " held" : "";
-        html.push(
-          '<div class="obj-box' +
-            held +
-            '" data-node-id="' +
-            escapeHtml(box.id) +
-            '" onclick="Chronicle.node(this.dataset.nodeId)" style="' +
-            "left:" +
-            (offsetX + x1 * contentW).toFixed(2) +
-            "px;top:" +
-            (offsetY + y1 * contentH).toFixed(2) +
-            "px;width:" +
-            width.toFixed(2) +
-            "px;height:" +
-            height.toFixed(2) +
-            "px;--box-color:" +
-            escapeHtml(color) +
-            ";background:linear-gradient(180deg," +
-            hexAlpha(color, 0.16) +
-            "," +
-            hexAlpha(color, 0.015) +
-            ');">' +
-            '<span class="obj-tag">' +
-            escapeHtml(label) +
-            ' <span class="obj-state">' +
-            escapeHtml(state) +
-            "</span></span></div>",
-        );
-      });
-      overlay.innerHTML = html.join("");
     },
 
     renderHud(hud, data) {
@@ -513,7 +594,7 @@
       text("hud-mode", String(data.source_label || data.mode || "LIVE").toUpperCase());
       text("hud-time", "TC " + fmtTime(data.t));
 
-      const shell = document.querySelector(".video-shell");
+      const shell = byId("chron-shell");
       if (shell) {
         shell.dataset.camera = cameraState;
       }
@@ -527,7 +608,7 @@
         if (tag) {
           tag.innerHTML =
             "VLM · " +
-            escapeHtml(hud.caption.action || "INTERACTION") +
+            escapeHtml(String(hud.caption.action || "INTERACTION").replace(/_/g, " ").toUpperCase()) +
             " · " +
             escapeHtml(hud.caption.entity || "") +
             " · " +
@@ -551,33 +632,77 @@
         const scrub = byId("chron-scrub");
         if (fill) fill.style.width = percent.toFixed(2) + "%";
         if (head) head.style.left = percent.toFixed(2) + "%";
-        if (scrub) scrub.value = String(t);
+        if (scrub && String(scrub.max) !== String(data.duration) && data.duration) {
+          scrub.max = String(data.duration);
+        }
+        if (scrub && document.activeElement !== scrub) scrub.value = String(t);
       }
 
       const time = byId("chron-time");
       if (time) {
-        time.innerHTML =
-          fmtTime(t) + ' <span class="total">/ ' + fmtTime(duration) + "</span>";
+        time.innerHTML = fmtTime(t) + ' <span class="total">/ ' + fmtTime(duration) + "</span>";
       }
 
       const play = byId("chron-play-icon");
       if (play) play.textContent = this.playing ? "❚❚" : "▶";
       const playButton = byId("chron-play");
       if (playButton) playButton.title = this.playing ? "Pause (Space)" : "Play (Space)";
+      if (playButton) playButton.style.background = this.playing ? "" : "var(--mustard)";
 
       const rate = byId("chron-rate");
       if (rate) rate.textContent = this.rate.toFixed(1) + "×";
 
-      text("chron-mode-badge", String(data.source_label || data.mode || "DEMO").toUpperCase());
-      text("chron-meta", fmtTime(duration) + " · " + data.fps + " FPS · " + data.width + "×" + data.height);
-      text("chron-episode", data.title || "Chronicle Episode");
+      const labels = document.querySelector(".tl-labels");
+      if (labels && duration > 0.01 && labels.dataset.dur !== String(data.duration)) {
+        labels.dataset.dur = String(data.duration);
+        labels.innerHTML = "\u003cspan>" + [0, 1, 2, 3, 4, 5]
+          .map((index) => ((duration * index) / 5).toFixed(0) + "s")
+          .join("</span>\u003cspan>") + "</span>";
+      }
+      text("t-loop", String(data.source_label || ""));
+      text("transport-label", this.playing ? "SYNCED PLAYBACK · LOOP" : "PAUSED · HOLDING MY BREATH");
+      text("chron-video-title", String(data.title || "Chronicle Episode"));
+      text("chron-episode-title", String(data.title || "Chronicle Episode"));
+      if (data.replay) {
+        const clip = byId("chron-clip");
+        if (clip && clip.value !== data.replay) clip.value = data.replay;
+      }
 
       const badge = byId("chron-mode");
+      const badgeText = byId("chron-mode-badge");
       if (badge) {
         const live = String(data.mode || "").toLowerCase() === "live";
-        badge.classList.toggle("live", live);
-        badge.classList.toggle("demo", !live);
+        badge.classList.toggle("is-live", live);
+        badge.classList.toggle("is-demo", !live);
+        badge.classList.toggle("is-empty", !live && !data.duration);
       }
+      if (badgeText) {
+        badgeText.textContent = String(data.source_label || data.mode || "DEMO").toUpperCase();
+      }
+      text("foot-source", String(data.source_label || data.mode || "demo"));
+    },
+
+    renderMarkers() {
+      /* timeline diamonds inside the scrub track */
+      const track = document.querySelector(".tl-track");
+      if (!track) return;
+      const duration = Math.max(0.001, this.duration);
+      const html = [];
+      this.markers.forEach((marker) => {
+        const t = safeFloat(marker.t, 0);
+        const left = Math.max(0, Math.min(100, (t / duration) * 100));
+        const kind = String(marker.kind || "state");
+        html.push(
+          '<span class="tl-marker" style="left:' + left.toFixed(3) +
+          "%;--marker:" + escapeHtml(EV_COLORS[kind] || "#ffd34d") +
+          ';" title="' + escapeHtml(String(marker.label || kind)) + " @ " + t.toFixed(2) + 's"></span>'
+        );
+      });
+      const next = html.join("");
+      if (this.lastHtml.markers === next) return;
+      this.lastHtml.markers = next;
+      track.querySelectorAll(".tl-marker").forEach((node) => node.remove());
+      track.insertAdjacentHTML("beforeend", next);
     },
 
     setStats(stats, data) {
@@ -586,7 +711,13 @@
       text("stat-edges", String(stats.edges == null ? "—" : stats.edges));
       text("stat-vlm", String(stats.vlm_calls == null ? "—" : stats.vlm_calls));
       text("stat-fps", stats.fps == null ? "—" : String(Math.round(stats.fps)));
-      text("stat-latency", stats.latency_ms == null ? "—" : String(Math.round(stats.latency_ms)));
+      text("stat-latency", stats.latency_ms == null ? "—" : String(Math.round(stats.latency_ms)) + " ms");
+
+      text("metric-frames", String(stats.frames == null ? "—" : stats.frames));
+      text("metric-fps", stats.fps == null ? "—" : String(Math.round(stats.fps)));
+      text("metric-entities", String(stats.entities == null ? "—" : stats.entities));
+      text("metric-edges", String(stats.edges == null ? "—" : stats.edges));
+      text("metric-actions", String(stats.vlm_calls == null ? "—" : stats.vlm_calls));
 
       const graphCount = byId("graph-count");
       if (graphCount && data.graph) {
@@ -595,8 +726,8 @@
       }
 
       text("query-provider", data.query_provider || "local-graphrag");
-      text("source-events", stats.live_events == null ? "0" : String(stats.live_events));
-      text("header-rate", stats.event_rate == null ? "0.0" : Number(stats.event_rate).toFixed(1));
+      text("chron-meta", fmtTime(data.duration) + " · " + (data.fps == null ? "—" : Math.round(data.fps)) + " FPS");
+      this.renderMarkers();
     },
 
     preview(t) {
@@ -656,44 +787,395 @@
       if (window.emitEvent) emitEvent("chron-graph-mode", next);
     },
 
+    setClip(path) {
+      if (!path) return;
+      if (window.emitEvent) emitEvent("chron-replay", String(path));
+    },
+
+    uploadClip(input) {
+      const file = input && input.files && input.files[0];
+      if (!file) return;
+      const status = byId("chat-status");
+      if (status) status.textContent = "uploading " + file.name + "…";
+      const query = "?name=" + encodeURIComponent(file.name);
+      fetch("/api/upload" + query, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: file,
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (!data || !data.video_url) throw new Error((data && data.error) || "upload failed");
+          const clip = byId("chron-clip");
+          const value = "video:" + data.path;
+          if (clip) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = data.title || file.name;
+            clip.appendChild(option);
+            clip.value = value;
+          }
+          if (window.emitEvent) emitEvent("chron-replay", value);
+          if (status) status.textContent = "clip uploaded · playing";
+        })
+        .catch((error) => {
+          if (status) status.textContent = "upload failed";
+          console.error(error);
+        })
+        .finally(() => {
+          input.value = "";
+        });
+    },
+
+    clipChanged() {
+      /* server loaded another replay clip: drop stale client caches */
+      this.selected = null;
+      this.entities = [];
+      this.markers = [];
+      this.lastHtml = { boxes: "" };
+      this.lastVideoUrl = "__clip-switch__";
+      if (this.graph) this.graph.setSelected(null);
+      this.closeInspector();
+    },
+
     node(nodeId) {
       if (!nodeId) return;
-      if (this.graph) this.graph.setSelected(nodeId);
-      if (window.emitEvent) emitEvent("chron-node", String(nodeId));
+      this.selected = String(nodeId);
+      if (this.graph) this.graph.setSelected(this.selected);
+      this.renderEntities();
+      if (window.emitEvent) emitEvent("chron-node", this.selected);
     },
 
-    openDrawer() {
-      const drawer = byId("chron-inspector");
-      const backdrop = byId("chron-backdrop");
-      if (drawer) drawer.classList.add("open");
-      if (backdrop) backdrop.classList.add("open");
-    },
+    /* ---------------- inspector dossier ---------------- */
 
-    closeDrawer() {
-      const drawer = byId("chron-inspector");
-      const backdrop = byId("chron-backdrop");
-      if (drawer) drawer.classList.remove("open");
-      if (backdrop) backdrop.classList.remove("open");
+    closeInspector() {
+      this.selected = null;
       if (this.graph) this.graph.setSelected(null);
+      this.renderEntities();
+      const host = byId("chron-inspector-content");
+      if (host) {
+        host.innerHTML =
+          '<div class="inspector-head">' +
+          '<div class="inspector-head-main">' +
+          '<div class="inspector-eyebrow">Entity dossier</div>' +
+          '<div class="inspector-title">no file open</div>' +
+          '<div class="inspector-sub">click any object in the list or the graph</div>' +
+          "</div>" +
+          '<button class="inspector-close" onclick="Chronicle.closeInspector()" aria-label="Close dossier">×</button>' +
+          "</div>" +
+          '<div class="inspector-body">' +
+          '<div class="empty-strip"><span class="empty-note" style="text-align:center;padding:0 14px">' +
+          "pick an entity — its crop, state history, clips and relations open here." +
+          "</span></div></div>";
+      }
     },
 
-    setQueryResult(html) {
-      const result = byId("chron-query-result");
-      if (result) result.innerHTML = html;
+    /* ---------------- entity list ---------------- */
+
+    filterEntities(value) {
+      this.entFilter = String(value || "").trim().toLowerCase();
+      this.renderEntities();
     },
 
-    ask(textValue) {
-      const input = document.querySelector(".chron-query-input input");
-      if (input && !textValue) textValue = input.value;
+    renderEntities() {
+      const host = byId("chron-ent-list");
+      if (!host) return;
+      const query = this.entFilter;
+      const seen = [];
+      for (const entity of this.entities) {
+        if (!query) { seen.push(entity); continue; }
+        const hay = (
+          String(entity.label || "") + " " + String(entity.zone || "") + " " + String(entity.state || "")
+        ).toLowerCase();
+        if (hay.indexOf(query) !== -1) seen.push(entity);
+      }
+      const bits = [];
+      seen.forEach((entity) => {
+        const isActive = !!entity.seen;
+        const confPct = Math.round(safeFloat(entity.conf, 0) * 100);
+        const dataSel = this.selected === String(entity.id);
+        bits.push(
+          '<button class="ent-row' + (dataSel ? " selected" : "") + (isActive ? "" : " unseen") + '"' +
+            ' data-node-id="' + escapeHtml(entity.id) + '"' +
+            ' onclick="Chronicle.node(this.dataset.nodeId)"' +
+            ' style="--ent-color:' + escapeHtml(entity.color || "#ffd34d") + '">' +
+            '<span class="ent-dot"></span>' +
+            '<span class="ent-main">' +
+              '<span class="ent-name">' + escapeHtml(entity.label) +
+                (isActive && confPct > 0 && confPct < 70 ? '<span class="chipz chipz-blush ent-tag">low conf</span>' : "") +
+                (!isActive ? '<span class="chipz chipz-secondary ent-tag">not seen</span>' : "") +
+              "</span>" +
+              '<span class="ent-sub">' +
+                escapeHtml(isActive ? (entity.zone || "—") + " · " + String(entity.state || "").replace(/_/g, " ").toLowerCase() : "—") +
+              "</span>" +
+            "</span>" +
+            (isActive
+              ? '<span class="ent-ask" onclick="event.stopPropagation();Chronicle.chatSend(\'where is the ' +
+                escapeHtml(String(entity.label).replace(/'/g, "").toLowerCase()) +
+                '?\')">ask</span>'
+              : "") +
+          "</button>"
+        );
+      });
+      const next = bits.join("");
+      if (this.lastHtml.ents === next) return;
+      this.lastHtml.ents = next;
+      host.innerHTML =
+        next ||
+        '<div class="empty-strip"><span class="empty-note">' +
+        (query ? "no match — try “cup” or “table”" : "nothing yet — feed me video") +
+        "</span></div>";
+      const count = byId("ent-count");
+      if (count) {
+        const seenCount = this.entities.filter((entity) => entity.seen).length;
+        count.textContent = seenCount + " / " + this.entities.length + " objects";
+      }
+    },
+
+    /* ---------------- event strips ---------------- */
+
+    renderEvents() {
+      const host = byId("chron-events");
+      if (!host) return;
+      const items = this.markers.slice(-24);
+      if (!items.length) {
+        const empty = '<div class="empty-strip" style="width:100%"><span class="empty-note">events land here once I start noticing things…</span></div>';
+        if (this.lastHtml.events !== empty) {
+          this.lastHtml.events = empty;
+          host.innerHTML = empty;
+        }
+        return;
+      }
+      const cleanId = (value) => String(value).replace(/[^A-Za-z0-9_:\-]/g, "");
+      const bits = [];
+      items.forEach((marker, index) => {
+        const kind = String(marker.kind || "state");
+        const label = String(marker.label || kind).replace(/_/g, " ").toLowerCase();
+        const target = marker.entity_id ? cleanId(marker.entity_id) : "";
+        const click = target
+          ? "Chronicle.node('" + target + "')"
+          : "Chronicle.seek(" + safeFloat(marker.t, 0).toFixed(3) + ", true)";
+        bits.push(
+          '<button class="ev-item" title="' + escapeHtml(label) + ' · ' + escapeHtml(fmtTime(marker.t)) +
+            '" onclick="' + click + '">' +
+            '<span class="ev-t">' + escapeHtml(fmtTime(marker.t)) + "</span>" +
+            '<span class="ev-diamond" style="--ev-color:' + escapeHtml(EV_COLORS[kind] || "#ffd34d") + '"></span>' +
+            '<span class="ev-text">' + escapeHtml(label) + "</span>" +
+          "</button>"
+        );
+        if (index < items.length - 1) bits.push('<span class="ev-link"></span>');
+      });
+      const next = bits.join("");
+      if (this.lastHtml.events === next) return;
+      this.lastHtml.events = next;
+      host.innerHTML = next;
+      const scroller = host.parentElement;
+      if (scroller && !this.dragging) scroller.scrollLeft = scroller.scrollWidth;
+      const count = byId("ev-count");
+      if (count) count.textContent = this.markers.length + " events";
+    },
+
+    renderActions() {
+      const host = byId("chron-actions");
+      if (!host) return;
+      const items = this.markers.filter((marker) => marker.kind === "interaction").slice(-7).reverse();
+      if (!items.length) {
+        const empty = '<div class="empty-strip"><span class="empty-note">no drama yet — it\u2019s early</span></div>';
+        if (this.lastHtml.actions !== empty) {
+          this.lastHtml.actions = empty;
+          host.innerHTML = empty;
+        }
+        return;
+      }
+      const cleanId = (value) => String(value).replace(/[^A-Za-z0-9_:\-]/g, "");
+      const bits = [];
+      items.forEach((marker) => {
+        const targetId = marker.entity_id ? cleanId(marker.entity_id) : "";
+        const click = targetId
+          ? "Chronicle.node('" + targetId + "')"
+          : "Chronicle.seek(" + safeFloat(marker.t, 0).toFixed(3) + ", true)";
+        bits.push(
+          '<div class="action-row" onclick="' + click + '" style="cursor:pointer">' +
+            '<span class="act-ico" style="--act-color:#ff6b4a">' +
+              '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+                '<path d="M1.5 8 C 4 3.5, 12 3.5, 14.5 8 C 12 12.5, 4 12.5, 1.5 8 Z" stroke="currentColor" stroke-width="1.8"/>' +
+                '<circle cx="8" cy="8" r="2.2" fill="currentColor"/>' +
+              "</svg>" +
+            "</span>" +
+            '<span class="act-text">' +
+              escapeHtml(String(marker.label || "action").replace(/_/g, " ").toLowerCase()) +
+            "</span>" +
+            '<span class="act-time">' + escapeHtml(fmtTime(marker.t)) + "</span>" +
+          "</div>"
+        );
+      });
+      const next = bits.join("");
+      if (this.lastHtml.actions === next) return;
+      this.lastHtml.actions = next;
+      host.innerHTML = next;
+    },
+
+    /* ---------------- chat ---------------- */
+
+    setSuggestions(list) {
+      const host = byId("chron-suggestions");
+      if (!host || !Array.isArray(list) || !list.length) return;
+      const next = list
+        .map(
+          (query, index) =>
+            '<button class="chipz sug' + (index === 0 ? " first" : "") + '" data-query="' +
+            escapeHtml(query) + '" onclick="Chronicle.chatSend(this.dataset.query)">' +
+            escapeHtml(query) + "</button>"
+        )
+        .join("");
+      if (this.lastHtml.sugs === next) return;
+      this.lastHtml.sugs = next;
+      this.suggestions = list;
+      host.innerHTML = next;
+    },
+
+    updateChatStatus(data) {
+      const count = (this.entities || []).filter((entity) => entity.seen).length;
+      text("chat-status", count > 0 ? count + " objects remembered" : "watching for objects…");
+    },
+
+    chatSendFromInput() {
+      const input = byId("chron-chat-input");
+      if (!input) return;
+      const value = String(input.value || "").trim();
+      if (!value) return;
+      input.value = "";
+      this.chatBus(value);
+    },
+
+    chatSend(value) {
+      const textValue = String(value || "").trim();
       if (!textValue) return;
-      if (input) input.value = "";
+      this.chatBus(textValue);
+    },
+
+    chatBus(textValue) {
+      /* client → server; server answers via Chronicle.chatQuestion/Answer */
       if (window.emitEvent) emitEvent("chron-query", String(textValue));
     },
 
-    scrollTelemetry() {
-      const log = document.querySelector(".chron-log");
+    /* server calls right before computing the answer */
+    chatQuestion(question) {
+      const log = byId("chron-chat-log");
       if (!log) return;
-      const scroll = log.querySelector(".q-scrollarea__container");
+      this.chatId += 1;
+      const row = document.createElement("div");
+      row.className = "msg-row me popin";
+      row.setAttribute("data-chat-id", String(this.chatId));
+      row.innerHTML =
+        '<div>' +
+          '<div class="bub">' + escapeHtml(question) + "</div>" +
+          '<div class="msg-meta right">you · ' + escapeHtml(fmtTime(this.playhead)) + "</div>" +
+        "</div>";
+      const thinking = document.createElement("div");
+      thinking.className = "think-row";
+      thinking.id = "chron-thinking";
+      thinking.innerHTML =
+        '<span class="ava wiggle">' +
+        '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true" width="22" height="22">' +
+        '<path d="M4 24 C 12 10, 36 10, 44 24 C 36 38, 12 38, 4 24 Z" fill="#fffcf4" stroke="#26221a" stroke-width="3"/>' +
+        '<circle cx="24" cy="24" r="8.5" fill="#ffd34d" stroke="#26221a" stroke-width="3"/>' +
+        '<circle cx="24" cy="24" r="3.4" fill="#26221a"/></svg>' +
+        "</span>" +
+        '<span class="chipz think-chip">' + THINKING_LINES[this.chatId % THINKING_LINES.length] + "</span>";
+      log.appendChild(row);
+      log.appendChild(thinking);
+      log.scrollTop = log.scrollHeight;
+    },
+
+    /* server pushes the computed answer here */
+    chatAnswer(data) {
+      this.chatBusy = false;
+      if (this.thinkingTimer) {
+        clearTimeout(this.thinkingTimer);
+        this.thinkingTimer = null;
+      }
+      const log = byId("chron-chat-log");
+      if (!log) return;
+      const thinking = byId("chron-thinking");
+      if (thinking) thinking.remove();
+
+      const route = String(data.route || "none");
+      const grounded = route !== "none";
+      const answerText = String(data.answer || "no answer was produced");
+      const meta = String(data.provider || "local-graphrag") + " · " + String(data.model || "chronicle-local") +
+        (data.duration_ms != null ? " · " + Math.round(Number(data.duration_ms)) + "ms" : "") +
+        (data.confidence != null ? " · conf " + Number(data.confidence).toFixed(2) : "");
+
+      const row = document.createElement("div");
+      row.className = "msg-row popin";
+      row.innerHTML =
+        '<span class="ava">' +
+        '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true" width="22" height="22">' +
+        '<path d="M4 24 C 12 10, 36 10, 44 24 C 36 38, 12 38, 4 24 Z" fill="#fffcf4" stroke="#26221a" stroke-width="3"/>' +
+        '<circle cx="24" cy="24" r="8.5" fill="#ffd34d" stroke="#26221a" stroke-width="3"/>' +
+        '<circle cx="24" cy="24" r="3.4" fill="#26221a"/></svg>' +
+        "</span>" +
+        '<div class="chat-reply-body" style="max-width:86%">' +
+          '<div class="bub' + (grounded ? "" : " bub-fail") + '">' + escapeHtml(answerText) + "</div>" +
+        "</div>";
+
+      const host = row.querySelector(".chat-reply-body");
+      const badges = document.createElement("div");
+      badges.className = "badges-row";
+      badges.innerHTML =
+        grounded
+          ? '<span class="chipz chipz-mint" style="font-size:.6rem;padding:.1rem .5rem">✓ grounded</span>'
+          : '<span class="chipz chipz-blush" style="font-size:.6rem;padding:.1rem .5rem">not in memory</span>';
+      (data.citations || []).slice(0, 4).forEach((citation) => {
+        const t = safeFloat(citation.t, 0);
+        const chip = document.createElement("button");
+        chip.className = "chipz chipz-mustard cite-chip";
+        chip.title = "jump to " + fmtTime(t);
+        chip.innerHTML =
+          '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="#26221a" stroke-width="1.8"/>' +
+          '<path d="M8 4.8 V8 L10.2 9.4" stroke="#26221a" stroke-width="1.8" stroke-linecap="round"/></svg>' +
+          fmtTime(t) + " · " + escapeHtml(String(citation.label || citation.kind || "evidence"));
+        chip.onclick = () => {
+          this.seek(t, true);
+          if (data.matched_entity) Chronicle.node(String(data.matched_entity));
+        };
+        badges.appendChild(chip);
+      });
+      if (data.llm_error) {
+        const warn = document.createElement("span");
+        warn.className = "chipz chipz-secondary";
+        warn.style.fontSize = ".56rem";
+        warn.textContent = "LLM fallback";
+        badges.appendChild(warn);
+      }
+      const metaLine = document.createElement("div");
+      metaLine.className = "msg-meta";
+      metaLine.textContent = "chronicle · " + meta;
+      host.appendChild(badges);
+      host.appendChild(metaLine);
+
+      log.appendChild(row);
+      log.scrollTop = log.scrollHeight;
+
+      if (grounded && data.matched_entity) {
+        Chronicle.node(String(data.matched_entity));
+      } else if (grounded && (data.citations || []).length && this.duration > 0) {
+        const first = data.citations[0];
+        if (first && first.t != null) this.preview(safeFloat(first.t, 0));
+      }
+      const status = byId("chat-status");
+      if (status) status.textContent = grounded ? "answered from memory" : String(data.answer).slice(0, 28) + "…";
+
+      setTimeout(() => {
+        this.chatBusy = false;
+      }, 250);
+    },
+
+    scrollTelemetry() {
+      const logEl = document.querySelector(".chron-log");
+      if (!logEl) return;
+      const scroll = logEl.querySelector(".q-scrollarea__container");
       if (scroll) scroll.scrollTop = scroll.scrollHeight;
     },
   };

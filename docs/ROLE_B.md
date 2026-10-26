@@ -328,6 +328,11 @@ Persistence invariants:
 - `ChronicleMemory(":memory:")` is the zero-artifact mode used by the test suite.
 - Merging a graph-only furniture keeper promotes its SQLite row to the same
   `anchor:<id>` namespacing used by normal persistence.
+- SQLite is a durable projection, not a per-frame mirror. Entity and support
+  rows persist on a state change or every `persistence_interval_s = 0.5`;
+  observations keep their `0.1 s` trajectory cadence. On a 180-frame `walking`
+  run this cut entity upserts from 172 to 59 with the in-memory snapshot
+  unchanged (`tests/test_graph_storage.py::test_entity_and_support_writes_are_throttled`).
 
 ### Duplicate consolidation
 

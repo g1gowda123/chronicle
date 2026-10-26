@@ -64,21 +64,25 @@ def _normalise_action_key(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
 
 
-# Calibrated acceptance cutoffs.  The rule classifier's confidences sit at or
-# above these values; the LLM path is held to the same bar per action so a
+# Calibrated acceptance cutoffs.  The values below come from
+# ``docs/calibration.holoassist.report.json`` (19 hand-labelled captions from
+# the published HoloAssist Joy-Con clip); re-run the command in
+# ``docs/CALIBRATION.md`` after adding labels.  Actions without real labels
+# keep their seed values.  The rule classifier's confidences sit at or above
+# these values; the LLM path is held to the same bar per action so a
 # high-scoring ``HOLD`` is not accepted at the same confidence as ``OPEN``.
 # ``OTHER`` is never accepted (``accepted`` also excludes it explicitly).
 DEFAULT_ACTION_THRESHOLDS: tuple[tuple[str, float], ...] = (
-    ("PICK_UP", 0.55),
-    ("PUT_DOWN", 0.60),
-    ("INSERT_INTO", 0.60),
-    ("REMOVE_FROM", 0.60),
+    ("PICK_UP", 0.74),
+    ("PUT_DOWN", 0.76),
+    ("INSERT_INTO", 0.80),
+    ("REMOVE_FROM", 0.78),
     ("OPEN", 0.60),
     ("CLOSE", 0.60),
-    ("PUSH", 0.55),
+    ("PUSH", 0.68),
     ("PULL", 0.55),
     ("HAND_OFF", 0.60),
-    ("HOLD", 0.55),
+    ("HOLD", 0.62),
     ("OTHER", 1.0),
 )
 
@@ -88,6 +92,20 @@ _AMBIGUOUS_RE = re.compile(
     r"\b(?:maybe|possibly|perhaps|might|unclear|unsure|uncertain|cannot tell|"
     r"can't tell|hard to tell|difficult to tell|appears?|seems?|probably|"
     r"presumably|looks like|looks as if)\b|\?",
+    re.IGNORECASE,
+)
+
+# "The hand reaches toward the keys but does not grasp them" describes a
+# pre-grasp moment, not a pick-up.  The rule classifier deliberately rejects
+# negated action verbs instead of letting a nearby positive verb win.
+_NEGATED_ACTION_RE = re.compile(
+    r"\b(?:(?:does|do|did|is|are|was|were)\s+not|doesn't|don't|didn't|"
+    r"isn't|aren't|wasn't|weren't|without)\b"
+    r"\s+(?:\w+\s+){0,3}"
+    r"(?:grasp|grasping|pick|picking|lift|lifting|take|taking|hold|holding|"
+    r"place|placing|put|putting|insert|inserting|remove|removing|open|opening|"
+    r"close|closing|push|pushing|pull|pulling|slide|sliding|withdraw|"
+    r"withdrawing|carry|carrying|hand|handing)\b",
     re.IGNORECASE,
 )
 
@@ -575,7 +593,8 @@ class RuleBasedActionClassifier:
             re.compile(
                 r"\b(?:take|takes|taking|pull|pulls|pulling|remove|removes|removing|"
                 r"extract|extracts|lift|lifts)\b[^.]*\b(?:out of|out from|from inside|"
-                r"from within)\b",
+                r"from within)\b"
+                r"|\b(?:withdraw|withdraws|withdrawing|withdrew)\b[^.]*\bfrom\b",
                 re.IGNORECASE,
             ),
             0.78,
@@ -623,7 +642,10 @@ class RuleBasedActionClassifier:
         ),
         (
             ActionPrimitive.PUSH,
-            re.compile(r"\b(?:push|pushes|pushing)\b", re.IGNORECASE),
+            re.compile(
+                r"\b(?:push|pushes|pushing|slide|slides|sliding)\b",
+                re.IGNORECASE,
+            ),
             0.68,
         ),
         (
@@ -665,6 +687,16 @@ class RuleBasedActionClassifier:
                 "container": container,
                 "confidence": 0.2,
                 "evidence": "no visual caption was available",
+            }
+
+        negated = _NEGATED_ACTION_RE.search(text)
+        if negated is not None:
+            return {
+                "action": ActionPrimitive.OTHER.value,
+                "object": object_label,
+                "container": container,
+                "confidence": 0.25,
+                "evidence": f"negated action: {negated.group(0)[:140]}",
             }
 
         for action, pattern, confidence in self._PATTERNS:

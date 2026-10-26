@@ -32,7 +32,7 @@ Test status (all model-free, no network):
   python -m unittest discover -s tests  128 tests, all pass
   python -m chronicle.semantic.demo     exits 0
   python -m chronicle.semantic.evaluation
-                                        9/9 cases, 100% citation precision
+                                        13/13 cases, 100% citation precision
   python -m chronicle.semantic.timeline
                                         demo labels PASS (1/1, 0.07 s error)
   python -m ruff check chronicle tests  clean
@@ -53,23 +53,29 @@ Test status (all model-free, no network):
     "out of the drawer ... into the pocket" resolves correctly for
     REMOVE_FROM vs INSERT_INTO. Explicit container still wins.
   - GraphRAG evaluation set with location, time, action, remove, lost,
-    zone-only and unknown cases. Citation precision is checked per answer.
-    "when" queries now select the latest entity fact rather than the latest
-    spatial fact.
+    zone-only, colour, size, describe, missing-appearance and unknown cases.
+    Citation precision is checked per answer. "when" queries select the latest
+    entity fact rather than the latest spatial fact.
   - `chronicle run` / `ChronicleRuntime` uses the Role C queue internally.
     Public runtime API and snapshot schema are unchanged (TASK-C1 added
     snapshot()["verification_stats"]).
   - Labelled captions can now live outside the code:
       python -m chronicle.semantic.calibration --labels labels.jsonl
     writes the CHRONICLE_ACTION_THRESHOLDS=... line and exits non-zero if the
-    target precision is not reached. See docs/calibration_labels.example.json.
+    target precision is not reached. The shipped defaults come from the real
+    HoloAssist pass; see docs/CALIBRATION.md and
+    docs/calibration_labels.holoassist.json.
   - Action timelines can be scored against a snapshot export or a predictions
     file, so the "done when" bar is measurable without touching code:
       python -m chronicle.semantic.timeline \
-        --labels runs/hololens_timeline.json \
-        --snapshot runs/chronicle_snapshot.json --tolerance 2.0
+        --labels docs/action_timeline.holoassist.json \
+        --snapshot runs/nb07/hololens_snapshot.json \
+        --tolerance 2.2 --ignore-entity
     Exit 0 requires precision=recall=1 and entity/container agreement where
-    comparable. See docs/action_timeline.example.json.
+    comparable. NB-07 scores the real clip at 1/7 (precision 6.3%, recall
+    14.3%, mean |dt| 0.06 s); the timestamp is right, the action class is not
+    because Florence-2 is unavailable. See docs/action_timeline.example.json
+    for the format and docs/PERCEPTION.md for the report.
 
 
 3. SUGGESTED NEXT STEPS - ROLE A (PERCEPTION)
@@ -159,13 +165,13 @@ Test status (all model-free, no network):
   - Action classification is caption-then-text-classify, not a true VLM call.
     Replace ActionVerifier.chat_client with a vision client to change that;
     the schema and fallbacks stay the same.
-  - Calibration ships with a 16-caption seed set. Put real HoloLens labels in a
-    JSON/JSONL file and run
-    `python -m chronicle.semantic.calibration --labels <file>`; commit the
-    resulting thresholds once the timeline is labelled. The timeline scorer is
-    ready (`python -m chronicle.semantic.timeline --labels <file> --snapshot
-    <export>`); only the labelled real footage is missing for the "done when"
-    bar in TEAM_STATUS.
+  - Calibration now uses 19 real HoloAssist labels and the resulting defaults
+    (precision 1.00, recall 1.00; see docs/CALIBRATION.md). NB-18 closed the
+    pre-grasp PICK_UP false positive with negation-aware rule matching. The
+    timeline scorer is ready and the real HoloAssist labels are committed
+    (docs/action_timeline.holoassist.json). NB-07 scores 1/7 because the
+    Florence-2 captioner is unavailable, so every strip collapses to PICK_UP;
+    NB-19 reruns with real VLM captions before the "done when" bar can be met.
   - The deterministic HSV embedder is demo/test-only.
   - GraphRAG grounds timestamps and zones but does not re-rank entities with
     CLIP text-to-node similarity yet.

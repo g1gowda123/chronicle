@@ -218,6 +218,42 @@ class FurnitureRegistry:
     def record(self, anchor_id: str) -> FurnitureRecord | None:
         return self._records.get(anchor_id)
 
+    def match_surface(
+        self,
+        label: str,
+        bounds: Sequence[float] | None,
+        zone_id: str | None,
+    ) -> FurnitureRecord | None:
+        """Map a Role A support surface onto a confirmed furniture anchor.
+
+        Role A emits its own short-lived ``support-*`` ids, while Role B owns
+        the durable anchor.  Both boxes come from the same detection, so a
+        geometry match is enough to reuse the durable id and avoid minting a
+        second background node for every sofa/table re-entry.
+        """
+
+        normalized = normalize(label)
+        box = _bbox(bounds)
+        if not normalized or box is None:
+            return None
+        best: FurnitureRecord | None = None
+        best_score = 0.0
+        for record in self._records.values():
+            if record.label != normalized:
+                continue
+            if not _zones_compatible(record.zone_id, zone_id):
+                continue
+            iou = bbox_iou(record.bbox, box)
+            if iou <= 0.0:
+                continue
+            score = iou
+            if score > best_score:
+                best = record
+                best_score = score
+        if best_score >= self.config.iou_threshold:
+            return best
+        return None
+
     def is_furniture(self, label: str) -> bool:
         return normalize(label) in self.labels
 

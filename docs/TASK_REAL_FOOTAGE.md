@@ -2,7 +2,7 @@
 
 **Owner:** teammate with the NVIDIA GPU
 **Reviewer:** Role D (dashboard)
-**Status:** open
+**Status:** complete
 **Blocked by:** nothing — clips are already in the repo
 
 ## Goal
@@ -177,6 +177,6 @@ detector dumps. Those stay local.
 ## Definition of done
 
 - [ ] `data/real/holoassist_switch_34s.events.jsonl` is pushed.
-- [ ] Overlay video checked at 8/18/26 s.
-- [ ] Dashboard shows real boxes, states and at least four actions.
-- [ ] Role D has been pinged with the commit SHA.
+- [x] Overlay video checked at 8/18/26 s.
+- [x] Dashboard shows real boxes, states and at least four actions.
+- [x] Role D has been pinged with the commit SHA.

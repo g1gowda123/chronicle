@@ -149,11 +149,15 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   ├── ROLE_B.md                           # Role B integration contract
 │   ├── ROLE_C.md                           # Role C contract
 │   ├── INTEGRATION.md                      # runtime/UI contract
+│   ├── CALIBRATION.md                      # real-label action thresholds + report
+│   ├── DEMO_PREFLIGHT.md                   # pre-stage readiness checklist
 │   ├── NOTICE_BOARD.md                     # claimable, prioritised team tasks
 │   └── TEAM_STATUS.md                      # current work + role assignments
 ├── scripts/
 │   ├── fetch_assets.py                     # download model weights
 │   ├── make_demo.py                        # render the offline demo clip
+│   ├── build_evidence_fixtures.py          # stored answer-frame index + images
+│   ├── demo_preflight.py                   # PASS/WARN/FAIL demo readiness check
 │   └── demo_role_b.py                      # synthetic lifecycle + retrieval demo
 ├── tests/                                  # model-free unit/integration suite
 ├── requirements-semantic.txt               # Role C demo/test dependencies
@@ -216,8 +220,9 @@ transition invariants rather than claiming accuracy on unlabelled clips; pass
 ```bash
 pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
 python -m chronicle.semantic.demo
-python -m chronicle.semantic.evaluation    # GraphRAG eval: 9 cases, citation precision
-python -m chronicle.semantic.calibration   # per-action thresholds from labelled captions
+python -m chronicle.semantic.evaluation    # GraphRAG eval: 13 cases, citation precision
+python -m chronicle.semantic.calibration \
+  --labels docs/calibration_labels.holoassist.json   # per-action thresholds from real labels
 python -m chronicle.semantic.timeline \
   --labels docs/action_timeline.example.json \
   --predictions docs/action_predictions.example.json   # verified actions vs labels
@@ -230,6 +235,9 @@ python -m chronicle.semantic.timeline \
 The demo exercises VPR, temporal strips, action verification, the bounded
 verification queue (dedup + backpressure + latency), confidence calibration and
 the GraphRAG evaluation set, then prints the telemetry the dashboard consumes.
+The calibrated thresholds come from the real HoloAssist clip; see
+[`docs/CALIBRATION.md`](docs/CALIBRATION.md) for the label file, per-action
+report and reproduction commands.
 The suite is model-free: `python -m unittest discover -s tests` and
 `python -m pytest` run the full suite without downloads; the dashboard smoke
 test skips when the `ui` extra is not installed.
@@ -256,10 +264,15 @@ telemetry payloads, action JSON schema, and configuration.
 
 ```bash
 uv sync --extra ui
+./chronicle.sh preflight          # PASS/WARN/FAIL demo readiness check
 chronicle sources                 # list bundled/demo clips
 chronicle serve --source synthetic --auto-run
 # open http://127.0.0.1:8080
 ```
+
+`./chronicle.sh preflight --warm-llm` also loads Qwen before the demo. See
+[`docs/DEMO_PREFLIGHT.md`](docs/DEMO_PREFLIGHT.md) for what each check means
+and the stage-day checklist.
 
 The dashboard streams the live dual graph, state timeline, entity/action
 tables, pipeline log and grounded GraphRAG chat from the same
@@ -282,6 +295,33 @@ curl -sf http://127.0.0.1:8080/export/actions.csv -o chronicle-actions.csv
 `snapshot.json` is the exact dashboard snapshot (graph, entities, actions,
 transitions, furniture, verification telemetry, stats and backends). Both CSVs
 use stable headers so they can be diffed between runs.
+
+The default mission control is the zine dashboard — warm paper cards, the
+head-cam feed with evidence overlays, a grounded chat with citation chips, the
+memory graph, entity dossiers, state-change timelines and pipeline vitals.
+Launch it with ``./chronicle.sh start`` or ``python run_dashboard.py``. It
+drives the event contract from ``dashboard/``; ``--source live`` waits for
+``POST /api/ingest`` instead of replaying the bundled demo. The live-pipeline
+demo (real perception, clip switching, exports) stays available via
+``./chronicle.sh pipeline`` (a.k.a. ``chronicle serve``).
+
+The zine dashboard can replay any recorded clip timeline (`.events.jsonl`)
+instead of the bundled demo:
+
+```bash
+# the HoloLens tabletop timeline ships with the repo
+python run_dashboard.py --replay data/real/holoassist_switch_34s.events.jsonl
+# record one for another source, then replay it
+python -m chronicle.event_export --source cook --out data/real/cook.events.jsonl
+python run_dashboard.py --replay data/real/cook.events.jsonl
+```
+
+The session header in the event file supplies the video, title and duration, so
+the feed, overlays, timeline and chat all follow that clip.
+The **canonical demo surface remains `./chronicle.sh start` / `chronicle serve`
+on port 8080**; mission control is an optional parallel view, not a replacement
+for the operator dashboard. See
+[`docs/INTEGRATION.md`](docs/INTEGRATION.md#two-dashboards-one-canonical-entry-point).
 
 Headless smoke test:
 

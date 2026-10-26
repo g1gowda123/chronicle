@@ -39,7 +39,28 @@ chronicle sources
 chronicle run data/demo/chronicle_demo.mp4 --max-frames 120
 chronicle ask "where are my keys?" --db data/demo/chronicle.db
 chronicle serve --source synthetic
+./chronicle.sh preflight        # demo readiness: PASS/WARN/FAIL table
 ```
+
+`docs/DEMO_PREFLIGHT.md` explains each preflight check and the stage-day
+checklist; `--json` gives the same result to CI.
+
+## Two dashboards, one canonical entry point
+
+The repository ships two deliberately separate surfaces. They share the event
+contract but not a process, port, or purpose:
+
+| Entry point | Default port | Purpose | Use for the demo? |
+| --- | ---: | --- | --- |
+| `./chronicle.sh start [source]` / `chronicle serve` | 8080 | **Operator dashboard.** Live A→B→C ingestion, source dropdown, graph/timeline/tables, GraphRAG chat, export/import. | **Yes — canonical.** |
+| `./chronicle.sh mission` / `python run_dashboard.py` | 8081 | **Zine mission control.** Standalone Role D demo/replay surface (`dashboard/`) with demo replay, JSONL replay, SQLite producer or live `POST /api/ingest`. | Optional second screen; never required for the operator walkthrough. |
+
+`chronicle serve` is the single entry point for the spec’s ten-minute script. It
+is the only dashboard backed directly by `ChronicleRuntime` and the only one
+whose `./chronicle.sh preflight` checks cover. `run_dashboard.py` is a
+standalone mission-control view for the bundled demo and for producers that
+speak the event contract; use it when you specifically want the zine layout or
+live-ingest endpoint, not as a replacement for the operator dashboard.
 
 ## Responsibilities
 
@@ -153,6 +174,37 @@ stay two anchors. See `chronicle/graph/furniture.py` and
 Known gap: **legacy** duplicate nodes created before this routing (or by a
 detector that changed labels) are not merged yet. Role B owns the graph-level
 consolidation sweep; see `docs/TEAM_STATUS.md`.
+
+## Answer evidence frames
+
+A grounded answer can carry a supporting still image. `ChronicleRuntime._answer_frame()`
+now resolves it in this order:
+
+1. **Stored evidence** beside the episode database:
+   ```
+   data/real/hololens/chronicle.db
+   data/real/hololens/evidence/index.jsonl
+   data/real/hololens/evidence/ev_0001_interaction_strip.jpg
+   ```
+   Each JSONL row carries `file`, `t`, `kind`, and optional `label`,
+   `entity_id`, `zone_id`, `action`, `caption`, `clip_sim` and `bbox`.
+   Stored images are ranked by kind, entity/label match, citation time and
+   playhead (`chronicle/frames.py: pick_stored_evidence`).
+2. **Video-frame extraction** at the newest citation when no stored image fits.
+   This keeps working for uploaded clips with no evidence folder.
+
+Stored images are returned as self-contained `data:image/...;base64,...` URLs,
+so the CLI and UI need no extra media route. The bundled fixtures cover all five
+sources (`5/5` in `./chronicle.sh preflight`) and are regenerated with:
+
+```bash
+.venv/bin/python scripts/build_evidence_fixtures.py
+```
+
+The synthetic clip reuses the interaction strips/crops in `data/`, HoloAssist
+reuses the real interaction strips, and the Aria clips get three zone keyframes
+each. The builder is idempotent and only replaces `ev_*.jpg` files; other files
+in an evidence folder are left alone.
 
 ## Adding a source
 

@@ -57,6 +57,7 @@ from chronicle.types import (
 
 TransitionHook = Callable[[StateTransition, FrameContext], None]
 
+
 _DISAPPEARED = {
     ObjectState.OCCLUDED,
     ObjectState.OUT_OF_VIEW,
@@ -79,11 +80,15 @@ class ChronicleMemory:
         strict_support: bool = False,
         lost_from_occluded: bool = False,
         observation_interval_s: float = 0.10,
+        persistence_interval_s: float = 0.50,
         load: bool = True,
     ) -> None:
         self.thresholds = thresholds or DEFAULT_THRESHOLDS
         self.bus = bus or EventBus()
         self.observation_interval_s = float(observation_interval_s)
+        self.persistence_interval_s = max(
+            0.0, float(persistence_interval_s)
+        )
         self.furniture = FurnitureRegistry(furniture_config, labels=furniture_labels)
         self.store = SQLiteStore(db_path, bus=self.bus)
         self.background = BackgroundGraph(self.thresholds, bus=self.bus)
@@ -120,6 +125,8 @@ class ChronicleMemory:
         self._last_observation: dict[str, float] = {}
         self._last_purge: float | None = None
         self._furniture_persisted: dict[str, float] = {}
+        self._support_persisted: dict[str, float] = {}
+        self._entity_persisted: dict[str, tuple[float, str, tuple[float, ...] | None]] = {}
         if load:
             self._restore()
             self._load_furniture_registry()
@@ -165,8 +172,12 @@ class ChronicleMemory:
             t = last_t
             frame.t = t
         self._canonicalize_frame(frame)
-        self._ensure_frame_context(frame)
+        self._ensure_frame_zone(frame)
+        # Route furniture before creating Role A support anchors so a support
+        # candidate can reuse the durable furniture anchor instead of minting
+        # ``support-sofa-N`` duplicates.
         self._route_furniture(frame)
+        self._ensure_frame_supports(frame)
         self._ensure_entities(frame)
 
         transitions = self.engine.update(frame)
@@ -518,7 +529,26 @@ class ChronicleMemory:
                 support_ids.add(match.anchor_id)
                 self._ensure_support(surface, zone_node_id, frame.t)
         frame.objects = tuple(objects)
-        frame.supports = tuple(supports)
+
+        # Role A's support ids are short-lived; Role B's furniture anchors are
+        # durable.  Reuse the durable id when the support box matches a
+        # confirmed anchor, and collapse the duplicate surface created by the
+        # furniture track above.
+        mapped: list[SupportSurface] = []
+        seen_anchors: set[str] = set()
+        for surface in supports:
+            bounds = surface.polygon.bounds if surface.polygon is not None else None
+            if self.furniture.is_furniture(surface.label):
+                match = self.furniture.match_surface(
+                    surface.label, bounds, zone_id
+                )
+                if match is not None:
+                    surface = replace(surface, anchor_id=match.anchor_id)
+            if surface.anchor_id in seen_anchors:
+                continue
+            seen_anchors.add(surface.anchor_id)
+            mapped.append(surface)
+        frame.supports = tuple(mapped)
 
     def _ensure_furniture_match(
         self,
@@ -600,7 +630,7 @@ class ChronicleMemory:
                         self._furniture_aliases, anchor_id, removed_id
                     )
 
-    def _ensure_frame_context(self, frame: FrameContext) -> None:
+    def _ensure_frame_zone(self, frame: FrameContext) -> None:
         t = frame.t
         if frame.zone_id:
             label = str(frame.attributes.get("zone_label", frame.zone_id))
@@ -609,7 +639,11 @@ class ChronicleMemory:
                 attrs = self.background.node(zone_id) or {}
                 self.store.upsert_zone(zone_id, attrs.get("label", label), t)
                 self._active_zone = zone_id
+        else:
+            self._default_zone(t)
 
+    def _ensure_frame_supports(self, frame: FrameContext) -> None:
+        t = frame.t
         zone_id = self._active_zone or self._default_zone(t)
         for surface in frame.supports:
             self._ensure_support(surface, zone_id, t)
@@ -631,13 +665,19 @@ class ChronicleMemory:
                 self.background.ensure_zone(surface.zone_id, t, zone_id=surface.zone_id)
                 self.store.upsert_zone(zone, surface.zone_id, t)
         node_id = self.background.ensure_furniture(surface.anchor_id, surface.label, zone, t)
-        self.store.upsert_furniture(
-            node_id,
-            surface.label,
-            zone,
-            t,
-            attrs={"fixed": surface.is_fixed, **dict(surface.attributes)},
-        )
+        previous = self._support_persisted.get(node_id, float("-inf"))
+        # Support rows are immutable structure plus a rolling last-seen stamp.
+        # Persisting all of them on every frame dominated SQLite time; the
+        # persistence cadence keeps reloads honest without touching the graph.
+        if node_id not in self._support_persisted or t - previous >= self.persistence_interval_s:
+            self.store.upsert_furniture(
+                node_id,
+                surface.label,
+                zone,
+                t,
+                attrs={"fixed": surface.is_fixed, **dict(surface.attributes)},
+            )
+            self._support_persisted[node_id] = t
         return node_id
 
     def _ensure_entities(self, frame: FrameContext) -> None:
@@ -712,19 +752,40 @@ class ChronicleMemory:
             container_id=snapshot.container_id,
             attrs=attrs,
         )
-        self.store.upsert_entity(
-            snapshot.entity_id,
-            snapshot.label,
-            snapshot.state.value,
-            snapshot.state_since,
-            first_seen,
-            snapshot.last_seen,
-            bbox=snapshot.bbox,
-            embedding=obj.embedding if obj is not None else None,
-            track_id=obj.track_id if obj is not None else None,
-            zone_id=zone_id,
-            attrs=attrs,
+
+        # The graph is updated every frame; SQLite only needs enough cadence to
+        # survive a reload.  Write on a state change, meaningful bbox motion, or
+        # the observation interval, not once per frame.
+        bbox = (
+            tuple(float(value) for value in snapshot.bbox)
+            if snapshot.bbox is not None
+            else None
         )
+        previous = self._entity_persisted.get(snapshot.entity_id)
+        state = snapshot.state.value
+        if (
+            previous is None
+            or previous[1] != state
+            or snapshot.last_seen - previous[0] >= self.persistence_interval_s
+        ):
+            self.store.upsert_entity(
+                snapshot.entity_id,
+                snapshot.label,
+                state,
+                snapshot.state_since,
+                first_seen,
+                snapshot.last_seen,
+                bbox=snapshot.bbox,
+                embedding=obj.embedding if obj is not None else None,
+                track_id=obj.track_id if obj is not None else None,
+                zone_id=zone_id,
+                attrs=attrs,
+            )
+            self._entity_persisted[snapshot.entity_id] = (
+                snapshot.last_seen,
+                state,
+                bbox,
+            )
 
     def _apply_transition(self, transition: StateTransition, frame: FrameContext) -> None:
         t = transition.t_event

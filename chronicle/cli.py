@@ -70,11 +70,19 @@ def _resolve_source(
     return source, path
 
 
-def _perception_config(args: argparse.Namespace) -> PerceptionConfig:
+def _perception_config(
+    args: argparse.Namespace, source: ClipSource | None = None
+) -> PerceptionConfig:
     config = PerceptionConfig()
     config.detector.backend = args.detector
     config.hands.backend = args.hands
     config.embedder.backend = args.embedder
+    if source is not None and source.vocabulary:
+        config.vocabulary = tuple(source.vocabulary)
+    if getattr(args, "conf", None) is not None:
+        config.detector.confidence = float(args.conf)
+    if getattr(args, "imgsz", None) is not None:
+        config.detector.imgsz = max(32, int(args.imgsz))
     if getattr(args, "max_frames", None) is not None:
         config.max_frames = int(args.max_frames)
     return config
@@ -121,7 +129,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     ensure_local_ollama(sem_cfg)
     runtime = ChronicleRuntime(
         db_path,
-        perception_config=_perception_config(args),
+        perception_config=_perception_config(args, source),
         semantic_config=sem_cfg,
         zone_label=args.zone or source.zone_label,
         reset=args.reset,
@@ -225,6 +233,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--zone", help="zone label override")
     run.add_argument("--max-frames", type=int)
     run.add_argument("--fps", type=float, help="override video FPS")
+    run.add_argument("--conf", type=float, help="detector confidence threshold override")
+    run.add_argument("--imgsz", type=int, help="detector input size override")
     run.add_argument("--reset", action="store_true", help="recreate the database before ingesting")
     run.add_argument("--ask", action="append", help="question to answer after ingestion")
     run.add_argument(

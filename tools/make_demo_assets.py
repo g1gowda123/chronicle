@@ -34,7 +34,7 @@ FPS = scene.FPS
 DURATION = scene.DURATION
 
 EVENTS: list[dict] = []
-VIDEO_URL = "/media/demo.webm"
+VIDEO_URL = "/media/demo/chronicle_demo.mp4"
 
 ENTITY_META = {
     "wallet": ("wallet_1", "Wallet", 0.89, 0.87, "101", "wallet.png"),
