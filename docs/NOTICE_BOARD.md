@@ -52,7 +52,7 @@ PR so parallel work does not collide.
 | NB-05 | P0 | Verify every bundled source end to end | QA | READY | unclaimed |
 | NB-06 | P0 | Real-clip evidence images for demo answers | Perception | READY | unclaimed |
 | NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
-| NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | IN PROGRESS | opencode (AI) |
+| NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | DONE | opencode (AI) |
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
 | NB-10 | P1 | Tune consolidation on the living-room clip | Graph | READY | unclaimed |
 | NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | READY | unclaimed |
@@ -62,6 +62,7 @@ PR so parallel work does not collide.
 | NB-15 | P2 | Colour filter dropdown for entities | UI | READY | unclaimed |
 | NB-16 | P2 | Export evidence frames with the snapshot | UI / Integration | READY | unclaimed |
 | NB-17 | P2 | Responsive and accessibility pass | UI | READY | unclaimed |
+| NB-18 | P1 | Reduce the pre-grasp PICK_UP false positive | Semantic | READY | unclaimed |
 
 ---
 
@@ -165,25 +166,6 @@ PR so parallel work does not collide.
   documented with a concrete tuning task.
 - **Spec:** §Quality; §Ten-minute demo script step 5.
 
-### NB-08 · Calibrate action thresholds against real labels
-- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Semantic
-- **Started:** 2026-10-26 · **Branch:** `task/nb-08-real-calibration`
-- **Why:** shipped thresholds come from a 16-caption seed set.
-- **Scope:** build a JSON/JSONL label file from the published HoloAssist clip
-  timeline, run `python -m chronicle.semantic.calibration --labels <file>`,
-  commit the resulting `CHRONICLE_ACTION_THRESHOLDS` recommendation, and fix
-  only classifier regex gaps the real labels expose.
-- **Files:** `docs/calibration_labels.holoassist.json` (new),
-  `docs/CALIBRATION.md` (new), `docs/calibration.holoassist.report.json` (new),
-  `chronicle/semantic/actions.py` (regex gaps only), `tests/test_actions.py`,
-  `tests/test_calibration.py`, `docs/{NOTICE_BOARD,TEAM_STATUS,ROLE_C}.md`
-- **Acceptance:** precision target met and the threshold source is documented.
-- **Progress note:** HoloAssist timeline labels expose two real gaps in
-  `RuleBasedActionClassifier`: "slide …" was not classified as `PUSH` and
-  "withdraw …" was not classified as `REMOVE_FROM`. The fix is limited to the
-  regex patterns so the pinned confidences stay unchanged.
-- **Spec:** §Quality, calibration.
-
 ### NB-09 · Review drawer for rejected / ambiguous actions
 - **Status:** READY · **Owner:** unclaimed · **Lane:** UI
 - **Why:** rejected actions are currently only visible in telemetry. The
@@ -232,6 +214,21 @@ PR so parallel work does not collide.
 - **Acceptance:** spec builds; evaluation passes with the new cases and reports
   citation precision.
 - **Spec:** §Perception; new feature in `chronicle/perception/attributes.py`.
+
+### NB-18 · Reduce the pre-grasp `PICK_UP` false positive
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Semantic
+- **Why:** NB-08 found that `"The hand reaches toward the Joy-Con but does not
+  grasp it."` is classified as `PICK_UP` at 0.74. Raising the `PICK_UP`
+  threshold above 0.74 would also reject the three true pickups, so this needs
+  a classifier/phrasing fix, not a threshold change.
+- **Scope:** add negation or contact-aware gating to the rule classifier (or
+  require a grasp/lift verb for `PICK_UP`), rerun the real-label calibration,
+  and keep recall at 1.00 while raising `PICK_UP` precision.
+- **Files:** `chronicle/semantic/actions.py`, `tests/test_actions.py`,
+  `docs/CALIBRATION.md`, `docs/calibration.holoassist.report.json`
+- **Acceptance:** real-label precision at least 0.95 with recall 1.00;
+  `DEFAULT_ACTION_THRESHOLDS` re-derived from the new report, not hand-tuned.
+- **Spec:** §Quality, calibration.
 
 ---
 
@@ -301,6 +298,22 @@ PR so parallel work does not collide.
 | NB-D03 | Appearance in snapshot, CSV, GraphRAG and UI | orchestrator | `docs/INTEGRATION.md`, `docs/PERCEPTION.md` |
 | NB-D04 | Dashboard video upload + drag-and-drop | orchestrator | `tests/test_uploads.py` |
 | NB-D05 | Snapshot import / export | orchestrator | `tests/test_snapshot_io.py`, `tests/test_dashboard_smoke.py` |
+| NB-08 | Calibrate action thresholds against real labels | opencode (AI) | `5d8b499`; `docs/CALIBRATION.md`; 19 labels, precision 0.93 / recall 1.00 |
+
+### NB-08 details
+
+- **Branch:** `task/nb-08-real-calibration` · **Commit:** `5d8b499`
+- **Why:** shipped thresholds came from a 16-caption seed set.
+- **Delivered:** `docs/calibration_labels.holoassist.json` (19 traceable labels
+  from the published HoloAssist timeline), `docs/calibration.holoassist.report.json`,
+  `docs/CALIBRATION.md`, calibrated defaults in `actions.py`, and fixes for the
+  two regex gaps the real labels exposed ("slide …" → `PUSH`, "withdraw …" →
+  `REMOVE_FROM`).
+- **Acceptance:** precision target 0.9 met (0.933), threshold source
+  documented, model-free regression tests added.
+- **Known follow-up:** the pre-grasp "reaches toward …" caption is still a
+  `PICK_UP` false positive. Raising the threshold would reject true pickups, so
+  it needs a classifier/phrasing fix rather than a threshold change.
 
 ---
 

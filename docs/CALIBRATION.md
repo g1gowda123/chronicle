@@ -6,8 +6,8 @@ turns labelled captions into per-action acceptance thresholds, so a confident
 examples are rejected instead of inflating recall.
 
 This page is the reproducible record for **NB-08** (`docs/NOTICE_BOARD.md`).
-The shipped defaults in `chronicle/semantic/actions.py` are generated from the
-HoloAssist label file below, not from the old 16-caption seed set.
+The shipped defaults in `chronicle/semantic/actions.py` are generated from
+`docs/calibration_labels.holoassist.json`, not from the old 16-caption seed set.
 
 ## TL;DR
 
@@ -38,9 +38,9 @@ HoloAssist Joy-Con timeline in `data/real/holoassist_switch_34s.json` and the
 real interaction strips in `runs/real_clips/`.
 
 - One label per published event: grab, hold, slide, place, insert, withdraw,
-  align.
-- Scene, pre-grasp and rest rows are included as `OTHER` negatives so false
-  positives are measured.
+  align, with a few nearby rest/hold frames from the same clip.
+- Scene, pre-grasp, rest and adjust rows are included as `OTHER` negatives so
+  false positives are measured.
 - Each row keeps its `timestamp` and the original HoloAssist `event` string so
   a reviewer can trace it back to the clip.
 - Captions are **hand-authored labels**, not Florence-2 output. No model
@@ -106,7 +106,7 @@ values are already the code defaults.
 `PICK_UP` at 0.74. Raising the threshold above 0.74 would reject the three true
 pickups too, because the rule classifier emits one pinned confidence per
 action. This is a classifier-phrasing gap, not a threshold gap; it is tracked
-as follow-up work in `NOTICE_BOARD.md`.
+as **NB-18** in `NOTICE_BOARD.md`.
 
 ## Why `OTHER` does not lower recall
 
