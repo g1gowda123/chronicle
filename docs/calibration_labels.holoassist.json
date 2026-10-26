@@ -1,0 +1,130 @@
+{
+  "clip": "data/real/holoassist_switch_34s.mp4",
+  "clip_id": "holoassist:z210-sep-29-22-switch",
+  "dataset": "HoloAssist",
+  "session": "z210-sep-29-22-switch",
+  "device": "Microsoft HoloLens 2",
+  "license": "CDLA-Permissive-2.0",
+  "duration_s": 34.0,
+  "fps": 29.943,
+  "labelled_by": "opencode (AI)",
+  "labelled_on": "2026-10-26",
+  "method": "Hand-authored expected captions in Florence-2 style, grounded in the published HoloAssist timeline in data/real/holoassist_switch_34s.json, the interaction strips in runs/real_clips/, and nearby rest/hold frames in the clip. These are labels, not model output; no caption was taken from or invented as a Florence-2 result.",
+  "notes": "Each published timeline event (grab/hold/slide/place/insert/withdraw/align) has one label; scene, rest, adjust and pre-grasp rows are extra negatives so false positives are measured. Captions may paraphrase the published event string; the timestamp and event field keep each label traceable. Movement-only published rows are represented as OTHER rather than dropped.",
+  "labels": [
+    {
+      "timestamp": 0.0,
+      "event": "scene establishes work table",
+      "caption": "A first-person view of the work table and the Joy-Con controllers.",
+      "action": "OTHER"
+    },
+    {
+      "timestamp": 3.8,
+      "event": "pre-grasp reach",
+      "caption": "The hand reaches toward the Joy-Con but does not grasp it.",
+      "action": "OTHER"
+    },
+    {
+      "timestamp": 4.2,
+      "event": "grab joy_con_controller",
+      "caption": "The left hand grabs the blue Joy-Con controller from the work table.",
+      "action": "PICK_UP"
+    },
+    {
+      "timestamp": 5.8,
+      "event": "grab joy_con_controller (lift phase)",
+      "caption": "The hand lifts the left Joy-Con off the work table.",
+      "action": "PICK_UP"
+    },
+    {
+      "timestamp": 9.2,
+      "event": "rest between grasps",
+      "caption": "The left hand rests on the work table beside the console.",
+      "action": "OTHER"
+    },
+    {
+      "timestamp": 10.2,
+      "event": "grab comfort_grip",
+      "caption": "The right hand grabs the comfort grip from the tabletop.",
+      "action": "PICK_UP"
+    },
+    {
+      "timestamp": 12.2,
+      "event": "hold comfort_grip",
+      "caption": "The hand holds the comfort grip above the work table.",
+      "action": "HOLD"
+    },
+    {
+      "timestamp": 13.0,
+      "event": "hold comfort_grip (steady phase)",
+      "caption": "The right hand holds the comfort grip steady.",
+      "action": "HOLD"
+    },
+    {
+      "timestamp": 14.8,
+      "event": "adjust comfort_grip",
+      "caption": "The hand adjusts the comfort grip on the table.",
+      "action": "OTHER"
+    },
+    {
+      "timestamp": 15.16,
+      "event": "slide joy_con_controller",
+      "caption": "The hand pushes the left Joy-Con forward on the work table.",
+      "action": "PUSH"
+    },
+    {
+      "timestamp": 18.1,
+      "event": "place joy_con_controller",
+      "caption": "The hand places the Joy-Con down on the work table.",
+      "action": "PUT_DOWN"
+    },
+    {
+      "timestamp": 19.09,
+      "event": "insert joy_con_controller",
+      "caption": "The hand inserts the left Joy-Con into the rail of the Switch console.",
+      "action": "INSERT_INTO"
+    },
+    {
+      "timestamp": 22.1,
+      "event": "withdraw joy_con_controller",
+      "caption": "The hand pulls the right Joy-Con out of the console rail.",
+      "action": "REMOVE_FROM"
+    },
+    {
+      "timestamp": 23.9,
+      "event": "hold assembled controller",
+      "caption": "The hand holds the assembled controller steady.",
+      "action": "HOLD"
+    },
+    {
+      "timestamp": 25.1,
+      "event": "place joy_con_controller",
+      "caption": "The hand places the assembled controller onto the tabletop.",
+      "action": "PUT_DOWN"
+    },
+    {
+      "timestamp": 28.11,
+      "event": "align joy_con_controller",
+      "caption": "The hand aligns the Joy-Con with the rail before inserting it.",
+      "action": "OTHER"
+    },
+    {
+      "timestamp": 28.9,
+      "event": "slide joy_con_controller",
+      "caption": "The right hand pushes the Joy-Con down the rail of the console.",
+      "action": "PUSH"
+    },
+    {
+      "timestamp": 31.35,
+      "event": "withdraw joy_con_controller",
+      "caption": "The hand pulls the Joy-Con out of the console.",
+      "action": "REMOVE_FROM"
+    },
+    {
+      "timestamp": 31.98,
+      "event": "place joy_con_controller",
+      "caption": "The hand sets the right Joy-Con on the table.",
+      "action": "PUT_DOWN"
+    }
+  ]
+}

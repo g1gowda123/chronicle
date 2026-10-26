@@ -52,7 +52,7 @@ PR so parallel work does not collide.
 | NB-05 | P0 | Verify every bundled source end to end | QA | READY | unclaimed |
 | NB-06 | P0 | Real-clip evidence images for demo answers | Perception | READY | unclaimed |
 | NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
-| NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | READY | unclaimed |
+| NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | IN PROGRESS | opencode (AI) |
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
 | NB-10 | P1 | Tune consolidation on the living-room clip | Graph | READY | unclaimed |
 | NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | READY | unclaimed |
@@ -166,13 +166,22 @@ PR so parallel work does not collide.
 - **Spec:** §Quality; §Ten-minute demo script step 5.
 
 ### NB-08 · Calibrate action thresholds against real labels
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Semantic
+- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Semantic
+- **Started:** 2026-10-26 · **Branch:** `task/nb-08-real-calibration`
 - **Why:** shipped thresholds come from a 16-caption seed set.
-- **Scope:** build a JSON/JSONL label file, run
-  `python -m chronicle.semantic.calibration --labels <file>`, commit the
-  resulting `CHRONICLE_ACTION_THRESHOLDS` recommendation.
-- **Files:** `chronicle/semantic/calibration.py` (only if needed), docs
+- **Scope:** build a JSON/JSONL label file from the published HoloAssist clip
+  timeline, run `python -m chronicle.semantic.calibration --labels <file>`,
+  commit the resulting `CHRONICLE_ACTION_THRESHOLDS` recommendation, and fix
+  only classifier regex gaps the real labels expose.
+- **Files:** `docs/calibration_labels.holoassist.json` (new),
+  `docs/CALIBRATION.md` (new), `docs/calibration.holoassist.report.json` (new),
+  `chronicle/semantic/actions.py` (regex gaps only), `tests/test_actions.py`,
+  `tests/test_calibration.py`, `docs/{NOTICE_BOARD,TEAM_STATUS,ROLE_C}.md`
 - **Acceptance:** precision target met and the threshold source is documented.
+- **Progress note:** HoloAssist timeline labels expose two real gaps in
+  `RuleBasedActionClassifier`: "slide …" was not classified as `PUSH` and
+  "withdraw …" was not classified as `REMOVE_FROM`. The fix is limited to the
+  regex patterns so the pinned confidences stay unchanged.
 - **Spec:** §Quality, calibration.
 
 ### NB-09 · Review drawer for rejected / ambiguous actions

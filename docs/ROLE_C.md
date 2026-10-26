@@ -418,10 +418,12 @@ to `drawer` for `REMOVE_FROM` and `pocket` for `INSERT_INTO`.
 ### Confidence calibration
 
 `DEFAULT_ACTION_THRESHOLDS` is a per-action acceptance cutoff (for example
-`HOLD` 0.55, `INSERT_INTO` 0.60, `OTHER` never). `ActionCalibrator` applies the
-cutoff, the global floor, and the ambiguity penalty. Captions containing
-"appears", "maybe", "unclear", "hard to tell" or a question mark are never
-accepted as graph facts, even at 0.95 confidence.
+`HOLD` 0.62, `INSERT_INTO` 0.80, `OTHER` never). The shipped values are
+calibrated on the real HoloAssist Joy-Con clip — see
+[`docs/CALIBRATION.md`](CALIBRATION.md) for the labels, report and provenance.
+`ActionCalibrator` applies the cutoff, the global floor, and the ambiguity
+penalty. Captions containing "appears", "maybe", "unclear", "hard to tell" or a
+question mark are never accepted as graph facts, even at 0.95 confidence.
 
 To calibrate on labelled clips:
 
@@ -438,18 +440,26 @@ accepts your own labelled captions; `suggest_thresholds()` works on raw
 `CalibrationSample(action, confidence, correct)` values.
 
 For real HoloLens clips, keep the labels outside the code and point the CLI at
-them (see [`docs/calibration_labels.example.json`](calibration_labels.example.json)):
+them. The shipped defaults come from
+[`docs/calibration_labels.holoassist.json`](calibration_labels.holoassist.json):
 
 ```bash
 python -m chronicle.semantic.calibration \
-  --labels docs/calibration_labels.example.json
-# labels=6 accepted=5 precision=1.00 recall=0.83
-# CHRONICLE_ACTION_THRESHOLDS=CLOSE=0.72,HAND_OFF=0.6,...
+  --labels docs/calibration_labels.holoassist.json \
+  --target-precision 0.9 \
+  --write docs/calibration.holoassist.report.json
+# labels=19 accepted=15 rejected_correct=4 precision=0.93 recall=1.00
+# CHRONICLE_ACTION_THRESHOLDS=CLOSE=0.6,HAND_OFF=0.6,HOLD=0.62,...
 
 python -m chronicle.semantic.calibration \
   --labels runs/hololens_labels.jsonl --target-precision 0.95 \
   --write runs/calibration.json --json
 ```
+
+`docs/calibration_labels.example.json` is the small smoke-test fixture. See
+[`docs/CALIBRATION.md`](CALIBRATION.md) for the label provenance, the
+per-action table, the recommended thresholds and the remaining `PICK_UP`
+false-positive gap.
 
 Accepted label shapes are a list of `{"caption", "action"}` objects,
 `(caption, action)` pairs, `{"labels": [...]}`, or
@@ -563,7 +573,7 @@ Every field of `SemanticConfig` can be set with
 | `CHRONICLE_FLORENCE_MODEL_ID` | `microsoft/Florence-2-base` | captioner |
 | `CHRONICLE_ACTION_MIN_CONFIDENCE` | `0.45` | global accept/review floor |
 | `CHRONICLE_ACTION_REJECT_AMBIGUOUS` | `true` | reject hedged captions |
-| `CHRONICLE_ACTION_THRESHOLDS` | calibrated defaults | `HOLD=0.7,PICK_UP=0.8` |
+| `CHRONICLE_ACTION_THRESHOLDS` | calibrated defaults ([`CALIBRATION.md`](CALIBRATION.md)) | `HOLD=0.62,PICK_UP=0.74,INSERT_INTO=0.8` |
 | `CHRONICLE_VERIFICATION_QUEUE_SIZE` | `8` | max clips waiting for the VLM |
 | `CHRONICLE_VERIFICATION_QUEUE_POLICY` | `drop_oldest` | `drop_oldest`, `reject` |
 | `CHRONICLE_VERIFICATION_DEDUP_WINDOW` | `1024` | clip ids remembered |
@@ -642,11 +652,14 @@ The suite has **no model downloads and no network access**.
   followed by a text-only JSON classifier. Swapping in a vision-language model
   is a matter of replacing `ActionVerifier.chat_client` with a vision client;
   the schema and fallbacks stay unchanged.
-* Calibration ships with a 16-caption seed set and now accepts labelled files
-  (`python -m chronicle.semantic.calibration --labels labels.jsonl`). The
-  action-timeline harness (`python -m chronicle.semantic.timeline`) is ready to
-  score the real clip; label the HoloLens pass, commit the resulting thresholds,
-  and the “done when” line in `TEAM_STATUS.md` can be ticked.
+* Calibration now ships with real HoloAssist labels
+  (`docs/calibration_labels.holoassist.json`, 19 labels, precision 0.93 /
+  recall 1.00) and the resulting per-action defaults. The remaining `PICK_UP`
+  false positive is a classifier-phrasing gap (a pre-grasp "reaches …" caption),
+  tracked on `NOTICE_BOARD.md`. The action-timeline harness
+  (`python -m chronicle.semantic.timeline`) still needs a full hand-labelled
+  timeline pass before the Role C “done when” line in `TEAM_STATUS.md` is
+  ticked.
 * The deterministic embedder is intentionally not CLIP-quality. It exists for
   offline demos/tests; production must install `requirements-semantic-models.txt`.
 * Zone prototypes are in-memory + JSON by default. Role B can persist

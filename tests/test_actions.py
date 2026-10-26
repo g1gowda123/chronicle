@@ -80,6 +80,8 @@ class RuleClassifierTest(unittest.TestCase):
             "She places the mug on the desk.": ActionPrimitive.PUT_DOWN,
             "He puts the keys inside the drawer.": ActionPrimitive.INSERT_INTO,
             "They take the charger out of the backpack.": ActionPrimitive.REMOVE_FROM,
+            "The hand withdraws the Joy-Con from the console rail.": ActionPrimitive.REMOVE_FROM,
+            "The hand slides the Joy-Con along the rail.": ActionPrimitive.PUSH,
             "The hand opens the cabinet door.": ActionPrimitive.OPEN,
             "The lid closes.": ActionPrimitive.CLOSE,
         }

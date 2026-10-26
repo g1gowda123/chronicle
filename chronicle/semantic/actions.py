@@ -64,21 +64,25 @@ def _normalise_action_key(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
 
 
-# Calibrated acceptance cutoffs.  The rule classifier's confidences sit at or
-# above these values; the LLM path is held to the same bar per action so a
+# Calibrated acceptance cutoffs.  The values below come from
+# ``docs/calibration.holoassist.report.json`` (19 hand-labelled captions from
+# the published HoloAssist Joy-Con clip); re-run the command in
+# ``docs/CALIBRATION.md`` after adding labels.  Actions without real labels
+# keep their seed values.  The rule classifier's confidences sit at or above
+# these values; the LLM path is held to the same bar per action so a
 # high-scoring ``HOLD`` is not accepted at the same confidence as ``OPEN``.
 # ``OTHER`` is never accepted (``accepted`` also excludes it explicitly).
 DEFAULT_ACTION_THRESHOLDS: tuple[tuple[str, float], ...] = (
-    ("PICK_UP", 0.55),
-    ("PUT_DOWN", 0.60),
-    ("INSERT_INTO", 0.60),
-    ("REMOVE_FROM", 0.60),
+    ("PICK_UP", 0.74),
+    ("PUT_DOWN", 0.76),
+    ("INSERT_INTO", 0.80),
+    ("REMOVE_FROM", 0.78),
     ("OPEN", 0.60),
     ("CLOSE", 0.60),
-    ("PUSH", 0.55),
+    ("PUSH", 0.68),
     ("PULL", 0.55),
     ("HAND_OFF", 0.60),
-    ("HOLD", 0.55),
+    ("HOLD", 0.62),
     ("OTHER", 1.0),
 )
 
@@ -575,7 +579,8 @@ class RuleBasedActionClassifier:
             re.compile(
                 r"\b(?:take|takes|taking|pull|pulls|pulling|remove|removes|removing|"
                 r"extract|extracts|lift|lifts)\b[^.]*\b(?:out of|out from|from inside|"
-                r"from within)\b",
+                r"from within)\b"
+                r"|\b(?:withdraw|withdraws|withdrawing|withdrew)\b[^.]*\bfrom\b",
                 re.IGNORECASE,
             ),
             0.78,
@@ -623,7 +628,10 @@ class RuleBasedActionClassifier:
         ),
         (
             ActionPrimitive.PUSH,
-            re.compile(r"\b(?:push|pushes|pushing)\b", re.IGNORECASE),
+            re.compile(
+                r"\b(?:push|pushes|pushing|slide|slides|sliding)\b",
+                re.IGNORECASE,
+            ),
             0.68,
         ),
         (
