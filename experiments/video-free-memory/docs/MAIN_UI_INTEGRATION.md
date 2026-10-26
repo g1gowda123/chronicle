@@ -42,7 +42,9 @@ VFM is added **behind** them.
   - `GET /vfm/evidence/{source_key}/{name}`
   - `POST /vfm/ask/{source_key}` (`{"question": "...", "qwen": false}`)
 - New **Memory** tab in the existing right-hand card: status/progress, compile,
-  open report, all downloads, and an ask box. Qwen is a checkbox, default off.
+  open report, all downloads, and an ask box. Citation chips seek the existing
+  video player; the nearest evidence image is shown under the answer. Qwen is a
+  checkbox, default off.
 - Existing header **Export** menu gains: VFM memory (ZIP), Memory pack (MD),
   Open memory report.
 - Playback is preserved. Deletion is opt-in (`--vfm-delete-video`) and refused

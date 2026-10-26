@@ -1110,6 +1110,9 @@ def create_app(
                             ).classes(
                                 "text-xs text-slate-300 whitespace-pre-line w-full"
                             ).style("flex:1;min-height:0;overflow-y:auto")
+                            vfm_citations_row = ui.row().classes(
+                                "w-full gap-1 items-center flex-wrap"
+                            )
                             vfm_answer_meta = ui.label("").classes(
                                 "text-[9px] chronicle-mono text-slate-500"
                             )
@@ -1195,6 +1198,7 @@ def create_app(
             vfm_ask_button.disable()
             vfm_answer_label.text = "retrieving from the memory pack…"
             vfm_answer_meta.text = ""
+            vfm_citations_row.clear()
             try:
                 result = await run.io_bound(
                     vfm.ask,
@@ -1212,6 +1216,24 @@ def create_app(
                     f"confidence {result.confidence:.2f}"
                     + (f" · {citations}" if citations else "")
                 )
+                with vfm_citations_row:
+                    for cite in result.citations[:6]:
+                        citation_t = float(cite.get("t") or 0.0)
+                        ui.button(
+                            f"t={citation_t:.1f}s",
+                            icon="play_arrow",
+                            on_click=lambda t=citation_t: _seek_video(t),
+                        ).props("flat dense size=xs no-caps").classes(
+                            "text-[10px] chronicle-mono text-teal-300"
+                        ).tooltip(str(cite.get("caption") or "")[:220])
+                    for evidence in result.evidence[:1]:
+                        rel = Path(str(evidence.get("rel_path") or ""))
+                        if rel.name:
+                            ui.image(
+                                f"/vfm/evidence/{source.key}/{rel.name}"
+                            ).classes("w-24 rounded").style(
+                                "border:1px solid rgba(148,163,184,.25)"
+                            )
             except Exception as exc:
                 vfm_answer_label.text = f"{type(exc).__name__}: {exc}"
                 vfm_answer_meta.text = (
@@ -1220,6 +1242,10 @@ def create_app(
                 )
             finally:
                 vfm_ask_button.enable()
+
+        def _seek_video(seconds: float) -> None:
+            video_player.seek(max(0.0, float(seconds)))
+            video_player.play()
 
         vfm_ask_button.on("click", lambda: _ask_vfm())
         vfm_ask_input.on("keydown.enter", lambda: _ask_vfm())

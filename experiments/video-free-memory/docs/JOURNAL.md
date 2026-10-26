@@ -711,3 +711,12 @@ no Qwen). This exercises the server-side ingest callback, not a hand-submitted j
   (327 KB, contains vault/report/pack/CSVs/evidence/README).
 - Rendered page contains the Memory tab, `Ask memory`, Qwen toggle and all Export items.
 - Server stopped afterward; temp data under `/tmp/vfm-serve`.
+
+### Session 6 addendum — Memory-tab seek + tests
+
+- Memory-tab answers now render clickable citation chips (`t=2.8s`) that call the existing
+  `ui.video.seek()` + `play()`, plus the nearest evidence WebP under the answer. This closes the
+  UX part of “seek from a memory answer” without adding a second player.
+- Added tests for `--no-vfm` (routes inert/404) and the `on_ingest_done` → manager wiring.
+- `tests/test_vfm.py` is now **8 tests**; `tests/test_vfm.py tests/test_dashboard_smoke.py` →
+  9 passed; ruff clean.

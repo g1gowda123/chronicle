@@ -294,8 +294,9 @@ flags and measurements.
    `--vfm-delete-video` is opt-in and refuses paths outside `<data-dir>/uploads/`.
 6. Browser E2E: upload → wait → play → seek → ask → download zip → unzip/open report.
    **Partial** — `tests/test_vfm.py` covers compile → status/report → ask → zip/vault/evidence
-   downloads headlessly. The real browser drag/play/seek step is still manual; Playwright is not
-   installed in this environment.
+   downloads headlessly. Memory-tab citation chips call `video_player.seek(t)` + `play()`, and the
+   nearest evidence image is shown under the answer. The real browser drag/play/seek step is still
+   manual; Playwright is not installed in this environment.
 
 ### P1 — correctness / evaluation
 
