@@ -6,10 +6,11 @@ so retention is mostly about how many snapshots per hour we keep and how large
 each one is.
 
 Modes:
-  --report                 show bytes/hour and 7/30/365-day projections
+  --report                 show bytes/hour and 24 h / 7 / 30 / 365-day projections
   --sweep 40,12,4          simulate snapshot budgets on temporary vault copies
   --apply --keep-per-hour N prune evidence rows in place
   --delete-files           with --apply, delete unreferenced image files
+  --dedup / --no-dedup     merge near-identical snapshots (perceptual hash, default on)
 
 Usage:
   python prototype/retention.py --vault /tmp/vfm/scale/synth_60m.db --report
@@ -29,11 +30,21 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+try:  # Pillow is available in the main venv; keep retention stdlib-only otherwise.
+    from PIL import Image
+except ImportError:  # pragma: no cover - exercised only on minimal installs
+    Image = None  # type: ignore[assignment]
+
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = ROOT / "schema_v2.sql"
 SCHEMA_V3 = ROOT / "schema_v3.sql"
 
 KIND_SCORE = {"interaction": 4, "anchor": 3, "state": 2, "keyframe": 1}
+#: Default Hamming distance for 64-bit difference hashes. 8/64 tolerates small
+#: compression and resize differences while keeping different scenes apart.
+DEDUP_THRESHOLD = 8
+#: Only compare snapshots of the same label within this many seconds.
+DEDUP_GAP_S = 120.0
 
 
 def _size(path: Path) -> int:
@@ -89,11 +100,115 @@ def _score(row: dict[str, Any]) -> float:
     return score
 
 
-def _select(rows: list[dict[str, Any]], keep_per_hour: int, duration: float) -> list[dict[str, Any]]:
+def _image_path(row: dict[str, Any], data_root: Path | None) -> Path | None:
+    rel_path = str(row.get("rel_path") or "")
+    if not rel_path:
+        return None
+    candidate = Path(rel_path)
+    if not candidate.is_absolute():
+        if data_root is None:
+            return None
+        candidate = data_root / candidate
+    return candidate if candidate.is_file() else None
+
+
+def perceptual_hash(path: Path, *, size: int = 8) -> int | None:
+    """64-bit difference hash (dHash) for a snapshot.
+
+    Returns ``None`` when Pillow is unavailable or the file cannot be decoded,
+    so callers can fall back to keeping the row.
+    """
+
+    if Image is None:
+        return None
+    try:
+        with Image.open(path) as image:
+            grey = image.convert("L").resize(
+                (size + 1, size), getattr(Image, "Resampling", Image).LANCZOS
+            )
+            getter = getattr(grey, "get_flattened_data", grey.getdata)
+            pixels = list(getter())
+    except (OSError, ValueError, TypeError):
+        return None
+    bits = 0
+    for row in range(size):
+        offset = row * (size + 1)
+        for column in range(size):
+            bits = (bits << 1) | int(pixels[offset + column] > pixels[offset + column + 1])
+    return bits
+
+
+def _hamming(left: int, right: int) -> int:
+    return int(left ^ right).bit_count()
+
+
+def dedup_evidence(
+    rows: list[dict[str, Any]],
+    data_root: Path | None,
+    *,
+    threshold: int = DEDUP_THRESHOLD,
+    gap_s: float = DEDUP_GAP_S,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Drop near-identical snapshots of the same label within ``gap_s``.
+
+    Keeps the higher-salience row of each duplicate group (interaction beats
+    anchor beats state/keyframe). Rows whose image cannot be read are always
+    kept. Returns ``(kept, dropped)``.
+    """
+
+    kept: list[tuple[dict[str, Any], int | None]] = []
+    dropped: list[dict[str, Any]] = []
+    for row in sorted(rows, key=lambda item: float(item["t"])):
+        path = _image_path(row, data_root)
+        fingerprint = perceptual_hash(path) if path is not None else None
+        if fingerprint is None:
+            kept.append((row, None))
+            continue
+        group = str(row.get("label") or "").lower()
+        match: int | None = None
+        for index, (other, other_hash) in enumerate(kept):
+            if other_hash is None:
+                continue
+            if str(other.get("label") or "").lower() != group:
+                continue
+            if abs(float(other["t"]) - float(row["t"])) > gap_s:
+                continue
+            if _hamming(int(other_hash), fingerprint) <= threshold:
+                match = index
+                break
+        if match is None:
+            kept.append((row, fingerprint))
+            continue
+        other = kept[match][0]
+        if _score(row) > _score(other):
+            dropped.append(other)
+            kept[match] = (row, fingerprint)
+        else:
+            dropped.append(row)
+    return [row for row, _ in kept], dropped
+
+
+def _select(
+    rows: list[dict[str, Any]],
+    keep_per_hour: int,
+    duration: float,
+    *,
+    data_root: Path | None = None,
+    dedup: bool = True,
+    dedup_threshold: int = DEDUP_THRESHOLD,
+    dedup_gap_s: float = DEDUP_GAP_S,
+) -> list[dict[str, Any]]:
     """Select at most keep_per_hour rows per clock hour, spread across the hour."""
 
     if keep_per_hour <= 0:
         return []
+    if dedup:
+        rows, _ = dedup_evidence(
+            rows,
+            data_root,
+            threshold=dedup_threshold,
+            gap_s=dedup_gap_s,
+        )
     buckets: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         buckets[int(float(row["t"]) // 3600.0)].append(row)
@@ -220,13 +335,32 @@ def _project_per_hour(
     }
 
 
-def report(vault: Path, sweep: list[int], *, hours_per_day: float = 1.0) -> dict[str, Any]:
+def report(
+    vault: Path,
+    sweep: list[int],
+    *,
+    hours_per_day: float = 1.0,
+    data_root: Path | None = None,
+    dedup: bool = True,
+    dedup_threshold: int = DEDUP_THRESHOLD,
+    dedup_gap_s: float = DEDUP_GAP_S,
+) -> dict[str, Any]:
     con = sqlite3.connect(str(vault))
     con.row_factory = sqlite3.Row
     try:
         _checkpoint(con)
         duration = _duration(con)
         rows = _evidence(con)
+        rows_before_dedup = len(rows)
+        if dedup:
+            rows, dedup_dropped = dedup_evidence(
+                rows,
+                data_root or vault.parent,
+                threshold=dedup_threshold,
+                gap_s=dedup_gap_s,
+            )
+        else:
+            dedup_dropped = []
         breakdown = _breakdown(con, vault)
         counts = {
             "events": 0,
@@ -243,9 +377,8 @@ def report(vault: Path, sweep: list[int], *, hours_per_day: float = 1.0) -> dict
         except sqlite3.Error:
             pass
         try:
-            counts["ledger_windows"] = int(
-                con.execute("select n from caption_ledger where id=1").fetchone()[0]
-            )
+            row = con.execute("select n from caption_ledger where id=1").fetchone()
+            counts["ledger_windows"] = int(row[0]) if row else 0
         except sqlite3.Error:
             pass
         try:
@@ -259,11 +392,12 @@ def report(vault: Path, sweep: list[int], *, hours_per_day: float = 1.0) -> dict
 
     sweep_rows: list[dict[str, Any]] = []
     for keep in sweep:
-        selected = _select(rows, keep, duration)
+        selected = _select(rows, keep, duration, dedup=False)
         selected_ids = {row["id"] for row in selected}
         pruned_bytes = _copy_and_measure(vault, selected_ids)
         selected_unique_files, selected_unique_bytes = _unique_bytes(selected)
         projection = _project_per_hour(pruned_bytes, selected, duration)
+        per_hour = projection["memory_bytes_per_hour"]
         sweep_rows.append(
             {
                 "keep_per_hour": keep,
@@ -272,20 +406,31 @@ def report(vault: Path, sweep: list[int], *, hours_per_day: float = 1.0) -> dict
                 "unique_bytes": selected_unique_bytes,
                 "vault_bytes_after": pruned_bytes,
                 **projection,
-                "projected_30d_bytes": round(
-                    projection["memory_bytes_per_hour"] * hours_per_day * 30.0
-                ),
-                "projected_365d_bytes": round(
-                    projection["memory_bytes_per_hour"] * hours_per_day * 365.0
-                ),
+                "projected_24h_bytes": round(per_hour * 24.0),
+                "projected_7d_bytes": round(per_hour * hours_per_day * 7.0),
+                "projected_30d_bytes": round(per_hour * hours_per_day * 30.0),
+                "projected_365d_bytes": round(per_hour * hours_per_day * 365.0),
             }
         )
 
     current = _project_per_hour(vault_bytes, rows, duration)
+    per_hour = current["memory_bytes_per_hour"]
+    current["projected_24h_bytes"] = round(per_hour * 24.0)
+    current["projected_7d_bytes"] = round(per_hour * hours_per_day * 7.0)
+    current["projected_30d_bytes"] = round(per_hour * hours_per_day * 30.0)
+    current["projected_365d_bytes"] = round(per_hour * hours_per_day * 365.0)
     return {
         "vault": str(vault),
         "duration_s": round(duration, 3),
         "counts": counts,
+        "dedup": {
+            "enabled": dedup,
+            "threshold": dedup_threshold if dedup else None,
+            "gap_s": dedup_gap_s if dedup else None,
+            "evidence_before": rows_before_dedup,
+            "evidence_after": len(rows),
+            "dropped": len(dedup_dropped),
+        },
         "bytes": {
             "vault_total": vault_bytes,
             "unique_evidence_files": unique_files,
@@ -306,6 +451,9 @@ def apply(
     data_root: Path | None = None,
     drop_cache: bool = False,
     vacuum: bool = True,
+    dedup: bool = True,
+    dedup_threshold: int = DEDUP_THRESHOLD,
+    dedup_gap_s: float = DEDUP_GAP_S,
 ) -> dict[str, Any]:
     if delete_files and data_root is None:
         raise SystemExit("--delete-files requires --data-root")
@@ -316,7 +464,17 @@ def apply(
         _checkpoint(con)
         duration = _duration(con)
         rows = _evidence(con)
-        selected = _select(rows, keep_per_hour, duration)
+        candidates = rows
+        dedup_dropped = 0
+        if dedup:
+            candidates, dropped = dedup_evidence(
+                rows,
+                data_root or vault.parent,
+                threshold=dedup_threshold,
+                gap_s=dedup_gap_s,
+            )
+            dedup_dropped = len(dropped)
+        selected = _select(candidates, keep_per_hour, duration, dedup=False)
         selected_ids = {row["id"] for row in selected}
         _apply_prune(con, rows, selected, vacuum=vacuum, drop_cache=drop_cache)
         remaining = _evidence(con)
@@ -346,6 +504,7 @@ def apply(
         "vault": str(vault),
         "keep_per_hour": keep_per_hour,
         "evidence_before": len(rows),
+        "dedup_dropped": dedup_dropped,
         "evidence_after": len(remaining),
         "vault_bytes_before": before,
         "vault_bytes_after": _size(vault),
@@ -364,6 +523,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--data-root", type=Path, default=None)
     parser.add_argument("--drop-cache", action="store_true")
     parser.add_argument("--no-vacuum", action="store_true")
+    parser.add_argument(
+        "--no-dedup",
+        action="store_true",
+        help="keep near-identical snapshots (default is to dedup by dHash)",
+    )
+    parser.add_argument("--dedup-threshold", type=int, default=DEDUP_THRESHOLD)
+    parser.add_argument("--dedup-gap", type=float, default=DEDUP_GAP_S)
     parser.add_argument("--hours-per-day", type=float, default=1.0)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
@@ -380,12 +546,23 @@ def main(argv: list[str] | None = None) -> int:
             data_root=args.data_root.expanduser().resolve() if args.data_root else None,
             drop_cache=args.drop_cache,
             vacuum=not args.no_vacuum,
+            dedup=not args.no_dedup,
+            dedup_threshold=args.dedup_threshold,
+            dedup_gap_s=args.dedup_gap,
         )
         print(json.dumps(result, indent=2))
         return 0
 
     sweep = sorted({int(value) for value in args.sweep.split(",") if value.strip()}, reverse=True)
-    result = report(vault, sweep, hours_per_day=max(0.1, args.hours_per_day))
+    result = report(
+        vault,
+        sweep,
+        hours_per_day=max(0.1, args.hours_per_day),
+        data_root=args.data_root.expanduser().resolve() if args.data_root else None,
+        dedup=not args.no_dedup,
+        dedup_threshold=args.dedup_threshold,
+        dedup_gap_s=args.dedup_gap,
+    )
     if args.json:
         print(json.dumps(result, indent=2))
         return 0
@@ -405,25 +582,37 @@ def main(argv: list[str] | None = None) -> int:
         f"per hour     : {result['current']['memory_bytes_per_hour']/1024:.1f} KB "
         f"({result['current']['snapshots_per_hour']:.1f} snapshots/h)"
     )
+    dedup = result.get("dedup") or {}
+    if dedup.get("enabled"):
+        print(
+            f"dedup        : dropped {dedup.get('dropped', 0)} near-identical "
+            f"snapshot(s) ({dedup.get('evidence_before', 0)} → {dedup.get('evidence_after', 0)})"
+        )
     print()
     print("Breakdown (SQLite pages):")
     for name, size in list(result["breakdown"].items())[:10]:
         print(f"  {name:22} {size/1024:8.1f} KB")
     print()
-    print("| Snapshots/h | Evidence rows | Unique files | Unique bytes | Vault after | Memory/h | 30 days | 365 days |")
-    print("|---:|---:|---:|---:|---:|---:|---:|---:|")
+    print(
+        "| Snapshots/h | Evidence rows | Unique files | Unique bytes | Vault after | Memory/h "
+        "| 24 h | 7 days | 30 days | 365 days |"
+    )
+    print("|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for row in result["sweep"]:
         print(
             f"| {row['keep_per_hour']} | {row['evidence_rows']} | {row['unique_files']} | "
             f"{row['unique_bytes']/1024:.1f} KB | {row['vault_bytes_after']/1024:.1f} KB | "
             f"{row['memory_bytes_per_hour']/1024:.1f} KB | "
+            f"{row['projected_24h_bytes']/1048576:.2f} MB | "
+            f"{row['projected_7d_bytes']/1048576:.2f} MB | "
             f"{row['projected_30d_bytes']/1048576:.1f} MB | "
             f"{row['projected_365d_bytes']/1048576:.1f} MB |"
         )
     print()
     print(
-        "Projection assumes 1 hour recorded per day; multiply the 30/365-day figures "
-        "for heavier use. The vault grows with events, evidence with snapshots."
+        "24 h assumes a full day of recording; 7/30/365 days assume 1 hour recorded "
+        "per day (change with --hours-per-day). The vault grows with events, evidence "
+        "with snapshots."
     )
     return 0
 

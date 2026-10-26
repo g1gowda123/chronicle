@@ -534,6 +534,55 @@ Results and measurements will be appended as a separate entry when the integrati
 
 ---
 
+## 2026-10-27 — Session 9: snapshot dedup + 24 h / 7 day retention (P2-RETENTION)
+
+### Goal
+
+Stop paying twice for near-identical evidence frames and make the retention report answer the
+question users actually ask: "what does a day or a week of memory cost?"
+
+### Built
+
+- `prototype/retention.py::perceptual_hash`: optional Pillow 8x8 dHash (64-bit). If Pillow is
+  absent or a file cannot be decoded, the row is kept unchanged; retention stays stdlib-usable.
+- `dedup_evidence(rows, data_root, threshold=8, gap_s=120)`: same-label snapshots within two
+  minutes whose dHash differs by <= 8 bits collapse to one row. The higher-salience row wins
+  (interaction > anchor > state > keyframe). Different labels never merge.
+- `--dedup` is on by default for `--report` and `--apply`; `--no-dedup`,
+  `--dedup-threshold` and `--dedup-gap` expose the knobs. `apply` reports `dedup_dropped`.
+- Report now emits `dedup` stats and 24 h / 7 day projections next to the existing 30/365-day
+  figures. 24 h means a full day of recording; 7/30/365 days assume 1 h/day and honour
+  `--hours-per-day`.
+- Fixed a latent crash: `report()` indexed `caption_ledger` without checking for an empty table.
+- Tests: near-duplicate collapse, time-gap behaviour, 24 h and 7 day selection bounds, and the
+  new projection fields.
+
+### Measured
+
+- `pytest -q tests` → **23 passed** (5 compact + 4 counts + 3 pack + 9 retention + 2 studio).
+- Cook vault with `--data-root /tmp/vfm`: **10 → 9** snapshots after dedup (1 near-identical
+  anchor removed), 122.4 KB evidence retained.
+- 60-minute synthetic vault, no dedup: 40/12/4 snapshots/h → **698 / 282 / 178 KB per hour**;
+  24 h → **16.4 / 6.6 / 4.2 MB**; 7 days at 1 h/day → **4.8 / 1.9 / 1.2 MB**.
+- Selection bounds: 24 h at 120 snapshots/h with a 12/h cap → **288 rows** across 24 hour
+  buckets; 7 days at 20/h with a 12/h cap → **2,016 rows** across 168 hour buckets.
+
+### Decision
+
+- Dedup is a retention concern, not a compile concern: evidence is written once, then pruned.
+- Keep the threshold conservative (8/64 bits) and the time gap short (120 s), so two genuinely
+  different views of the same object are not merged.
+- Do not count dedup as a query-time win; it only reduces at-rest bytes and upload/download size.
+
+### Next
+
+- Run dedup on a real multi-hour episode with occlusions to see whether the 120 s window is too
+  aggressive; if so, expose a per-label gap.
+- Consider a perceptual-hash column at evidence-write time if hashing every file on each report
+  becomes slow.
+
+---
+
 ## 2026-10-27 — Session 8: physical-count bounds (P1-COUNTS)
 
 ### Problem

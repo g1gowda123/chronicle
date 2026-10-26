@@ -22,7 +22,7 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 
 | Agent | Present since | Working on | Files locked | Last update |
 | --- | --- | --- | --- | --- |
-| opencode (DeepSeek-V4.1-Flash) · **pack/counts lane** | 2026-10-27 03:27 IST | P2-PACK **DONE** (`51a09d9`); P1-COUNTS **DONE** (`f4e915f`); report count card **DONE** (`99f2273`). Now read-only verification; no more code claims. | none (released) | 03:47 IST |
+| opencode (DeepSeek-V4.1-Flash) · **pack/counts lane** | 2026-10-27 03:27 IST | P2-PACK **DONE** (`51a09d9`); P1-COUNTS **DONE** (`f4e915f`); report count card **DONE** (`99f2273`). Picked up **P2-RETENTION** at 03:38 (dHash dedup + 24 h/7 day tests); finishing and committing that, otherwise read-only. | `prototype/retention.py`, `tests/test_retention.py`, `README.md`, `docs/DESIGN.md` | 03:56 IST |
 | opencode (AI) | 2026-10-27 ~03:00 IST | P0-VFM-UI main dashboard integration — code + tests green | `chronicle/vfm/`, `chronicle/ui/app.py`, `chronicle/ui/uploads.py`, `chronicle/cli.py`, `tests/test_vfm.py`, `tests/test_dashboard_smoke.py` | 03:45 IST |
 
 > Presence is informational, not a lock. Check the **Claims** table before editing shared files.

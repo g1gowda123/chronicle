@@ -168,6 +168,134 @@ def test_retention_select_and_apply(tmp_path: Path) -> None:
     assert summary["vault_bytes_after"] <= summary["vault_bytes_before"] + 1024
 
 
+def _write_pattern(path: Path, pattern: str) -> None:
+    from PIL import Image
+
+    image = Image.new("L", (64, 64))
+    pixels = []
+    for y in range(64):
+        for x in range(64):
+            if pattern == "horizontal":
+                value = (63 - x) * 4
+            elif pattern == "vertical":
+                value = y * 4
+            else:
+                value = 255 if ((x // 8) + (y // 8)) % 2 else 0
+            pixels.append(value)
+    image.putdata(pixels)
+    image.save(path)
+
+
+def test_snapshot_dedup_drops_near_duplicates(tmp_path: Path) -> None:
+    from PIL import Image  # noqa: F401  (skip via import error if unavailable)
+
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    rows = []
+
+    def add(name: str, pattern: str, t: float) -> None:
+        path = evidence / f"{name}.png"
+        _write_pattern(path, pattern)
+        rows.append(
+            {
+                "id": name,
+                "t": t,
+                "kind": "state",
+                "label": "cup",
+                "rel_path": f"evidence/{name}.png",
+                "bytes": path.stat().st_size,
+            }
+        )
+
+    for index in range(4):
+        add(f"dup_{index}", "horizontal", float(index * 10))
+    for index in range(2):
+        add(f"vertical_{index}", "vertical", 100.0 + index * 10)
+    add("checker", "checker", 200.0)
+    # Same image but far outside the dedup gap: keep it for a visible re-check.
+    add("late", "horizontal", 900.0)
+
+    kept, dropped = retention.dedup_evidence(rows, tmp_path)
+    kept_ids = {row["id"] for row in kept}
+    dropped_ids = {row["id"] for row in dropped}
+    assert len(kept) == 4
+    assert len(dropped) == 4
+    assert "dup_0" in kept_ids and "vertical_0" in kept_ids
+    assert "checker" in kept_ids and "late" in kept_ids
+    assert {"dup_1", "dup_2", "dup_3", "vertical_1"} == dropped_ids
+
+    # Disabling the gap would also merge the late re-check.
+    kept_all, dropped_all = retention.dedup_evidence(rows, tmp_path, gap_s=10_000)
+    assert "late" not in {row["id"] for row in kept_all}
+    assert len(dropped_all) == 5
+
+
+def test_retention_24h_and_7day_bounds() -> None:
+    def rows(hours: int, per_hour: int) -> list[dict]:
+        return [
+            {
+                "id": f"e_{hour}_{index}",
+                "t": hour * 3600.0 + index * (3600.0 / per_hour),
+                "kind": "anchor",
+                "label": "cup",
+                "rel_path": f"evidence/e_{hour}_{index}.webp",
+                "bytes": 1000,
+            }
+            for hour in range(hours)
+            for index in range(per_hour)
+        ]
+
+    day = retention._select(rows(24, 120), 12, 24 * 3600.0, dedup=False)
+    assert len(day) == 24 * 12
+    assert len({int(row["t"] // 3600) for row in day}) == 24
+
+    week = retention._select(rows(24 * 7, 20), 12, 7 * 24 * 3600.0, dedup=False)
+    assert len(week) == 7 * 24 * 12
+    assert len({int(row["t"] // 3600) for row in week}) == 7 * 24
+
+
+@pytest.mark.skipif(not COOK_DB.is_file(), reason="cook episode database not present")
+def test_report_24h_and_7day_projections(tmp_path: Path) -> None:
+    vault = tmp_path / "cook.db"
+    vault_compile.compile_vault(COOK_DB, vault)
+    con = sqlite3.connect(str(vault))
+    try:
+        con.execute(
+            """
+            create table if not exists evidence (
+                id TEXT PRIMARY KEY, t REAL NOT NULL, kind TEXT NOT NULL, label TEXT,
+                file TEXT NOT NULL, rel_path TEXT NOT NULL, bytes INTEGER NOT NULL DEFAULT 0,
+                width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0,
+                meta TEXT NOT NULL DEFAULT '{}'
+            )
+            """
+        )
+        for index in range(24):
+            con.execute(
+                "insert into evidence(id,t,kind,label,file,rel_path,bytes) values (?,?,?,?,?,?,?)",
+                (
+                    f"ev_{index}",
+                    index * 2.0,
+                    "anchor",
+                    "cup",
+                    f"ev_{index}",
+                    f"evidence/ev_{index}.webp",
+                    1000,
+                ),
+            )
+        con.commit()
+    finally:
+        con.close()
+
+    result = retention.report(vault, [12], hours_per_day=1.0, dedup=False)
+    sweep = result["sweep"][0]
+    per_hour = sweep["memory_bytes_per_hour"]
+    assert sweep["projected_24h_bytes"] == round(per_hour * 24.0)
+    assert sweep["projected_7d_bytes"] == round(per_hour * 7.0)
+    assert sweep["projected_30d_bytes"] == round(per_hour * 30.0)
+    assert result["dedup"]["enabled"] is False
+
+
 def test_video_baseline_scoring_and_missing_key(monkeypatch, tmp_path: Path) -> None:
     import vlm_baseline
 

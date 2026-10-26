@@ -89,6 +89,11 @@ captions and events, not guess future questions (MERIT).
   640 px/q82 JPEG, PSNR 35.8 vs 38.2 dB, SSIM 0.954 vs 0.967).
 - Deduplicate near-identical frames (perceptual hash or CLIP cosine) before writing.
 - Cap snapshots per hour: 12 for long-term retention, 40 for maximum visual audit.
+- Dedup near-identical snapshots of the same label within a short time gap using an 8x8 dHash
+  (64-bit, Hamming distance <= 8). Keep the higher-salience row (interaction > anchor > state >
+  keyframe). This runs only on the evidence table and optional files, never on query latency.
+- Report bytes/hour plus 24 h, 7 day, 30 day and 365 day projections; the 7/30/365-day figures
+  assume 1 h recorded per day and are configurable with `--hours-per-day`.
 - Delete the source video after the evidence pass; the vault must never reference it.
 
 ## 5. Query flow (the ladder)

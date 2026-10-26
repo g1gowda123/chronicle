@@ -141,8 +141,10 @@ python3 prototype/memory_pack.py --db /tmp/vfm/cook.db --out /tmp/vfm/cook_pack.
 python3 prototype/memory_pack.py --db /tmp/vfm/cook.db --token-budget 2000
 python3 prototype/memory_pack.py --db /tmp/vfm/cook.db --list-budgets
 
-# 7. Retention budget and snapshot-policy sweep
-python3 prototype/retention.py --vault /tmp/vfm/cook.db --report --sweep 40,12,4
+# 7. Retention budget, snapshot dedup and 24 h / 7 / 30 / 365-day projections
+python3 prototype/retention.py --vault /tmp/vfm/cook.db --report --sweep 40,12,4 \
+  --data-root /tmp/vfm
+# use --no-dedup to keep every snapshot; --dedup-threshold / --dedup-gap tune dHash matching
 
 # 8. Single-file offline memory browser (query box runs client-side)
 python3 prototype/report.py --db /tmp/vfm/cook.db \
