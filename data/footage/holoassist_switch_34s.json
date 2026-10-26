@@ -1,0 +1,241 @@
+{
+  "kind": "chronicle-real-egocentric-demo",
+  "source": {
+    "dataset": "HoloAssist",
+    "session": "z210-sep-29-22-switch",
+    "device": "Microsoft HoloLens 2",
+    "license": "CDLA-Permissive-2.0",
+    "url": "https://holoassist.github.io/",
+    "clip_start_seconds": 6.0
+  },
+  "video": "data/real/holoassist_switch_34s.mp4",
+  "fps": 29.943,
+  "duration": 34.0,
+  "frames": 1018,
+  "size": [
+    454,
+    256
+  ],
+  "zones": [
+    {
+      "name": "Work Table",
+      "objects": [
+        "joy-con",
+        "switch console",
+        "table"
+      ]
+    }
+  ],
+  "timeline": [
+    {
+      "t": 4.2,
+      "end": 6.6,
+      "event": "grab joy_con_controller"
+    },
+    {
+      "t": 10.2,
+      "end": 11.3,
+      "event": "grab comfort_grip"
+    },
+    {
+      "t": 12.2,
+      "end": 14.71,
+      "event": "hold comfort_grip"
+    },
+    {
+      "t": 15.16,
+      "end": 17.4,
+      "event": "slide joy_con_controller"
+    },
+    {
+      "t": 18.1,
+      "end": 18.82,
+      "event": "place joy_con_controller"
+    },
+    {
+      "t": 19.09,
+      "end": 22.0,
+      "event": "insert joy_con_controller"
+    },
+    {
+      "t": 22.1,
+      "end": 23.6,
+      "event": "withdraw joy_con_controller"
+    },
+    {
+      "t": 25.1,
+      "end": 28.01,
+      "event": "place joy_con_controller"
+    },
+    {
+      "t": 28.11,
+      "end": 28.76,
+      "event": "align joy_con_controller"
+    },
+    {
+      "t": 28.9,
+      "end": 31.28,
+      "event": "slide joy_con_controller"
+    },
+    {
+      "t": 31.35,
+      "end": 31.91,
+      "event": "withdraw joy_con_controller"
+    },
+    {
+      "t": 31.98,
+      "end": 34.0,
+      "event": "place joy_con_controller"
+    }
+  ],
+  "ground_truth": {
+    "duration": 34.0,
+    "source_dataset": "HoloAssist",
+    "source_session": "z210-sep-29-22-switch",
+    "clip_start_seconds": 6.0,
+    "states": [
+      {
+        "label": "joy-con",
+        "states": [
+          "VISIBLE_STATIC",
+          "INTERACTED",
+          "NEW"
+        ],
+        "start": 0.0,
+        "end": 4.0,
+        "weight": 0.6
+      },
+      {
+        "label": "joy-con",
+        "states": [
+          "HELD",
+          "INTERACTED",
+          "VISIBLE_MOVING",
+          "VISIBLE_STATIC",
+          "OCCLUDED"
+        ],
+        "start": 4.0,
+        "end": 34.0,
+        "weight": 0.4
+      }
+    ],
+    "actions": [
+      {
+        "label": "joy-con",
+        "actions": [
+          "PICK_UP",
+          "TOUCH"
+        ],
+        "time": 4.2,
+        "window": 2.2,
+        "weight": 1.0,
+        "source": "grab joy_con_controller"
+      },
+      {
+        "label": "joy-con",
+        "actions": [
+          "MOVE",
+          "VISIBLE_MOVING"
+        ],
+        "time": 15.16,
+        "window": 2.2,
+        "weight": 0.6,
+        "source": "slide joy_con_controller"
+      },
+      {
+        "label": "joy-con",
+        "actions": [
+          "PLACE",
+          "TOUCH"
+        ],
+        "time": 18.1,
+        "window": 2.2,
+        "weight": 1.0,
+        "source": "place joy_con_controller"
+      },
+      {
+        "label": "joy-con",
+        "actions": [
+          "INSERT_INTO",
+          "PLACE"
+        ],
+        "time": 19.09,
+        "window": 2.2,
+        "weight": 0.6,
+        "source": "insert joy_con_controller"
+      },
+      {
+        "label": "joy-con",
+        "actions": [
+          "REMOVE_FROM",
+          "PICK_UP"
+        ],
+        "time": 22.1,
+        "window": 2.2,
+        "weight": 0.6,
+        "source": "withdraw joy_con_controller"
+      },
+      {
+        "label": "joy-con",
+        "actions": [
+          "PLACE",
+          "TOUCH"
+        ],
+        "time": 25.1,
+        "window": 2.2,
+        "weight": 1.0,
+        "source": "place joy_con_controller"
+      },
+      {
+        "label": "joy-con",
+        "actions": [
+          "MOVE"
+        ],
+        "time": 28.11,
+        "window": 2.2,
+        "weight": 0.6,
+        "source": "align joy_con_controller"
+      },
+      {
+        "label": "joy-con",
+        "actions": [
+          "MOVE",
+          "VISIBLE_MOVING"
+        ],
+        "time": 28.9,
+        "window": 2.2,
+        "weight": 0.6,
+        "source": "slide joy_con_controller"
+      },
+      {
+        "label": "joy-con",
+        "actions": [
+          "REMOVE_FROM",
+          "PICK_UP"
+        ],
+        "time": 31.35,
+        "window": 2.2,
+        "weight": 0.6,
+        "source": "withdraw joy_con_controller"
+      },
+      {
+        "label": "joy-con",
+        "actions": [
+          "PLACE",
+          "TOUCH"
+        ],
+        "time": 31.98,
+        "window": 2.2,
+        "weight": 1.0,
+        "source": "place joy_con_controller"
+      }
+    ],
+    "zones": [
+      "Work Table"
+    ],
+    "unique_labels": [
+      "joy-con"
+    ],
+    "max_entities": 8
+  }
+}
