@@ -40,6 +40,9 @@ Thumbs.db
 # Local artifacts: media, models, databases, logs
 models/
 weights/
+*.pt
+*.pth
+*.onnx
 runs/
 logs/
 *.pid

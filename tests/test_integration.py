@@ -12,7 +12,7 @@ from chronicle.graph.memory import ChronicleMemory
 from chronicle.graph.query import QueryResult
 from chronicle.integration import ChronicleRuntime
 from chronicle.telemetry import TelemetryTag
-from chronicle.types import CameraMotion, ObjectState, SupportSurface
+from chronicle.types import CameraMotion, EventCategory, ObjectState, SupportSurface, TelemetryEvent
 
 
 def work_desk_surface() -> SupportSurface:
@@ -329,5 +329,28 @@ def test_runtime_exports_actions_csv() -> None:
         assert rows[0]["entity"] == "cup"
         assert rows[0]["source"] == "test"
         assert rows[0]["caption"] == "the hand picks up the cup"
+    finally:
+        runtime.close()
+
+
+def test_perception_telemetry_merges_duplicate_frame_index() -> None:
+    runtime = ChronicleRuntime(":memory:", semantic_enabled=False)
+    try:
+        # Clip payloads can include their own ``frame_index``; the runtime must
+        # not pass it to the bus twice (regression for the YOLO-World smoke).
+        event = TelemetryEvent(
+            category=EventCategory.CLIP,
+            message="cup clip",
+            presentation_time=1.25,
+            frame_index=42,
+            data={"frame_index": 7, "clip_id": "clip-1"},
+        )
+        runtime._on_perception_event(event)
+
+        emitted = runtime.bus.history()[-1]
+        assert emitted.tag is TelemetryTag.VLM
+        assert emitted.t == 1.25
+        assert emitted.data["frame_index"] == 42
+        assert emitted.data["clip_id"] == "clip-1"
     finally:
         runtime.close()
