@@ -1,0 +1,543 @@
+"""Two-stage GraphRAG retrieval for natural-language queries.
+
+Stage 1 resolves the queried entity (string match, optionally CLIP text-to-node
+similarity) and reads its latest state plus active spatial edge.  Stage 2
+serializes the 2-hop relational neighbourhood — including the parent zone anchor
+— into a compact table that a small language model can answer from without
+hallucinating.  No breadth-first "answer" is attempted here: the LLM speaks,
+the graph is the only source of truth.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from typing import Any
+
+from chronicle.config import DEFAULT_THRESHOLDS, Thresholds
+from chronicle.geometry import cosine_similarity
+from chronicle.graph.background import BackgroundGraph
+from chronicle.graph.foreground import ForegroundGraph
+from chronicle.graph.ids import (
+    ANCHOR_PREFIX,
+    ZONE_PREFIX,
+    entity_node,
+    raw_entity_id,
+)
+from chronicle.storage.records import AnchorRecord
+from chronicle.storage.sqlite_store import SQLiteStore
+from chronicle.telemetry import EventBus
+from chronicle.text import match_score
+from chronicle.types import Relation
+
+Embedder = Callable[[str], Sequence[float]]
+
+_INTERACTION_STATES = {"INTERACTED", "HELD", "CONTAINED"}
+
+
+@dataclass
+class QueryResult:
+    """Serialized answer context for one entity."""
+
+    query: str
+    entity_id: str
+    node_id: str
+    label: str
+    state: str
+    state_since: float
+    last_seen: float
+    match_score: float
+    last_interaction: dict[str, Any] | None = None
+    terminal_anchor: dict[str, Any] | None = None
+    container_id: str | None = None
+    container_label: str | None = None
+    zone_id: str | None = None
+    zone_label: str | None = None
+    nodes: list[dict[str, Any]] = field(default_factory=list)
+    edges: list[dict[str, Any]] = field(default_factory=list)
+
+    # --------------------------------------------------------------- rendering
+    def to_table(self) -> str:
+        lines = [
+            "| t (s) | relation | from | to | details |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        rows = sorted(
+            (e for e in self.edges if e.get("t_start") is not None),
+            key=lambda e: (float(e["t_start"]), str(e.get("relation"))),
+        )
+        for edge in rows:
+            relation = str(edge.get("relation", ""))
+            details = ""
+            if relation == Relation.STATE_TRANSITION.value:
+                details = f"{edge.get('from_state')} -> {edge.get('to_state')}"
+                reason = (edge.get("evidence") or {}).get("reason")
+                if reason:
+                    details += f" ({reason})"
+            elif relation == Relation.ACTION.value:
+                details = (
+                    f"{edge.get('action')} conf={edge.get('confidence')} src={edge.get('source')}"
+                )
+            elif relation in {Relation.RESTING_ON.value, Relation.INSIDE.value}:
+                details = "terminal" if edge.get("is_terminal") else "closed"
+                if edge.get("t_end") is not None:
+                    details += f", ended t={float(edge['t_end']):.1f}s"
+            elif relation == Relation.IN_ZONE.value:
+                details = "parent zone"
+            lines.append(
+                "| {t:.1f} | {rel} | {src} | {dst} | {details} |".format(
+                    t=float(edge["t_start"]),
+                    rel=relation,
+                    src=_short_node(edge.get("src", "")),
+                    dst=_short_node(edge.get("dst", "")),
+                    details=details,
+                )
+            )
+        if len(lines) == 2:
+            lines.append("| - | - | - | - | no timestamped edges |")
+        return "\n".join(lines)
+
+    def to_prompt(self, question: str | None = None) -> str:
+        question = question or self.query or f"Where is the {self.label}?"
+        anchor = self.terminal_anchor
+        anchor_text = "none recorded"
+        if anchor:
+            anchor_text = (
+                f"{anchor.get('label') or anchor.get('anchor_id')} "
+                f"(relation={anchor.get('relation')}, t={float(anchor.get('t_start', 0.0)):.1f}s"
+            )
+            if anchor.get("zone_label"):
+                anchor_text += f", zone={anchor['zone_label']}"
+            anchor_text += ")"
+        interaction = self.last_interaction
+        interaction_text = "none recorded"
+        if interaction:
+            interaction_text = (
+                f"{interaction.get('kind')} at t={float(interaction.get('t', 0.0)):.1f}s "
+                f"by {interaction.get('agent', 'USER')}"
+            )
+        return (
+            "You are Chronicle, an egocentric episodic memory assistant.\n"
+            "Answer the question using ONLY the retrieved graph context below.\n"
+            "Always cite the timestamp as t=<seconds>s and the location by zone or\n"
+            "support-surface label. If the object is currently held or contained, say\n"
+            "so explicitly. Never invent observations that are absent from the table.\n\n"
+            f"QUESTION: {question}\n\n"
+            f"ENTITY: {self.label} (id={self.entity_id})\n"
+            f"CURRENT STATE: {self.state} since t={self.state_since:.1f}s\n"
+            f"LAST OBSERVED: t={self.last_seen:.1f}s\n"
+            f"LAST INTERACTION: {interaction_text}\n"
+            f"TERMINAL ANCHOR: {anchor_text}\n"
+            f"CONTAINER: {self.container_label or 'none'}\n"
+            f"ZONE: {self.zone_label or 'unknown'}\n\n"
+            "RETRIEVED 2-HOP SUBGRAPH:\n"
+            f"{self.to_table()}\n"
+        )
+
+    def fallback_answer(self) -> str:
+        """Deterministic answer used when no local LLM is configured."""
+
+        label = self.label
+        anchor = self.terminal_anchor
+        location = "an unrecorded location"
+        if anchor:
+            anchor_label = anchor.get("label") or _anchor_ref(str(anchor.get("anchor_id", "")))
+            zone = f" in the {self.zone_label}" if self.zone_label else ""
+            location = f"the {anchor_label}{zone}"
+            placed_at = float(anchor.get("t_start", self.last_seen))
+        else:
+            placed_at = None
+
+        if self.state == "HELD":
+            answer = f"You are holding the {label} (state HELD since t={self.state_since:.1f}s)."
+        elif self.state == "CONTAINED":
+            container = self.container_label or "a container"
+            answer = (
+                f"The {label} is inside the {container}"
+                f"{' in the ' + self.zone_label if self.zone_label else ''} "
+                f"(state CONTAINED since t={self.state_since:.1f}s)."
+            )
+        elif self.state in {"VISIBLE_STATIC"}:
+            answer = f"The {label} is resting on {location}."
+            if placed_at is not None:
+                answer += f" Last placed at t={placed_at:.1f}s."
+        elif self.state in {"VISIBLE_MOVING", "INTERACTED"}:
+            answer = (
+                f"The {label} is currently {self.state.lower()} (since t={self.state_since:.1f}s)."
+            )
+            if anchor and placed_at is not None:
+                answer += f" It was last placed on {location} at t={placed_at:.1f}s."
+        elif self.state in {"OCCLUDED", "OUT_OF_VIEW", "LOST"}:
+            answer = (
+                f"The {label} is not currently visible (state {self.state}, "
+                f"last seen at t={self.last_seen:.1f}s)."
+            )
+            if anchor and placed_at is not None:
+                answer += f" Its last known placement was {location} at t={placed_at:.1f}s."
+        else:
+            answer = f"The {label} is in state {self.state} as of t={self.last_seen:.1f}s."
+
+        if self.last_interaction:
+            answer += (
+                f" Last interaction: {self.last_interaction.get('kind')} at "
+                f"t={float(self.last_interaction.get('t', 0.0)):.1f}s."
+            )
+        return answer
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "query": self.query,
+            "entity_id": self.entity_id,
+            "node_id": self.node_id,
+            "label": self.label,
+            "state": self.state,
+            "state_since": round(self.state_since, 3),
+            "last_seen": round(self.last_seen, 3),
+            "match_score": round(self.match_score, 3),
+            "last_interaction": self.last_interaction,
+            "terminal_anchor": self.terminal_anchor,
+            "container_id": self.container_id,
+            "container_label": self.container_label,
+            "zone_id": self.zone_id,
+            "zone_label": self.zone_label,
+            "nodes": self.nodes,
+            "edges": [
+                {
+                    **{k: v for k, v in edge.items() if k not in {"evidence", "embedding", "bbox"}},
+                }
+                for edge in self.edges
+            ],
+        }
+
+
+def _short_node(node_id: str) -> str:
+    for prefix in ("entity:", "anchor:", "zone:"):
+        if node_id.startswith(prefix):
+            return node_id[len(prefix) :]
+    return node_id
+
+
+def _anchor_ref(anchor_id: str) -> str:
+    return _short_node(anchor_id)
+
+
+class GraphQuery:
+    """Entity retrieval + 2-hop spatiotemporal serialization."""
+
+    def __init__(
+        self,
+        foreground: ForegroundGraph,
+        background: BackgroundGraph,
+        *,
+        store: SQLiteStore | None = None,
+        thresholds: Thresholds | None = None,
+        bus: EventBus | None = None,
+        min_match: float = 0.5,
+    ) -> None:
+        self.foreground = foreground
+        self.background = background
+        self.store = store
+        self.thresholds = thresholds or DEFAULT_THRESHOLDS
+        self.bus = bus or EventBus()
+        self.min_match = min_match
+
+    # ------------------------------------------------------------- resolution
+    def resolve(
+        self,
+        text: str,
+        *,
+        embedder: Embedder | None = None,
+        min_score: float | None = None,
+    ) -> tuple[str | None, float]:
+        threshold = self.min_match if min_score is None else min_score
+        query_embedding = None
+        if embedder is not None:
+            try:
+                query_embedding = tuple(float(v) for v in embedder(text))
+            except Exception as exc:  # pragma: no cover - embedder failure
+                self.bus.query("text embedder failed", entity=text, error=repr(exc))
+
+        best_id: str | None = None
+        best_score = 0.0
+        best_seen = float("-inf")
+        for attrs in self.foreground.entities():
+            label = str(attrs.get("label", ""))
+            score = match_score(text, label)
+            if query_embedding is not None and attrs.get("embedding"):
+                score = max(
+                    score,
+                    cosine_similarity(query_embedding, attrs["embedding"]),
+                )
+            last_seen = float(attrs.get("last_seen", 0.0) or 0.0)
+            if score > best_score or (score == best_score and last_seen > best_seen):
+                best_id = raw_entity_id(str(attrs["node_id"]))
+                best_score = score
+                best_seen = last_seen
+        if best_score < threshold:
+            self.bus.query(
+                "entity resolution miss",
+                query=text,
+                best=best_id,
+                score=round(best_score, 3),
+                threshold=threshold,
+            )
+            return None, best_score
+        self.bus.query(
+            "entity resolved",
+            query=text,
+            entity=best_id,
+            score=round(best_score, 3),
+        )
+        return best_id, best_score
+
+    # ------------------------------------------------------------------ build
+    def build(self, entity_id: str, query: str = "") -> QueryResult | None:
+        attrs = self.foreground.get_entity(entity_id)
+        if attrs is None:
+            return None
+        node_id = entity_node(entity_id)
+
+        nodes, edges = self.foreground.subgraph_nodes_edges(node_id, depth=2)
+        nodes, edges = self._attach_background(nodes, edges)
+        nodes = [self.node_public_attrs(node) for node in nodes]
+
+        anchor_record = self._terminal_anchor(entity_id)
+        anchor = self._anchor_payload(anchor_record, entity_id)
+        zone_id = (anchor or {}).get("zone_id") or attrs.get("zone_id")
+        if zone_id:
+            zone_id = zone_id if zone_id.startswith("zone:") else f"zone:{zone_id}"
+        zone_label = self.background.zone_label(zone_id)
+
+        container_id = attrs.get("container_id")
+        container_label = None
+        if container_id:
+            container_attrs = self.foreground.get_entity(str(container_id))
+            if container_attrs:
+                container_label = str(container_attrs.get("label"))
+
+        return QueryResult(
+            query=query,
+            entity_id=entity_id,
+            node_id=node_id,
+            label=str(attrs.get("label", entity_id)),
+            state=str(attrs.get("state", "NEW")),
+            state_since=float(attrs.get("state_since", attrs.get("last_seen", 0.0))),
+            last_seen=float(attrs.get("last_seen", 0.0)),
+            match_score=1.0,
+            last_interaction=self._last_interaction(entity_id),
+            terminal_anchor=anchor,
+            container_id=str(container_id) if container_id else None,
+            container_label=container_label,
+            zone_id=zone_id,
+            zone_label=zone_label,
+            nodes=nodes,
+            edges=edges,
+        )
+
+    def query(
+        self,
+        text: str,
+        *,
+        embedder: Embedder | None = None,
+    ) -> QueryResult | None:
+        entity_id, score = self.resolve(text, embedder=embedder)
+        if entity_id is None:
+            return None
+        result = self.build(entity_id, query=text)
+        if result is not None:
+            result.match_score = score
+            self.bus.query(
+                "subgraph serialized",
+                entity=entity_id,
+                nodes=len(result.nodes),
+                edges=len(result.edges),
+            )
+        return result
+
+    # --------------------------------------------------------------- retrieval
+    def _terminal_anchor(self, entity_id: str) -> AnchorRecord | None:
+        if self.store is not None:
+            record = self.store.terminal_anchor(entity_id)
+            if record is not None:
+                return record
+        return None
+
+    def _anchor_payload(self, record: AnchorRecord | None, entity_id: str) -> dict[str, Any] | None:
+        if record is not None:
+            anchor_id = record.anchor_id
+            zone_id = self.background.zone_of(anchor_id)
+            return {
+                "id": record.id,
+                "entity_id": entity_id,
+                "anchor_id": anchor_id,
+                "anchor_ref": _anchor_ref(anchor_id),
+                "label": self._anchor_label(anchor_id),
+                "relation": record.relation,
+                "t_start": record.t_start,
+                "t_end": record.t_end,
+                "is_terminal": record.is_terminal,
+                "retained": record.retained,
+                "confidence": record.confidence,
+                "zone_id": zone_id,
+                "zone_label": self.background.zone_label(zone_id),
+            }
+
+        placement = self.foreground.terminal_placement(entity_id, Relation.RESTING_ON)
+        if placement is None:
+            placement = self.foreground.terminal_placement(entity_id, Relation.INSIDE)
+        if placement is None:
+            return None
+        anchor_id = str(placement["dst"])
+        zone_value = self.background.zone_of(anchor_id)
+        if not zone_value:
+            entity_attrs = self.foreground.get_entity(entity_id) or {}
+            zone_value = entity_attrs.get("zone_id")
+        return {
+            "id": None,
+            "entity_id": entity_id,
+            "anchor_id": anchor_id,
+            "anchor_ref": _anchor_ref(anchor_id),
+            "label": self._anchor_label(anchor_id),
+            "relation": placement.get("relation"),
+            "t_start": placement.get("t_start"),
+            "t_end": placement.get("t_end"),
+            "is_terminal": bool(placement.get("is_terminal")),
+            "retained": True,
+            "confidence": placement.get("confidence", 1.0),
+            "zone_id": zone_value,
+            "zone_label": self.background.zone_label(zone_value),
+        }
+
+    def _anchor_label(self, anchor_id: str) -> str:
+        label = self.background.anchor_label(anchor_id)
+        if label:
+            return label
+        if anchor_id.startswith("entity:"):
+            container = self.foreground.get_entity(raw_entity_id(anchor_id))
+            if container:
+                return str(container.get("label", raw_entity_id(anchor_id)))
+        return _anchor_ref(anchor_id)
+
+    def _last_interaction(self, entity_id: str) -> dict[str, Any] | None:
+        node_id = entity_node(entity_id)
+        best: dict[str, Any] | None = None
+        best_t = float("-inf")
+
+        for _, _, data in self.foreground.graph.out_edges(node_id, data=True):
+            if data.get("relation") != Relation.STATE_TRANSITION.value:
+                continue
+            to_state = str(data.get("to_state", ""))
+            if to_state not in _INTERACTION_STATES:
+                continue
+            t_start = float(data.get("t_start") or 0.0)
+            if t_start >= best_t:
+                best_t = t_start
+                best = {
+                    "t": t_start,
+                    "kind": to_state,
+                    "from_state": data.get("from_state"),
+                    "to_state": to_state,
+                    "agent": "USER",
+                    "source": "state_machine",
+                    "reason": (data.get("evidence") or {}).get("reason"),
+                }
+
+        for _, _, data in self.foreground.graph.in_edges(node_id, data=True):
+            if data.get("relation") != Relation.ACTION.value:
+                continue
+            t_start = float(data.get("t_start") or 0.0)
+            if t_start >= best_t:
+                best_t = t_start
+                best = {
+                    "t": t_start,
+                    "kind": data.get("action", "ACTION"),
+                    "agent": "USER",
+                    "source": data.get("source"),
+                    "confidence": data.get("confidence"),
+                    "clip_ref": data.get("clip_ref"),
+                }
+        return best
+
+    def _attach_background(
+        self,
+        nodes: list[dict[str, Any]],
+        edges: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        by_id: dict[str, dict[str, Any]] = {str(n["node_id"]): n for n in nodes}
+        extra_edges: list[dict[str, Any]] = []
+        for node in list(by_id.values()):
+            node_id = str(node["node_id"])
+            # Anchor / zone nodes are external endpoints of foreground edges, so
+            # NetworkX auto-created them without attributes. Hydrate from the
+            # background graph before serializing the 2-hop context.
+            if node_id.startswith(ANCHOR_PREFIX):
+                background_attrs = self.background.node(node_id)
+                if background_attrs:
+                    node.update(background_attrs)
+                node.setdefault("kind", "furniture")
+            elif node_id.startswith(ZONE_PREFIX):
+                background_attrs = self.background.node(node_id)
+                if background_attrs:
+                    node.update(background_attrs)
+                node.setdefault("kind", "zone")
+
+            kind = node.get("kind")
+            anchor_id = node_id
+            if kind == "furniture":
+                zone_id = node.get("zone_id") or self.background.zone_of(anchor_id)
+                if not zone_id:
+                    continue
+                zone_attrs = self.background.node(zone_id)
+                if zone_attrs and zone_id not in by_id:
+                    by_id[zone_id] = {
+                        "node_id": zone_id,
+                        "distance": int(node.get("distance", 0)) + 1,
+                        "kind": "zone",
+                        **zone_attrs,
+                    }
+                extra_edges.append(
+                    {
+                        "src": anchor_id,
+                        "dst": zone_id,
+                        "key": f"zone:{anchor_id}",
+                        "relation": Relation.IN_ZONE.value,
+                        "t_start": node.get("created_at"),
+                        "t_end": None,
+                        "is_terminal": False,
+                    }
+                )
+        edges = edges + extra_edges
+        nodes = sorted(
+            by_id.values(),
+            key=lambda n: (int(n.get("distance", 0)), str(n["node_id"])),
+        )
+        return nodes, edges
+
+    # ------------------------------------------------------------ convenience
+    def summary(self) -> list[dict[str, Any]]:
+        """Lightweight state table for the dashboard overview panel."""
+
+        rows = []
+        for attrs in self.foreground.entities():
+            entity_id = raw_entity_id(str(attrs["node_id"]))
+            anchor = self._anchor_payload(self._terminal_anchor(entity_id), entity_id)
+            rows.append(
+                {
+                    "entity_id": entity_id,
+                    "label": attrs.get("label"),
+                    "state": attrs.get("state"),
+                    "state_since": attrs.get("state_since"),
+                    "last_seen": attrs.get("last_seen"),
+                    "anchor": (anchor or {}).get("label"),
+                    "zone": (anchor or {}).get("zone_label"),
+                    "anchor_t": (anchor or {}).get("t_start"),
+                }
+            )
+        return sorted(rows, key=lambda r: -float(r.get("last_seen") or 0.0))
+
+    @staticmethod
+    def node_public_attrs(node: dict[str, Any]) -> dict[str, Any]:
+        public = {k: v for k, v in node.items() if k not in {"embedding", "attrs"}}
+        if isinstance(public.get("bbox"), tuple):
+            public["bbox"] = list(public["bbox"])
+        return public

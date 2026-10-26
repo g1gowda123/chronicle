@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chronicle"
+version = "0.1.0"
+description = "Egocentric episodic memory: nine-state lifecycle engine and dual temporal graphs."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "networkx>=3.1",
+    "shapely>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "ruff>=0.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools.packages.find]
+include = ["chronicle*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    # Consumers of the engine (VLM hooks, telemetry listeners) are isolated
+    # defensively: a broken callback must never stop the capture loop.
+    "BLE001",
+    "S112",
+    # __enter__ returns the concrete type so IDE completion stays useful.
+    "PYI034",
+]

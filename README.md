@@ -2,7 +2,10 @@
 
 An egocentric, episodic memory engine that parses pre-recorded first-person video into a structured, queryable 4D spatio-temporal knowledge graph.
 
-> **Status:** Specification stage. The pipeline described in the [technical specification](Chronicle%20Technical%20Specification.pdf) is not implemented yet.
+> **Status:** Role B (state machine + dual-graph engineering) is implemented and
+> tested. Roles A (perception), C (semantic engine), and D (dashboard) are being
+> built by the rest of the team. See [`docs/ROLE_B.md`](docs/ROLE_B.md) for the
+> integration contract.
 
 ## Overview
 
@@ -43,17 +46,73 @@ Each transition is gated by IoS thresholds, support-surface heuristics, and wall
 
 Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity's latest state and spatial edge, serialize the 2-hop subgraph, then have a compact LLM produce a timestamped, location-cited answer.
 
+## Role B implementation
+
+The `chronicle` package exposes a single facade, `ChronicleMemory`, that Role A
+feeds and Roles C/D consume:
+
+```python
+from chronicle import ChronicleMemory
+
+with ChronicleMemory("data/chronicle.db") as memory:
+    transitions = memory.observe(
+        frame,
+        on_transition=lambda transition, frame: vlm_queue.put(transition),
+    )
+    answer = memory.query("where are my cups?").fallback_answer()
+```
+
+Implemented pieces:
+
+- Nine-state lifecycle with wall-clock dwell gates, camera-relative velocity,
+  occlusion vs. out-of-view reasoning, re-acquisition, and archival `LOST`.
+- Dual NetworkX graphs: persistent background anchors and time-intervaled
+  foreground relations.
+- SQLite projection with terminal-anchor retention and 10-minute trajectory
+  purge.
+- 2-hop GraphRAG retrieval with deterministic fallback answers and an
+  LLM-ready prompt.
+- Thread-safe `EventBus` telemetry for the Role D dashboard.
+- 51 deterministic tests covering frame-rate independence, camera pans, all
+  nine states, persistence, retrieval, and multi-entity scenes.
+
 ## Repository layout
 
 ```text
 .
 ├── Chronicle Technical Specification.pdf   # Full architecture and algorithms
-└── README.md
+├── README.md
+├── requirements.txt
+├── pyproject.toml
+├── chronicle/
+│   ├── config.py            # thresholds and container labels
+│   ├── types.py             # FrameContext and transition contracts
+│   ├── geometry.py          # IoS, support contact, compensated velocity
+│   ├── state_machine.py     # nine-state lifecycle engine
+│   ├── telemetry.py         # EventBus tags and replay buffer
+│   ├── graph/
+│   │   ├── background.py    # zones + furniture anchors
+│   │   ├── foreground.py    # entities + time-intervaled edges
+│   │   ├── query.py         # 2-hop GraphRAG retrieval
+│   │   └── memory.py        # ChronicleMemory facade
+│   └── storage/             # SQLite schema and store
+├── tests/                   # synthetic, model-free test suite
+├── scripts/demo_role_b.py   # end-to-end synthetic demo
+└── docs/ROLE_B.md           # integration contract
 ```
 
 ## Getting started
 
-Implementation is in progress. Once the ingestion pipeline lands, setup instructions, dependency installation, and example runs will live here.
+```powershell
+pip install -r requirements.txt
+python -m pytest -q
+python scripts/demo_role_b.py
+```
+
+The demo needs no video, GPU, or model downloads. It generates a synthetic
+pick-up-and-place scene, prints `[STATE]` / `[GRAPH]` telemetry, shows the dual
+graph and 2-hop retrieval packet, then reopens SQLite to answer the query from
+persisted memory.
 
 ## References
 
