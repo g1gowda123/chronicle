@@ -1433,3 +1433,72 @@ body {
     animation: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Fullscreen stage + screenshot lightbox                              */
+/* ------------------------------------------------------------------ */
+
+.video-stage:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background: #08080c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.video-stage:fullscreen .video-shell,
+.video-stage:fullscreen .chron-video {
+  width: 100%;
+  height: 100%;
+}
+.video-stage:fullscreen .chron-video {
+  object-fit: contain;
+  background: #08080c;
+}
+.video-stage:fullscreen .hud {
+  pointer-events: none;
+}
+
+.chron-shot-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 8, 12, 0.96);
+  color: #f7ead2;
+}
+.chron-shot-modal:fullscreen {
+  background: #08080c;
+}
+.chron-shot-frame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+.chron-shot-frame img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border: 2px solid #f7ead2;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.65);
+  background: #000;
+}
+.chron-shot-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 18px;
+  border-top: 2px solid #f7ead2;
+  background: #12121a;
+}
+.chron-shot-meta {
+  margin-right: auto;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}

@@ -22,9 +22,10 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from nicegui import app, ui
 
+from . import memory
 from .runtime import clip_title, default_data_dir, probe_duration, runtime
 from .ui.page import build_dashboard
 
@@ -144,6 +145,84 @@ async def upload(request: Request) -> JSONResponse:
             "bytes": len(body),
         }
     )
+
+
+# --------------------------------------------------------------------------- #
+# Video-free memory (VFM)
+# --------------------------------------------------------------------------- #
+
+
+def _vfm_clip(request: Request) -> str:
+    return str(request.query_params.get("clip") or "")
+
+
+def _vfm_error(message: str, status_code: int = 400) -> JSONResponse:
+    return JSONResponse({"error": message}, status_code=status_code)
+
+
+@app.get("/api/vfm/status")
+async def vfm_status(request: Request) -> JSONResponse:
+    try:
+        return JSONResponse(memory.status(_vfm_clip(request), DATA_DIR))
+    except Exception as error:  # keep the dashboard API alive
+        return _vfm_error(f"status failed: {error}", 500)
+
+
+@app.post("/api/vfm/compile")
+async def vfm_compile(request: Request) -> JSONResponse:
+    clip = _vfm_clip(request)
+    source = memory.resolve(clip, DATA_DIR)
+    if source is None:
+        return _vfm_error("unknown clip")
+    if source.db is None or not Path(source.db).is_file():
+        return _vfm_error("this clip has no graph DB yet; ingest it first")
+    manager = memory.manager(DATA_DIR)
+    force = str(request.query_params.get("force") or "").lower() in {"1", "true", "yes"}
+    manager.submit(source, source.video, force=force)
+    return JSONResponse(memory.status(clip, DATA_DIR))
+
+
+@app.get("/api/vfm/report")
+async def vfm_report(request: Request) -> Any:
+    source = memory.resolve(_vfm_clip(request), DATA_DIR)
+    if source is None:
+        return _vfm_error("unknown clip")
+    artifact = memory.manager(DATA_DIR).artifact(source, "memory.html")
+    if artifact is None:
+        return _vfm_error("memory report is not compiled yet", 404)
+    return FileResponse(artifact, media_type="text/html")
+
+
+@app.get("/api/vfm/download")
+async def vfm_download(request: Request) -> Any:
+    source = memory.resolve(_vfm_clip(request), DATA_DIR)
+    if source is None:
+        return _vfm_error("unknown clip")
+    name = str(request.query_params.get("name") or "")
+    artifact = memory.manager(DATA_DIR).artifact(source, name)
+    if artifact is None:
+        return _vfm_error("artifact not found", 404)
+    return FileResponse(artifact, filename=artifact.name)
+
+
+@app.post("/api/vfm/ask")
+async def vfm_ask(request: Request) -> JSONResponse:
+    source = memory.resolve(_vfm_clip(request), DATA_DIR)
+    if source is None:
+        return _vfm_error("unknown clip")
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    question = str((payload or {}).get("question") or "").strip()
+    if not question:
+        return _vfm_error("question is required")
+    use_qwen = bool((payload or {}).get("qwen"))
+    try:
+        answer = memory.manager(DATA_DIR).ask(source, question, use_qwen=use_qwen)
+    except RuntimeError as error:
+        return _vfm_error(str(error), 409)
+    return JSONResponse(answer.to_dict())
 
 
 # --------------------------------------------------------------------------- #

@@ -12,10 +12,12 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
-from nicegui import ui
+from nicegui import run, ui
 
+from .. import memory
 from ..replay_db import events_from_db, has_memory, write_events
 from ..runtime import Runtime, clip_title, default_data_dir, probe_duration, runtime
 from ..store import STATE_COLORS, MemoryStore
@@ -390,8 +392,32 @@ def build_dashboard() -> None:
         ui.run_javascript(
             f"window.Chronicle && window.Chronicle.chatQuestion({_json(text)});"
         )
+        # Prefer the compiled VFM vault when it exists: it keeps the same
+        # video-free answer path, count bounds and citation times as the CLI.
+        vfm_source = memory.resolve(active_clip, default_data_dir())
+        vfm_ready = (
+            vfm_source is not None
+            and vfm_source.db is not None
+            and memory.enabled()
+            and memory.manager(default_data_dir()).has_memory(vfm_source)
+        )
         try:
-            answer = await runtime.query.answer_async(text, runtime.playhead)
+            if vfm_ready and vfm_source is not None:
+                result = await run.io_bound(
+                    memory.manager(default_data_dir()).ask, vfm_source, text
+                )
+                answer = {
+                    "route": "vfm",
+                    "answer": result.answer,
+                    "provider": "vfm-memory",
+                    "model": "deterministic",
+                    "citations": result.citations,
+                    "duration_ms": result.elapsed_ms,
+                    "confidence": result.confidence,
+                    "matched_entity": None,
+                }
+            else:
+                answer = await runtime.query.answer_async(text, runtime.playhead)
         except Exception as error:  # a query must never take down the dashboard
             answer = {
                 "route": "none",
@@ -508,6 +534,7 @@ def build_dashboard() -> None:
         if not ok:
             return
         active_clip = value
+        refresh_memory_panel(force=True)
         last_graph_key = None
         last_entities_key = None
         last_markers_key = None
@@ -536,6 +563,98 @@ def build_dashboard() -> None:
         args = event.args if isinstance(event.args, list) else [event.args]
         if args and args[0]:
             await run_query(str(args[0]))
+
+    # ---- memory panel ------------------------------------------------- #
+
+    memory_host: Any = None
+    last_memory_key: tuple[Any, ...] | None = None
+
+    def _sizes(value: Any) -> str:
+        try:
+            size = int(value or 0)
+        except (TypeError, ValueError):
+            return ""
+        if size >= 1024 * 1024:
+            return f"{size / (1024 * 1024):.1f} MB"
+        if size >= 1024:
+            return f"{size / 1024:.0f} KB"
+        return f"{size} B"
+
+    def _clip_query() -> str:
+        return "clip=" + quote(str(active_clip), safe="")
+
+    def open_memory(url: str) -> None:
+        ui.run_javascript(f"window.open({_json(url)}, '_blank')")
+
+    async def compile_memory() -> None:
+        source = memory.resolve(active_clip, default_data_dir())
+        if source is None or source.db is None:
+            ui.notify("This clip has no graph DB to compile", type="warning")
+            return
+        memory.manager(default_data_dir()).submit(source, source.video, force=True)
+        ui.notify("Memory compile queued", type="info")
+        refresh_memory_panel(force=True)
+
+    def refresh_memory_panel(force: bool = False) -> None:
+        nonlocal last_memory_key
+        if memory_host is None or not memory.enabled():
+            return
+        state = memory.status(active_clip, default_data_dir())
+        files = state.get("files") if isinstance(state.get("files"), dict) else {}
+        key = (
+            active_clip,
+            state.get("status"),
+            state.get("percent"),
+            tuple(sorted(files)),
+        )
+        if not force and key == last_memory_key:
+            return
+        last_memory_key = key
+        memory_host.clear()
+        with memory_host:
+            ui.label("MEMORY · VIDEO-FREE").style(
+                "font-weight:800;letter-spacing:.09em;font-size:.66rem"
+            )
+            ui.label(str(state.get("message") or state.get("status") or "")).classes(
+                "text-xs chronicle-mono"
+            ).style("opacity:.8")
+            source = memory.resolve(active_clip, default_data_dir())
+            if source is None:
+                ui.label("pick a clip to compile its memory").classes("text-xs")
+                return
+            if source.db is None:
+                ui.label("no graph DB for this clip yet").classes("text-xs")
+                return
+            with ui.row().classes("items-center gap-2 flex-wrap"):
+                if state.get("status") in {"queued", "running"}:
+                    ui.spinner(size="sm")
+                else:
+                    ui.button("Compile memory", on_click=compile_memory).props(
+                        "outline dense no-caps"
+                    )
+                if state.get("status") == "done":
+                    ui.button(
+                        "Open report",
+                        on_click=lambda: open_memory("/api/vfm/report?" + _clip_query()),
+                    ).props("outline dense no-caps")
+            if files:
+                with ui.row().classes("gap-1 flex-wrap"):
+                    for name in (
+                        "memory.html",
+                        "vault.db",
+                        "memory_pack.md",
+                        "memory_pack.json",
+                        "memory.zip",
+                    ):
+                        if name not in files:
+                            continue
+                        label = name + (" · " + _sizes(files.get(name)) if files.get(name) else "")
+                        ui.button(
+                            label,
+                            on_click=lambda n=name: open_memory(
+                                "/api/vfm/download?" + _clip_query() + "&name=" + quote(n)
+                            ),
+                        ).props("flat dense no-caps").classes("text-[11px]")
 
     # ---- layout ------------------------------------------------------- #
 
@@ -567,6 +686,9 @@ def build_dashboard() -> None:
                 ui.html(theme.telemetry_head_html(), sanitize=False)
                 log = ui.log(max_lines=700).classes("chron-log")
 
+        with ui.element("div").classes("row-status"):
+            memory_host = ui.element("div").classes("zcard card-pad rot-r")
+
         ui.html(theme.marquee_html(), sanitize=False)
         ui.html(theme.footer_html(), sanitize=False)
 
@@ -587,8 +709,11 @@ def build_dashboard() -> None:
     last_epoch = store.epoch
     sync(force_graph=True)
 
+    refresh_memory_panel(force=True)
+
     def tick() -> None:
         flush_logs()
         sync()
 
     ui.timer(0.16, tick)
+    ui.timer(2.5, refresh_memory_panel)

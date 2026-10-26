@@ -774,6 +774,164 @@
       if (window.emitEvent) emitEvent("chron-restart");
     },
 
+    screenshot() {
+      this.captureFrame(this.playhead);
+    },
+
+    screenshotAt(t) {
+      const target = safeFloat(t, this.playhead);
+      const video = this.video;
+      if (!video) {
+        this.flash("no frame yet — play the clip first");
+        return;
+      }
+      this.seek(target, true);
+      const capture = () => this.captureFrame(target);
+      if (Math.abs(Number(video.currentTime || 0) - target) < 0.2 && video.readyState >= 2) {
+        setTimeout(capture, 120);
+        return;
+      }
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        video.removeEventListener("seeked", finish);
+        setTimeout(capture, 90);
+      };
+      video.addEventListener("seeked", finish);
+      setTimeout(finish, 900);
+    },
+
+    captureFrame(t) {
+      const video = this.video;
+      if (!video || !video.videoWidth) {
+        this.flash("no frame yet — play the clip first");
+        return;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        this.flash("screenshot is not supported in this browser");
+        return;
+      }
+      try {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      } catch (error) {
+        this.flash("could not read this video frame");
+        console.error(error);
+        return;
+      }
+      // Stamp the clip and playhead into the PNG so evidence stays traceable.
+      const title = (byId("chron-video-title") || {}).textContent || "chronicle";
+      const stamp = `t=${Number(t || 0).toFixed(1)}s`;
+      const pad = Math.round(canvas.width * 0.018);
+      const size = Math.max(14, Math.round(canvas.width * 0.024));
+      ctx.fillStyle = "rgba(12, 12, 18, 0.72)";
+      const text = `${title} · ${stamp}`;
+      ctx.font = `600 ${size}px "IBM Plex Mono", monospace`;
+      const width = Math.min(canvas.width - pad * 2, ctx.measureText(text).width + pad * 2);
+      ctx.fillRect(pad, canvas.height - size * 2.4 - pad, width, size * 1.8);
+      ctx.fillStyle = "#fdf6e3";
+      ctx.fillText(text, pad * 2, canvas.height - size * 1.4 - pad);
+      const name = `chronicle-${String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "frame"}-t${Number(t || 0).toFixed(1)}s.png`;
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          this.flash("screenshot failed");
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        this.showShot(url, name, title, t);
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      }, "image/png");
+    },
+
+    showShot(url, name, title, t) {
+      this.closeShot();
+      const modal = document.createElement("div");
+      modal.className = "chron-shot-modal";
+      modal.id = "chron-shot-modal";
+      modal.innerHTML =
+        '<div class="chron-shot-frame">' +
+        '<img alt="' + escapeHtml(String(title || "Chronicle frame")) + ' at t=' +
+        Number(t || 0).toFixed(1) + 's" src="' + url + '">' +
+        "</div>" +
+        '<div class="chron-shot-bar">' +
+        '<span class="chron-shot-meta">' + escapeHtml(String(title || "Chronicle")) +
+        " · t=" + Number(t || 0).toFixed(1) + "s</span>" +
+        '<button class="btnz btnz-ink" data-shot="fullscreen">⛶ fullscreen</button>' +
+        '<button class="btnz btnz-ghost" data-shot="download">⤓ save PNG</button>' +
+        '<button class="btnz btnz-ghost" data-shot="close" aria-label="Close screenshot">× close</button>' +
+        "</div>";
+      document.body.appendChild(modal);
+      const close = () => this.closeShot();
+      modal.querySelector('[data-shot="close"]').onclick = close;
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) close();
+      });
+      modal.querySelector('[data-shot="fullscreen"]').onclick = () => {
+        if (document.fullscreenElement) {
+          document.exitFullscreen?.();
+          return;
+        }
+        const request = modal.requestFullscreen || modal.webkitRequestFullscreen;
+        if (request) Promise.resolve(request.call(modal)).catch(() => this.flash("fullscreen was blocked"));
+        else this.flash("fullscreen is not supported in this browser");
+      };
+      modal.querySelector('[data-shot="download"]').onclick = () => {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        this.flash(`saved ${name}`);
+      };
+      this.shotEscape = (event) => {
+        if (event.key === "Escape") close();
+      };
+      document.addEventListener("keydown", this.shotEscape);
+      this.flash(`frame captured at t=${Number(t || 0).toFixed(1)}s`);
+    },
+
+    closeShot() {
+      const modal = byId("chron-shot-modal");
+      if (modal) {
+        if (document.fullscreenElement) document.exitFullscreen?.();
+        modal.remove();
+      }
+      if (this.shotEscape) {
+        document.removeEventListener("keydown", this.shotEscape);
+        this.shotEscape = null;
+      }
+    },
+
+    fullscreen() {
+      const stage = document.querySelector(".video-stage") || byId("chron-shell");
+      if (!stage) return;
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.();
+        return;
+      }
+      const request = stage.requestFullscreen || stage.webkitRequestFullscreen;
+      if (!request) {
+        this.flash("fullscreen is not supported in this browser");
+        return;
+      }
+      Promise.resolve(request.call(stage)).catch(() => this.flash("fullscreen was blocked"));
+    },
+
+    flash(message) {
+      const status = byId("chat-status");
+      if (!status) return;
+      status.textContent = String(message || "");
+      clearTimeout(this.flashTimer);
+      this.flashTimer = setTimeout(() => {
+        if (status) status.textContent = this.lastChatStatus || "";
+      }, 2600);
+    },
+
     cycleRate() {
       if (window.emitEvent) emitEvent("chron-rate");
     },
@@ -1142,6 +1300,16 @@
         };
         badges.appendChild(chip);
       });
+      if (grounded) {
+        const first = (data.citations || [])[0];
+        const answerT = first && first.t != null ? safeFloat(first.t, this.playhead) : this.playhead;
+        const shot = document.createElement("button");
+        shot.className = "chipz chipz-secondary cite-chip";
+        shot.title = "Capture the video frame at this answer's time and open it fullscreen";
+        shot.textContent = "⤓ frame @ " + fmtTime(answerT);
+        shot.onclick = () => this.screenshotAt(answerT);
+        badges.appendChild(shot);
+      }
       if (data.llm_error) {
         const warn = document.createElement("span");
         warn.className = "chipz chipz-secondary";

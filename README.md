@@ -318,9 +318,25 @@ python run_dashboard.py --replay data/real/cook.events.jsonl
 
 The session header in the event file supplies the video, title and duration, so
 the feed, overlays, timeline and chat all follow that clip.
-The **canonical demo surface remains `./chronicle.sh start` / `chronicle serve`
-on port 8080**; mission control is an optional parallel view, not a replacement
-for the operator dashboard. See
+
+**Screenshot + fullscreen.** The stage toolbar has a frame button (`⤓`) and a
+fullscreen button (`⛶`); keyboard shortcuts are `S` and `F`. Every grounded chat
+answer also gets a `⤓ frame @ 12.3s` chip that seeks to the answer's cited time,
+captures that exact frame (stamped with clip and timestamp), and opens it in a
+lightbox with **save PNG** and **fullscreen**. The lightbox itself can go
+fullscreen, so judges can blow up an evidence frame without leaving the page.
+
+**Memory card.** When the active clip has a graph DB, a small `MEMORY ·
+VIDEO-FREE` card appears under the vitals: compile the VFM vault, open the
+offline report, download `vault.db` / `memory_pack.md` / `memory.zip`, and ask
+questions. With a compiled vault, the zine chat answers through the memory
+(`provider: vfm-memory`), so count bounds and deduped physical estimates appear
+in the main UI. Clips that only have a replay timeline and no DB show a clear
+"no graph DB" note instead.
+
+The **canonical demo surface is `./chronicle.sh start`** (zine mission control,
+port 8080); the live-pipeline/VFM operator UI is `./chronicle.sh pipeline`
+(a.k.a. `chronicle serve`). See
 [`docs/INTEGRATION.md`](docs/INTEGRATION.md#two-dashboards-one-canonical-entry-point).
 
 Headless smoke test:

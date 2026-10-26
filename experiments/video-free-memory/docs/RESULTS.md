@@ -82,3 +82,15 @@ done
   counts.
 - The benchmark still expects the string `4 bowl` because it encodes the raw track count; the
   answer now contains both that and `physical bowl count is 0`.
+
+## UI (zine mission control, merged from main)
+
+- `./chronicle.sh start` now launches the merged zine UI; `./chronicle.sh pipeline` is the
+  live-pipeline/VFM operator UI.
+- Stage toolbar: **S** saves the current frame, **F** toggles fullscreen. Every grounded answer
+  has a `⤓ frame @ <time>` chip that captures the cited frame and opens a fullscreen lightbox
+  with save/download.
+- A `MEMORY · VIDEO-FREE` card compiles the active clip's DB, opens the report, downloads the
+  vault/pack/zip, and the chat answers through the vault when it is ready.
+- Clips without a graph DB (replay-only or fresh upload) show a clear note; the Memory card needs
+  `<clip>/chronicle.db` (gitignored, copied locally for the demo).

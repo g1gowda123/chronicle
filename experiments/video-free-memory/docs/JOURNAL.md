@@ -894,3 +894,42 @@ fetched `/`, parsed the video uploader URL (`/_nicegui/client/<client>/upload/85
   still worked. That is expected for a synthetic rectangle clip.
 - Server stopped. This closes P0 item 6 at the HTTP level; only the human drag/play/seek click is
   not automated (Playwright/Chromium absent).
+
+---
+
+## 2026-10-27 — Session 10: merge main UI, screenshots, zine memory card
+
+### Merged
+
+- Merged `main` into `experiment/video-free-memory` (`4bd9e86`). This brings the zine mission
+  control, clip switcher, real-clip replay, upload validation, preflight, calibration and the
+  other main-branch features without dropping the VFM package. The merge was clean; full suite
+  passed immediately after.
+
+### Added to the zine UI
+
+- **Screenshot at answer time.** Each grounded answer gets `⤓ frame @ 12.3s`; it seeks to the first
+  citation, captures that frame, stamps the clip + timestamp into the PNG, and opens a lightbox.
+- **Fullscreen.** Stage toolbar `⛶` and keyboard `F`; the screenshot lightbox has its own
+  fullscreen button. `S` captures the current frame. CSS covers `.video-stage:fullscreen` and
+  `.chron-shot-modal`.
+- **Memory card.** A `MEMORY · VIDEO-FREE` card appears when the active clip has a graph DB:
+  compile, open the report, download `vault.db` / `memory_pack.md` / `memory.zip`, and status
+  polling. API: `/api/vfm/{status,compile,report,download,ask}`. Query routing prefers a compiled
+  vault (`provider: vfm-memory`) so count bounds show in the main chat.
+- `dashboard/memory.py` resolves `events:`/`video:` clips to a DB + video and caches one
+  `VFMJobManager` per data dir. Uploaded clips without an ingested DB show a clear note.
+
+### Verified
+
+- End-to-end VFM compile from the zine bridge: demo clip → 1 caption window → 26 KB vault,
+  8 WebP snapshots, 357 KB report, 596-token pack in ~12 s.
+- `node --check dashboard/static/chronicle.js` passes; full suite **363 passed, 21 subtests**;
+  experiment suite **24 passed**.
+- Local demo DBs (`data/demo/chronicle.db`, `data/real/*/chronicle.db`) are gitignored; copy them
+  next to the video to light up the Memory card. Without them the card says `no graph DB`.
+
+### Next
+
+- Hand-label the remaining count episodes.
+- Optional: persist screenshots server-side for an evidence gallery.

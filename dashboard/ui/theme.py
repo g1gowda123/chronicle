@@ -14,9 +14,9 @@ HEAD_HTML = """
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Caveat:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap">
-<link rel="stylesheet" href="/chronicle/chronicle.css?v=3">
+<link rel="stylesheet" href="/chronicle/chronicle.css?v=4">
 <script defer src="/chronicle/vis-network.min.js?v=1"></script>
-<script defer src="/chronicle/chronicle.js?v=3"></script>
+<script defer src="/chronicle/chronicle.js?v=4"></script>
 <meta name="theme-color" content="#faf3e3">
 <meta name="color-scheme" content="light">
 <style>html,body{background:#faf3e3;color:#26221a}</style>
@@ -194,6 +194,8 @@ def video_html(snapshot: dict[str, Any], replays: list[dict[str, str]] | None = 
   <div class="transport">
     <button class="t-btn play" id="chron-play" onclick="Chronicle.togglePlay()" title="Play / pause (Space)"><span id="chron-play-icon">▶</span></button>
     <button class="t-btn restart" onclick="Chronicle.restart()" title="Replay from 0:00 (R)">↺</button>
+    <button class="t-btn" id="chron-shot" onclick="Chronicle.screenshot()" title="Save the current frame as PNG (S)" aria-label="Screenshot current frame">⤓</button>
+    <button class="t-btn" id="chron-full" onclick="Chronicle.fullscreen()" title="Fullscreen video (F)" aria-label="Toggle fullscreen video">⛶</button>
     <span class="t-time" id="chron-time">00:00.00 <span class="total">/ 00:00.00</span></span>
     <span class="t-sep"></span>
     <span class="transport-label" id="transport-label">SYNCED PLAYBACK · LOOP</span>
