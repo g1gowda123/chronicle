@@ -7,9 +7,10 @@ from pathlib import Path
 from conftest import DT, cup, feed, make_frame
 
 from chronicle.config import FurnitureConfig
+from chronicle.geometry import bbox_to_polygon
 from chronicle.graph.memory import ChronicleMemory
 from chronicle.telemetry import TelemetryTag
-from chronicle.types import ObjectObservation, Relation
+from chronicle.types import ObjectObservation, Relation, SupportSurface
 
 SOFA_BBOX = (100.0, 100.0, 300.0, 250.0)
 
@@ -310,6 +311,120 @@ def test_merge_furniture_preserves_registry_and_aliases() -> None:
         assert event.data["removed"] == "anchor:sofa-2"
     finally:
         memory.close()
+
+
+def test_auto_sweep_merges_pan_reentry_furniture_duplicate() -> None:
+    memory = ChronicleMemory(
+        ":memory:",
+        furniture_config=FurnitureConfig(consolidation_enabled=False),
+    )
+    try:
+        # One physical sofa: visible before the pan, then re-entering the
+        # frustum ten seconds later.  An older association pass minted a second
+        # anchor for the re-entry; the sweep must fold it back into the keeper.
+        seed_sofa(memory, "sofa-1", 1.0, 2.0)
+        seed_sofa(memory, "sofa-2", 10.0, 11.0)
+
+        candidates = [
+            candidate
+            for candidate in memory.consolidator.find_candidates(11.5)
+            if candidate.kind == "furniture"
+        ]
+        assert len(candidates) == 1
+        assert candidates[0].keep == "sofa-1"
+        assert candidates[0].remove == "sofa-2"
+
+        reports = memory.consolidator.maybe_consolidate(11.5, force=True)
+        merged = [
+            report
+            for report in reports
+            if report.kind == "furniture" and report.merged
+        ]
+        assert len(merged) == 1
+        assert merged[0].keep == "sofa-1"
+        assert merged[0].remove == "sofa-2"
+        assert memory.resolve_furniture_alias("sofa-2") == "sofa-1"
+        assert [record.anchor_id for record in memory.furniture.records] == ["sofa-1"]
+        assert [row["anchor_id"] for row in memory.background.furniture()] == [
+            "anchor:sofa-1"
+        ]
+        assert not memory.background.has_node("anchor:sofa-2")
+        assert memory.stats()["furniture_merged"] == 1
+    finally:
+        memory.close()
+
+
+def test_furniture_alias_survives_reopen_and_blocks_reminting(tmp_path: Path) -> None:
+    db_path = tmp_path / "chronicle.db"
+    memory = ChronicleMemory(
+        db_path,
+        furniture_config=FurnitureConfig(consolidation_enabled=False),
+    )
+    try:
+        seed_sofa(memory, "sofa-1", 1.0, 2.0)
+        seed_sofa(memory, "sofa-2", 10.0, 11.0)
+        assert memory.merge_furniture("sofa-1", "sofa-2", t=11.5).merged is True
+    finally:
+        memory.close()
+
+    reopened = ChronicleMemory(
+        db_path,
+        furniture_config=FurnitureConfig(consolidation_enabled=False),
+    )
+    try:
+        assert reopened.resolve_furniture_alias("anchor:sofa-2") == "sofa-1"
+        assert [record.anchor_id for record in reopened.furniture.records] == ["sofa-1"]
+        assert [row["anchor_id"] for row in reopened.background.furniture()] == [
+            "anchor:sofa-1"
+        ]
+        assert reopened.store.get_furniture("sofa-2") is None
+        assert reopened.store.get_furniture("sofa-1") is not None
+
+        # A stale Role A support carrying the retired anchor id must be folded
+        # onto the keeper, not used to mint a second background node.
+        old_support = SupportSurface(
+            anchor_id="sofa-2",
+            label="sofa",
+            polygon=bbox_to_polygon(SOFA_BBOX),
+            zone_id="living-room",
+        )
+        reopened.observe(
+            make_frame(
+                12.0,
+                supports=[old_support],
+                zone_id="living-room",
+                zone_label="living room",
+            )
+        )
+        assert reopened.background.has_node("anchor:sofa-1")
+        assert not reopened.background.has_node("anchor:sofa-2")
+        assert [record.anchor_id for record in reopened.furniture.records] == ["sofa-1"]
+
+        # The pan/re-entry detection reuses the keeper through geometry.
+        feed(
+            reopened,
+            12.1,
+            12.2,
+            DT,
+            lambda t: [
+                ObjectObservation(
+                    entity_id="sofa-track",
+                    label="sofa",
+                    bbox=SOFA_BBOX,
+                    track_id=9,
+                )
+            ],
+            supports_fn=lambda t: (),
+            zone_id="living-room",
+        )
+        assert [row["anchor_id"] for row in reopened.background.furniture()] == [
+            "anchor:sofa-1"
+        ]
+        assert [record.anchor_id for record in reopened.furniture.records] == ["sofa-1"]
+        assert reopened.store.get_furniture("sofa-2") is None
+        assert reopened.resolve_furniture_alias("sofa-2") == "sofa-1"
+    finally:
+        reopened.close()
 
 
 def test_aliases_survive_reopen_and_block_recreation(tmp_path: Path) -> None:
