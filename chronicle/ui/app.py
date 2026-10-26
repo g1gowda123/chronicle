@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from nicegui import app, run, ui
 
@@ -241,6 +241,12 @@ def _graph_options(snapshot: dict[str, Any]) -> dict[str, Any]:
             item_style = {"color": color or "#94a3b8"}
             label_cfg = {"show": True, "fontSize": 11, "color": "#e2e8f0"}
 
+        node_tooltip = f"<b>{node.get('label', node['id'])}</b> [{node_type.upper()}]"
+        if node.get("zone"):
+            node_tooltip += f"<br/>zone: {node.get('zone')}"
+        if state:
+            node_tooltip += f"<br/>state: {state}"
+
         data.append(
             {
                 "id": node["id"],
@@ -250,6 +256,7 @@ def _graph_options(snapshot: dict[str, Any]) -> dict[str, Any]:
                 "symbolSize": size,
                 "itemStyle": item_style,
                 "label": label_cfg,
+                "tooltip": {"formatter": node_tooltip},
             }
         )
     links = [
@@ -485,6 +492,17 @@ def create_app(
             headers={"Content-Disposition": 'attachment; filename="chronicle_actions.csv"'},
         )
 
+    @app.post("/import/snapshot")
+    async def _import_snapshot(request: Request) -> dict[str, Any]:
+        payload = await request.json()
+        with state.lock:
+            state.runtime.load_snapshot_json(payload)
+        return {
+            "status": "imported",
+            "entities": len(payload.get("entities", [])),
+            "furniture": len(payload.get("furniture", [])),
+        }
+
     def _switch_source(source: ClipSource) -> bool:
         target = source.video_path(data_root)
         if source.key == "custom":
@@ -626,6 +644,40 @@ def create_app(
                             ),
                         )
 
+                with ui.dialog() as import_dialog, ui.card().classes(
+                    "chronicle-card p-4 min-w-[360px]"
+                ):
+                    ui.label("Import Snapshot").classes("text-sm font-semibold text-teal-300")
+                    ui.label(
+                        "Upload an exported chronicle_snapshot.json to restore graph state without re-ingesting."
+                    ).classes("text-xs text-slate-400 mb-2")
+
+                    def _on_upload(event: Any) -> None:
+                        try:
+                            content = event.content.read().decode("utf-8")
+                            with state.lock:
+                                state.runtime.load_snapshot_json(content)
+                            ui.notify("Snapshot imported successfully!", type="positive")
+                            import_dialog.close()
+                            refresh()
+                        except Exception as exc:
+                            ui.notify(f"Import failed: {exc}", type="negative")
+
+                    ui.upload(
+                        label="Drop snapshot JSON here",
+                        on_upload=_on_upload,
+                        auto_upload=True,
+                    ).props("outlined dark accept=.json").classes("w-full")
+                    ui.button("Close", on_click=import_dialog.close).props(
+                        "flat dense size=sm"
+                    ).classes("mt-2 text-slate-400")
+
+                ui.button(
+                    "Import", icon="upload", on_click=import_dialog.open
+                ).props("outline dense size=sm no-caps").classes(
+                    "text-xs chronicle-mono text-teal-300"
+                )
+
         with ui.column().classes("w-full max-w-[1440px] mx-auto px-5 pt-3 gap-3"):
             with ui.card().props("flat").classes("chronicle-card w-full"):
                 with ui.row().classes("w-full items-center justify-between px-3 py-1"):
@@ -732,6 +784,13 @@ def create_app(
                             ).props("flat dense size=xs no-caps").classes(
                                 "text-slate-400 text-[10px]"
                             ).tooltip("Download entities CSV")
+                            ui.button(
+                                "Import",
+                                icon="file_upload",
+                                on_click=import_dialog.open,
+                            ).props("flat dense size=xs no-caps").classes(
+                                "text-slate-400 text-[10px]"
+                            ).tooltip("Import snapshot JSON")
                         pipeline_label = ui.label("").classes(
                             "text-[10px] chronicle-mono text-slate-500 truncate"
                         )
