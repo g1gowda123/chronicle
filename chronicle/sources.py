@@ -29,7 +29,14 @@ class ClipSource:
     real: bool = True
 
     def video_path(self, data_dir: Path | str) -> Path:
-        return Path(data_dir).expanduser().resolve() / self.relative_path
+        base = Path(data_dir).expanduser().resolve()
+        primary = base / self.relative_path
+        if primary.is_file():
+            return primary
+        fallback = base / "real" / Path(self.relative_path).name
+        if fallback.is_file():
+            return fallback
+        return primary
 
     def db_path(self, data_dir: Path | str) -> Path:
         return Path(data_dir).expanduser().resolve() / self.relative_db

@@ -484,6 +484,14 @@ DEFAULT_GRAPHRAG_CASES: tuple[GraphRAGCase, ...] = (
         context={"entity": {"id": "passport", "label": "passport"}},
         expect_unknown=True,
     ),
+    GraphRAGCase(
+        name="before-placement",
+        query="Where were the keys before they were placed in the drawer?",
+        context=_KEYS_CONTEXT,
+        expected_location="work desk",
+        expected_timestamp=12.0,
+        expected_relation="RESTING_ON",
+    ),
 )
 
 

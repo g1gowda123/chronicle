@@ -179,3 +179,39 @@ def test_label_aliases_are_symmetric_and_plural_aware() -> None:
     # Deliberately not aliases: the existing retrieval contract treats these
     # as different object categories.
     assert match_score("cup", "coffee mug") == 0.0
+
+
+def test_multihop_temporal_query_fallback(memory: ChronicleMemory) -> None:
+    z1 = memory.background.ensure_zone("living room", t=0.0)
+    z2 = memory.background.ensure_zone("kitchen", t=0.0)
+    a1 = memory.background.ensure_furniture("anchor:coffee_table", "coffee table", z1, 0.0)
+    a2 = memory.background.ensure_furniture("anchor:dining_table", "dining table", z2, 0.0)
+
+    memory.foreground.upsert_entity(
+        "cup", "cup", state=ObjectState.VISIBLE_STATIC, state_since=5.0, first_seen=5.0, last_seen=25.0
+    )
+    memory.foreground.open_resting("cup", a1, 5.0)
+    memory.foreground.add_action("cup", "PICK_UP", 10.0)
+    memory.foreground.open_resting("cup", a2, 15.0)
+
+    result = memory.query("where was the cup before the dining table?")
+    assert result is not None
+    assert "coffee table" in result.fallback_answer()
+    assert "5.0s" in result.fallback_answer()
+
+    prev_res = memory.query("where was the cup previously?")
+    assert prev_res is not None
+    assert "Previously" in prev_res.fallback_answer()
+    assert "coffee table" in prev_res.fallback_answer()
+
+    act_res = memory.query("what did I do with the cup before the dining table?")
+    assert act_res is not None
+    assert "pick up" in act_res.fallback_answer().lower()
+
+    early_res = memory.query("where was the cup before the coffee table?")
+    assert early_res is not None
+    assert "I don't have a record of where" in early_res.fallback_answer()
+
+    unknown_res = memory.query("where was the cup before the couch?")
+    assert unknown_res is not None
+    assert "I don't have that in my memory." in unknown_res.fallback_answer()

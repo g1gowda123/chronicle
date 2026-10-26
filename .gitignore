@@ -38,16 +38,28 @@ htmlcov/
 Thumbs.db
 
 # Local artifacts: media, models, databases, logs
-data/
 models/
 weights/
 runs/
 logs/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
-*.mp4
+data/*.db
+data/**/*.db
+data/**/*.db-shm
+data/**/*.db-wal
 *.mov
 *.avi
 *.mkv
 *.webm
+
+# Do not track arbitrary media except repository test/benchmark data
+*.mp4
+!data/real/*.mp4
+!data/real/**/*.mp4
+!data/real/*.json
+!data/real/*.md
+!data/demo/*.mp4

@@ -287,6 +287,15 @@ class GraphRAGTest(unittest.TestCase):
         self.assertEqual(answer.citations[0].timestamp, 16.4)
         self.assertIn("Entity: keys", chat.calls[0][1])
 
+    def test_llm_multihop_temporal_answer(self) -> None:
+        chat = FakeChat("Before being placed in the drawer, your keys were resting on the work desk [t=12.0s].")
+        rag = GraphRAG(chat_client=chat, config=SemanticConfig())
+        answer = rag.answer("Where were the keys before the drawer?", CONTEXT)
+        self.assertEqual(answer.source, "llm")
+        self.assertTrue(answer.grounded)
+        self.assertEqual(answer.citations[0].timestamp, 12.0)
+        self.assertEqual(answer.citations[0].relation, "RESTING_ON")
+
     def test_uncited_llm_answer_falls_back(self) -> None:
         rag = GraphRAG(chat_client=FakeChat("They are in the drawer."))
         answer = rag.answer("Where are my keys?", CONTEXT)
