@@ -139,7 +139,7 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget and `/import/snapshot` route in the NiceGUI dashboard so an exported `chronicle_snapshot.json` restores graph state without re-ingesting; validate it with `chronicle/ui/snapshot_io.py`. | `chronicle/ui/app.py`<br>`chronicle/integration.py`<br>`chronicle/ui/snapshot_io.py` | `[DONE (a31d417, 973798a)]` | Orchestrator |
 | **TASK-F1** | **P1** | **HoloLens tabletop action verification benchmark**<br>Benchmark `chronicle run --source tabletop` and evaluate action extraction against HoloLens ground truth (`docs/PERCEPTION.md`). | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[DONE (feba585)]` | karthiknk7019 |
 | **TASK-F2** | **P1** | **GraphRAG question prompt enhancement**<br>Support multi-hop queries like "Where was the cup before it was placed on the table?" using timeline edge walks. | `chronicle/semantic/graphrag.py`<br>`tests/test_graphrag.py` | `[DONE (f224d33)]` | Orchestrator / Likhithvu |
-| **TASK-F3** | **P2** | **Live stream source implementation**<br>Implement live video capture ingestion loop for the `live` ClipSource placeholder (`chronicle run --source live`). | `chronicle/sources.py`<br>`chronicle/perception/pipeline.py` | `[IN PROGRESS (Role C)]` | karthiknk7019 |
+| **TASK-F3** | **P2** | **Live stream source implementation**<br>Implement live video capture ingestion loop for the `live` ClipSource placeholder (`chronicle run --source live`). | `chronicle/sources.py`<br>`chronicle/perception/pipeline.py` | `[DONE (5bceed4)]` | karthiknk7019 |
 
 ## What I am working on right now
 
