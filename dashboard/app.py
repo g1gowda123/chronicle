@@ -174,8 +174,8 @@ async def vfm_compile(request: Request) -> JSONResponse:
     source = memory.resolve(clip, DATA_DIR)
     if source is None:
         return _vfm_error("unknown clip")
-    if source.db is None or not Path(source.db).is_file():
-        return _vfm_error("this clip has no graph DB yet; ingest it first")
+    if (source.db is None or not Path(source.db).is_file()) and source.video is None:
+        return _vfm_error("this clip has no graph DB or video")
     manager = memory.manager(DATA_DIR)
     force = str(request.query_params.get("force") or "").lower() in {"1", "true", "yes"}
     manager.submit(source, source.video, force=force)

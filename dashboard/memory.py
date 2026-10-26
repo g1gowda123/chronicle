@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,8 +17,11 @@ from typing import Any
 from chronicle.sources import available_sources
 from chronicle.vfm.service import VFMJobManager
 
+from .runtime import clip_title
+
 _MANAGERS: dict[Path, VFMJobManager] = {}
 _AUTO_ATTEMPTED: set[str] = set()
+_AUTO_LOCK = threading.Lock()
 
 
 def enabled() -> bool:
@@ -119,7 +123,7 @@ def resolve(clip: str | None, data_dir: Path | str) -> MemorySource | None:
         db = video.parent / "chronicle.db"
         return MemorySource(
             key="video:" + rel,
-            label=video.stem,
+            label=clip_title(video),
             db=db if db.is_file() else None,
             video=video,
         )
@@ -189,10 +193,11 @@ def auto_compile(clip: str | None, data_dir: Path | str) -> dict[str, Any] | Non
     # No live-job check here: after a server restart a stale "running" job.json
     # must not block the first real compile. `_AUTO_ATTEMPTED` already stops
     # duplicate submissions within one process.
-    if source.key in _AUTO_ATTEMPTED:
-        return None
-    _AUTO_ATTEMPTED.add(source.key)
-    job = instance.submit(source, source.video)
+    with _AUTO_LOCK:
+        if source.key in _AUTO_ATTEMPTED:
+            return None
+        _AUTO_ATTEMPTED.add(source.key)
+        job = instance.submit(source, source.video)
     return job.to_dict() if job is not None else None
 
 

@@ -107,3 +107,16 @@ done
   events around 10s instead of the old "No VLM-verified interactions" dead end.
 - Replay entity labels are emitted at first sight, so the UI shows `person`/`cup`/`car` rather than
   anonymous `Track` rows.
+
+## Long real video (speed proof)
+
+- `data/uploads/walking-long/source.mp4` — **15:03**, 1280×720, 29.97 fps, ~249 MB,
+  real London street walk (people, shops, traffic).
+- It has no graph DB, so it uses the **caption-first** path: 31 × 30 s VLM windows
+  become the ledger/entities; query answers are deterministic after compile.
+- The zine clip switcher lists it as a video-only clip; the Memory card auto-compiles
+  it on first view (or press **Compile memory**).
+- Query latency after compile is the same ~0.05–0.06 ms; the point for judges is
+  that a 15-minute 250 MB video becomes a ~1 MB memory and answers are instant.
+- Evidence thumbnails are only shown when the stored still is within 8 s of the
+  question time; the `frame @ t` button always lets you capture the cited frame.

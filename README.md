@@ -341,6 +341,9 @@ answer also gets a `⤓ frame @ 12.3s` chip that seeks to the answer's cited tim
 captures that exact frame (stamped with clip and timestamp), and opens it in a
 lightbox with **save PNG** and **fullscreen**. The lightbox itself can go
 fullscreen, so judges can blow up an evidence frame without leaving the page.
+When the VFM vault has a stored still **within 8 s of the question time**, one
+evidence thumbnail is attached to the reply; otherwise the reply stays text-only
+and the explicit `frame @ t` button remains the way to inspect a frame.
 
 **Export / import graphs.** The stage toolbar has `⤓ export` and `⤒ import`.
 Export downloads `chronicle_graphs.zip` with a manifest, the current full event
@@ -356,8 +359,12 @@ evidence, answered deterministically in **~0.05 ms** without touching the video.
 The first time a clip is opened the memory is compiled **automatically in the
 background** (VLM captions, one-time cost); the `MEMORY · VIDEO-FREE` card shows
 progress and then the report/downloads (`vault.db`, `memory.html`,
-`memory_pack.md`, `memory.zip`). Disable auto-compile with
-`CHRONICLE_VFM_AUTO=0`, disable the whole panel with `CHRONICLE_VFM=0`.
+`memory_pack.md`, `memory.zip`). The card's **Compile memory** button forces a
+rebuild; after the first build it reads **Rebuild memory**. Disable auto-compile
+with `CHRONICLE_VFM_AUTO=0`, disable the whole panel with `CHRONICLE_VFM=0`.
+Clips with no graph DB (fresh uploads, long street walks) use the **caption-first**
+path: VLM captions become the ledger and entities, so they still answer
+"what happened around 10 s?" without running perception.
 
 With a compiled vault, answers show `provider: vfm-memory`; count questions get
 the track/visibility bounds and deduped physical estimate. Clips that only have
