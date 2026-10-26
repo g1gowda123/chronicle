@@ -262,7 +262,20 @@ Notes:
   evidence `reason` distinguishes `independent_motion` from
   `independent_motion_relaxed`.
 - Re-acquisition forces the next transition immediately (`force=True`) instead
-  of waiting for a dwell window.
+  of waiting for a dwell window — including when `strict_support=True` and the
+  first frame back has no surface geometry (reason
+  `reacquired_without_support_geometry`).
+- A candidate container must be strictly larger than the object. IoS is
+  symmetric, so without that guard a cup would also mark its backpack as
+  `CONTAINED` and create a mutual `INSIDE` edge.
+- Leaving `CONTAINED` for a visible state uses `exit_dwell_s` (0.15 s) instead
+  of the full static/moving dwell.
+- Once a missing object is classified `OUT_OF_VIEW` during a pan, a later still
+  camera does not demote it to `OCCLUDED`; the state is held until re-detection
+  or the 600 s archival timeout.
+- Non-monotonic presentation timestamps are clamped to the last accepted time
+  and the frame timestamp is rewritten, so camera/velocity windows never
+  rewind.
 
 ## Dual graph
 
@@ -284,7 +297,12 @@ Notes:
   - `entity -[STATE_TRANSITION]-> entity` (one per transition, keyed by `t_event`)
   - `agent:user -[ACTION]-> entity`
 - Closed placements are retained; only the newest placement is marked
-  `is_terminal=True`. The terminal anchor is the one queries read first.
+  `is_terminal=True`. `RESTING_ON` and `INSIDE` are mutually exclusive, so an
+  object that moves from a surface into a container (or back) still has exactly
+  one terminal placement. The terminal anchor is the one queries read first.
+- The 2-hop query context explicitly hydrates each entity's parent zone, so a
+  `CONTAINED` object (whose terminal anchor is the container entity) still
+  reports `zone:<room>` in `terminal_anchor`, `state_table()` and `to_table()`.
 
 ### SQLite
 
@@ -293,12 +311,21 @@ Notes:
 
 Persistence invariants:
 
+- Exactly one `RESTING_ON` / `INSIDE` row per entity is terminal; every older
+  placement is closed. `SQLiteStore` normalizes this on terminal-edge insert,
+  on merge, and once on `initialize()` so databases written by older builds are
+  repaired on reopen. Foreground placement intervals are normalized again when
+  the memory graph is restored.
 - `anchors` rows are never deleted, even after the placement closes.
 - `observations` (bbox trajectories) are the only rows purged, after
   `trajectory_retention_s = 600` seconds.
 - `ChronicleMemory(path)` restores zones, entities, transition history, edges,
-  and terminal anchors on construction.
+  terminal anchors, and furniture timestamps on construction. Persisted
+  furniture `last_seen` / `first_seen` survive reopen; missing values fall back
+  to `created_at`.
 - `ChronicleMemory(":memory:")` is the zero-artifact mode used by the test suite.
+- Merging a graph-only furniture keeper promotes its SQLite row to the same
+  `anchor:<id>` namespacing used by normal persistence.
 
 ### Duplicate consolidation
 
@@ -335,6 +362,15 @@ Every mutation is auditable: dry runs emit `[GRAPH] entity merge planned`, real
 merges emit `[GRAPH] entity merged` (with keep/remove ids and preserved row
 counts), and each automatic pass that changes something emits
 `[GRAPH] consolidation sweep`.
+
+### Furniture association across pans
+
+`ChronicleMemory._route_furniture()` advances the registry's virtual camera once
+per frame, including frames with no furniture detections. Each anchor stores the
+camera position at which its bbox was last updated, so re-entry prediction uses
+the accumulated displacement since *that* anchor was seen, not just the current
+frame's `camera.dx/dy`. A multi-frame pan therefore re-binds to the existing
+anchor instead of minting a duplicate.
 
 ### Dual furniture fixtures and persistence validation
 

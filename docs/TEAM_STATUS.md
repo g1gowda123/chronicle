@@ -49,6 +49,7 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | ID | Pri | Task | Scope / Key Files | Status | Owner |
 |---|---|---|---|---|---|
 | **TASK-B1** | **P0** | **Dual furniture fixtures & SQLite persistence**<br>Add regression tests for 2 co-visible sofas remaining distinct during consolidation sweep, sequential duplicate merging on pan re-entry, and alias restoration across SQLite reopen blocking anchor re-minting. | `tests/test_consolidation.py`<br>`chronicle/graph/consolidation.py` | `[DONE (0636492)]` | karthiknk7019 |
+| **TASK-B2** | **P1** | **Lifecycle & persistence hardening**<br>Enforce exactly one terminal `RESTING_ON`/`INSIDE` placement, non-mutual containment, parent-zone context for contained queries, `exit_dwell_s`, strict-support reacquisition, `OUT_OF_VIEW` archival reachability, multi-frame furniture pan compensation, timestamp clamping, and namespaced furniture promotion. | `chronicle/state_machine.py`<br>`chronicle/graph/{foreground,query,furniture,background,memory}.py`<br>`chronicle/storage/sqlite_store.py`<br>`tests/test_{state_machine,graph_storage,query,furniture,consolidation}.py` | `[DONE]` | Role B |
 | **TASK-C1** | **P0** | **Verification queue depth telemetry in snapshot**<br>Expose `verification_stats` (`depth`, `dropped`, `avg_latency_ms`) in `ChronicleRuntime.snapshot()` and `snapshot()["stats"]`. Add queue depth regression test. | `chronicle/integration.py`<br>`tests/test_verification_queue.py` | `[DONE (ee9fed7)]` | karthiknk7019 |
 | **TASK-D1** | **P0** | **JSON & CSV memory graph export**<br>Add export methods to runtime (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`) and `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv` endpoints + UI download buttons in NiceGUI header/card. CSVs use stable headers and JSON-encode nested values. | `chronicle/integration.py`<br>`chronicle/ui/app.py` | `[DONE (f52482b, 5e51c20)]` | Orchestrator / karthiknk7019 |
 | **TASK-D2** | **P1** | **Distinct furniture anchor styling in graph**<br>Render background furniture anchors with distinct shape (rounded rectangle) and golden border (`#f59e0b`) so they are immediately visually distinct from episodic entities with lifecycles. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
@@ -118,6 +119,18 @@ ping me first. Everything else is fair game.
 **Landed:** `GraphConsolidator`, merge APIs and alias/confidence retrieval;
 `pytest`, `unittest discover`, `ruff check chronicle tests` and the demo are
 green. Role B checklist complete.
+
+**Hardening note (2026-10-26):** an audit against `spec.txt` found and fixed
+concrete correctness gaps: SQLite could retain two terminal placements after a
+lift or a `RESTING_ON`→`INSIDE` switch; containment was mutual for a cup inside
+a backpack; contained-object queries dropped the container's room context;
+`exit_dwell_s` was unused; strict-support reacquisition could stick in
+`OCCLUDED`; a still camera demoted `OUT_OF_VIEW` before the 600 s `LOST` path;
+multi-frame pans minted duplicate furniture anchors; restored furniture lost
+`last_seen`; and a graph-only furniture merge wrote a non-namespaced SQLite id.
+Fifteen focused regression tests cover the fixes. Current verification:
+`pytest` green (233 model-free tests collected), `ruff check chronicle tests`
+clean.
 
 **Done when:** replaying the living-room clip leaves exactly one background
 anchor per physical sofa, and `memory.stats()` reports the merges.
