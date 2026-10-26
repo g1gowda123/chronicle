@@ -233,12 +233,28 @@ tables, pipeline log and grounded GraphRAG chat from the same
 deterministic embeddings and template GraphRAG when models are unavailable.
 `chronicle serve --source tabletop` uses the real HoloLens clip.
 
+The header download buttons expose the same data as files, and the endpoints
+can be scripted directly:
+
+```bash
+curl -sf http://127.0.0.1:8080/export/snapshot.json -o chronicle-snapshot.json
+curl -sf http://127.0.0.1:8080/export/entities.csv -o chronicle-entities.csv
+curl -sf http://127.0.0.1:8080/export/actions.csv -o chronicle-actions.csv
+```
+
+`snapshot.json` is the exact dashboard snapshot (graph, entities, actions,
+transitions, furniture, verification telemetry, stats and backends). Both CSVs
+use stable headers so they can be diffed between runs.
+
 Headless smoke test:
 
 ```bash
 chronicle serve --source synthetic --port 8765 &
 curl -sf http://127.0.0.1:8765/ >/dev/null
 curl -sf http://127.0.0.1:8765/source-video >/dev/null
+curl -sf http://127.0.0.1:8765/export/snapshot.json >/dev/null
+curl -sf http://127.0.0.1:8765/export/entities.csv >/dev/null
+curl -sf http://127.0.0.1:8765/export/actions.csv >/dev/null
 ```
 
 ### Real footage (production backends)

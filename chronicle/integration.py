@@ -23,12 +23,14 @@ Design rules
 from __future__ import annotations
 
 import copy
+import csv
+import io
 import json
 import logging
 import threading
 import time
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -68,6 +70,32 @@ _TAG_BY_CATEGORY = {
     "PERCEPTION": TelemetryTag.GEOM,
     "SYSTEM": TelemetryTag.SYSTEM,
 }
+
+_ENTITY_CSV_COLUMNS = (
+    "id",
+    "label",
+    "state",
+    "zone",
+    "anchor",
+    "container",
+    "first_seen",
+    "last_seen",
+    "span",
+    "track_id",
+    "confidence",
+)
+
+_ACTION_CSV_COLUMNS = (
+    "id",
+    "timestamp",
+    "action",
+    "entity_id",
+    "entity",
+    "confidence",
+    "source",
+    "clip_ref",
+    "caption",
+)
 
 
 @dataclass(frozen=True)
@@ -670,39 +698,35 @@ class ChronicleRuntime:
             "backends": self.backends(),
         }
 
-    def export_snapshot_json(self, indent: int = 2) -> str:
-        """Serialize current runtime snapshot to formatted JSON string."""
-        import json
+    # ------------------------------------------------------------------- exports
+    def export_snapshot_json(self, *, indent: int | None = 2) -> str:
+        """Return the current dashboard snapshot as JSON text.
 
-        return json.dumps(self.snapshot(), indent=indent, default=str)
+        The payload is the same dictionary served by ``snapshot()`` so the
+        dashboard, CLI and HTTP export cannot drift apart.  Unknown object types
+        fall back to ``str`` to keep the export usable when a backend surfaces a
+        non-serializable thumbnail or numpy scalar.
+        """
+
+        return json.dumps(
+            self.snapshot(),
+            indent=indent,
+            ensure_ascii=False,
+            default=str,
+        )
 
     def export_entities_csv(self) -> str:
-        """Export current entity table as CSV formatted text."""
-        import csv
-        import io
+        """Return the entity table as CSV text with a stable column order."""
 
-        output = io.StringIO()
-        rows = self._entity_rows()
-        fieldnames = ["id", "label", "state", "zone", "anchor", "container", "span"]
-        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
-        return output.getvalue()
+        return _rows_to_csv(self._entity_rows(), _ENTITY_CSV_COLUMNS)
 
     def export_actions_csv(self) -> str:
-        """Export current action table as CSV formatted text."""
-        import csv
-        import io
+        """Return the recent action edges as CSV text with a stable column order."""
 
-        output = io.StringIO()
-        rows = self.memory.foreground.action_rows(limit=1000)
-        fieldnames = ["id", "timestamp", "action", "entity", "caption", "source"]
-        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
-        return output.getvalue()
+        return _rows_to_csv(
+            self.memory.foreground.action_rows(limit=1000),
+            _ACTION_CSV_COLUMNS,
+        )
 
     def load_snapshot_json(self, data: str | dict[str, Any]) -> None:
         """Reload snapshot state directly into memory without re-ingesting."""
@@ -964,6 +988,27 @@ def _as_float(value: Any) -> float | None:
         return None if value is None else float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _csv_cell(value: Any) -> str:
+    """Render one CSV cell, JSON-encoding nested evidence instead of dropping it."""
+
+    if value is None:
+        return ""
+    if isinstance(value, Mapping):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    if isinstance(value, (list, tuple)):
+        return json.dumps(list(value), ensure_ascii=False, default=str)
+    return str(value)
+
+
+def _rows_to_csv(rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> str:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(columns)
+    for row in rows:
+        writer.writerow([_csv_cell(row.get(column)) for column in columns])
+    return buffer.getvalue()
 
 
 def _short_anchor(anchor_id: str | None) -> str:
