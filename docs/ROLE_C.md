@@ -272,6 +272,22 @@ Hallucinated timestamps are dropped and an uncited LLM answer automatically
 falls back to the deterministic template, so the judge never sees an
 ungrounded location.
 
+#### Multi-hop / "before" questions
+
+Temporal questions such as *"Where was the cup before it was placed on the
+table?"* are answered with a backward walk over the entity's facts:
+
+1. locate the reference event from the query (placement/action wording plus the
+   target object, e.g. `PLACED table`), or from an explicit `t=9s` / `9 seconds`;
+2. keep the facts strictly earlier than that timestamp;
+3. answer with the latest earlier location fact, citing its timestamp
+   (`"Before it was placed on the table, the cup had been resting on the work
+   desk at [t=5.0s]."`).
+
+If no earlier location exists the template returns an ungrounded
+`"I don't have an earlier location for ..."` answer instead of inventing one.
+The same path is exercised by the `before-placement` evaluation case.
+
 ---
 
 ## 5. Role D integration — telemetry & UI
@@ -562,8 +578,8 @@ to load `CHRONICLE_LLM_MODEL` with Hugging Face `pipeline("text-generation")`.
 ## 9. Tests and evaluation
 
 ```powershell
-python -m unittest discover -s tests -v   # 122 model-free tests
-python -m pytest                          # 243 collected (dashboard test skips without the ui extra)
+python -m unittest discover -s tests -v   # 127 model-free tests
+python -m pytest                          # 248 collected (dashboard test skips without the ui extra)
 python -m chronicle.semantic.demo         # offline end-to-end demo
 python -m chronicle.semantic.evaluation   # GraphRAG eval set (or -m chronicle-semantic-eval)
 python -m chronicle.semantic.timeline `
@@ -590,8 +606,9 @@ The Role C suite covers:
 * action timeline: tolerance boundaries, nearest-match pairing, extra / missing /
   wrong-action accounting, entity/container aliases, rejected predictions,
   snapshot + prediction loaders and CLI exit codes;
-* GraphRAG evaluation: 7 cases (location, time, action, remove, lost, zone-only,
-  unknown), 100 % citation precision, hallucinated-timestamp fallback.
+* GraphRAG evaluation: 8 cases (location, time, action, temporal before-placement,
+  remove, lost, zone-only, unknown), 100 % citation precision,
+  hallucinated-timestamp fallback.
 
 The suite has **no model downloads and no network access**.
 
@@ -616,3 +633,7 @@ The suite has **no model downloads and no network access**.
 * GraphRAG grounds timestamps and zones, but does not yet re-rank candidate
   entities with CLIP text-to-node similarity; Role B currently supplies the
   entity context.
+* "Before" questions can only use facts inside the serialized 2-hop context. If
+  Role B's retrieval window drops the earlier location, GraphRAG returns the
+  ungrounded "no earlier location" fallback; widen `max_facts`/`hops` rather
+  than inventing a location.

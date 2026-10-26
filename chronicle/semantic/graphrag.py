@@ -43,15 +43,31 @@ _SPATIAL_RELATIONS = {
     "CONTAINED_IN",
 }
 _LOCATION_RELATIONS = _SPATIAL_RELATIONS | {"INSERT_INTO", "PUT_DOWN", "PLACED"}
+_ACTION_RELATIONS = {
+    "PICK_UP",
+    "PICKED_UP",
+    "GRAB",
+    "GRABBED",
+    "HOLD",
+    "HELD",
+    "REMOVE_FROM",
+    "TAKE",
+    "TAKEN",
+}
+_RELOCATION_RELATIONS = _LOCATION_RELATIONS | _ACTION_RELATIONS
+_BEFORE_MARKERS = ("before", "prior to", "previously", "earlier", "up until")
 _STOPWORDS = {
     "a",
     "an",
     "and",
     "are",
     "at",
+    "before",
+    "being",
     "did",
     "do",
     "does",
+    "earlier",
     "for",
     "from",
     "i",
@@ -62,8 +78,11 @@ _STOPWORDS = {
     "my",
     "of",
     "on",
+    "previously",
+    "prior",
     "the",
     "to",
+    "used",
     "was",
     "were",
     "where",
@@ -548,17 +567,32 @@ def extract_citations(text: str, context: GraphContext, tolerance: float = 0.35)
     return tuple(found)
 
 
+def _text_tokens(text: str) -> set[str]:
+    """Tokenise graph text, splitting relations and folding simple suffixes."""
+    tokens: set[str] = set()
+    for raw in re.findall(r"[a-z0-9_]+", str(text).lower()):
+        if not raw:
+            continue
+        tokens.add(raw)
+        if "_" in raw:
+            tokens.update(part for part in raw.split("_") if part)
+        for suffix, minimum in (("ing", 5), ("ed", 5), ("es", 4), ("s", 4)):
+            if raw.endswith(suffix) and len(raw) > minimum:
+                tokens.add(raw[: -len(suffix)])
+    return tokens
+
+
 def _query_tokens(query: str) -> set[str]:
     return {
         token
-        for token in re.findall(r"[a-z0-9_]+", query.lower())
+        for token in _text_tokens(query)
         if token not in _STOPWORDS and len(token) > 1
     }
 
 
 def _score_fact(fact: Fact, entity_label: str, query_tokens: set[str]) -> float:
     score = 0.0
-    text_tokens = set(re.findall(r"[a-z0-9_]+", fact.searchable_text().lower()))
+    text_tokens = _text_tokens(fact.searchable_text())
     score += 3.0 * len(query_tokens & text_tokens)
 
     entity = entity_label.lower()
@@ -575,6 +609,145 @@ def _score_fact(fact: Fact, entity_label: str, query_tokens: set[str]) -> float:
 
 def _cap(text: str) -> str:
     return text[:1].upper() + text[1:] if text else text
+
+
+def _is_before_query(query: str) -> bool:
+    lower = query.lower()
+    return any(marker in lower for marker in _BEFORE_MARKERS)
+
+
+def _fact_mentions(fact: Fact, tokens: set[str]) -> bool:
+    if not tokens:
+        return False
+    return bool(tokens & _text_tokens(fact.searchable_text()))
+
+
+def _reference_event(
+    query: str,
+    facts: Sequence[Fact],
+    entity_label: str,
+) -> tuple[float | None, Fact | None]:
+    """Find the event the user means by "before": an action or a numeric time."""
+    numeric = re.search(
+        r"(?:\bt\s*=\s*|\bat\s+|before\s+)?(\d+(?:\.\d+)?)\s*"
+        r"(?:s\b|sec(?:ond)?s?\b)",
+        query,
+        re.IGNORECASE,
+    )
+    if numeric:
+        try:
+            return float(numeric.group(1)), None
+        except (TypeError, ValueError):
+            pass
+
+    timed = [fact for fact in facts if fact.timestamp is not None]
+    if not timed:
+        return None, None
+
+    # Only compare the non-entity words so "cup" does not match every fact.
+    tokens = _query_tokens(query) - _text_tokens(entity_label)
+    relocations = [
+        fact for fact in timed if fact.relation.upper() in _RELOCATION_RELATIONS
+    ] or timed
+    matched = [fact for fact in relocations if _fact_mentions(fact, tokens)]
+    pool = matched or relocations
+    reference = max(pool, key=lambda fact: fact.timestamp or float("-inf"))
+    return reference.timestamp, reference
+
+
+def _location_phrase(relation: str, target: str) -> str:
+    relation = relation.upper()
+    if relation in {"RESTING_ON", "ON", "SUPPORTED_BY"}:
+        return f"resting on the {target}"
+    if relation in {"INSIDE", "IN", "CONTAINED_IN", "INSERT_INTO"}:
+        return f"inside the {target}"
+    if relation in {"PUT_DOWN", "PLACED", "PLACE", "PUT"}:
+        return f"on the {target}"
+    if relation in {"PICK_UP", "PICKED_UP", "HELD", "HOLD"}:
+        return "picked up"
+    return f"{relation.replace('_', ' ').lower()} {target}"
+
+
+def _reference_clause(reference_timestamp: float, reference: Fact | None) -> str:
+    if reference is None:
+        return f"before [t={format_timestamp(reference_timestamp)}s]"
+    target = reference.object_label
+    relation = reference.relation.upper()
+    if relation in {"INSERT_INTO", "INSIDE", "IN", "CONTAINED_IN"}:
+        return f"before it was put inside the {target}"
+    if relation in {"PLACED", "PLACE", "PUT", "PUT_DOWN"}:
+        return f"before it was placed on the {target}"
+    if relation in {"PICK_UP", "PICKED_UP", "GRAB", "GRABBED"}:
+        return "before it was picked up"
+    return f"before it was {_location_phrase(relation, target)}"
+
+
+def _before_answer(
+    query: str,
+    context: GraphContext,
+    entity_facts: Sequence[Fact],
+    label: str,
+) -> QueryAnswer:
+    """Walk the timeline backwards from a placement/action to the prior location."""
+    reference_timestamp, reference = _reference_event(query, entity_facts, label)
+    if reference_timestamp is None:
+        return QueryAnswer(
+            query=query,
+            answer="I don't have that in my memory.",
+            citations=(),
+            grounded=False,
+            source="template",
+            context=context,
+        )
+
+    earlier = [
+        fact
+        for fact in entity_facts
+        if fact.timestamp is not None and fact.timestamp < reference_timestamp - 1e-6
+    ]
+    location_earlier = [
+        fact for fact in earlier if fact.relation.upper() in _LOCATION_RELATIONS
+    ]
+    candidates = location_earlier or earlier
+    if not candidates:
+        return QueryAnswer(
+            query=query,
+            answer=(
+                f"I don't have an earlier location for the {label} "
+                f"before [t={format_timestamp(reference_timestamp)}s]."
+            ),
+            citations=(),
+            grounded=False,
+            source="template",
+            context=context,
+            raw_response=None,
+        )
+
+    best = max(candidates, key=lambda fact: fact.timestamp or float("-inf"))
+    target = best.object_label
+    zone = best.zone or context.zone
+    same_place = bool(zone and target and zone.casefold() == target.casefold())
+    where = f" in the {zone}" if zone and not same_place else ""
+    when = f" at [t={format_timestamp(best.timestamp)}s]"
+    phrase = _location_phrase(best.relation, target)
+    answer = (
+        f"{_cap(_reference_clause(reference_timestamp, reference))}, "
+        f"the {label} had been {phrase}{where}{when}."
+    )
+    citation = Citation(
+        timestamp=float(best.timestamp),
+        relation=best.relation,
+        zone=zone,
+        fact=best,
+    )
+    return QueryAnswer(
+        query=query,
+        answer=answer,
+        citations=(citation,),
+        grounded=True,
+        source="template",
+        context=context,
+    )
 
 
 def template_answer(query: str, context: GraphContext) -> QueryAnswer:
@@ -624,6 +797,9 @@ def template_answer(query: str, context: GraphContext) -> QueryAnswer:
         if fact.subject.lower() == entity_key or fact.object_label.lower() == entity_key
     ] or facts
     query_lower = query.lower()
+
+    if _is_before_query(query):
+        return _before_answer(query, context, entity_facts, label)
 
     if any(word in query_lower for word in ("where", "location", "find", "lost")):
         pool = [

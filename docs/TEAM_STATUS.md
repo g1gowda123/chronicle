@@ -74,6 +74,21 @@ embeddings + template GraphRAG). The HoloLens clip is available as
   matches the bundled label at 0.07 s error; `tests/test_timeline.py` covers
   matching, loaders and CLI exit codes without models.
 
+### TASK-F2 — multi-hop "before" questions
+
+- `template_answer()` now recognises temporal phrasing (`before`, `prior to`,
+  `previously`, `earlier`) and walks an entity's facts backwards from the
+  reference event.
+- The reference event is the placement/action the query names (e.g.
+  `PLACED table`) or an explicit `t=..s`; the answer cites the latest location
+  fact strictly before it, e.g. *"Before it was placed on the table, the cup had
+  been resting on the work desk at [t=5.0s]."*
+- When no earlier location exists the answer is an ungrounded
+  `"I don't have an earlier location..."` fallback, so a multi-hop question can
+  never invent a location.
+- Added `before-placement` to the GraphRAG evaluation set (now 8/8, 100 %
+  citation precision) and model-free coverage in `tests/test_graphrag.py`.
+
 ## Dynamic Task Notice Board (Priority Queue)
 
 > **Team Notice Board:** Anyone finishing early can claim the next highest-priority `[READY]` ticket or post a new task below.
@@ -95,8 +110,8 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py`<br>`chronicle/ui/graph_view.py` | `[DONE (371f216)]` | Orchestrator |
 | **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget and `/import/snapshot` route in the NiceGUI dashboard so an exported `chronicle_snapshot.json` restores graph state without re-ingesting; validate it with `chronicle/ui/snapshot_io.py`. | `chronicle/ui/app.py`<br>`chronicle/integration.py`<br>`chronicle/ui/snapshot_io.py` | `[DONE (a31d417, 973798a)]` | Orchestrator |
 | **TASK-F1** | **P1** | **HoloLens tabletop action verification benchmark**<br>Benchmark `chronicle run --source tabletop` and evaluate action extraction against HoloLens ground truth (`docs/PERCEPTION.md`). | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[READY]` | Open / Any Teammate |
-| **TASK-F2** | **P1** | **GraphRAG question prompt enhancement**<br>Support multi-hop queries like "Where was the cup before it was placed on the table?" using timeline edge walks. | `chronicle/semantic/graphrag.py`<br>`tests/test_graphrag.py` | `[READY]` | Open / Any Teammate |
-| **TASK-F3** | **P2** | **Live stream source implementation**<br>Implement live video capture ingestion loop for the `live` ClipSource placeholder (`chronicle run --source live`). | `chronicle/sources.py`<br>`chronicle/perception/pipeline.py` | `[READY]` | Open / Any Teammate |
+| **TASK-F2** | **P1** | **GraphRAG question prompt enhancement**<br>Support multi-hop queries like "Where was the cup before it was placed on the table?" using timeline edge walks. | `chronicle/semantic/graphrag.py`<br>`tests/test_graphrag.py` | `[DONE]` | Orchestrator |
+| **TASK-F3** | **P2** | **Live stream source implementation**<br>Implement live video capture ingestion loop for the `live` ClipSource placeholder (`chronicle run --source live`). | `chronicle/sources.py`<br>`chronicle/perception/pipeline.py` | `[IN PROGRESS (Role C)]` | karthiknk7019 |
 
 ## What I am working on right now
 
@@ -175,8 +190,12 @@ location.
 - [x] Extract `container` from the strip/caption reliably; add tests for
   `INSERT_INTO` / `REMOVE_FROM`. `extract_container()` / `resolve_container()`.
 - [x] Add a GraphRAG evaluation set: exact location, last-seen time, action,
-  and “I don’t know” cases. Track citation precision. `evaluation.py`
-  (7 cases, currently 100 % pass / 100 % citation precision).
+  temporal "before" questions, and “I don’t know” cases. Track citation
+  precision. `evaluation.py` (8 cases, currently 100 % pass / 100 % citation
+  precision).
+- [x] Answer multi-hop temporal questions ("where was X before it was placed on
+  Y?") by walking the entity timeline back to the prior location fact, with an
+  ungrounded fallback when no earlier fact exists.
 - [x] Keep the offline template path as the reference answer; any LLM answer
   without a verifiable citation must fall back.
 - [x] Emit queue depth / verification latency on the telemetry bus so the
@@ -193,10 +212,11 @@ within tolerance, and a hallucinated timestamp is always rejected.
 **Role C note (this push):** all six items landed with model-free tests
 (`tests/test_verification_queue.py`, `tests/test_calibration.py`,
 `tests/test_evaluation.py`), plus TASK-C2’s action-timeline harness
-(`tests/test_timeline.py`). Verification on the merged tree: `pytest` 243
-collected (242 passed, 1 dashboard test skipped without the `ui` extra),
-`unittest discover -s tests` 122 passed, `ruff check chronicle tests` clean,
-`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (7/7 cases,
+(`tests/test_timeline.py`) and TASK-F2’s temporal multi-hop answers
+(`tests/test_graphrag.py`). Verification on the merged tree: `pytest` 248
+collected (247 passed, 1 dashboard test skipped without the `ui` extra),
+`unittest discover -s tests` 127 passed, `ruff check chronicle tests` clean,
+`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (8/8 cases,
 100 % citation precision), and `chronicle.semantic.timeline` reports PASS
 (1/1 label, 0.07 s error) on a snapshot exported from
 `chronicle run --source synthetic --max-frames 360`. `snapshot()` now embeds

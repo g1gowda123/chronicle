@@ -2,11 +2,12 @@
 
 The template path is the reference answer: it is deterministic and only cites
 timestamps that exist in the supplied subgraph.  This module scores that path
-(and any LLM path) on four question families:
+(and any LLM path) on five question families:
 
 * exact location ("where is X?");
 * last-seen time ("when did I last see X?");
 * action ("what did I do with X?");
+* temporal / multi-hop ("where was X before it was placed on Y?");
 * unknown entities ("where is my passport?" -> "I don't have that in my memory").
 
 It also reports **citation precision**: every citation in an answer must map
@@ -393,6 +394,36 @@ _ZONE_ONLY_CONTEXT: Mapping[str, Any] = {
     "facts": [],
 }
 
+_CUP_CONTEXT: Mapping[str, Any] = {
+    "entity": {"id": "cup", "label": "cup", "zone": "kitchen"},
+    "facts": [
+        {
+            "subject": "cup",
+            "relation": "RESTING_ON",
+            "object": "work desk",
+            "timestamp": 5.0,
+            "zone": "kitchen",
+            "confidence": 0.9,
+        },
+        {
+            "subject": "user",
+            "relation": "PICK_UP",
+            "object": "cup",
+            "timestamp": 8.0,
+            "zone": "kitchen",
+            "confidence": 0.88,
+        },
+        {
+            "subject": "cup",
+            "relation": "PLACED",
+            "object": "table",
+            "timestamp": 10.0,
+            "zone": "kitchen",
+            "confidence": 0.86,
+        },
+    ],
+}
+
 DEFAULT_GRAPHRAG_CASES: tuple[GraphRAGCase, ...] = (
     GraphRAGCase(
         name="exact-location",
@@ -438,6 +469,14 @@ DEFAULT_GRAPHRAG_CASES: tuple[GraphRAGCase, ...] = (
         context=_ZONE_ONLY_CONTEXT,
         expected_location="bedroom",
         expected_timestamp=30.0,
+    ),
+    GraphRAGCase(
+        name="before-placement",
+        query="Where was the cup before it was placed on the table?",
+        context=_CUP_CONTEXT,
+        expected_location="work desk",
+        expected_timestamp=5.0,
+        expected_relation="RESTING_ON",
     ),
     GraphRAGCase(
         name="unknown-entity",

@@ -28,11 +28,11 @@ Role C (semantic engine) is complete and integrated with the runtime:
   docs/ROLE_C.md                        integration contract
 
 Test status (all model-free, no network):
-  python -m pytest                      243 collected, all pass
-  python -m unittest discover -s tests  122 tests, all pass
+  python -m pytest                      248 collected, all pass
+  python -m unittest discover -s tests  127 tests, all pass
   python -m chronicle.semantic.demo     exits 0
   python -m chronicle.semantic.evaluation
-                                        7/7 cases, 100% citation precision
+                                        8/8 cases, 100% citation precision
   python -m chronicle.semantic.timeline
                                         demo labels PASS (1/1, 0.07 s error)
   python -m ruff check chronicle tests  clean
