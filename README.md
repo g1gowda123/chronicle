@@ -2,11 +2,11 @@
 
 An egocentric, episodic memory engine that parses pre-recorded first-person video into a structured, queryable 4D spatio-temporal knowledge graph.
 
-> **Status:** Role A (perception & kinematics) and Role B (state machine &
-> dual-graph memory) are implemented and tested. Roles C (semantic
-> verification) and D (dashboard) are being built by the rest of the team.
-> Integration contracts live in [`docs/PERCEPTION.md`](docs/PERCEPTION.md) and
-> [`docs/ROLE_B.md`](docs/ROLE_B.md).
+> **Status:** Role A (perception & kinematics), Role B (state machine & dual-graph
+> memory), and Role C (semantic verification) are implemented and tested. Role D
+> (dashboard) is being built by the rest of the team. Integration contracts live
+> in [`docs/PERCEPTION.md`](docs/PERCEPTION.md),
+> [`docs/ROLE_B.md`](docs/ROLE_B.md) and [`docs/ROLE_C.md`](docs/ROLE_C.md).
 
 ## Overview
 
@@ -93,36 +93,47 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 .
 ├── Chronicle Technical Specification.pdf   # Full architecture and algorithms
 ├── chronicle/
-│   ├── types.py                            # Shared Role A + Role B data contract
+│   ├── types.py                            # Shared Role A/B/C data contract
 │   ├── config.py                           # lifecycle thresholds
 │   ├── geometry.py                         # IoS, support contact, compensated velocity
 │   ├── state_machine.py                    # nine-state lifecycle engine
 │   ├── telemetry.py                        # Role B event bus
 │   ├── graph/
+│   │   ├── adapter.py                      # FrameResult -> FrameContext bridge
 │   │   ├── background.py                   # zones + furniture anchors
 │   │   ├── foreground.py                   # entities + time-intervaled edges
 │   │   ├── query.py                        # 2-hop GraphRAG retrieval
 │   │   └── memory.py                       # ChronicleMemory facade
 │   ├── storage/                            # SQLite schema + persistent store
-│   └── perception/
-│       ├── motion.py                       # background-masked affine RANSAC
-│       ├── detector.py                     # YOLO-World + palette fallback
-│       ├── hands.py                        # MediaPipe Tasks + skin fallback
-│       ├── tracker.py                      # two-stage tracking + Re-ID
-│       ├── interactions.py                 # IoS / dwell interaction gate
-│       ├── clip_buffer.py                  # 30-frame ring + clip assembly
-│       ├── pipeline.py                     # orchestration / JSONL
-│       ├── stream.py                       # threaded consumer stream
-│       ├── telemetry.py                    # perception telemetry bus
-│       └── cli.py                          # chronicle-perception
+│   ├── perception/                         # Role A
+│   │   ├── motion.py                       # background-masked affine RANSAC
+│   │   ├── detector.py                     # YOLO-World + palette fallback
+│   │   ├── hands.py                        # MediaPipe Tasks + skin fallback
+│   │   ├── tracker.py                      # two-stage tracking + Re-ID
+│   │   ├── interactions.py                 # IoS / dwell interaction gate
+│   │   ├── clip_buffer.py                  # 30-frame ring + clip assembly
+│   │   ├── pipeline.py                     # orchestration / JSONL
+│   │   ├── stream.py                       # threaded consumer stream
+│   │   ├── telemetry.py                    # perception telemetry bus
+│   │   └── cli.py                          # chronicle-perception
+│   └── semantic/                           # Role C
+│       ├── vpr.py                          # OpenCLIP place recognition
+│       ├── temporal_strip.py               # 30-frame -> 1x3 composite
+│       ├── actions.py                      # strict action JSON boundary
+│       ├── verification.py                 # Florence-2 + classifier
+│       ├── graphrag.py                     # cited answers from 2-hop subgraph
+│       └── engine.py                       # facade + telemetry events
 ├── docs/
 │   ├── PERCEPTION.md                       # Role A contract
-│   └── ROLE_B.md                           # Role B integration contract
+│   ├── ROLE_B.md                           # Role B integration contract
+│   └── ROLE_C.md                           # Role C contract
 ├── scripts/
 │   ├── fetch_assets.py                     # download model weights
 │   ├── make_demo.py                        # render the offline demo clip
 │   └── demo_role_b.py                      # synthetic lifecycle + retrieval demo
-└── tests/                                  # model-free unit/integration suite
+├── tests/                                  # model-free unit/integration suite
+├── requirements-semantic.txt               # Role C demo/test dependencies
+└── requirements-semantic-models.txt        # OpenCLIP + Florence-2 stack
 ```
 
 Model weights, videos and run outputs are git-ignored.
@@ -162,6 +173,25 @@ python -m chronicle.perception data/demo/chronicle_demo.mp4 \
 You get per-frame JSONL, console telemetry, and hand/keys interaction clips
 with `PRE | CONTACT | POST` composites.
 
+### Offline semantic demo (Role C)
+
+```bash
+pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
+python -m chronicle.semantic.demo
+```
+
+For the real OpenCLIP + Florence-2 stack and optional Ollama GraphRAG:
+
+```bash
+pip install -r requirements-semantic-models.txt
+ollama pull qwen2.5:3b-instruct
+```
+
+Role C consumes Role A's `InteractionClip` directly, including its
+`contact_index` and BGR `ClipFrame` images. See
+[docs/ROLE_C.md](docs/ROLE_C.md) for the Role A/B/D integration contract,
+telemetry payloads, action JSON schema, and configuration.
+
 ### Real footage (production backends)
 
 ```bash
@@ -175,18 +205,27 @@ python -m chronicle.perception data/real/holoassist_switch_34s.mp4 \
 Run `python -m chronicle.perception --help` for flags. The installed
 `chronicle-perception` entry point is equivalent.
 
+### Tests
+
+```bash
+python -m pytest
+python -m unittest discover -s tests -v   # Role C suite without pytest
+```
+
 ## Role boundaries
 
-- **Role A:** video ingestion, motion gating, detection, hands, tracking/Re-ID,
-  interaction qualification, ring buffer and clips, perception telemetry.
-- **Role B:** 9-state lifecycle, containment/support reasoning, dual graph,
-  persistence and query.
-- **Role C:** event-gated VLM verification, semantic labels and scene memory.
+- **Role A (implemented):** video ingestion, motion gating, detection, hands,
+  tracking/Re-ID, interaction qualification, ring buffer and clips, telemetry.
+- **Role B (implemented):** 9-state lifecycle, containment/support reasoning,
+  dual graph, persistence and query.
+- **Role C (implemented):** OpenCLIP place recognition, 1×3 temporal strips,
+  Florence-2 action verification with strict JSON, and cited GraphRAG answers.
 - **Role D:** NiceGUI dashboard, graph visualization and live telemetry UI.
 
 Role A intentionally does not mutate lifecycle state, call a VLM, persist a
 graph, or render a dashboard. Role B consumes `FrameContext` (or a Role A
-`FrameResult`) and owns the episodic memory.
+`FrameResult`) and owns the episodic memory. Role C does not mutate the graph;
+it emits validated events and answer payloads for Roles B and D.
 
 ## References
 

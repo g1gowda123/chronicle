@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chronicle"
 version = "0.1.0"
-description = "Egocentric episodic memory: motion-gated perception, nine-state lifecycle, and dual temporal graphs."
+description = "Egocentric episodic memory: motion-gated perception, nine-state lifecycle, dual temporal graphs, and semantic verification."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = { text = "MIT" }
@@ -15,6 +15,7 @@ dependencies = [
     "scipy>=1.11",
     "shapely>=2.0",
     "networkx>=3.1",
+    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,16 @@ perception = [
     "torchvision>=0.17",
     "pillow>=10.0",
 ]
+# Florence-2 captioning and the GraphRAG local-LLM path.
+semantic-models = [
+  "open-clip-torch>=2.26",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "transformers>=4.44",
+  "accelerate>=0.30",
+  "timm>=0.9",
+  "einops>=0.7",
+]
 dev = [
     "pytest>=8",
     "ruff>=0.5",
@@ -35,6 +46,7 @@ dev = [
 
 [project.scripts]
 chronicle-perception = "chronicle.perception.cli:main"
+chronicle-semantic-demo = "chronicle.semantic.demo:main"
 
 [tool.setuptools.packages.find]
 include = ["chronicle*"]

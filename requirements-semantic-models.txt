@@ -1,0 +1,14 @@
+# Production semantic stack for Role C (GPU recommended).
+# Install with: pip install -r requirements-semantic-models.txt
+-r requirements-semantic.txt
+
+# OpenCLIP ViT-B-32 visual place recognition / Re-ID
+torch>=2.3
+torchvision>=0.18
+open_clip_torch>=2.24
+
+# Florence-2-base captioning
+transformers>=4.44
+accelerate>=0.30
+timm>=0.9
+einops>=0.7

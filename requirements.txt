@@ -3,4 +3,5 @@ opencv-python>=4.10
 scipy>=1.11
 shapely>=2.0
 networkx>=3.1
+pillow>=10.0
 pytest>=8
