@@ -2,7 +2,7 @@
 
 This document is the integration contract for the Role B slice of Chronicle. It
 covers the nine-state lifecycle engine, the dual NetworkX graph, the SQLite
-projection, and the 2-hop retrieval API.
+projection, duplicate consolidation, and the 2-hop retrieval API.
 
 Role B owns **when** something happened and **where it was last anchored**. It
 does not run detectors or VLMs. Role A produces `FrameContext` objects, Role C
@@ -35,9 +35,11 @@ SQLite, reopens it, and answers the same question from disk.
 | `chronicle/state_machine.py` | Nine-state lifecycle, dwell gates, occlusion / pan / reacquisition logic |
 | `chronicle/graph/background.py` | Zones + fixed furniture; CLIP place relocalization |
 | `chronicle/graph/foreground.py` | Entities, terminal anchors, time-intervaled relations, actions |
+| `chronicle/graph/consolidation.py` | Conservative duplicate merge sweep, dry-run reports, alias audit |
 | `chronicle/graph/query.py` | Entity resolution, 2-hop serialization, prompt/table/fallback answer |
 | `chronicle/graph/memory.py` | `ChronicleMemory` facade used by every other role |
 | `chronicle/storage/sqlite_store.py` | Persistent schema, snapshots, retention purge |
+| `chronicle/text.py` | Normalization, plural handling, label aliases, match reasons |
 | `chronicle/telemetry.py` | Thread-safe `EventBus` with replayable history |
 
 ## Integration contract
@@ -177,7 +179,7 @@ Telemetry is pushed to every subscriber of `memory.bus`:
 | Tag | Examples |
 | --- | --- |
 | `[STATE]` | `cup: VISIBLE_STATIC -> INTERACTED`, re-acquisition, entity minted |
-| `[GRAPH]` | zone/anchors minted, `RESTING_ON` opened/closed, foreground node minted |
+| `[GRAPH]` | zone/anchors minted, `RESTING_ON` opened/closed, foreground node minted, `entity merged`, `consolidation sweep` |
 | `[VLM]` | transition-hook failures (Role C queue health) |
 | `[QUERY]` | entity resolved, subgraph serialized, answer context ready |
 | `[STORE]` | schema ready, persistence issues |
@@ -205,6 +207,24 @@ Resolution is plural- and punctuation-tolerant. The retrieval window is two
 hops from the entity node, which deliberately includes the parent zone anchor.
 The terminal `RESTING_ON` / `INSIDE` edge is always retained, so an object that
 has been `LOST` for hours still resolves to its last known surface.
+
+`QueryResult.match_score` is the raw label/embedding score. `confidence`
+additionally accounts for competing candidates and current visibility, so a
+duplicate label can resolve to the visible instance while reporting lower
+certainty:
+
+```python
+result = memory.query("where is my purse?")
+result.entity_id      # surviving entity id
+result.match_score    # raw score, e.g. 0.85
+result.confidence     # ambiguity-aware score in [0, 1]
+result.match_reason   # "exact label", "label alias", "embedding similarity", ...
+result.candidates     # ranked alternatives with ids, states and reasons
+```
+
+Label aliases are symmetric and deliberately narrow (`tv`/`television`,
+`sofa`/`couch`, `wallet`/`purse`, `keys`/`keychain`). Look-alike categories that
+the detector keeps distinct (`cup` vs. `coffee mug`) are not aliased.
 
 ## Lifecycle reference
 
@@ -280,21 +300,66 @@ Persistence invariants:
   and terminal anchors on construction.
 - `ChronicleMemory(":memory:")` is the zero-artifact mode used by the test suite.
 
+### Duplicate consolidation
+
+`GraphConsolidator` (`memory.consolidator`) cleans up legacy duplicates without
+weakening the one-node-per-object invariant:
+
+```python
+planned = memory.merge_entities("cup-a", "cup-b", dry_run=True)
+report = memory.merge_entities("cup-a", "cup-b")
+memory.merge_furniture("sofa-1", "sofa-old")
+memory.maybe_consolidate(t=frame.t)  # periodic sweep
+```
+
+The sweep is conservative:
+
+- labels must canonicalize to the same alias group;
+- zones must agree (an unknown zone is not a mismatch);
+- two co-visible instances of the same label are never merged (furniture may
+  only merge when their boxes overlap at `consolidation_covisible_iou`);
+- temporal, spatial and embedding evidence must clear `consolidation_min_score`;
+- the automatic sweep runs at most once per `consolidation_interval_s` and is
+  capped at `consolidation_max_merges` per pass.
+
+A merge re-points SQLite transitions, observations, anchors and edges at the
+keeper before deleting the removed entity row. Anchors are retained and exactly
+one placement remains terminal. In-memory state/placement intervals are
+normalized, action edges are preserved, and the lifecycle engine is re-seeded
+from the keeper's latest state. The removed id is registered as an alias; later
+Role A frames carrying it are canonicalized before entity creation, so the
+duplicate is not minted again. Aliases are rebuilt from persisted `merged_from`
+attributes when the database is reopened.
+
+Every mutation is auditable: dry runs emit `[GRAPH] entity merge planned`, real
+merges emit `[GRAPH] entity merged` (with keep/remove ids and preserved row
+counts), and each automatic pass that changes something emits
+`[GRAPH] consolidation sweep`.
+
 ## Configuration
 
-All tunables live in `chronicle/config.py` as a frozen `Thresholds` dataclass.
-Override thresholds at construction time:
+All tunables live in `chronicle/config.py` as frozen dataclasses. Override
+thresholds at construction time:
 
 ```python
 from dataclasses import replace
 from chronicle import ChronicleMemory, DEFAULT_THRESHOLDS
+from chronicle.config import FurnitureConfig
 
 fast = replace(DEFAULT_THRESHOLDS, static_dwell_s=0.25, lost_after_s=120.0)
-memory = ChronicleMemory("data/demo.db", thresholds=fast)
+memory = ChronicleMemory(
+    "data/demo.db",
+    thresholds=fast,
+    furniture_config=FurnitureConfig(consolidation_enabled=False),
+)
 ```
 
-Spec-fixed values are marked in the source. Everything else is an engineering
-default chosen to be stable on 15-60 fps egocentric video.
+Spec-fixed values are marked in the source. `FurnitureConfig` also owns the
+consolidation gates (`consolidation_enabled`, `consolidation_interval_s`,
+`consolidation_min_score`, `consolidation_embedding_cosine`,
+`consolidation_max_gap_s`, `consolidation_covisible_iou`,
+`consolidation_max_merges`). Everything else is an engineering default chosen
+to be stable on 15-60 fps egocentric video.
 
 ## Tests
 
@@ -311,6 +376,8 @@ Coverage includes:
 - all nine states, dwell gates, occlusion vs. out-of-view,
 - terminal-anchor retention and SQLite restore,
 - CLIP place relocalization,
-- 2-hop retrieval and prompt serialization,
+- duplicate consolidation: dry runs, history/action/anchor retention, co-visible
+  refusal, alias persistence across reopen, and furniture merges,
+- 2-hop retrieval, label aliases, match confidence and duplicate disambiguation,
 - multi-entity independent lifecycles,
 - telemetry tags and transition hooks.

@@ -10,7 +10,7 @@ the graph is the only source of truth.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -27,12 +27,20 @@ from chronicle.graph.ids import (
 from chronicle.storage.records import AnchorRecord
 from chronicle.storage.sqlite_store import SQLiteStore
 from chronicle.telemetry import EventBus
-from chronicle.text import match_score
+from chronicle.text import match_details
 from chronicle.types import Relation
 
 Embedder = Callable[[str], Sequence[float]]
 
 _INTERACTION_STATES = {"INTERACTED", "HELD", "CONTAINED"}
+_VISIBLE_STATES = {
+    "NEW",
+    "VISIBLE_STATIC",
+    "VISIBLE_MOVING",
+    "INTERACTED",
+    "HELD",
+    "CONTAINED",
+}
 
 
 @dataclass
@@ -47,12 +55,15 @@ class QueryResult:
     state_since: float
     last_seen: float
     match_score: float
+    confidence: float = 1.0
+    match_reason: str = ""
     last_interaction: dict[str, Any] | None = None
     terminal_anchor: dict[str, Any] | None = None
     container_id: str | None = None
     container_label: str | None = None
     zone_id: str | None = None
     zone_label: str | None = None
+    candidates: list[dict[str, Any]] = field(default_factory=list)
     nodes: list[dict[str, Any]] = field(default_factory=list)
     edges: list[dict[str, Any]] = field(default_factory=list)
 
@@ -124,6 +135,7 @@ class QueryResult:
             "so explicitly. Never invent observations that are absent from the table.\n\n"
             f"QUESTION: {question}\n\n"
             f"ENTITY: {self.label} (id={self.entity_id})\n"
+            f"MATCH CONFIDENCE: {self.confidence:.2f} ({self.match_reason or 'direct lookup'})\n"
             f"CURRENT STATE: {self.state} since t={self.state_since:.1f}s\n"
             f"LAST OBSERVED: t={self.last_seen:.1f}s\n"
             f"LAST INTERACTION: {interaction_text}\n"
@@ -194,6 +206,9 @@ class QueryResult:
             "state_since": round(self.state_since, 3),
             "last_seen": round(self.last_seen, 3),
             "match_score": round(self.match_score, 3),
+            "confidence": round(self.confidence, 3),
+            "match_reason": self.match_reason,
+            "candidates": self.candidates,
             "last_interaction": self.last_interaction,
             "terminal_anchor": self.terminal_anchor,
             "container_id": self.container_id,
@@ -233,6 +248,7 @@ class GraphQuery:
         thresholds: Thresholds | None = None,
         bus: EventBus | None = None,
         min_match: float = 0.5,
+        aliases: Mapping[str, str] | None = None,
     ) -> None:
         self.foreground = foreground
         self.background = background
@@ -240,15 +256,29 @@ class GraphQuery:
         self.thresholds = thresholds or DEFAULT_THRESHOLDS
         self.bus = bus or EventBus()
         self.min_match = min_match
+        self.entity_aliases: dict[str, str] = (
+            aliases if isinstance(aliases, dict) else dict(aliases or {})
+        )
+
+    def canonical_entity(self, entity_id: str) -> str:
+        value = raw_entity_id(str(entity_id).strip())
+        seen: set[str] = set()
+        while value in self.entity_aliases and value not in seen:
+            seen.add(value)
+            value = self.entity_aliases[value]
+        return value
 
     # ------------------------------------------------------------- resolution
-    def resolve(
+    def rank(
         self,
         text: str,
         *,
         embedder: Embedder | None = None,
         min_score: float | None = None,
-    ) -> tuple[str | None, float]:
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Rank entity candidates with aliases, visibility and confidence."""
+
         threshold = self.min_match if min_score is None else min_score
         query_embedding = None
         if embedder is not None:
@@ -257,41 +287,97 @@ class GraphQuery:
             except Exception as exc:  # pragma: no cover - embedder failure
                 self.bus.query("text embedder failed", entity=text, error=repr(exc))
 
-        best_id: str | None = None
-        best_score = 0.0
-        best_seen = float("-inf")
+        candidates: list[dict[str, Any]] = []
         for attrs in self.foreground.entities():
             label = str(attrs.get("label", ""))
-            score = match_score(text, label)
+            score, reason = match_details(text, label)
             if query_embedding is not None and attrs.get("embedding"):
-                score = max(
-                    score,
-                    cosine_similarity(query_embedding, attrs["embedding"]),
-                )
-            last_seen = float(attrs.get("last_seen", 0.0) or 0.0)
-            if score > best_score or (score == best_score and last_seen > best_seen):
-                best_id = raw_entity_id(str(attrs["node_id"]))
-                best_score = score
-                best_seen = last_seen
-        if best_score < threshold:
+                similarity = cosine_similarity(query_embedding, attrs["embedding"])
+                if similarity > score:
+                    score = similarity
+                    reason = "embedding similarity"
+            if score <= 0.0:
+                continue
+
+            state = str(attrs.get("state") or "NEW")
+            visible = state in _VISIBLE_STATES
+            rank_score = score + (0.04 if visible else 0.0) + (0.01 if score >= 1.0 else 0.0)
+            candidates.append(
+                {
+                    "entity_id": raw_entity_id(str(attrs["node_id"])),
+                    "label": label,
+                    "state": state,
+                    "match_score": round(float(score), 4),
+                    "reason": reason,
+                    "last_seen": float(attrs.get("last_seen", 0.0) or 0.0),
+                    "visible": visible,
+                    "_rank": rank_score,
+                }
+            )
+
+        candidates.sort(
+            key=lambda item: (-item["_rank"], -item["last_seen"], item["entity_id"])
+        )
+        if not candidates or float(candidates[0]["match_score"]) < threshold:
             self.bus.query(
                 "entity resolution miss",
                 query=text,
-                best=best_id,
-                score=round(best_score, 3),
+                best=candidates[0]["entity_id"] if candidates else None,
+                score=round(float(candidates[0]["match_score"]), 3) if candidates else 0.0,
                 threshold=threshold,
             )
-            return None, best_score
+            return []
+
+        best = candidates[0]
+        second_score = next(
+            (
+                float(item["_rank"])
+                for item in candidates[1:]
+                if float(item["match_score"]) >= threshold
+            ),
+            0.0,
+        )
+        separation = (
+            1.0
+            if second_score <= 0.0
+            else max(0.0, 1.0 - second_score / max(float(best["_rank"]), 1e-9))
+        )
+        confidence = min(1.0, float(best["match_score"]) * (0.70 + 0.30 * separation))
+        best["confidence"] = round(confidence, 4)
+        for item in candidates[1:]:
+            item["confidence"] = round(min(1.0, float(item["match_score"]) * 0.70), 4)
+
         self.bus.query(
             "entity resolved",
             query=text,
-            entity=best_id,
-            score=round(best_score, 3),
+            entity=best["entity_id"],
+            score=round(float(best["match_score"]), 3),
+            confidence=round(confidence, 3),
+            reason=best["reason"],
+            candidates=len(candidates),
         )
-        return best_id, best_score
+        public = [
+            {key: value for key, value in item.items() if key != "_rank"}
+            for item in candidates[: max(1, int(limit))]
+        ]
+        return public
+
+    def resolve(
+        self,
+        text: str,
+        *,
+        embedder: Embedder | None = None,
+        min_score: float | None = None,
+    ) -> tuple[str | None, float]:
+        ranking = self.rank(text, embedder=embedder, min_score=min_score)
+        if not ranking:
+            return None, 0.0
+        best = ranking[0]
+        return str(best["entity_id"]), float(best["match_score"])
 
     # ------------------------------------------------------------------ build
     def build(self, entity_id: str, query: str = "") -> QueryResult | None:
+        entity_id = self.canonical_entity(entity_id)
         attrs = self.foreground.get_entity(entity_id)
         if attrs is None:
             return None
@@ -340,17 +426,22 @@ class GraphQuery:
         *,
         embedder: Embedder | None = None,
     ) -> QueryResult | None:
-        entity_id, score = self.resolve(text, embedder=embedder)
-        if entity_id is None:
+        ranking = self.rank(text, embedder=embedder, limit=8)
+        if not ranking:
             return None
-        result = self.build(entity_id, query=text)
+        best = ranking[0]
+        result = self.build(str(best["entity_id"]), query=text)
         if result is not None:
-            result.match_score = score
+            result.match_score = float(best["match_score"])
+            result.confidence = float(best.get("confidence", best["match_score"]))
+            result.match_reason = str(best.get("reason", "direct lookup"))
+            result.candidates = ranking
             self.bus.query(
                 "subgraph serialized",
-                entity=entity_id,
+                entity=result.entity_id,
                 nodes=len(result.nodes),
                 edges=len(result.edges),
+                confidence=round(result.confidence, 3),
             )
         return result
 

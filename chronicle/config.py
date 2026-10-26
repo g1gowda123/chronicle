@@ -148,6 +148,21 @@ class FurnitureConfig:
     consolidation_enabled: bool = True
     """Run duplicate entity/anchor consolidation during ingestion."""
 
+    consolidation_min_score: float = 0.55
+    """Combined spatial/temporal/appearance score required to auto-merge."""
+
+    consolidation_embedding_cosine: float = 0.60
+    """Minimum cosine similarity when both duplicates carry embeddings."""
+
+    consolidation_max_gap_s: float = 1800.0
+    """Largest visibility gap between two legacy duplicates worth merging."""
+
+    consolidation_covisible_iou: float = 0.80
+    """Co-visible boxes must overlap this much to count as one detections."""
+
+    consolidation_max_merges: int = 64
+    """Safety cap on automatic merges per sweep."""
+
 
 DEFAULT_FURNITURE_CONFIG = FurnitureConfig()
 

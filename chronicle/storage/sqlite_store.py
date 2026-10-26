@@ -65,6 +65,24 @@ def _decode_embedding(blob: bytes | None) -> tuple[float, ...] | None:
     return tuple(float(v) for v in values)
 
 
+def _entity_node(entity_id: str) -> str:
+    value = str(entity_id).strip()
+    return value if value.startswith("entity:") else f"entity:{value}"
+
+
+def _anchor_node(anchor_id: str) -> str:
+    value = str(anchor_id).strip()
+    return value if value.startswith("anchor:") else f"anchor:{value}"
+
+
+def _raw_entity(entity_id: str) -> str:
+    return str(entity_id).strip().removeprefix("entity:")
+
+
+def _raw_anchor(anchor_id: str) -> str:
+    return str(anchor_id).strip().removeprefix("anchor:")
+
+
 class SQLiteStore:
     """Thread-safe, WAL-enabled SQLite projection of the episodic graph."""
 
@@ -215,18 +233,165 @@ class SQLiteStore:
                 (anchor_id, label, zone_id, float(t), json.dumps(merged, sort_keys=True)),
             )
 
+    @staticmethod
+    def _furniture_from_row(row: sqlite3.Row) -> FurnitureRecord:
+        return FurnitureRecord(
+            id=row["id"],
+            label=row["label"],
+            zone_id=row["zone_id"],
+            created_at=row["created_at"],
+            attrs=_maybe_json(row["attrs"]),
+        )
+
+    def get_furniture(self, anchor_id: str) -> FurnitureRecord | None:
+        for candidate in dict.fromkeys(
+            [anchor_id, _anchor_node(anchor_id), _raw_anchor(anchor_id)]
+        ):
+            row = self._fetchone("SELECT * FROM furniture WHERE id=?", (candidate,))
+            if row is not None:
+                return self._furniture_from_row(row)
+        return None
+
     def load_furniture(self) -> list[FurnitureRecord]:
         rows = self._fetchall("SELECT * FROM furniture ORDER BY created_at")
-        return [
-            FurnitureRecord(
-                id=row["id"],
-                label=row["label"],
-                zone_id=row["zone_id"],
-                created_at=row["created_at"],
-                attrs=_maybe_json(row["attrs"]),
+        return [self._furniture_from_row(row) for row in rows]
+
+    def merge_furniture(
+        self,
+        keep: str,
+        remove: str,
+        *,
+        attrs: dict[str, Any] | None = None,
+    ) -> FurnitureRecord | None:
+        """Fold one persisted furniture anchor into another.
+
+        Every edge and placement that referenced the removed anchor is re-pointed
+        at the keeper.  Per-entity terminal placements are normalized so a merge
+        can never leave two current anchors for one object.
+        """
+
+        if keep == remove:
+            raise ValueError("keep and remove must be different furniture anchors")
+        with self._lock, self._conn:
+            keep_key, keep_row = self._select_furniture(keep)
+            remove_key, remove_row = self._select_furniture(remove)
+            if keep_key == remove_key:
+                raise ValueError("keep and remove resolve to the same furniture anchor")
+            if keep_row is None and remove_row is None:
+                return None
+
+            keep_attrs = _maybe_json(keep_row["attrs"]) if keep_row is not None else {}
+            remove_attrs = _maybe_json(remove_row["attrs"]) if remove_row is not None else {}
+            if remove_row is not None and keep_row is not None:
+                keep_last = float(keep_attrs.get("last_seen", keep_row["created_at"]))
+                remove_last = float(remove_attrs.get("last_seen", remove_row["created_at"]))
+                merged_attrs = (
+                    {**keep_attrs, **remove_attrs}
+                    if remove_last > keep_last
+                    else {**remove_attrs, **keep_attrs}
+                )
+            else:
+                merged_attrs = {**remove_attrs, **keep_attrs}
+            merged_attrs.update(dict(attrs or {}))
+            merged_from = [
+                str(value)
+                for value in (
+                    *merged_attrs.get("merged_from", []),
+                    *remove_attrs.get("merged_from", []),
+                    _raw_anchor(remove_key),
+                )
+            ]
+            merged_attrs["merged_from"] = list(dict.fromkeys(merged_from))
+
+            if keep_row is None:
+                # Promote the removed row to a canonical raw keeper id.  Child
+                # rows are re-pointed below inside the same transaction.
+                source = remove_row
+                assert source is not None
+                keep_id = _raw_anchor(keep)
+                self._conn.execute(
+                    """
+                    UPDATE furniture SET id=?, label=?, zone_id=?, attrs=?
+                    WHERE id=?
+                    """,
+                    (
+                        keep_id,
+                        source["label"],
+                        source["zone_id"],
+                        json.dumps(merged_attrs, sort_keys=True, default=str),
+                        remove_key,
+                    ),
+                )
+                keep_key = keep_id
+            else:
+                keep_id = str(keep_row["id"])
+                zone_id = keep_row["zone_id"]
+                if zone_id is None and remove_row is not None:
+                    zone_id = remove_row["zone_id"]
+                self._conn.execute(
+                    """
+                    UPDATE furniture SET label=?, zone_id=?, attrs=?
+                    WHERE id=?
+                    """,
+                    (
+                        keep_row["label"],
+                        zone_id,
+                        json.dumps(merged_attrs, sort_keys=True, default=str),
+                        keep_id,
+                    ),
+                )
+                if remove_row is not None:
+                    self._conn.execute("DELETE FROM furniture WHERE id=?", (remove_key,))
+
+            keep_node = _anchor_node(keep_id)
+            remove_nodes = set(
+                dict.fromkeys(
+                    [
+                        remove_key,
+                        _raw_anchor(remove_key),
+                        _anchor_node(remove_key),
+                        _anchor_node(_raw_anchor(remove_key)),
+                    ]
+                )
             )
-            for row in rows
-        ]
+            remove_nodes.discard(keep_node)
+            for remove_node in remove_nodes:
+                self._conn.execute(
+                    "UPDATE edges SET src=? WHERE src=?", (keep_node, remove_node)
+                )
+                self._conn.execute(
+                    "UPDATE edges SET dst=? WHERE dst=?", (keep_node, remove_node)
+                )
+                self._conn.execute(
+                    "UPDATE anchors SET anchor_id=? WHERE anchor_id=?",
+                    (keep_node, remove_node),
+                )
+            affected = self._conn.execute(
+                "SELECT DISTINCT entity_id FROM anchors WHERE anchor_id=?",
+                (keep_node,),
+            ).fetchall()
+            for row in affected:
+                entity_id = str(row["entity_id"])
+                self._normalize_anchors(entity_id)
+                self._normalize_placements(entity_id)
+
+            row = self._conn.execute(
+                "SELECT * FROM furniture WHERE id=?", (keep_id,)
+            ).fetchone()
+            return self._furniture_from_row(row) if row else None
+
+    def _select_furniture(self, anchor_id: str) -> tuple[str, sqlite3.Row | None]:
+        """Resolve a raw or ``anchor:``-prefixed id to its stored row."""
+
+        for candidate in dict.fromkeys(
+            [_raw_anchor(anchor_id), _anchor_node(anchor_id)]
+        ):
+            row = self._conn.execute(
+                "SELECT * FROM furniture WHERE id=?", (candidate,)
+            ).fetchone()
+            if row is not None:
+                return str(row["id"]), row
+        return _raw_anchor(anchor_id), None
 
     # ---------------------------------------------------------------- entities
     def upsert_entity(
@@ -277,24 +442,284 @@ class SQLiteStore:
                 ),
             )
 
+    @staticmethod
+    def _entity_from_row(row: sqlite3.Row) -> EntityRecord:
+        return EntityRecord(
+            id=row["id"],
+            label=row["label"],
+            state=row["state"],
+            state_since=row["state_since"],
+            first_seen=row["first_seen"],
+            last_seen=row["last_seen"],
+            bbox=_maybe_bbox(row["bbox"]),
+            embedding=_decode_embedding(row["embedding"]),
+            track_id=row["track_id"],
+            zone_id=row["zone_id"],
+            attrs=_maybe_json(row["attrs"]),
+        )
+
+    def get_entity(self, entity_id: str) -> EntityRecord | None:
+        for candidate in dict.fromkeys(
+            [entity_id, _entity_node(entity_id), _raw_entity(entity_id)]
+        ):
+            row = self._fetchone("SELECT * FROM entities WHERE id=?", (candidate,))
+            if row is not None:
+                return self._entity_from_row(row)
+        return None
+
     def load_entities(self) -> list[EntityRecord]:
         rows = self._fetchall("SELECT * FROM entities ORDER BY first_seen")
-        return [
-            EntityRecord(
-                id=row["id"],
-                label=row["label"],
-                state=row["state"],
-                state_since=row["state_since"],
-                first_seen=row["first_seen"],
-                last_seen=row["last_seen"],
-                bbox=_maybe_bbox(row["bbox"]),
-                embedding=_decode_embedding(row["embedding"]),
-                track_id=row["track_id"],
-                zone_id=row["zone_id"],
-                attrs=_maybe_json(row["attrs"]),
+        return [self._entity_from_row(row) for row in rows]
+
+    def merge_entities(
+        self,
+        keep: str,
+        remove: str,
+        *,
+        attrs: dict[str, Any] | None = None,
+    ) -> EntityRecord:
+        """Fold one persisted entity into another without losing history.
+
+        State transitions, action/placement edges, anchors, observations and
+        container references are re-pointed at ``keep``.  The latest observation
+        supplies the surviving state/geometry, while anchors are retained as an
+        audit trail with exactly one terminal placement.
+        """
+
+        if keep == remove:
+            raise ValueError("keep and remove must be different entities")
+        with self._lock, self._conn:
+            keep_key, keep_row = self._select_entity(keep)
+            remove_key, remove_row = self._select_entity(remove)
+            if keep_key == remove_key:
+                raise ValueError("keep and remove resolve to the same entity")
+            if keep_row is None and remove_row is None:
+                raise KeyError(f"unknown persisted entity {keep!r}")
+
+            if remove_row is None:
+                # Nothing to fold; still honour the caller's audit attrs.
+                if attrs:
+                    merged_attrs = _maybe_json(keep_row["attrs"]) if keep_row else {}
+                    merged_attrs.update(dict(attrs))
+                    self._conn.execute(
+                        "UPDATE entities SET attrs=? WHERE id=?",
+                        (json.dumps(merged_attrs, sort_keys=True, default=str), keep_key),
+                    )
+                row = self._conn.execute(
+                    "SELECT * FROM entities WHERE id=?", (keep_key,)
+                ).fetchone()
+                assert row is not None
+                return self._entity_from_row(row)
+
+            if keep_row is None:
+                # Promote the removed row so the keeper keeps its whole history.
+                source = remove_row
+                keep_id = _raw_entity(keep)
+                self._conn.execute(
+                    """
+                    INSERT INTO entities(
+                        id, label, state, state_since, first_seen, last_seen,
+                        bbox, embedding, track_id, zone_id, attrs
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        keep_id,
+                        source["label"],
+                        source["state"],
+                        source["state_since"],
+                        source["first_seen"],
+                        source["last_seen"],
+                        source["bbox"],
+                        source["embedding"],
+                        source["track_id"],
+                        source["zone_id"],
+                        source["attrs"],
+                    ),
+                )
+                keep_key = keep_id
+                keep_row = self._conn.execute(
+                    "SELECT * FROM entities WHERE id=?", (keep_key,)
+                ).fetchone()
+                assert keep_row is not None
+
+            keep_attrs = _maybe_json(keep_row["attrs"])
+            remove_attrs = _maybe_json(remove_row["attrs"])
+            keep_key_order = (float(keep_row["last_seen"]), float(keep_row["state_since"]))
+            remove_key_order = (float(remove_row["last_seen"]), float(remove_row["state_since"]))
+            latest = remove_row if remove_key_order > keep_key_order else keep_row
+            latest_attrs = _maybe_json(latest["attrs"])
+
+            merged_attrs = {**remove_attrs, **keep_attrs}
+            if latest_attrs.get("container_id"):
+                merged_attrs["container_id"] = latest_attrs["container_id"]
+            merged_attrs.update(dict(attrs or {}))
+            merged_from = [
+                str(value)
+                for value in (
+                    *merged_attrs.get("merged_from", []),
+                    *remove_attrs.get("merged_from", []),
+                    _raw_entity(remove_key),
+                )
+            ]
+            merged_attrs["merged_from"] = list(dict.fromkeys(merged_from))
+
+            bbox = latest["bbox"] or keep_row["bbox"] or remove_row["bbox"]
+            embedding = (
+                latest["embedding"] or keep_row["embedding"] or remove_row["embedding"]
             )
-            for row in rows
-        ]
+            track_id = (
+                latest["track_id"]
+                if latest["track_id"] is not None
+                else keep_row["track_id"]
+                if keep_row["track_id"] is not None
+                else remove_row["track_id"]
+            )
+            zone_id = latest["zone_id"] or keep_row["zone_id"] or remove_row["zone_id"]
+            first_seen = min(float(keep_row["first_seen"]), float(remove_row["first_seen"]))
+            last_seen = max(float(keep_row["last_seen"]), float(remove_row["last_seen"]))
+
+            self._conn.execute(
+                """
+                UPDATE entities SET
+                    label=?, state=?, state_since=?, first_seen=?, last_seen=?,
+                    bbox=?, embedding=?, track_id=?, zone_id=?, attrs=?
+                WHERE id=?
+                """,
+                (
+                    keep_row["label"],
+                    latest["state"],
+                    latest["state_since"],
+                    first_seen,
+                    last_seen,
+                    bbox,
+                    embedding,
+                    track_id,
+                    zone_id,
+                    json.dumps(merged_attrs, sort_keys=True, default=str),
+                    keep_key,
+                ),
+            )
+            for removed_id in dict.fromkeys(
+                [_raw_entity(remove_key), _entity_node(_raw_entity(remove_key))]
+            ):
+                self._conn.execute(
+                    "UPDATE state_transitions SET entity_id=? WHERE entity_id=?",
+                    (keep_key, removed_id),
+                )
+                self._conn.execute(
+                    "UPDATE observations SET entity_id=? WHERE entity_id=?",
+                    (keep_key, removed_id),
+                )
+                self._conn.execute(
+                    "UPDATE anchors SET entity_id=? WHERE entity_id=?",
+                    (keep_key, removed_id),
+                )
+            keep_node = _entity_node(keep_key)
+            for remove_node in dict.fromkeys(
+                [_entity_node(remove_key), _entity_node(_raw_entity(remove_key))]
+            ):
+                self._conn.execute(
+                    "UPDATE edges SET src=? WHERE src=?", (keep_node, remove_node)
+                )
+                self._conn.execute(
+                    "UPDATE edges SET dst=? WHERE dst=?", (keep_node, remove_node)
+                )
+
+            # Other entities may have been contained by the removed id.
+            removed_raw = _raw_entity(remove_key)
+            for row in self._conn.execute("SELECT id, attrs FROM entities").fetchall():
+                container_attrs = _maybe_json(row["attrs"])
+                container = container_attrs.get("container_id")
+                if container is None or _raw_entity(str(container)) != removed_raw:
+                    continue
+                container_attrs["container_id"] = _raw_entity(keep_key)
+                self._conn.execute(
+                    "UPDATE entities SET attrs=? WHERE id=?",
+                    (json.dumps(container_attrs, sort_keys=True, default=str), row["id"]),
+                )
+
+            self._normalize_anchors(_raw_entity(keep_key))
+            self._normalize_anchors(str(keep_key))
+            self._normalize_placements(_raw_entity(keep_key))
+            self._conn.execute("DELETE FROM entities WHERE id=?", (remove_key,))
+            row = self._conn.execute(
+                "SELECT * FROM entities WHERE id=?", (keep_key,)
+            ).fetchone()
+            assert row is not None
+            return self._entity_from_row(row)
+
+    def _select_entity(self, entity_id: str) -> tuple[str, sqlite3.Row | None]:
+        """Resolve a raw or ``entity:``-prefixed id to its stored row."""
+
+        for candidate in dict.fromkeys(
+            [_raw_entity(entity_id), _entity_node(entity_id)]
+        ):
+            row = self._conn.execute(
+                "SELECT * FROM entities WHERE id=?", (candidate,)
+            ).fetchone()
+            if row is not None:
+                return str(row["id"]), row
+        return _raw_entity(entity_id), None
+
+    def _normalize_anchors(self, entity_id: str) -> None:
+        latest = self._conn.execute(
+            """
+            SELECT id, t_start FROM anchors
+            WHERE entity_id=? ORDER BY t_start DESC, id DESC LIMIT 1
+            """,
+            (entity_id,),
+        ).fetchone()
+        if latest is None:
+            return
+        self._conn.execute(
+            """
+            UPDATE anchors SET is_terminal=0
+            WHERE entity_id=? AND id<>?
+            """,
+            (entity_id, latest["id"]),
+        )
+        self._conn.execute(
+            """
+            UPDATE anchors SET t_end=COALESCE(t_end, ?)
+            WHERE entity_id=? AND id<>? AND t_end IS NULL
+            """,
+            (float(latest["t_start"]), entity_id, latest["id"]),
+        )
+        self._conn.execute(
+            "UPDATE anchors SET is_terminal=1 WHERE id=?",
+            (latest["id"],),
+        )
+
+    def _normalize_placements(self, entity_id: str) -> None:
+        latest = self._conn.execute(
+            """
+            SELECT id, t_start FROM edges
+            WHERE src=? AND relation IN ('RESTING_ON', 'INSIDE')
+            ORDER BY t_start DESC, id DESC LIMIT 1
+            """,
+            (_entity_node(entity_id),),
+        ).fetchone()
+        if latest is None:
+            return
+        self._conn.execute(
+            """
+            UPDATE edges SET is_terminal=0
+            WHERE src=? AND relation IN ('RESTING_ON', 'INSIDE') AND id<>?
+            """,
+            (_entity_node(entity_id), latest["id"]),
+        )
+        self._conn.execute(
+            """
+            UPDATE edges SET t_end=COALESCE(t_end, ?)
+            WHERE src=? AND relation IN ('RESTING_ON', 'INSIDE')
+              AND id<>? AND t_end IS NULL
+            """,
+            (
+                float(latest["t_start"]),
+                _entity_node(entity_id),
+                latest["id"],
+            ),
+        )
 
     # -------------------------------------------------------------- transitions
     def add_transition(
@@ -327,9 +752,14 @@ class SQLiteStore:
 
     def load_transitions(self, entity_id: str | None = None) -> list[TransitionRecord]:
         if entity_id:
+            keys = tuple(dict.fromkeys([_raw_entity(entity_id), _entity_node(entity_id)]))
+            placeholders = ", ".join("?" for _ in keys)
             rows = self._fetchall(
-                "SELECT * FROM state_transitions WHERE entity_id=? ORDER BY t_event, id",
-                (entity_id,),
+                f"""
+                SELECT * FROM state_transitions
+                WHERE entity_id IN ({placeholders}) ORDER BY t_event, id
+                """,
+                keys,
             )
         else:
             rows = self._fetchall("SELECT * FROM state_transitions ORDER BY t_event, id")
@@ -487,20 +917,24 @@ class SQLiteStore:
             return int(cursor.rowcount or 0)
 
     def terminal_anchor(self, entity_id: str) -> AnchorRecord | None:
+        keys = tuple(dict.fromkeys([_raw_entity(entity_id), _entity_node(entity_id)]))
+        placeholders = ", ".join("?" for _ in keys)
         row = self._fetchone(
-            """
+            f"""
             SELECT * FROM anchors
-            WHERE entity_id=? AND is_terminal=1
+            WHERE entity_id IN ({placeholders}) AND is_terminal=1
             ORDER BY t_start DESC LIMIT 1
             """,
-            (entity_id,),
+            keys,
         )
         return self._anchor_from_row(row) if row else None
 
     def anchors_for(self, entity_id: str) -> list[AnchorRecord]:
+        keys = tuple(dict.fromkeys([_raw_entity(entity_id), _entity_node(entity_id)]))
+        placeholders = ", ".join("?" for _ in keys)
         rows = self._fetchall(
-            "SELECT * FROM anchors WHERE entity_id=? ORDER BY t_start, id",
-            (entity_id,),
+            f"SELECT * FROM anchors WHERE entity_id IN ({placeholders}) ORDER BY t_start, id",
+            keys,
         )
         return [self._anchor_from_row(row) for row in rows]
 
@@ -545,12 +979,14 @@ class SQLiteStore:
     def observations_for(
         self, entity_id: str, limit: int = 1000
     ) -> list[tuple[float, tuple[float, float, float, float] | None, str | None]]:
+        keys = tuple(dict.fromkeys([_raw_entity(entity_id), _entity_node(entity_id)]))
+        placeholders = ", ".join("?" for _ in keys)
         rows = self._fetchall(
-            """
+            f"""
             SELECT t, bbox, state FROM observations
-            WHERE entity_id=? ORDER BY t DESC LIMIT ?
+            WHERE entity_id IN ({placeholders}) ORDER BY t DESC LIMIT ?
             """,
-            (entity_id, int(limit)),
+            (*keys, int(limit)),
         )
         return [(row["t"], _maybe_bbox(row["bbox"]), row["state"]) for row in reversed(rows)]
 

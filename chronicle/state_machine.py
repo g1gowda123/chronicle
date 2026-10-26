@@ -215,6 +215,11 @@ class LifecycleEngine:
         rt = self._entities.get(entity_id)
         return rt.state if rt else None
 
+    def forget(self, entity_id: str) -> bool:
+        """Drop a merged-away runtime so it cannot be re-persisted as missing."""
+
+        return self._entities.pop(entity_id, None) is not None
+
     def entities_in(self, *states: ObjectState) -> list[EntitySnapshot]:
         wanted = set(states)
         return [s for s in self.snapshot() if s.state in wanted]

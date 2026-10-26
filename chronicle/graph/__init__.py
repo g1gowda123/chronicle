@@ -2,6 +2,7 @@
 
 from chronicle.graph.adapter import frame_context_from_result
 from chronicle.graph.background import BackgroundGraph
+from chronicle.graph.consolidation import GraphConsolidator, MergeCandidate, MergeReport
 from chronicle.graph.foreground import ForegroundGraph
 from chronicle.graph.ids import (
     AGENT_NODE,
@@ -26,7 +27,10 @@ __all__ = [
     "BackgroundGraph",
     "ChronicleMemory",
     "ForegroundGraph",
+    "GraphConsolidator",
     "GraphQuery",
+    "MergeCandidate",
+    "MergeReport",
     "QueryResult",
     "anchor_node",
     "entity_node",

@@ -40,11 +40,11 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## What I am working on right now
 
-1. **Duplicate consolidation, not just prevention.** New furniture tracks are
-   routed correctly, but graphs created before this change (or by a detector
-   that changed a label) can still contain several `entity:sofa` /
-   `anchor:sofa-*` nodes. I am adding a Role B consolidation sweep that merges
-   those nodes while preserving edges, terminal anchors and audit telemetry.
+1. **Duplicate consolidation.** Role B now ships `GraphConsolidator` with
+   `merge_entities` / `merge_furniture`, dry runs and `[GRAPH]` audit events.
+   Legacy `entity:sofa` / `anchor:sofa-*` duplicates are folded conservatively
+   while retaining terminal anchors, action edges, history and observations.
+   Remaining work is clip-level tuning of the association and merge gates.
 2. **Accuracy of the furniture association.** Tuning the confirmation window,
    camera compensation and embedding gate against the living-room clip; adding
    regression fixtures with two co-visible sofas and a re-entry after a pan.
@@ -81,19 +81,24 @@ the entity table.
 
 **Goal:** one durable node per real-world object, with a clean audit trail.
 
-- [ ] Implement `ChronicleMemory.maybe_consolidate(t)` / a `GraphConsolidator`
+- [x] Implement `ChronicleMemory.maybe_consolidate(t)` / a `GraphConsolidator`
   that merges legacy duplicate foreground entities and furniture anchors.
   Preserve terminal anchors, action edges, state history and telemetry.
-- [ ] Add `merge_entities(keep, remove)` and `merge_furniture(keep, remove)`
+- [x] Add `merge_entities(keep, remove)` and `merge_furniture(keep, remove)`
   with a dry-run mode and an audit event (`[GRAPH] entity merged`).
-- [ ] Use spatial-temporal + embedding evidence; never merge two co-visible
+- [x] Use spatial-temporal + embedding evidence; never merge two co-visible
   instances of the same label.
-- [ ] Add regression tests: two sofas in one room stay two anchors; a sofa
-  re-entering after a pan reuses one anchor; reopening SQLite does not mint a
-  second anchor.
-- [ ] Improve query disambiguation for plural/label aliases and report match
-  confidence in `QueryResult`.
-- [ ] Keep `scripts/demo_role_b.py` passing after every schema change.
+- [x] Add regression tests: two sofas in one room stay two anchors; sequential
+  duplicates merge; reopening SQLite restores aliases without minting a second
+  anchor (`tests/test_consolidation.py`).
+- [x] Improve query disambiguation for plural/label aliases and report match
+  confidence in `QueryResult` (`match_score`, `confidence`, `match_reason`,
+  `candidates`).
+- [x] Keep `scripts/demo_role_b.py` passing after every schema change.
+
+**Landed:** `GraphConsolidator`, merge APIs and alias/confidence retrieval;
+`pytest`, `unittest discover`, `ruff check chronicle tests` and the demo are
+green. Role B checklist complete.
 
 **Done when:** replaying the living-room clip leaves exactly one background
 anchor per physical sofa, and `memory.stats()` reports the merges.

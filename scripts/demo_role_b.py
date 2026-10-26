@@ -93,6 +93,28 @@ def run_scene(memory: ChronicleMemory, until: float) -> None:
         )
 
 
+def seed_legacy_duplicate(memory: ChronicleMemory, t0: float = 5.0) -> None:
+    """Emit a second id for the same physical cup, as an old track would."""
+
+    steps = round(0.7 / DT)
+    for index in range(steps):
+        t = t0 + index * DT
+        memory.observe(
+            memory_frame(
+                t,
+                [
+                    ObjectObservation(
+                        entity_id="cup-legacy",
+                        label="cup",
+                        bbox=(500.0, 300.0, 580.0, 380.0),
+                        track_id=99,
+                    )
+                ],
+                [],
+            )
+        )
+
+
 def memory_frame(t, objects, hands):
     return FrameContext(
         t=t,
@@ -152,7 +174,9 @@ def main() -> None:
                 return
             print(
                 f"resolved: {result.entity_id} "
-                f"(match={result.match_score:.2f}, state={result.state})"
+                f"(match={result.match_score:.2f}, "
+                f"confidence={result.confidence:.2f}, "
+                f"reason={result.match_reason}, state={result.state})"
             )
             print(f"answer: {result.fallback_answer()}\n")
             print("2-hop subgraph:")
@@ -163,11 +187,32 @@ def main() -> None:
                 f"({anchor.get('label')}) t={anchor.get('t_start')}"
             )
 
+            print("\n--- duplicate consolidation ---")
+            seed_legacy_duplicate(memory)
+            candidates = memory.consolidator.find_candidates(5.7)
+            print(
+                "candidates: "
+                + json.dumps(
+                    [candidate.as_dict() for candidate in candidates],
+                    sort_keys=True,
+                )
+            )
+            planned = memory.merge_entities("cup", "cup-legacy", dry_run=True)
+            print(f"dry run: {planned.status} ({planned.reason})")
+            report = memory.merge_entities("cup", "cup-legacy", t=5.7)
+            print(f"merge: {report.status} preserved={json.dumps(report.preserved)}")
+            print(
+                f"legacy id now resolves to: {memory.resolve_entity_alias('cup-legacy')}"
+            )
+            print(f"merge stats: {json.dumps(memory.stats()['merges'], sort_keys=True)}")
+
             print("\n--- process restart ---")
 
         with ChronicleMemory(db_path, bus=bus) as restored:
             result = restored.query("where is my cup?")
             print(f"restored answer: {result.fallback_answer() if result else 'none'}")
+            alias = restored.query_entity("cup-legacy")
+            print(f"restored legacy alias -> {alias.entity_id if alias else 'none'}")
     finally:
         for child in sorted(temp_dir.rglob("*"), reverse=True):
             if child.is_file():

@@ -68,8 +68,10 @@ Role B adds:
   foreground relations.
 - SQLite projection with terminal-anchor retention and a 10-minute trajectory
   purge.
-- 2-hop GraphRAG retrieval with deterministic fallback answers and an
-  LLM-ready prompt.
+- 2-hop GraphRAG retrieval with deterministic fallback answers, an LLM-ready
+  prompt, label aliases and ambiguity-aware match confidence.
+- Conservative duplicate consolidation for legacy entity/furniture rows with
+  dry runs, retained history and `[GRAPH]` audit telemetry.
 - Thread-safe `EventBus` telemetry for the Role D dashboard.
 
 ### Dual-graph memory
@@ -87,7 +89,7 @@ Each transition is gated by IoS thresholds, support-surface heuristics, and wall
 
 ### Query retrieval
 
-Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity's latest state and spatial edge, serialize the 2-hop subgraph, then have a compact LLM produce a timestamped, location-cited answer.
+Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity's latest state and spatial edge, serialize the 2-hop subgraph, then have a compact LLM produce a timestamped, location-cited answer. `QueryResult` reports the raw `match_score`, an ambiguity-aware `confidence`, the winning `match_reason`, and ranked `candidates` so duplicate labels resolve predictably.
 
 ## Repository layout
 
@@ -100,12 +102,14 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   ├── geometry.py                         # IoS, support contact, compensated velocity
 │   ├── state_machine.py                    # nine-state lifecycle engine
 │   ├── telemetry.py                        # Role B event bus
+│   ├── text.py                             # normalization, plurals, label aliases
 │   ├── integration.py                      # A -> B -> C runtime facade
 │   ├── sources.py                          # demo/real source registry
 │   ├── cli.py                              # `chronicle sources|run|ask|serve`
 │   ├── graph/
 │   │   ├── adapter.py                      # FrameResult -> FrameContext bridge
 │   │   ├── background.py                   # zones + furniture anchors
+│   │   ├── consolidation.py                # duplicate merge sweep + audit reports
 │   │   ├── foreground.py                   # entities + time-intervaled edges
 │   │   ├── furniture.py                    # persistent static-furniture association
 │   │   ├── query.py                        # 2-hop GraphRAG retrieval

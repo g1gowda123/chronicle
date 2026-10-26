@@ -27,7 +27,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from chronicle.config import (
@@ -36,7 +36,7 @@ from chronicle.config import (
     FurnitureConfig,
 )
 from chronicle.geometry import cosine_similarity
-from chronicle.text import normalize
+from chronicle.text import canonical_label, normalize
 
 _SLUG = re.compile(r"[^a-z0-9]+")
 BBox = tuple[float, float, float, float]
@@ -452,6 +452,68 @@ class FurnitureRegistry:
                 removed.append(anchor_id)
                 del self._records[anchor_id]
         return removed
+
+    def merge(self, keep: str, remove: str) -> bool:
+        """Fold one duplicate anchor record into another.
+
+        The caller is responsible for the graph/SQLite side of the merge.  This
+        method only consolidates in-memory association state and keeps the union
+        of track ids, time bounds and audit metadata.
+        """
+
+        keep_record = self._records.get(keep)
+        remove_record = self._records.get(remove)
+        if remove_record is None or keep == remove:
+            return False
+        if keep_record is not None and (
+            canonical_label(keep_record.label) != canonical_label(remove_record.label)
+        ):
+            return False
+        if keep_record is not None and not _zones_compatible(
+            keep_record.zone_id, remove_record.zone_id
+        ):
+            return False
+        if keep_record is None:
+            # The keeper may be a legacy graph/store row that predates the
+            # registry.  Adopt the removed record's association state so later
+            # detections bind to the keeper instead of recreating the duplicate.
+            keep_record = replace(remove_record, anchor_id=keep)
+            self._records[keep] = keep_record
+
+        remove_is_newer = remove_record.last_seen > keep_record.last_seen
+        if remove_is_newer:
+            keep_record.bbox = remove_record.bbox
+            if remove_record.embedding is not None:
+                keep_record.embedding = remove_record.embedding
+        elif keep_record.embedding is None:
+            keep_record.embedding = remove_record.embedding
+
+        keep_record.first_seen = min(keep_record.first_seen, remove_record.first_seen)
+        keep_record.last_seen = max(keep_record.last_seen, remove_record.last_seen)
+        keep_record.hits = max(1, keep_record.hits + remove_record.hits)
+        keep_record.misses = max(keep_record.misses, remove_record.misses)
+        keep_record.track_ids.update(remove_record.track_ids)
+        keep_record.confirmed = keep_record.confirmed or remove_record.confirmed
+        if keep_record.zone_id is None:
+            keep_record.zone_id = remove_record.zone_id
+
+        merged_from = [
+            str(value)
+            for value in (
+                *keep_record.attributes.get("merged_from", []),
+                *remove_record.attributes.get("merged_from", []),
+                remove,
+            )
+        ]
+        keep_record.attributes.update(
+            {
+                **remove_record.attributes,
+                **keep_record.attributes,
+                "merged_from": list(dict.fromkeys(merged_from)),
+            }
+        )
+        del self._records[remove]
+        return True
 
 
 def _zones_compatible(a: str | None, b: str | None) -> bool:

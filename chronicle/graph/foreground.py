@@ -131,6 +131,90 @@ class ForegroundGraph:
         if self.graph.has_node(node_id) and zone_id:
             self.graph.nodes[node_id]["zone_id"] = zone_id
 
+    def remove_entity(self, entity_id: str) -> bool:
+        """Remove one foreground node after its edges have been rewired."""
+
+        node_id = entity_node(entity_id)
+        if not self.graph.has_node(node_id):
+            return False
+        self.graph.remove_node(node_id)
+        return True
+
+    def rewire_node(self, old_node_id: str, new_node_id: str) -> int:
+        """Move every edge touching ``old_node_id`` onto ``new_node_id``.
+
+        Used by the consolidation sweep after the storage projection has been
+        merged.  Edge keys are preserved unless they collide on the target.
+        """
+
+        if old_node_id == new_node_id or not self.graph.has_node(old_node_id):
+            return 0
+        moved = 0
+        for src, dst, key, data in list(self.graph.edges(keys=True, data=True)):
+            if old_node_id not in {src, dst}:
+                continue
+            new_src = new_node_id if src == old_node_id else src
+            new_dst = new_node_id if dst == old_node_id else dst
+            self.graph.remove_edge(src, dst, key)
+            target_key = key
+            if self.graph.has_edge(new_src, new_dst, target_key):
+                target_key = self._next_key("merged")
+            self.graph.add_edge(new_src, new_dst, key=target_key, **dict(data))
+            moved += 1
+        return moved
+
+    def replace_container_id(self, old_entity_id: str, new_entity_id: str) -> int:
+        """Point entities that were contained by ``old`` at ``new``."""
+
+        old_raw = raw_entity_id(str(old_entity_id))
+        changed = 0
+        for attrs in self.graph.nodes.values():
+            container = attrs.get("container_id")
+            if container is not None and raw_entity_id(str(container)) == old_raw:
+                attrs["container_id"] = new_entity_id
+                changed += 1
+        return changed
+
+    def normalize_intervals(self, entity_id: str) -> None:
+        """Repair overlapping state/placement intervals after a merge.
+
+        State transitions form one ordered timeline.  All but the newest
+        placement are closed; the newest remains the terminal anchor even when
+        the object later disappeared.
+        """
+
+        node_id = entity_node(entity_id)
+        if not self.graph.has_node(node_id):
+            return
+
+        state_edges = [
+            (key, data)
+            for _, dst, key, data in self.graph.out_edges(node_id, keys=True, data=True)
+            if dst == node_id and data.get("relation") == Relation.STATE_TRANSITION.value
+        ]
+        state_edges.sort(key=lambda item: (float(item[1].get("t_start") or 0.0), str(item[0])))
+        for index, (_, data) in enumerate(state_edges):
+            if index + 1 < len(state_edges):
+                data["t_end"] = float(state_edges[index + 1][1].get("t_start") or 0.0)
+            else:
+                data["t_end"] = None
+            data["is_terminal"] = False
+
+        placements = [
+            (key, data)
+            for _, _, key, data in self.graph.out_edges(node_id, keys=True, data=True)
+            if data.get("relation") in {Relation.RESTING_ON.value, Relation.INSIDE.value}
+        ]
+        placements.sort(key=lambda item: (float(item[1].get("t_start") or 0.0), str(item[0])))
+        if not placements:
+            return
+        latest_t = float(placements[-1][1].get("t_start") or 0.0)
+        for _, data in placements[:-1]:
+            if data.get("t_end") is None:
+                data["t_end"] = latest_t
+            data["is_terminal"] = False
+        placements[-1][1]["is_terminal"] = True
+
     def entity_for_track(
         self,
         track_id: int,

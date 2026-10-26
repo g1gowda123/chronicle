@@ -14,6 +14,7 @@ sync so a dashboard can render mutations with zero query latency.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,7 @@ from chronicle.config import (
 from chronicle.geometry import bbox_to_polygon
 from chronicle.graph.adapter import frame_context_from_result
 from chronicle.graph.background import BackgroundGraph
+from chronicle.graph.consolidation import GraphConsolidator, MergeReport
 from chronicle.graph.foreground import ForegroundGraph
 from chronicle.graph.furniture import FurnitureMatch, FurnitureRegistry
 from chronicle.graph.ids import (
@@ -34,6 +36,7 @@ from chronicle.graph.ids import (
     anchor_node,
     entity_node,
     raw_anchor_id,
+    raw_entity_id,
     raw_zone_id,
     zone_node,
 )
@@ -91,12 +94,26 @@ class ChronicleMemory:
             lost_from_occluded=lost_from_occluded,
             bus=self.bus,
         )
+        self._entity_aliases: dict[str, str] = {}
+        self._furniture_aliases: dict[str, str] = {}
         self.query_engine = GraphQuery(
             self.foreground,
             self.background,
             store=self.store,
             thresholds=self.thresholds,
             bus=self.bus,
+            aliases=self._entity_aliases,
+        )
+        self.consolidator = GraphConsolidator(
+            self.foreground,
+            self.background,
+            self.furniture,
+            self.store,
+            engine=self.engine,
+            bus=self.bus,
+            config=self.furniture.config,
+            entity_aliases=self._entity_aliases,
+            furniture_aliases=self._furniture_aliases,
         )
         self._active_zone: str | None = None
         self._last_observation: dict[str, float] = {}
@@ -105,6 +122,7 @@ class ChronicleMemory:
         if load:
             self._restore()
             self._load_furniture_registry()
+            self._rebuild_aliases()
         self.bus.emit(
             TelemetryTag.SYSTEM,
             "chronicle memory online",
@@ -133,6 +151,7 @@ class ChronicleMemory:
         """Advance the whole stack by one presentation timestamp."""
 
         t = frame.t
+        self._canonicalize_frame(frame)
         self._ensure_frame_context(frame)
         self._route_furniture(frame)
         self._ensure_entities(frame)
@@ -168,6 +187,10 @@ class ChronicleMemory:
                         error=repr(exc),
                     )
 
+        try:
+            self.maybe_consolidate(t)
+        except Exception as exc:  # pragma: no cover - cleanup must not break ingestion
+            self.bus.graph("consolidation sweep failed", t, error=repr(exc))
         return transitions
 
     def observe_result(
@@ -298,13 +321,75 @@ class ChronicleMemory:
         return result
 
     def query_entity(self, entity_id: str, question: str = "") -> QueryResult | None:
-        return self.query_engine.build(entity_id, query=question)
+        return self.query_engine.build(self.resolve_entity_alias(entity_id), query=question)
 
     def state_table(self) -> list[dict[str, Any]]:
         return self.query_engine.summary()
 
     def terminal_anchor(self, entity_id: str) -> AnchorRecord | None:
-        return self.store.terminal_anchor(entity_id)
+        return self.store.terminal_anchor(self.resolve_entity_alias(entity_id))
+
+    # ------------------------------------------------------------ consolidation
+    def resolve_entity_alias(self, entity_id: str) -> str:
+        """Map a merged-away entity id onto its surviving keeper."""
+
+        value = str(entity_id).strip().removeprefix("entity:")
+        seen: set[str] = set()
+        while value in self._entity_aliases and value not in seen:
+            seen.add(value)
+            value = self._entity_aliases[value]
+        return value
+
+    def resolve_furniture_alias(self, anchor_id: str) -> str:
+        """Map a merged-away furniture anchor onto its surviving keeper."""
+
+        value = str(anchor_id).strip().removeprefix("anchor:")
+        seen: set[str] = set()
+        while value in self._furniture_aliases and value not in seen:
+            seen.add(value)
+            value = self._furniture_aliases[value]
+        return value
+
+    def merge_entities(
+        self,
+        keep: str,
+        remove: str,
+        *,
+        dry_run: bool = False,
+        t: float | None = None,
+    ) -> MergeReport:
+        """Fold one foreground entity into another (audited, terminal-safe)."""
+
+        return self.consolidator.merge_entities(
+            keep,
+            remove,
+            dry_run=dry_run,
+            t=t,
+            reason="manual",
+        )
+
+    def merge_furniture(
+        self,
+        keep: str,
+        remove: str,
+        *,
+        dry_run: bool = False,
+        t: float | None = None,
+    ) -> MergeReport:
+        """Fold one background furniture anchor into another."""
+
+        return self.consolidator.merge_furniture(
+            keep,
+            remove,
+            dry_run=dry_run,
+            t=t,
+            reason="manual",
+        )
+
+    def maybe_consolidate(self, t: float, *, dry_run: bool = False) -> list[MergeReport]:
+        """Run a duplicate sweep if the configured interval has elapsed."""
+
+        return self.consolidator.maybe_consolidate(t, dry_run=dry_run)
 
     # ---------------------------------------------------------------- internal
     def _restore(self) -> None:
@@ -448,6 +533,49 @@ class ChronicleMemory:
             self._furniture_persisted[node_id] = t
         return node_id
 
+    def _canonicalize_frame(self, frame: FrameContext) -> None:
+        """Rewrite merged-away ids before the engine can mint them again."""
+
+        if self._entity_aliases:
+            objects = []
+            for obj in frame.objects:
+                canonical = self.resolve_entity_alias(obj.entity_id)
+                objects.append(
+                    obj if canonical == obj.entity_id else replace(obj, entity_id=canonical)
+                )
+            frame.objects = tuple(objects)
+
+        if self._furniture_aliases:
+            supports = []
+            for surface in frame.supports:
+                canonical = self.resolve_furniture_alias(surface.anchor_id)
+                supports.append(
+                    surface
+                    if canonical == surface.anchor_id
+                    else replace(surface, anchor_id=canonical)
+                )
+            frame.supports = tuple(supports)
+
+    def _rebuild_aliases(self) -> None:
+        """Restore merged-away id mappings from persisted ``merged_from`` rows."""
+
+        for record in self.store.load_entities():
+            entity_id = raw_entity_id(str(record.id))
+            for removed in record.attrs.get("merged_from", []):
+                removed_id = raw_entity_id(str(removed))
+                if removed_id and removed_id != entity_id:
+                    GraphConsolidator.register_alias(
+                        self._entity_aliases, entity_id, removed_id
+                    )
+        for record in self.store.load_furniture():
+            anchor_id = raw_anchor_id(str(record.id))
+            for removed in record.attrs.get("merged_from", []):
+                removed_id = raw_anchor_id(str(removed))
+                if removed_id and removed_id != anchor_id:
+                    GraphConsolidator.register_alias(
+                        self._furniture_aliases, anchor_id, removed_id
+                    )
+
     def _ensure_frame_context(self, frame: FrameContext) -> None:
         t = frame.t
         if frame.zone_id:
@@ -538,7 +666,7 @@ class ChronicleMemory:
         existing = self.foreground.get_entity(snapshot.entity_id) or {}
         first_seen = float(existing.get("first_seen", snapshot.state_since))
         zone_id = existing.get("zone_id") or snapshot.zone_id
-        attrs = {"container_id": snapshot.container_id}
+        attrs = {**dict(existing.get("attrs") or {}), "container_id": snapshot.container_id}
         self.foreground.upsert_entity(
             snapshot.entity_id,
             snapshot.label,
@@ -737,6 +865,7 @@ class ChronicleMemory:
         states: dict[str, int] = {}
         for snapshot in self.engine.snapshot():
             states[snapshot.state.value] = states.get(snapshot.state.value, 0) + 1
+        merges = self.consolidator.stats()
         return {
             "entities": self.store.count("entities"),
             "zones": self.background.zone_count(),
@@ -746,4 +875,7 @@ class ChronicleMemory:
             "active_zone": self._active_zone,
             "camera": self.engine.camera_state.value,
             "states": states,
+            "merges": merges,
+            "entities_merged": merges["entities"],
+            "furniture_merged": merges["furniture"],
         }

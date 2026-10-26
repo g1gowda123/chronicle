@@ -7,7 +7,7 @@ import json
 from conftest import DT, cup, feed, hand_at, lift_scenario, make_frame, run_lift_scene
 
 from chronicle.graph.memory import ChronicleMemory
-from chronicle.text import match_score, singular
+from chronicle.text import canonical_label, match_details, match_score, singular
 from chronicle.types import CameraMotion, ObjectObservation, ObjectState
 
 
@@ -166,3 +166,16 @@ def test_text_matching_heuristics() -> None:
     assert match_score("where is the key", "keys") >= 0.8
     assert match_score("cup", "coffee mug") == 0.0
     assert match_score("the red mug", "mug") >= 0.7
+
+
+def test_label_aliases_are_symmetric_and_plural_aware() -> None:
+    assert match_score("tv", "television") == 0.85
+    assert match_score("televisions", "tv") == 0.85
+    assert match_score("couch", "sofa") == 0.85
+    assert match_score("where is my purse?", "wallet") == 0.85
+    assert match_details("tv", "television")[1] == "label alias"
+    assert canonical_label("tv") == canonical_label("television")
+    assert canonical_label("purses") == canonical_label("wallet")
+    # Deliberately not aliases: the existing retrieval contract treats these
+    # as different object categories.
+    assert match_score("cup", "coffee mug") == 0.0

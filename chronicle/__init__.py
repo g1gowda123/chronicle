@@ -16,6 +16,7 @@ from chronicle.geometry import (
     to_polygon,
 )
 from chronicle.graph.adapter import frame_context_from_result
+from chronicle.graph.consolidation import GraphConsolidator, MergeCandidate, MergeReport
 from chronicle.graph.memory import ChronicleMemory
 from chronicle.graph.query import QueryResult
 from chronicle.integration import ChronicleRuntime, RuntimeAnswer
@@ -43,8 +44,11 @@ __all__ = [
     "EntitySnapshot",
     "EventBus",
     "FrameContext",
+    "GraphConsolidator",
     "HandObservation",
     "LifecycleEngine",
+    "MergeCandidate",
+    "MergeReport",
     "ObjectObservation",
     "ObjectState",
     "QueryResult",

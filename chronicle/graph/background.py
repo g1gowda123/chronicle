@@ -313,51 +313,86 @@ class BackgroundGraph:
             )
         return rows
 
-    def merge_furniture(self, keep: str, remove: str, t: float) -> bool:
+    def merge_furniture(
+        self,
+        keep: str,
+        remove: str,
+        t: float,
+        *,
+        audit: dict[str, Any] | None = None,
+    ) -> bool:
         """Fold one furniture anchor into another, preserving zone topology."""
 
         keep_id = anchor_node(keep)
         remove_id = anchor_node(remove)
         if keep_id == remove_id or not self.graph.has_node(remove_id):
             return False
+
+        remove_data = dict(self.graph.nodes[remove_id])
         if not self.graph.has_node(keep_id):
-            self.graph.add_node(keep_id, **dict(self.graph.nodes[remove_id]))
-            self.graph.remove_node(remove_id)
-            return True
-        keep_data = self.graph.nodes[keep_id]
-        remove_data = self.graph.nodes[remove_id]
-        if not keep_data.get("bbox") and remove_data.get("bbox"):
-            keep_data["bbox"] = remove_data["bbox"]
-        if not keep_data.get("embedding") and remove_data.get("embedding"):
-            keep_data["embedding"] = remove_data["embedding"]
-        keep_data["created_at"] = min(
-            float(keep_data.get("created_at", t)), float(remove_data.get("created_at", t))
-        )
-        keep_data["last_seen"] = max(
-            float(keep_data.get("last_seen", t)), float(remove_data.get("last_seen", t))
-        )
-        keep_data.setdefault("attrs", {}).update(
-            {
+            remove_data["ref_id"] = keep
+            remove_data["attrs"] = {
                 **dict(remove_data.get("attrs", {})),
-                **dict(keep_data.get("attrs", {})),
                 "merged_from": [
-                    *list(keep_data.get("attrs", {}).get("merged_from", [])),
+                    *list(remove_data.get("attrs", {}).get("merged_from", [])),
                     remove_id,
                 ],
             }
-        )
-        for src, dst, data in list(self.graph.out_edges(remove_id, data=True)):
-            if src == dst:
-                continue
+            self.graph.add_node(keep_id, **remove_data)
+        else:
+            keep_data = self.graph.nodes[keep_id]
+            remove_is_newer = float(remove_data.get("last_seen", t)) > float(
+                keep_data.get("last_seen", t)
+            )
+            if remove_is_newer:
+                if remove_data.get("bbox"):
+                    keep_data["bbox"] = remove_data["bbox"]
+                if remove_data.get("embedding"):
+                    keep_data["embedding"] = remove_data["embedding"]
+            else:
+                if not keep_data.get("bbox") and remove_data.get("bbox"):
+                    keep_data["bbox"] = remove_data["bbox"]
+                if not keep_data.get("embedding") and remove_data.get("embedding"):
+                    keep_data["embedding"] = remove_data["embedding"]
+            if not keep_data.get("zone_id") and remove_data.get("zone_id"):
+                keep_data["zone_id"] = remove_data["zone_id"]
+                self._link_zone(keep_id, str(remove_data["zone_id"]), t)
+            keep_data["created_at"] = min(
+                float(keep_data.get("created_at", t)), float(remove_data.get("created_at", t))
+            )
+            keep_data["last_seen"] = max(
+                float(keep_data.get("last_seen", t)), float(remove_data.get("last_seen", t))
+            )
+            keep_data.setdefault("attrs", {}).update(
+                {
+                    **dict(remove_data.get("attrs", {})),
+                    **dict(keep_data.get("attrs", {})),
+                    "merged_from": list(
+                        dict.fromkeys(
+                            [
+                                *list(keep_data.get("attrs", {}).get("merged_from", [])),
+                                *list(remove_data.get("attrs", {}).get("merged_from", [])),
+                                remove_id,
+                            ]
+                        )
+                    ),
+                }
+            )
+
+        for _, dst, data in list(self.graph.out_edges(remove_id, data=True)):
             if not self.graph.has_edge(keep_id, dst):
                 self.graph.add_edge(keep_id, dst, **dict(data))
         for src, _, data in list(self.graph.in_edges(remove_id, data=True)):
-            if src == remove_id:
-                continue
             if not self.graph.has_edge(src, keep_id):
                 self.graph.add_edge(src, keep_id, **dict(data))
         self.graph.remove_node(remove_id)
-        self.bus.graph("furniture merged", t, keep=keep_id, removed=remove_id)
+        self.bus.graph(
+            "furniture merged",
+            t,
+            keep=keep_id,
+            removed=remove_id,
+            **dict(audit or {}),
+        )
         return True
 
     def zone_count(self) -> int:
