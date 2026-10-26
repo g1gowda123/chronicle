@@ -22,6 +22,7 @@ from chronicle.config import (
     DEFAULT_THRESHOLDS,
     Thresholds,
 )
+from chronicle.graph.adapter import frame_context_from_result
 from chronicle.graph.background import BackgroundGraph
 from chronicle.graph.foreground import ForegroundGraph
 from chronicle.graph.ids import (
@@ -37,6 +38,7 @@ from chronicle.storage.sqlite_store import SQLiteStore
 from chronicle.telemetry import EventBus, TelemetryTag
 from chronicle.types import (
     FrameContext,
+    FrameResult,
     ObjectState,
     Relation,
     StateTransition,
@@ -155,6 +157,29 @@ class ChronicleMemory:
                     )
 
         return transitions
+
+    def observe_result(
+        self,
+        result: FrameResult,
+        *,
+        supports: Sequence[SupportSurface] = (),
+        zone_id: str | None = None,
+        zone_label: str | None = None,
+        on_transition: TransitionHook | None = None,
+    ) -> list[StateTransition]:
+        """Advance the stack from a Role A ``FrameResult`` in one call.
+
+        Role A does not own support-surface detection; pass the current
+        ``supports`` from the background-graph/keyframe pass when available.
+        """
+
+        frame = frame_context_from_result(
+            result,
+            supports=supports,
+            zone_id=zone_id,
+            zone_label=zone_label,
+        )
+        return self.observe(frame, on_transition=on_transition)
 
     def record_action(
         self,

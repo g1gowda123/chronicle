@@ -1,42 +1,56 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "chronicle"
 version = "0.1.0"
-description = "Egocentric episodic memory: nine-state lifecycle engine and dual temporal graphs."
+description = "Egocentric episodic memory: motion-gated perception, nine-state lifecycle, and dual temporal graphs."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.14"
+license = { text = "MIT" }
 dependencies = [
-    "networkx>=3.1",
+    "numpy>=1.26,<3",
+    "opencv-python>=4.10",
+    "scipy>=1.11",
     "shapely>=2.0",
+    "networkx>=3.1",
 ]
 
 [project.optional-dependencies]
+# YOLO-World, MediaPipe and OpenCLIP. The pipeline still runs without these
+# using the palette/skin/HSV fallbacks (useful for the synthetic demo).
+perception = [
+    "ultralytics>=8.3",
+    "mediapipe>=0.10.14",
+    "open-clip-torch>=2.26",
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "pillow>=10.0",
+]
 dev = [
-    "pytest>=7.4",
+    "pytest>=8",
     "ruff>=0.5",
 ]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q"
+[project.scripts]
+chronicle-perception = "chronicle.perception.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["chronicle*"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
-ignore = [
-    # Consumers of the engine (VLM hooks, telemetry listeners) are isolated
-    # defensively: a broken callback must never stop the capture loop.
-    "BLE001",
-    "S112",
-    # __enter__ returns the concrete type so IDE completion stays useful.
-    "PYI034",
-]
+select = ["E", "F", "I", "UP", "B"]
+# `str, Enum` is kept intentionally so values serialize as plain strings on
+# every supported Python version.
+ignore = ["E501", "B008", "UP042"]

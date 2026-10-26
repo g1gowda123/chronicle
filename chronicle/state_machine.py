@@ -519,7 +519,7 @@ class LifecycleEngine:
             if hull is None:
                 continue
             contact_ios = ios(hull, poly)
-            fingertip = any_point_inside(poly, hand.fingertips)
+            fingertip = any_point_inside(poly, hand.fingertips())
             if contact_ios > m.hand_ios or fingertip:
                 m.hand_ios = max(m.hand_ios, contact_ios)
                 m.fingertip_contact = m.fingertip_contact or fingertip

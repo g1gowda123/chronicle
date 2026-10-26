@@ -1,5 +1,6 @@
 """Dual-graph memory (Role B)."""
 
+from chronicle.graph.adapter import frame_context_from_result
 from chronicle.graph.background import BackgroundGraph
 from chronicle.graph.foreground import ForegroundGraph
 from chronicle.graph.ids import (
@@ -29,6 +30,7 @@ __all__ = [
     "QueryResult",
     "anchor_node",
     "entity_node",
+    "frame_context_from_result",
     "raw_anchor_id",
     "raw_entity_id",
     "raw_zone_id",

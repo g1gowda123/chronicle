@@ -1,7 +1,11 @@
-"""Chronicle: egocentric episodic memory graph.
+"""Chronicle: egocentric episodic memory with spatio-temporal gating.
 
-Public surface for Role B (state machine + dual-graph engineering).
+Public surface for Role B (state machine + dual-graph engineering).  Role A's
+perception records are available from :mod:`chronicle.types`; the live event-bus
+:class:`TelemetryEvent` is exported here from :mod:`chronicle.telemetry`.
 """
+
+__version__ = "0.1.0"
 
 from chronicle.config import DEFAULT_THRESHOLDS, Thresholds
 from chronicle.geometry import (
@@ -11,6 +15,7 @@ from chronicle.geometry import (
     support_contact,
     to_polygon,
 )
+from chronicle.graph.adapter import frame_context_from_result
 from chronicle.graph.memory import ChronicleMemory
 from chronicle.graph.query import QueryResult
 from chronicle.state_machine import LifecycleEngine
@@ -47,8 +52,10 @@ __all__ = [
     "TelemetryEvent",
     "TelemetryTag",
     "Thresholds",
+    "__version__",
     "bbox_to_polygon",
     "cosine_similarity",
+    "frame_context_from_result",
     "ios",
     "support_contact",
     "to_polygon",

@@ -25,7 +25,7 @@ SQLite, reopens it, and answers the same question from disk.
 
 | Module | Responsibility |
 | --- | --- |
-| `chronicle/types.py` | Shared dataclasses: `FrameContext`, `ObjectObservation`, `HandObservation`, `SupportSurface`, `StateTransition` |
+| `chronicle/types.py` | Shared Role A/B dataclasses: `FrameResult`, `BBox`, `FrameContext`, `ObjectObservation`, `HandObservation`, `SupportSurface`, `StateTransition` |
 | `chronicle/config.py` | Every pixel / wall-clock threshold (`Thresholds`) |
 | `chronicle/geometry.py` | IoS, support contact, camera-relative velocity, time-aware EMA |
 | `chronicle/state_machine.py` | Nine-state lifecycle, dwell gates, occlusion / pan / reacquisition logic |
@@ -101,6 +101,34 @@ isolated and reported on the `[VLM]` telemetry channel.
 A re-detected entity whose last sample was missing gets `reacquired=True` and
 one forced transition on the first frame back. Its centroid history is cleared,
 so stale samples cannot fabricate motion.
+
+### 2b. Consuming Role A directly
+
+If Role A hands you a `FrameResult` instead of a `FrameContext`, use the
+built-in bridge:
+
+```python
+transitions = memory.observe_result(
+    result,
+    supports=(table_surface,),   # Role A does not detect support surfaces
+    zone_id="kitchen",
+    zone_label="kitchen",
+)
+```
+
+The bridge:
+
+- copies `result.timestamp` into the presentation clock (not `wall_time`),
+- maps `MotionEstimate` to `CameraMotion` (`theta` radians -> degrees),
+- maps each `TrackedObject` to an `ObjectObservation` with a stable
+  `track_<id>` entity id (override with `metadata["entity_id"]`),
+- carries CLIP embeddings and `metadata["reid_score"]` into evidence,
+- forwards `HandObservation` objects unchanged (the type is shared by both
+  roles), and
+- infers `frame_size` from `result.image` when present.
+
+Call `frame_context_from_result(...)` directly if you want to inspect or patch
+the frame before handing it to `observe()`.
 
 ### 3. Role C hooks
 
