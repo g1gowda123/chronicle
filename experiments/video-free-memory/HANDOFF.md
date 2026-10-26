@@ -423,7 +423,8 @@ new upload cannot contaminate another user’s memory. Current limitations:
 - no cross-video/global entity resolution; each vault is separate;
 - no user accounts/quotas or signed URLs in Studio;
 - no automatic cleanup policy yet;
-- main UI integration is still pending (section 2).
+- main-UI integration is **done on this branch** (section 2 and
+  `docs/MAIN_UI_INTEGRATION.md`) but not merged into `main`.
 
 For multi-video memory, add an episode registry, consistent entity IDs across episodes, a combined
 pack/index, and a retention policy before claiming “all my videos” QA.
