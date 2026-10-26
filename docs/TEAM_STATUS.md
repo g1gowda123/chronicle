@@ -38,6 +38,19 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 - Tests for the runtime seam and furniture association, plus
   `docs/INTEGRATION.md`.
 
+## Dynamic Task Notice Board (Priority Queue)
+
+> **Team rule:** Anyone finishing a task grabs the next highest-priority `[READY]` ticket below. Mark it `[IN PROGRESS (name)]` when starting, and `[DONE (commit)]` when completed. Maintain additive APIs in `chronicle/integration.py` and run `.venv/bin/pytest` + `.venv/bin/ruff check chronicle tests` before pushing.
+
+| ID | Pri | Task | Scope / Key Files | Status | Owner |
+|---|---|---|---|---|---|
+| **TASK-B1** | **P0** | **Dual furniture fixtures & SQLite persistence**<br>Add regression tests for 2 co-visible sofas remaining distinct during consolidation sweep, sequential duplicate merging on pan re-entry, and alias restoration across SQLite reopen blocking anchor re-minting. | `tests/test_consolidation.py`<br>`chronicle/graph/consolidation.py` | `[READY]` | Open / Orchestrator |
+| **TASK-C1** | **P0** | **Verification queue depth telemetry in snapshot**<br>Expose `verification_stats` (`depth`, `dropped`, `avg_latency_ms`) in `ChronicleRuntime.snapshot()` and `snapshot()["stats"]`. Add queue depth regression test. | `chronicle/integration.py`<br>`tests/test_verification_queue.py` | `[READY]` | Open / Orchestrator |
+| **TASK-D1** | **P0** | **JSON & CSV memory graph export**<br>Add export methods to runtime (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`) and `/export/snapshot.json`, `/export/entities.csv` endpoints + UI download buttons in NiceGUI header/card. | `chronicle/integration.py`<br>`chronicle/ui/app.py` | `[READY]` | Open / Orchestrator |
+| **TASK-D2** | **P1** | **Distinct furniture anchor styling in graph**<br>Render background furniture anchors with distinct shape (rounded rectangle) and border (`#f59e0b`) so they are immediately visually distinct from episodic entities with lifecycles. | `chronicle/ui/app.py` | `[READY]` | Open / Orchestrator |
+| **TASK-D3** | **P1** | **Queue depth badge & UI error/empty states**<br>Add verification queue depth chip in dashboard header; show friendly empty/stopped/error states when video is missing or query fails. | `chronicle/ui/app.py` | `[READY]` | Open / Orchestrator |
+| **TASK-D4** | **P2** | **Headless dashboard smoke tests**<br>Add Starlette/FastAPI `TestClient` tests for NiceGUI endpoints (`/`, `/source-video`, `/export/snapshot.json`, `/export/entities.csv`) verifying zero-GPU, zero-browser CI operation. | `tests/test_dashboard_smoke.py` | `[READY]` | Open / Orchestrator |
+
 ## What I am working on right now
 
 1. **Duplicate consolidation.** Role B now ships `GraphConsolidator` with
