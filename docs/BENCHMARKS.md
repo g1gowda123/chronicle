@@ -54,9 +54,9 @@ resolved to a fact in that case's context (12/12 and 16/16 valid).
   a scoring strictness issue, not a grounding failure — citation precision
   stays at 100%.
 - Tokens: one full evaluation pass costs ~4.5k tokens total
-  (~350 prompt + ~25 completion per answered case). At current free-tier pricing
-  that is effectively free; the harness still spaces Gemini calls by 3 s to stay
-  inside rate limits.
+  (~350 prompt + ~25 completion per answered case). The measured run used the
+  free tier; the harness spaces Gemini calls by 3 s to stay inside its rate
+  limits.
 - Latency is end-to-end per question, including HTTP and JSON parsing. The local
   7B model is faster in wall-clock time on this GPU; the cloud model has the
   better timestamp accuracy in this sample.
