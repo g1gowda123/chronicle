@@ -296,6 +296,13 @@ curl -sf http://127.0.0.1:8080/export/actions.csv -o chronicle-actions.csv
 transitions, furniture, verification telemetry, stats and backends). Both CSVs
 use stable headers so they can be diffed between runs.
 
+A second, standalone mission control serves the bundled synthetic episode with
+zero setup — ``python run_dashboard.py`` (port 8081). It drives the same event
+contract from ``dashboard/`` and presents it in the zine dashboard: warm paper
+cards, the head-cam feed with evidence overlays, a grounded chat with citation
+chips, the memory graph, entity dossiers, state-change timelines and pipeline
+vitals. ``--source live`` waits for ``POST /api/ingest`` instead of replaying.
+
 Headless smoke test:
 
 ```bash

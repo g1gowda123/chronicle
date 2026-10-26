@@ -1,8 +1,10 @@
-"""NiceGUI page assembly for the Chronicle mission-control dashboard.
+"""NiceGUI page assembly for the Chronicle mission-control dashboard (zine edition).
 
-The page is intentionally mostly server-driven: every connected tab owns a
-timer that pulls the shared :class:`~dashboard.runtime.Runtime` snapshot and
-pushes a compact JSON payload into the client runtime in ``static/chronicle.js``.
+The page stays mostly server-driven: every connected tab owns a timer that pulls
+the shared :class:`~dashboard.runtime.Runtime` snapshot and pushes a compact JSON
+payload into the client runtime in ``static/chronicle.js``. The layout mirrors the
+hackathon zine: big feed + chat, right-rail graph / dossier / entity list, and a
+bottom strip of state changes, actions and vitals.
 """
 
 from __future__ import annotations
@@ -12,13 +14,13 @@ from typing import Any
 
 from nicegui import ui
 
-from ..runtime import runtime
-from ..store import MemoryStore
+from ..runtime import Runtime, runtime
+from ..store import STATE_COLORS, MemoryStore
 from . import render, theme
 
-RATES = (1.0, 0.5, 1.5, 2.0)
 LOG_HISTORY = 180
 CAPTION_HOLD_S = 3.4
+MARKERS_LIMIT = 80
 
 
 # --------------------------------------------------------------------------- #
@@ -72,11 +74,67 @@ def _hud(store: MemoryStore, snapshot: dict[str, Any], boxes: list[dict[str, Any
     }
 
 
+def _entity_colour(entity: Any) -> str:
+    attributes = entity.attributes or {}
+    for key in ("colour_hex", "color_hex", "swatch_hex", "dominant_hex"):
+        value = attributes.get(key)
+        if isinstance(value, str) and value.startswith("#"):
+            return value
+    swatch = attributes.get("swatch")
+    if isinstance(swatch, str) and swatch.startswith("#"):
+        return swatch
+    return STATE_COLORS.get(entity.state_at(float(runtime.playhead)), "#ffd34d")
+
+
+def _entities_payload(store: MemoryStore) -> list[dict[str, Any]]:
+    t = float(runtime.playhead)
+    out: list[dict[str, Any]] = []
+    for entity in store.entities.values():
+        state = entity.state_at(t)
+        zone = store.zones.get(entity.zone_id or "") if entity.zone_id else None
+        out.append(
+            {
+                "id": entity.id,
+                "label": entity.label,
+                "cls": entity.cls or "object",
+                "state": state,
+                "zone": zone.label if zone is not None else "—",
+                "conf": round(float(entity.confidence or 0.0), 3),
+                "seen": bool(entity.first_seen > 0 or not entity.is_stub),
+                "first": entity.first_seen,
+                "last": entity.last_seen,
+                "color": _entity_colour(entity),
+                "interactions": len(entity.interactions),
+            }
+        )
+    out.sort(key=lambda item: item["seen"], reverse=True)
+    return out
+
+
+def _markers_payload(rt: Runtime) -> list[dict[str, Any]]:
+    markers: list[dict[str, Any]] = []
+    for marker in rt.timeline(include_future=False):
+        kind = str(marker.get("kind") or "")
+        if kind not in {"state", "interaction", "edge", "zone"}:
+            continue
+        markers.append(
+            {
+                "t": float(marker.get("t") or 0.0),
+                "kind": kind,
+                "label": str(marker.get("label") or kind),
+                "entity_id": marker.get("entity_id"),
+            }
+        )
+    return markers[-MARKERS_LIMIT:]
+
+
 def _sync_payload(
     store: MemoryStore,
     snapshot: dict[str, Any],
     *,
     graph: dict[str, Any] | None,
+    entities: list[dict[str, Any]] | None,
+    markers: list[dict[str, Any]] | None,
 ) -> dict[str, Any]:
     t = float(snapshot.get("playhead") or 0.0)
     boxes = store.boxes_at(t)
@@ -98,33 +156,11 @@ def _sync_payload(
         "hud": _hud(store, snapshot, boxes),
         "stats": stats,
         "graph": graph,
+        "entities": entities,
+        "markers": markers,
+        "suggestions": list(render.SUGGESTIONS),
         "query_provider": snapshot.get("query_provider"),
     }
-
-
-def _video_html(snapshot: dict[str, Any]) -> str:
-    src = snapshot.get("video_url") or ""
-    return f"""
-<video class="chron-video" src="{render.esc(src)}" muted playsinline loop preload="auto"></video>
-<div class="video-overlay" id="chron-overlay"></div>
-{theme.VIDEO_HUD_HTML}
-""".strip()
-
-
-def _graph_body_html() -> str:
-    return f"""
-<div id="chron-graph"></div>
-{theme.GRAPH_LEGEND_HTML}
-""".strip()
-
-
-def _drawer_shell_html() -> str:
-    return f"""
-<div class="drawer-backdrop" id="chron-backdrop" onclick="Chronicle.closeDrawer()"></div>
-<aside class="inspector" id="chron-inspector" aria-label="Node inspector">
-  <div id="chron-drawer-content">{theme.EMPTY_DRAWER_HTML}</div>
-</aside>
-""".strip()
 
 
 # --------------------------------------------------------------------------- #
@@ -141,6 +177,8 @@ def build_dashboard() -> None:
     last_log_seq = 0
     last_epoch = -1
     last_graph_key: tuple[Any, ...] | None = None
+    last_entities_key: tuple[Any, ...] | None = None
+    last_markers_key: tuple[Any, ...] | None = None
 
     def snapshot() -> dict[str, Any]:
         return runtime.snapshot(mode=graph_mode)
@@ -149,14 +187,33 @@ def build_dashboard() -> None:
         log.push(render.format_log(record), classes=render.log_classes(record))
 
     def sync(force_graph: bool = False) -> None:
-        nonlocal last_graph_key
+        nonlocal last_graph_key, last_entities_key, last_markers_key
         snap = snapshot()
-        key = (snap.get("revision"), round(float(snap.get("playhead") or 0.0) * 2) / 2, graph_mode)
+        t = float(snap.get("playhead") or 0.0)
+        revision = snap.get("revision")
+        epoch = store.epoch
+
+        key = (revision, round(t * 2) / 2, graph_mode)
         graph = None
         if force_graph or key != last_graph_key:
             graph = snap.get("graph")
             last_graph_key = key
-        payload = _sync_payload(store, snap, graph=graph)
+
+        entities = None
+        ekey = (epoch, revision, round(t, 1))
+        if ekey != last_entities_key:
+            entities = _entities_payload(store)
+            last_entities_key = ekey
+
+        markers = None
+        mkey = (epoch, revision, round(t, 1))
+        if mkey != last_markers_key:
+            markers = _markers_payload(runtime)
+            last_markers_key = mkey
+
+        payload = _sync_payload(
+            store, snap, graph=graph, entities=entities, markers=markers
+        )
         ui.run_javascript(f"window.Chronicle && window.Chronicle.sync({_json(payload)});")
 
     def flush_logs() -> None:
@@ -179,19 +236,12 @@ def build_dashboard() -> None:
     # ---- actions ------------------------------------------------------ #
 
     async def run_query(value: str | None = None) -> None:
-        text = (value if value is not None else query_input.value) or ""
+        text = (value if value is not None else "") or ""
         text = str(text).strip()
         if not text:
             return
-        query_input.value = ""
-        result.content = render.query_answer_html(
-            {
-                "route": "none",
-                "answer": "Searching the episodic graph…",
-                "provider": "local-graphrag",
-                "model": "chronicle-local",
-                "citations": [],
-            }
+        ui.run_javascript(
+            f"window.Chronicle && window.Chronicle.chatQuestion({_json(text)});"
         )
         try:
             answer = await runtime.query.answer_async(text, runtime.playhead)
@@ -203,7 +253,9 @@ def build_dashboard() -> None:
                 "model": "chronicle-local",
                 "citations": [],
             }
-        result.content = render.query_answer_html(answer)
+        ui.run_javascript(
+            f"window.Chronicle && window.Chronicle.chatAnswer({_json(answer)});"
+        )
         entity_id = answer.get("matched_entity")
         store.note(
             "QUERY",
@@ -215,12 +267,9 @@ def build_dashboard() -> None:
             query=text,
             route=answer.get("route"),
         )
-        ui.run_javascript("window.Chronicle && window.Chronicle.scrollTelemetry();")
+        flush_logs()
 
-    async def submit_query() -> None:
-        await run_query(query_input.value)
-
-    def show_drawer(node_key: str) -> None:
+    def show_insp(node_key: str) -> None:
         resolved = store.resolve_node(str(node_key))
         if resolved is None:
             return
@@ -255,9 +304,10 @@ def build_dashboard() -> None:
         else:
             fragment = render.user_drawer_html(store)
         script = (
-            "(()=>{const el=document.getElementById('chron-drawer-content');"
+            "(()=>{const el=document.getElementById('chron-inspector-content');"
             f"if(!el)return;el.innerHTML={_json(fragment)};"
-            "window.Chronicle&&window.Chronicle.openDrawer();})();"
+            "const card=el.firstElementChild;if(card)card.classList.add('popin');"
+            "el.scrollIntoView({behavior:'smooth',block:'nearest'});})();"
         )
         ui.run_javascript(script)
 
@@ -288,8 +338,9 @@ def build_dashboard() -> None:
         sync(force_graph=True)
 
     def on_rate(_: Any = None) -> None:
-        index = RATES.index(runtime.rate) if runtime.rate in RATES else 0
-        runtime.set_rate(RATES[(index + 1) % len(RATES)])
+        rates = (1.0, 0.5, 1.5, 2.0)
+        index = rates.index(runtime.rate) if runtime.rate in rates else 0
+        runtime.set_rate(rates[(index + 1) % len(rates)])
         sync()
 
     def on_graph_mode(event: Any) -> None:
@@ -301,7 +352,7 @@ def build_dashboard() -> None:
     def on_node(event: Any) -> None:
         args = event.args if isinstance(event.args, list) else [event.args]
         if args and args[0]:
-            show_drawer(str(args[0]))
+            show_insp(str(args[0]))
 
     async def on_query(event: Any) -> None:
         args = event.args if isinstance(event.args, list) else [event.args]
@@ -315,53 +366,27 @@ def build_dashboard() -> None:
     with ui.element("div").classes("chron-app"):
         ui.html(theme.topbar_html(store.session, initial), sanitize=False)
 
-        with ui.element("div").classes("workspace"):
-            with ui.element("div").classes("stage-col"):
-                with ui.element("div").classes("panel video-panel"):
-                    ui.html(theme.video_head_html(), sanitize=False)
-                    with ui.element("div").classes("video-shell"):
-                        ui.html(_video_html(initial), sanitize=False)
-                with ui.element("div").classes("panel timeline-panel"):
-                    ui.html(
-                        render.timeline_html(
-                            runtime.timeline(),
-                            runtime.duration,
-                            runtime.playhead,
-                            playing=runtime.playing,
-                            rate=runtime.rate,
-                            mode=runtime.mode,
-                            source_label=runtime.source_label,
-                        ),
-                        sanitize=False,
-                    )
+        with ui.element("div").classes("row-main"):
+            with ui.element("div").classes("col-l"):
+                ui.html(theme.video_html(initial), sanitize=False)
+                ui.html(theme.chat_head_html(), sanitize=False)
+            with ui.element("div").classes("rail"):
+                ui.html(theme.graph_body_html(), sanitize=False)
+                ui.html(theme.inspector_shell_html(), sanitize=False)
+                ui.html(theme.entity_card_html(), sanitize=False)
 
-            with ui.element("div").classes("panel graph-panel"):
-                ui.html(theme.graph_head_html(), sanitize=False)
-                with ui.element("div").classes("graph-body"):
-                    ui.html(_graph_body_html(), sanitize=False)
-                ui.html(theme.GRAPH_FOOT_HTML, sanitize=False)
+        with ui.element("div").classes("row-events-actions"):
+            ui.html(theme.events_card_html(), sanitize=False)
+            ui.html(theme.actions_card_html(), sanitize=False)
 
-            with ui.element("div").classes("panel telemetry-panel"):
-                ui.html(theme.TELEMETRY_HEAD_HTML, sanitize=False)
+        with ui.element("div").classes("row-status"):
+            ui.html(theme.vitals_card_html(), sanitize=False)
+            with ui.element("div").classes("zcard card-pad telemetry-card rot-r2"):
+                ui.html(theme.telemetry_head_html(), sanitize=False)
                 log = ui.log(max_lines=700).classes("chron-log")
 
-            with ui.element("div").classes("panel query-panel"):
-                ui.html(theme.QUERY_HEAD_HTML, sanitize=False)
-                with ui.element("div").classes("query-body"):
-                    with ui.element("div").classes("query-row"):
-                        query_input = (
-                            ui.input(placeholder="Ask the episodic memory…")
-                            .classes("chron-query-input")
-                            .props("dense borderless")
-                        )
-                        ask_button = ui.button("ASK").classes("chron-ask")
-                    ui.html(render.suggestions_html(), sanitize=False)
-                    result = ui.html(render.query_hint_html(), sanitize=False)
-
-        ui.html(_drawer_shell_html(), sanitize=False)
-
-    ask_button.on("click", submit_query)
-    query_input.on("keydown.enter", submit_query)
+        ui.html(theme.marquee_html(), sanitize=False)
+        ui.html(theme.footer_html(), sanitize=False)
 
     ui.on("chron-seek", on_seek)
     ui.on("chron-toggle", on_toggle)
