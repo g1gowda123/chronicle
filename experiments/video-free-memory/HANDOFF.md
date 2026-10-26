@@ -3,8 +3,12 @@
 **Branch:** `experiment/video-free-memory`  
 **Worktree:** `/home/g1/projects/chronicle-vfm`  
 **Experiment dir:** `experiments/video-free-memory`  
-**Latest commit at handoff:** `5158a46`  
+**Latest commit at handoff:** `97d8ced`
 **Main repo:** `/home/g1/projects/chronicle` — do not destabilise it.
+
+> **Main UI integration is not done yet.** The Studio app is a separate uploader in the experiment.
+> The next agent should wire the VFM compile/export/ask backend into the existing main dashboard
+> upload button and player, not build another UI.
 
 Read first: `README.md`, `docs/DESIGN.md`, `docs/JOURNAL.md`, `docs/RESEARCH.md`.
 
@@ -32,6 +36,14 @@ Measured on the same 30 questions:
 
 The Qwen pack row is the usability result. It is not prompted over plain video; it receives a
 compact pack with the verified structured answer, timestamped captions, events and evidence refs.
+
+### Not done yet
+
+- VFM is **not integrated into the main dashboard UI**; the Studio is a separate app.
+- No external benchmark (CapMem/EgoSchema/Ego4D NLQ) has been run.
+- Counts are track counts, not verified physical object counts.
+- No paid/fast online VLM baseline; the free Gemini probe was unusable.
+- Full browser E2E for the Studio (upload → play → seek → ask → download) is not automated.
 
 ---
 
@@ -283,4 +295,4 @@ report, zip and pack downloads returned 200.
 - Run tests: `pytest -q tests` (15 pass at handoff).
 - Run `git diff --check`.
 - Commit/push after a fix, but coordinate with the other agent if main dashboard files are dirty.
-- Current experiment HEAD: `5158a46`.
+- Current experiment HEAD before the handoff commit: `97d8ced`; run `git log -1` for the latest.
