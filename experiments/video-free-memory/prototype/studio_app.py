@@ -760,8 +760,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--pack-budget",
         type=int,
-        default=None,
-        help="default memory pack size in tokens (e.g. 2000/4000/8000); "
+        default=4000,
+        help="default memory pack size in tokens (default 4000, e.g. 2000/4000/8000); "
         "all three variants are always exported",
     )
     parser.add_argument("--max-upload-gb", type=float, default=2.0)
