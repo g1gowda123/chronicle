@@ -674,24 +674,43 @@ def answer_after(
 
 
 def answer_window(store: EventStore, query: str, t: float) -> Answer:
-    radius = 8.0
-    lo = bisect.bisect_left(store.times, t - radius)
-    hi = bisect.bisect_right(store.times, t + radius)
-    rows = store.events[lo:hi]
-    if len(rows) < 2:
+    """Answer around a time, separating a tight event window from a caption window.
+
+    A 30 s caption always starts before ``t``; listing those events as if they
+    happened "around t" is misleading. Show the containing caption explicitly,
+    list events within 5 s first, and label farther events as nearest/fallback.
+    """
+
+    tight = 5.0
+    lo = bisect.bisect_left(store.times, t - tight)
+    hi = bisect.bisect_right(store.times, t + tight)
+    near = store.events[lo:hi]
+    radius = tight
+    if not near:
         radius = 20.0
         lo = bisect.bisect_left(store.times, t - radius)
         hi = bisect.bisect_right(store.times, t + radius)
-        rows = store.events[lo:hi]
+    rows = store.events[lo:hi]
     caption = _window_caption(store, t)
     if not rows and caption is None:
         return Answer(query, f"No events recorded around t={t:.1f}s.", method="no-match")
+
     lines = [f"Around t={t:.1f}s:"]
     if caption is not None:
-        lines.append(f"Memory caption: {caption.get('caption') or caption.get('text') or ''}")
-    lines.extend(f"- {caption_for(event)}" for event in rows[:12])
+        start = float(caption.get("t_start") or 0.0)
+        end = float(caption.get("t_end") or start + 30.0)
+        lines.append(
+            f"Caption [{start:.1f}-{end:.1f}s]: "
+            f"{caption.get('caption') or caption.get('text') or ''}"
+        )
+    if near:
+        lines.extend(f"- {caption_for(event)}" for event in near[:12])
+    elif rows:
+        lines.append(f"No state changes within {tight:g}s; nearest events:")
+        lines.extend(f"- {caption_for(event)}" for event in rows[:12])
+
     evidence = _nearest_evidence(store, t)
-    citations = [_citation(event) for event in rows[:12]]
+    citations = [_citation(event) for event in (near or rows)[:12]]
     if caption is not None:
         citations.insert(
             0,
@@ -706,7 +725,7 @@ def answer_window(store: EventStore, query: str, t: float) -> Answer:
         "\n".join(lines),
         citations=citations,
         evidence=[evidence] if evidence else [],
-        confidence=0.8 if caption else 0.75,
+        confidence=0.8 if near else (0.7 if caption else 0.6),
         method="vault-window",
     )
 

@@ -985,9 +985,28 @@
         });
     },
 
-    exportGraphs() {
+    async exportGraphs() {
       this.flash("packing graphs…");
-      window.location.href = "/api/export/graphs.zip";
+      try {
+        const response = await fetch("/api/export/graphs.zip", { cache: "no-store" });
+        if (!response.ok) {
+          const detail = await response.text();
+          throw new Error(detail || "export failed (" + response.status + ")");
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "chronicle_graphs.zip";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        this.flash("export ready · chronicle_graphs.zip");
+      } catch (error) {
+        this.flash("export failed: " + error.message);
+        console.error(error);
+      }
     },
 
     importGraphs(input) {
@@ -1026,6 +1045,17 @@
       this.lastVideoUrl = "__clip-switch__";
       if (this.graph) this.graph.setSelected(null);
       this.closeInspector();
+      const log = byId("chron-chat-log");
+      if (log) {
+        log.innerHTML =
+          '<div class="msg-row" id="chat-clip-note"><span class="ava">' +
+          '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true" width="22" height="22">' +
+          '<path d="M4 24 C 12 10, 36 10, 44 24 C 36 38, 12 38, 4 24 Z" fill="#fffcf4" stroke="#26221a" stroke-width="3"/>' +
+          '<circle cx="24" cy="24" r="8.5" fill="#ffd34d" stroke="#26221a" stroke-width="3"/>' +
+          '<circle cx="24" cy="24" r="3.4" fill="#26221a"/></svg></span>' +
+          '<div><div class="bub">Clip switched — previous answers belong to a different memory. Ask again.</div>' +
+          '<div class="msg-meta">chronicle · context reset</div></div></div>';
+      }
     },
 
     node(nodeId) {
