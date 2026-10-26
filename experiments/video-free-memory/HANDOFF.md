@@ -47,11 +47,12 @@ compact pack with the verified structured answer, timestamped captions, events a
 - The main-UI integration lives on `experiment/video-free-memory`; it is **not merged into `main`**
   yet. See [`docs/MAIN_UI_INTEGRATION.md`](docs/MAIN_UI_INTEGRATION.md).
 - No external benchmark (CapMem/EgoSchema/Ego4D NLQ) has been run.
-- Counts are **bounds** (peak-visible … track count), not verified physical object counts; see
-  `docs/COUNTS.md`.
+- Counts are **bounds + a deduped estimate** (peak-visible … track count, with a physical estimate
+  after cross-label duplicates and one-frame transients where computable); not hand-verified
+  physical counts. See `docs/COUNTS.md`.
 - No paid/fast online VLM baseline; the free Gemini probe was unusable.
-- Full browser E2E for the dashboard (upload → play → seek) is not automated; the headless route
-  test covers upload-folder → compile → ask → download zip → report.
+- The real upload endpoint is covered headlessly (upload → compile → ask → zip/report); only the
+  human browser drag/play/seek click is manual because Playwright/Chromium is not installed.
 
 ---
 
@@ -293,10 +294,11 @@ flags and measurements.
 5. ~~Preserve the uploaded video for playback; make deletion optional.~~ **DONE** —
    `--vfm-delete-video` is opt-in and refuses paths outside `<data-dir>/uploads/`.
 6. Browser E2E: upload → wait → play → seek → ask → download zip → unzip/open report.
-   **Partial** — `tests/test_vfm.py` covers compile → status/report → ask → zip/vault/evidence
-   downloads headlessly. Memory-tab citation chips call `video_player.seek(t)` + `play()`, and the
-   nearest evidence image is shown under the answer. The real browser drag/play/seek step is still
-   manual; Playwright is not installed in this environment.
+   **DONE (headless HTTP) + manual visual step.** The real NiceGUI upload endpoint was posted a
+   generated clip: upload 200 → ingest → auto-compile `done`/100 % → `/source-video` 200 →
+   `/vfm/report` 200 → zip 200 → `/vfm/ask` 200. Memory-tab citation chips call
+   `video_player.seek(t)` + `play()`, and the nearest evidence image is shown under the answer.
+   Only the human drag/play/seek click is manual; Playwright/Chromium is not installed.
 
 ### P1 — correctness / evaluation
 

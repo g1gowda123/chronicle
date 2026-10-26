@@ -84,8 +84,10 @@ Headless coverage (`tests/test_vfm.py`, 10 tests):
 - `--no-vfm` disables routes; the ingest callback is wired to the manager;
 - CLI flags parse.
 
-Not automated: real browser upload → play → seek. The existing upload handler
-is unchanged; the route test covers the compile/ask/download half.
+The real upload endpoint is exercised headlessly (see the live HTTP upload E2E below). Only the
+human browser drag/drop and the visual play/seek click are not automated, because
+Playwright/Chromium is not installed. The existing upload handler is unchanged; the route test
+covers compile/ask/download.
 
 ## Measured on this machine
 
@@ -98,6 +100,23 @@ is unchanged; the route test covers the compile/ask/download half.
 | experiment suite | 19 passed |
 | **live server, synthetic auto-run** | ingest → auto-compile in ~13 s; 11.9 s clip, 1 caption window (3.2 KB ledger), 26 KB vault, 8 WebP (134 KB), 589-token pack, 377 KB report, 327 KB zip; `where are the keys?` → `vault-where` in 0.38 ms |
 | live routes | `/vfm/status` done/100 %, `/vfm/report` 200 (377 KB), `/vfm/download/memory.zip` 200 (327 KB); page contains Memory tab + all Export items |
+| **live HTTP upload E2E** | posted a 5.6 KB generated clip to the real `/_nicegui/client/.../upload/85` endpoint: 200, source registered, ingest → auto-compile reached done/100 %, `/source-video` 200 (`video/mp4`), `/vfm/report` 200, `/vfm/download/memory.zip` 200 (12.9 KB, 8 entries), `/vfm/ask` 200 (`vault-keyword`, 0.45 ms) |
+
+### Live HTTP upload E2E (2026-10-27)
+
+No browser automation was needed to exercise the real upload handler:
+
+1. Start the dashboard from the worktree with a temp data dir.
+2. `GET /` and read the video upload URL
+   (`/_nicegui/client/<client>/upload/<element>`; the video uploader is the second/last one).
+3. `POST` a generated MP4 to that URL.
+4. Poll `load_upload_sources()` + `GET /vfm/status/<key>`.
+5. Fetch `/source-video`, `/vfm/report`, `/vfm/download/memory.zip` and `POST /vfm/ask`.
+
+Result: upload 200, compile `done`/100 %, player source 200 (`video/mp4`), report 200,
+zip 200 (8 entries), ask 200. The generated clip had no detectable object events, so evidence was
+empty; captions/ledger/pack still worked. The human drag/play/seek step remains manual only
+because Playwright/Chromium is not installed.
 
 The numbers are regression evidence, not a new benchmark.
 

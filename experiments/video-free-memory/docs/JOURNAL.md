@@ -878,3 +878,19 @@ plates and no bowls on the counter.
 - P0-VFM-UI released. Only the real-browser drag/play/seek step remains manual (Playwright not
   installed); citation chips call `video_player.seek()` and the headless route test covers the
   compile → ask → download chain.
+
+### Session 6 final E2E — real upload endpoint
+
+Started the dashboard from the worktree (`serve --source synthetic`, temp data dir, port 8124),
+fetched `/`, parsed the video uploader URL (`/_nicegui/client/<client>/upload/85`) and posted a
+5.6 KB generated MP4 with `curl -F`.
+
+- upload: 200 `{"upload":"success"}`; source folder created and registered.
+- ingest → auto-VFM compile: `done`/100 % after ~24 s (real captioner, 1 window).
+- `/source-video`: 200, `video/mp4` (5.6 KB) — playback source available.
+- `/vfm/report`: 200 (22.6 KB); `/vfm/download/memory.zip`: 200 (12.9 KB, 8 entries).
+- `/vfm/ask` "what is in the video?": 200, `vault-keyword`, 0.45 ms, caption citation at t=0.0 s.
+- The generated clip had no detectable object events, so evidence was empty; captions/ledger/pack
+  still worked. That is expected for a synthetic rectangle clip.
+- Server stopped. This closes P0 item 6 at the HTTP level; only the human drag/play/seek click is
+  not automated (Playwright/Chromium absent).
