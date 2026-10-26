@@ -394,6 +394,11 @@ python -m unittest discover -s tests -v   # Role C suite without pytest
 
 ## Video-free memory (VFM)
 
+Architecture note (LaTeX/PDF, 16 references): [`docs/VFM_ARCHITECTURE.pdf`](docs/VFM_ARCHITECTURE.pdf)
+— what is stored, compile/query flow, count bounds, UI integration and the papers behind it.
+Rebuild with `docs/build-vfm-architecture.sh`.
+
+
 The dashboard can compile a small, queryable memory from the current run or an uploaded video:
 packed events, dense VLM captions, 480 px WebP evidence, a single-file HTML report and an
 LLM-ready pack. The source video is kept for playback; it is not required to answer questions.
