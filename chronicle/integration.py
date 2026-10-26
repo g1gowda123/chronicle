@@ -27,6 +27,7 @@ import csv
 import io
 import json
 import logging
+import os
 import threading
 import time
 import urllib.request
@@ -903,10 +904,16 @@ class ChronicleRuntime:
                 if self._pipeline is not None
                 else None
             )
+            embedder_backend = os.getenv("CHRONICLE_EMBEDDER_BACKEND")
+            if not embedder_backend:
+                if self.perception_config and self.perception_config.embedder.backend == "color":
+                    embedder_backend = "deterministic"
+                else:
+                    embedder_backend = "auto"
             self._semantic = SemanticEngine(
                 config=config,
                 captioner_backend="auto",
-                embedder_backend="auto",
+                embedder_backend=embedder_backend,
                 embedder=embedder,
                 on_event=self._on_semantic_event,
             )
