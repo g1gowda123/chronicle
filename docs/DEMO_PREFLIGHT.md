@@ -66,7 +66,7 @@ PASS  Smoke run               synthetic · 30 frames · 117.6 fps · 4 entities 
 Summary: 16 PASS · 0 WARN · 0 FAIL · 0 SKIP
 Result: READY
 Next:
-  ./chronicle.sh start tabletop
+  ./chronicle.sh pipeline tabletop
 ```
 
 If `Evidence` warns, the answers will use on-demand video-frame extraction
@@ -95,7 +95,7 @@ bounded ingestion) to write `evidence/` beside the episode database.
 1. **30 minutes before:** `./chronicle.sh preflight --warm-llm`
 2. **Fix every `FAIL`.** A `WARN` is acceptable only if you know which fallback
    will show on screen.
-3. **Start the canonical operator dashboard:** `./chronicle.sh start tabletop`
+3. **Start the canonical operator dashboard:** `./chronicle.sh pipeline tabletop`
 4. **Open** <http://127.0.0.1:8080> and confirm the source dropdown lists
    `synthetic`, `tabletop`, `cook`, `play`, `walking`. The zine mission control
    (`./chronicle.sh mission`, port 8081) is optional and separate; it is not
