@@ -318,6 +318,20 @@ python run_dashboard.py --replay data/real/cook.events.jsonl
 
 The session header in the event file supplies the video, title and duration, so
 the feed, overlays, timeline and chat all follow that clip.
+
+For an on-site recording, drop it at ``data/real/lab/lab_demo.mp4``, ingest it
+with the production stack (``chronicle run --source lab --detector yolo-world``),
+then pick **Computer lab · recorded demo** in the CLIP menu. The replay timeline
+is built from the clip's database automatically; it is generated once and
+reused on every replay (no re-processing when the video loops).
+
+The default detector vocabulary covers everyday egocentric objects plus a
+computer-lab set: bag, wallet, notebook, pen, book, glasses, monitor, laptop,
+mouse, keyboard, headphones, charger, cable, router, whiteboard, chair, shelf,
+cabinet, door, window, trash can. More tags do not make the answer model
+hallucinate — they only widen the detector's recall (with a few more false
+positives); answers still require a graph citation or fall back to "not in my
+memory".
 The **canonical demo surface remains `./chronicle.sh start` / `chronicle serve`
 on port 8080**; mission control is an optional parallel view, not a replacement
 for the operator dashboard. See

@@ -151,6 +151,28 @@ SOURCES: tuple[ClipSource, ...] = (
             "what did I see?",
         ),
     ),
+    ClipSource(
+        key="lab",
+        label="Computer lab · recorded demo",
+        badge="LIVE DEMO",
+        caption="Computer-lab walkthrough · recorded on site",
+        description=(
+            "Drop the on-site recording at data/real/lab/lab_demo.mp4, then run "
+            "`chronicle run --source lab` to build its memory. The vocabulary "
+            "covers bags, laptops, monitors, mice, keyboards, cables and more."
+        ),
+        relative_path="real/lab/lab_demo.mp4",
+        relative_db="real/lab/chronicle.db",
+        zone_label="Computer Lab",
+        vocabulary=DEFAULT_VOCABULARY,
+        questions=(
+            "where is the laptop?",
+            "where is the bag?",
+            "what is on the desk?",
+            "what did I see?",
+        ),
+        real=True,
+    ),
 )
 
 
