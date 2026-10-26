@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from nicegui import app, run, ui
 
 from chronicle.integration import ChronicleRuntime
@@ -216,14 +216,40 @@ def _graph_options(snapshot: dict[str, Any]) -> dict[str, Any]:
         node_type = str(node.get("group") or "entity")
         state = str(node.get("state") or "")
         color = STATE_COLORS.get(state) if node_type == "entity" else GROUP_COLORS.get(node_type)
+        if node_type == "furniture":
+            symbol = "roundRect"
+            size = [42, 22]
+            item_style = {
+                "color": color or "#f59e0b",
+                "borderColor": "#fbbf24",
+                "borderWidth": 1.5,
+            }
+            label_cfg = {"show": True, "fontSize": 10, "color": "#fef08a"}
+        elif node_type == "zone":
+            symbol = "diamond"
+            size = 38
+            item_style = {"color": color or "#2dd4bf"}
+            label_cfg = {"show": True, "fontSize": 11, "color": "#5eead4"}
+        elif node_type == "agent":
+            symbol = "pin"
+            size = 34
+            item_style = {"color": color or "#e879f9"}
+            label_cfg = {"show": True, "fontSize": 11, "color": "#f5d0fe"}
+        else:
+            symbol = "circle"
+            size = 34
+            item_style = {"color": color or "#94a3b8"}
+            label_cfg = {"show": True, "fontSize": 11, "color": "#e2e8f0"}
+
         data.append(
             {
                 "id": node["id"],
                 "name": node.get("label", node["id"]),
                 "category": category_index.get(node_type, 0),
-                "symbolSize": 34 if node_type == "entity" else 22,
-                "itemStyle": {"color": color or "#94a3b8"},
-                "label": {"show": node_type != "furniture"},
+                "symbol": symbol,
+                "symbolSize": size,
+                "itemStyle": item_style,
+                "label": label_cfg,
             }
         )
     links = [
@@ -352,8 +378,32 @@ def create_app(
     detector_backend: str = "auto",
     hands_backend: str = "auto",
     embedder_backend: str = "auto",
-) -> None:
+    start_server: bool = True,
+) -> DashboardState:
     data_root = Path(data_dir).expanduser().resolve()
+    try:
+        from nicegui import core
+
+        if not hasattr(core.app.config, "prod_js"):
+            core.app.config.add_run_config(
+                reload=False,
+                title="Chronicle — episodic memory",
+                viewport="width=device-width, initial-scale=1",
+                favicon="🕸️",
+                dark=True,
+                language=None,
+                binding_refresh_interval=0.1,
+                reconnect_timeout=3.0,
+                message_history_length=1000,
+                cache_control_directives="public, max-age=31536000",
+                tailwind=True,
+                unocss=None,
+                prod_js=True,
+                show_welcome_message=False,
+                markdown=False,
+            )
+    except Exception:
+        pass
     custom: ClipSource | None = None
     if video is not None:
         video_path = Path(video).expanduser().resolve()
@@ -400,6 +450,39 @@ def create_app(
             path,
             media_type="video/mp4",
             headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/export/snapshot.json")
+    def _export_snapshot_json() -> Response:
+        with state.lock:
+            runtime = state.runtime
+        content = runtime.export_snapshot_json()
+        return Response(
+            content=content,
+            media_type="application/json",
+            headers={"Content-Disposition": 'attachment; filename="chronicle_snapshot.json"'},
+        )
+
+    @app.get("/export/entities.csv")
+    def _export_entities_csv() -> Response:
+        with state.lock:
+            runtime = state.runtime
+        content = runtime.export_entities_csv()
+        return Response(
+            content=content,
+            media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="chronicle_entities.csv"'},
+        )
+
+    @app.get("/export/actions.csv")
+    def _export_actions_csv() -> Response:
+        with state.lock:
+            runtime = state.runtime
+        content = runtime.export_actions_csv()
+        return Response(
+            content=content,
+            media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="chronicle_actions.csv"'},
         )
 
     def _switch_source(source: ClipSource) -> bool:
@@ -466,7 +549,10 @@ def create_app(
                     "text-teal-300 text-[10px]"
                 )
 
-    @ui.page("/")
+    if not hasattr(app.config, "markdown"):
+        app.config.markdown = False
+
+    @ui.page("/", markdown=False)
     def index() -> None:
         ui.dark_mode().enable()
         ui.colors(primary="#2dd4bf", secondary="#38bdf8", accent="#f59e0b")
@@ -505,11 +591,40 @@ def create_app(
                 camera_chip = ui.badge("CAM · —").props("outline").classes(
                     "text-xs chronicle-mono"
                 )
+                queue_chip = ui.badge("QUEUE · 0").props("outline").classes(
+                    "text-xs chronicle-mono"
+                )
+                with queue_chip:
+                    queue_tip = ui.tooltip("Role C verification queue: depth 0")
+
                 llm_chip = ui.badge("LLM · CHECKING").props("outline").classes(
                     "text-xs chronicle-mono"
                 )
                 with llm_chip:
                     llm_tip = ui.tooltip("Local model status")
+
+                with ui.button("Export", icon="download").props(
+                    "outline dense size=sm no-caps"
+                ).classes("text-xs chronicle-mono text-teal-300"):
+                    with ui.menu().classes("dark chronicle-card"):
+                        ui.menu_item(
+                            "Snapshot (JSON)",
+                            on_click=lambda: ui.download(
+                                "/export/snapshot.json", "chronicle_snapshot.json"
+                            ),
+                        )
+                        ui.menu_item(
+                            "Entities (CSV)",
+                            on_click=lambda: ui.download(
+                                "/export/entities.csv", "chronicle_entities.csv"
+                            ),
+                        )
+                        ui.menu_item(
+                            "Actions (CSV)",
+                            on_click=lambda: ui.download(
+                                "/export/actions.csv", "chronicle_actions.csv"
+                            ),
+                        )
 
         with ui.column().classes("w-full max-w-[1440px] mx-auto px-5 pt-3 gap-3"):
             with ui.card().props("flat").classes("chronicle-card w-full"):
@@ -597,7 +712,26 @@ def create_app(
                     "flex:11 1 0;min-width:0;height:500px;display:flex;flex-direction:column"
                 ):
                     with ui.row().classes("w-full items-center justify-between gap-2"):
-                        ui.label("Memory graph").classes("chronicle-title")
+                        with ui.row().classes("items-center gap-2"):
+                            ui.label("Memory graph").classes("chronicle-title")
+                            ui.button(
+                                "JSON",
+                                icon="file_download",
+                                on_click=lambda: ui.download(
+                                    "/export/snapshot.json", "chronicle_snapshot.json"
+                                ),
+                            ).props("flat dense size=xs no-caps").classes(
+                                "text-slate-400 text-[10px]"
+                            ).tooltip("Download graph snapshot JSON")
+                            ui.button(
+                                "CSV",
+                                icon="table_view",
+                                on_click=lambda: ui.download(
+                                    "/export/entities.csv", "chronicle_entities.csv"
+                                ),
+                            ).props("flat dense size=xs no-caps").classes(
+                                "text-slate-400 text-[10px]"
+                            ).tooltip("Download entities CSV")
                         pipeline_label = ui.label("").classes(
                             "text-[10px] chronicle-mono text-slate-500 truncate"
                         )
@@ -769,6 +903,21 @@ def create_app(
                 stat_cards["zones"].text = str(stats.get("zones", 0))
                 stat_cards["furniture"].text = str(len(snapshot.get("furniture", [])))
 
+                verification = snapshot.get("verification", {})
+                q_depth = int(verification.get("depth", 0) or 0)
+                q_dropped = int(verification.get("dropped", 0) or 0)
+                q_verified = int(verification.get("verified", 0) or 0)
+                if q_dropped > 0:
+                    queue_chip.text = f"QUEUE · {q_depth} ({q_dropped} drop)"
+                    queue_chip.props("color=warning")
+                else:
+                    queue_chip.text = f"QUEUE · {q_depth}"
+                    queue_chip.props("color=positive" if q_depth == 0 else "color=info")
+                queue_tip.text = (
+                    f"Verification queue: {q_depth} pending · "
+                    f"{q_verified} verified · {q_dropped} dropped"
+                )
+
                 now = __import__("time").monotonic()
                 if now - last_llm_check > 5.0:
                     last_llm_check = now
@@ -877,14 +1026,16 @@ def create_app(
         ui.timer(1.0, refresh)
         refresh()
 
-    ui.run(
-        host=host,
-        port=port,
-        show=show,
-        reload=False,
-        title="Chronicle — episodic memory",
-        favicon="🕸️",
-    )
+    if start_server:
+        ui.run(
+            host=host,
+            port=port,
+            show=show,
+            reload=False,
+            title="Chronicle — episodic memory",
+            favicon="🕸️",
+        )
+    return state
 
 
 __all__ = ["create_app"]

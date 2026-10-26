@@ -276,6 +276,51 @@ class RuntimeQueueSeamTest(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_runtime_snapshot_and_export_include_verification_telemetry(self) -> None:
+        engine = SemanticEngine(
+            config=SemanticConfig(llm_backend="template"),
+            captioner=StubCaptioner("the hand picks up the keys"),
+            chat_client=None,
+            embedder_backend="deterministic",
+            captioner_backend="stub",
+        )
+        runtime = ChronicleRuntime(
+            ":memory:", semantic=engine, reset=True, load=False
+        )
+        try:
+            clip = make_clip("runtime-test-1")
+            clip.frames = [
+                FrameSample(
+                    image=Image.new("RGB", (24, 24), (50, 50, 50)),
+                    timestamp=float(i),
+                    index=i,
+                )
+                for i in range(4)
+            ]
+            runtime._queue_clip(clip)
+            snapshot = runtime.snapshot()
+            self.assertIn("verification", snapshot)
+            self.assertEqual(snapshot["stats"]["verification_queue_depth"], 1)
+            self.assertEqual(snapshot["verification"]["depth"], 1)
+
+            # JSON export
+            exported_json = runtime.export_snapshot_json()
+            self.assertIn('"verification_queue_depth": 1', exported_json)
+
+            # Drain and verify stats update
+            runtime._drain_clips()
+            snapshot2 = runtime.snapshot()
+            self.assertEqual(snapshot2["stats"]["verification_queue_depth"], 0)
+            self.assertEqual(snapshot2["stats"]["verification_verified"], 1)
+
+            # CSV exports
+            csv_entities = runtime.export_entities_csv()
+            self.assertIn("id,label,state,zone,anchor,container,span", csv_entities)
+            csv_actions = runtime.export_actions_csv()
+            self.assertIn("id,timestamp,action,entity,caption,source", csv_actions)
+        finally:
+            runtime.close()
+
 
 if __name__ == "__main__":
     unittest.main()
