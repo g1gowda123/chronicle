@@ -60,6 +60,20 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 - Import is covered by model-free tests (`tests/test_snapshot_io.py`) and the
   receipt reports entity/action/zone counts.
 
+### TASK-C2 — action-timeline evaluation
+
+- `chronicle/semantic/timeline.py` scores `snapshot()["actions"]` (or a
+  predictions export) against a hand-labelled JSON timeline using greedy
+  nearest-time matching, tolerance, precision/recall, mean timestamp error and
+  entity/container accuracy.
+- Labelled files stay outside the code (`docs/action_timeline.example.json`);
+  `python -m chronicle.semantic.timeline --labels ... --snapshot ...` exits 0
+  only when every label is matched with no extras, so CI can gate the Role C
+  "done when" bar.
+- The runtime smoke (`chronicle run --source synthetic`) exports a snapshot that
+  matches the bundled label at 0.07 s error; `tests/test_timeline.py` covers
+  matching, loaders and CLI exit codes without models.
+
 ## Dynamic Task Notice Board (Priority Queue)
 
 > **Team Notice Board:** Anyone finishing early can claim the next highest-priority `[READY]` ticket or post a new task below.
@@ -72,6 +86,7 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 |---|---|---|---|---|---|
 | **TASK-B1** | **P0** | **Dual furniture fixtures & SQLite persistence**<br>Add regression tests for 2 co-visible sofas remaining distinct during consolidation sweep, sequential duplicate merging on pan re-entry, and alias restoration across SQLite reopen blocking anchor re-minting. | `tests/test_consolidation.py`<br>`chronicle/graph/consolidation.py` | `[DONE (0636492)]` | karthiknk7019 |
 | **TASK-C1** | **P0** | **Verification queue depth telemetry in snapshot**<br>Expose `verification_stats` (`depth`, `dropped`, `avg_latency_ms`) in `ChronicleRuntime.snapshot()` and `snapshot()["stats"]`. Add queue depth regression test. | `chronicle/integration.py`<br>`tests/test_verification_queue.py` | `[DONE (ee9fed7)]` | karthiknk7019 |
+| **TASK-C2** | **P0** | **Action-timeline evaluation harness**<br>Score verified actions against a hand-labelled timeline (tolerance, precision/recall, timestamp error, entity/container agreement) from a snapshot export or predictions file, with a CI-gating CLI. | `chronicle/semantic/timeline.py`<br>`tests/test_timeline.py` | `[DONE (b7f2c70)]` | karthiknk7019 |
 | **TASK-D1** | **P0** | **JSON & CSV memory graph export**<br>Add export methods to runtime (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`) and `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv` endpoints + UI download buttons in NiceGUI header/card. | `chronicle/integration.py`<br>`chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D2** | **P1** | **Distinct furniture anchor styling in graph**<br>Render background furniture anchors with distinct shape (rounded rectangle) and golden border (`#f59e0b`) so they are immediately visually distinct from episodic entities with lifecycles. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D3** | **P1** | **Queue depth badge & UI error/empty states**<br>Add verification queue depth chip in dashboard header; show friendly empty/stopped/error states when video is missing or query fails. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
@@ -164,27 +179,34 @@ location.
 - [x] Emit queue depth / verification latency on the telemetry bus so the
   dashboard can show it. `QUEUE_DEPTH`, `QUEUE_BACKPRESSURE`,
   `VERIFICATION_LATENCY`, plus `runtime.verification_stats`.
+- [x] Measure the “done when” bar: `chronicle/semantic/timeline.py` matches
+  verified actions to a labelled timeline (precision/recall, timestamp error,
+  entity/container agreement) and gates CI via its CLI. Remaining input is the
+  labelled HoloLens pass (`docs/action_timeline.example.json` shows the format).
 
 **Done when:** the HoloLens clip’s verified actions match the labelled timeline
 within tolerance, and a hallucinated timestamp is always rejected.
 
 **Role C note (this push):** all six items landed with model-free tests
 (`tests/test_verification_queue.py`, `tests/test_calibration.py`,
-`tests/test_evaluation.py`). Pushed as `9ae1e5e`; current verification on the
-merged tree is `pytest` 215 collected (214 passed, 1 dashboard test skipped
-without the `ui` extra), `unittest discover -s tests` 109 passed, `ruff check
-chronicle tests` clean, and `chronicle.semantic.demo` /
-`chronicle.semantic.evaluation` both exit 0 (7/7 cases, 100 % citation
-precision), plus a full `chronicle run --source synthetic --ask ...` smoke.
-`snapshot()` now embeds `verification_stats` (TASK-C1, `ee9fed7`), so the
-dashboard can poll queue depth/dropped/latency without a second call. Labelled
-captions can be calibrated from a JSON/JSONL file with
+`tests/test_evaluation.py`), plus TASK-C2’s action-timeline harness
+(`tests/test_timeline.py`). Verification on the merged tree: `pytest` 232
+collected (231 passed, 1 dashboard test skipped without the `ui` extra),
+`unittest discover -s tests` 122 passed, `ruff check chronicle tests` clean,
+`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (7/7 cases,
+100 % citation precision), and `chronicle.semantic.timeline` reports PASS
+(1/1 label, 0.07 s error) on a snapshot exported from
+`chronicle run --source synthetic --max-frames 360`. `snapshot()` now embeds
+`verification_stats` (TASK-C1, `ee9fed7`), so the dashboard can poll queue
+depth/dropped/latency without a second call. Labelled captions can be calibrated
+from a JSON/JSONL file with
 `python -m chronicle.semantic.calibration --labels <file>` (see
-`docs/calibration_labels.example.json`), which unblocks calibrating on the
-HoloLens timeline without code changes. The only cross-role edit is the
-internal `_clip_queue` / `_drain_clips` seam in `chronicle/integration.py`
-(bounded queue + latency marks). Ambient caption phrasing still needs a
-labelled HoloLens pass before the “done when” line can be ticked.
+`docs/calibration_labels.example.json`), and the timeline scorer takes the same
+kind of external label file, so calibrating and gating on the HoloLens pass need
+no code changes. The only cross-role edit is the internal `_clip_queue` /
+`_drain_clips` seam in `chronicle/integration.py` (bounded queue + latency
+marks). Ambient caption phrasing still needs a labelled HoloLens pass before the
+“done when” line can be ticked.
 
 ### Role D — dashboard and product surface
 
