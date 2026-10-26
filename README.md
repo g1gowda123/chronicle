@@ -138,7 +138,8 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   │   └── engine.py                       # facade + telemetry events
 │   └── ui/                                 # Role D NiceGUI dashboard
 │       ├── app.py                          # graph, timeline, tables, chat, log
-│       └── graph_view.py                   # zone-clustered ECharts payloads
+│       ├── graph_view.py                   # zone-clustered ECharts payloads
+│       └── snapshot_io.py                  # validated snapshot import
 ├── docs/
 │   ├── PERCEPTION.md                       # Role A contract
 │   ├── ROLE_B.md                           # Role B integration contract
@@ -234,7 +235,8 @@ tables, pipeline log and grounded GraphRAG chat from the same
 deterministic embeddings and template GraphRAG when models are unavailable.
 `chronicle serve --source tabletop` uses the real HoloLens clip. The memory
 graph clusters entities and furniture around fixed room anchors, so switching
-between zones stays visually legible.
+between zones stays visually legible. Snapshots can be exported as JSON/CSV or
+re-imported from the header without re-running the pipeline.
 
 Headless smoke test:
 

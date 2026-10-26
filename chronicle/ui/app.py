@@ -31,6 +31,7 @@ from chronicle.sources import (
 )
 from chronicle.ui.graph_view import graph_options as _graph_options
 from chronicle.ui.graph_view import timeline_options as _timeline_options
+from chronicle.ui.snapshot_io import SnapshotImportError, parse_snapshot, snapshot_summary
 
 
 @dataclass
@@ -404,6 +405,50 @@ def create_app(
             "</style>"
         )
 
+        async def _import_snapshot(event: Any) -> None:
+            file = getattr(event, "file", None)
+            if file is None:
+                ui.notify("No file received", type="negative")
+                return
+            try:
+                payload = parse_snapshot(await file.text())
+            except SnapshotImportError as exc:
+                ui.notify(f"Import failed: {exc}", type="negative")
+                return
+            except Exception as exc:  # defensive: upload/stream failure
+                ui.notify(f"Could not read file: {exc}", type="negative")
+                return
+            state.stop()
+            with state.lock:
+                runtime = state.runtime
+            try:
+                await run.io_bound(runtime.load_snapshot_json, payload)
+            except Exception as exc:
+                ui.notify(f"Import failed: {type(exc).__name__}: {exc}", type="negative")
+                return
+            import_upload.reset()
+            import_dialog.close()
+            ui.notify(snapshot_summary(payload), type="positive")
+
+        with ui.dialog() as import_dialog, ui.card().classes("dark chronicle-card").style(
+            "min-width:390px;max-width:480px"
+        ):
+            ui.label("Import snapshot").classes("text-sm font-semibold")
+            ui.label(
+                "Upload a chronicle_snapshot.json exported from this dashboard. "
+                "The graph is reloaded from the file without re-ingesting video."
+            ).classes("text-xs text-slate-400")
+            import_upload = ui.upload(
+                label="chronicle_snapshot.json",
+                on_upload=_import_snapshot,
+                auto_upload=True,
+                max_file_size=8 * 1024 * 1024,
+            ).props("accept=.json flat dense").classes("w-full")
+            with ui.row().classes("w-full justify-end"):
+                ui.button("Cancel", on_click=import_dialog.close).props(
+                    "flat dense no-caps"
+                ).classes("text-xs")
+
         with ui.header().classes("items-center px-6 py-2").style(
             "background:rgba(7,11,17,.92);border-bottom:1px solid rgba(148,163,184,.12)"
         ):
@@ -434,6 +479,12 @@ def create_app(
                 )
                 with llm_chip:
                     llm_tip = ui.tooltip("Local model status")
+
+                ui.button("Import", icon="upload", on_click=import_dialog.open).props(
+                    "outline dense size=sm no-caps"
+                ).classes("text-xs chronicle-mono text-slate-300").tooltip(
+                    "Reload an exported snapshot without re-ingesting video"
+                )
 
                 with ui.button("Export", icon="download").props(
                     "outline dense size=sm no-caps"

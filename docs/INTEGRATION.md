@@ -102,6 +102,15 @@ force graph by room; the field is additive and safe for older consumers.
 is covered by model-free tests without the optional `ui` extra
 (`tests/test_graph_view.py`).
 
+## Snapshot import
+
+The dashboard's **Import** button accepts an exported
+`chronicle_snapshot.json`, stops the current ingestion, and calls
+`runtime.load_snapshot_json()` with the parsed payload. Validation lives in
+`chronicle/ui/snapshot_io.py` (`parse_snapshot`): the file must be UTF-8 (BOM
+allowed), a JSON object, and contain `nodes` and `entities` lists. Invalid files
+surface a notification and leave the current graph untouched.
+
 ## Query normalization
 
 Role B returns `QueryResult.edges` with `src`/`dst`/`t_start`. Role C expects
