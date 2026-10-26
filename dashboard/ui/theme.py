@@ -83,7 +83,7 @@ def topbar_html(session: dict[str, Any], snapshot: dict[str, Any]) -> str:
     <span class="metric" title="VLM actions verified"><span class="metric-val" id="metric-actions">—</span><span class="metric-label">actions</span></span>
   </div>
   <div class="topbar-spacer"></div>
-  <span class="chipz chipz-secondary" title="episode · query provider" id="chron-episode">{title} · {provider}</span>
+  <span class="chipz chipz-secondary" title="episode · query provider"><span id="chron-episode-title">{title}</span> · <span id="chron-provider-chip">{provider}</span></span>
   <span class="chipz chipz-lg status-pill {pill_cls}" id="chron-mode">
     <span class="pill-dot"></span><span id="chron-mode-badge">{_e(pill_label.upper())}</span>
   </span>
@@ -101,8 +101,6 @@ def topbar_html(session: dict[str, Any], snapshot: dict[str, Any]) -> str:
 # --------------------------------------------------------------------------- #
 
 VIDEO_HUD_HTML = """
-<div class="gloss"></div>
-<div class="scanline"></div>
 <div class="video-overlay" id="chron-overlay"></div>
 <div class="hud">
   <div class="hud-row">
@@ -131,7 +129,31 @@ VIDEO_HUD_HTML = """
 """.strip()
 
 
-def video_html(snapshot: dict[str, Any]) -> str:
+def clip_menu_html(options: list[dict[str, str]], active: str = "") -> str:
+    """Clip switcher dropdown (recorded replay timelines)."""
+    selected = active or (options[0].get("path") if options else "")
+    items = "".join(
+        f'<option value="{_e(option.get("path"))}"'
+        f'{" selected" if option.get("path") == selected else ""}>'
+        f'{_e(option.get("title"))}</option>'
+        for option in options
+    )
+    return f"""
+<label class="clip-switch" title="Switch the recorded clip replayed on the stage">
+  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <rect x="2" y="3.5" width="12" height="9" rx="1.8" stroke="currentColor" stroke-width="1.7"/>
+    <path d="M6.6 6.3 L10.4 8 L6.6 9.7 Z" fill="currentColor"/>
+  </svg>
+  <span>clip</span>
+  <select id="chron-clip" onchange="Chronicle.setClip(this.value)" aria-label="Choose clip">
+    {items}
+  </select>
+</label>
+""".strip()
+
+
+def video_html(snapshot: dict[str, Any], replays: list[dict[str, str]] | None = None,
+               active_replay: str = "") -> str:
     """The big stage card: video, boxes, HUD, transport, scrub and toolbar."""
     src = snapshot.get("video_url") or ""
     video = (
@@ -151,15 +173,17 @@ def video_html(snapshot: dict[str, Any]) -> str:
         if not src
         else ""
     )
+    options = replays or []
+    switcher = clip_menu_html(options, active_replay) if options else (
+        '<span class="chipz chipz-mint"><span class="dot"></span>stream synced</span>'
+    )
     return f"""
 <div class="zcard card-pad video-card rot-l">
   <div class="tape tape-sky" style="width:110px"></div>
   <div class="card-head">
-    <h2 class="card-title">{_e(snapshot.get("title") or "Chronicle Episode")}
+    <h2 class="card-title"><span id="chron-video-title">{_e(snapshot.get("title") or "Chronicle Episode")}</span>
       <span class="card-note">the head-cam feed</span></h2>
-    <div class="head-right">
-      <span class="chipz chipz-mint"><span class="dot"></span>stream synced</span>
-    </div>
+    <div class="head-right">{switcher}</div>
   </div>
   <div class="video-stage">
     <div class="video-shell" id="chron-shell" data-camera="STANDBY">

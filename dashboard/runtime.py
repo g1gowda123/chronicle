@@ -246,6 +246,30 @@ class Runtime:
             self.playing = True
             self.seek(max(0.0, min(start, self.duration - 0.05)))
 
+    def load_replay(self, path: str | Path, start: float = 0.0) -> bool:
+        """Switch the demo replay to another recorded ``.events.jsonl`` clip."""
+        replay = Path(path)
+        if not replay.is_absolute():
+            replay = (self.data_dir / replay).resolve()
+        events, session, duration = load_demo_events(replay)
+        if not events:
+            return False
+        with self._lock:
+            self.demo_events = events
+            self.demo_session = session
+            self.demo_duration = duration
+            self.demo_available = True
+            self.mode = "demo"
+            self.live_events = 0
+            self.duration = duration
+            self._reset_demo_session()
+            self.store.clear(keep_session=False)
+            self.demo_idx = 0
+            self.playhead = 0.0
+            self.playing = True
+            self.seek(max(0.0, min(start, self.duration - 0.05)))
+        return True
+
     # ------------------------------------------------------------------ #
     # Ingestion
     # ------------------------------------------------------------------ #

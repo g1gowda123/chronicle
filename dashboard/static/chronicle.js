@@ -631,8 +631,7 @@
             '" onclick="Chronicle.node(this.dataset.nodeId)" style="' +
             "left:" + (offsetX + x1 * contentW).toFixed(2) + "px;top:" +
             (offsetY + y1 * contentH).toFixed(2) + "px;width:" + width.toFixed(2) +
-            "px;height:" + height.toFixed(2) + "px;--obj-color:" + escapeHtml(color) + ";" +
-            "background:" + hexAlpha(color, 0.14) + ';">' +
+            "px;height:" + height.toFixed(2) + "px;--obj-color:" + escapeHtml(color) + ';">' +
             '<span class="obj-tag">' + escapeHtml(label) +
             ' <span class="obj-state">' + escapeHtml(state) + "</span></span></div>"
         );
@@ -721,6 +720,12 @@
       }
       text("t-loop", String(data.source_label || ""));
       text("transport-label", this.playing ? "SYNCED PLAYBACK · LOOP" : "PAUSED · HOLDING MY BREATH");
+      text("chron-video-title", String(data.title || "Chronicle Episode"));
+      text("chron-episode-title", String(data.title || "Chronicle Episode"));
+      if (data.replay) {
+        const clip = byId("chron-clip");
+        if (clip && clip.value !== data.replay) clip.value = data.replay;
+      }
 
       const badge = byId("chron-mode");
       const badgeText = byId("chron-mode-badge");
@@ -839,6 +844,23 @@
         button.classList.toggle("active", button.dataset.mode === next);
       });
       if (window.emitEvent) emitEvent("chron-graph-mode", next);
+    },
+
+    setClip(path) {
+      if (!path) return;
+      if (window.emitEvent) emitEvent("chron-replay", String(path));
+    },
+
+    clipChanged() {
+      /* server loaded another replay clip: drop stale client caches */
+      this.selected = null;
+      this.entities = [];
+      this.markers = [];
+      this.lastHtml = { boxes: "" };
+      this.lastVideoUrl = "__clip-switch__";
+      if (this.overlay) this.overlay.innerHTML = "";
+      if (this.graph) this.graph.setSelected(null);
+      this.closeInspector();
     },
 
     node(nodeId) {

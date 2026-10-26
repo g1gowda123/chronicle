@@ -10,17 +10,67 @@ bottom strip of state changes, actions and vitals.
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import Any
 
 from nicegui import ui
 
-from ..runtime import Runtime, runtime
+from ..runtime import Runtime, default_data_dir, runtime
 from ..store import STATE_COLORS, MemoryStore
 from . import render, theme
 
 LOG_HISTORY = 180
 CAPTION_HOLD_S = 3.4
 MARKERS_LIMIT = 80
+
+
+# --------------------------------------------------------------------------- #
+# Replay clip registry
+# --------------------------------------------------------------------------- #
+
+
+def _session_title(path: Path) -> str:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                payload = json.loads(line)
+                if isinstance(payload, dict) and payload.get("kind") == "session":
+                    return str((payload.get("data") or {}).get("title") or "")
+    except (OSError, json.JSONDecodeError):
+        return ""
+    return ""
+
+
+def _replay_options() -> list[dict[str, str]]:
+    base = default_data_dir()
+    options: list[dict[str, str]] = []
+    demo = base / "demo_events.jsonl"
+    if demo.is_file():
+        options.append(
+            {"path": "demo_events.jsonl", "title": _session_title(demo) or "Kitchen counter · demo"}
+        )
+    for path in sorted(base.rglob("*.events.jsonl")):
+        rel = path.relative_to(base).as_posix()
+        if rel == "demo_events.jsonl":
+            continue
+        options.append({"path": rel, "title": _session_title(path) or path.name})
+    return options
+
+
+def _active_replay(options: list[dict[str, str]]) -> str:
+    env = os.getenv("CHRONICLE_REPLAY") or ""
+    if env:
+        try:
+            rel = Path(env).resolve().relative_to(default_data_dir().resolve()).as_posix()
+            if any(option["path"] == rel for option in options):
+                return rel
+        except (OSError, ValueError):
+            pass
+    return options[0]["path"] if options else ""
 
 
 # --------------------------------------------------------------------------- #
@@ -135,6 +185,7 @@ def _sync_payload(
     graph: dict[str, Any] | None,
     entities: list[dict[str, Any]] | None,
     markers: list[dict[str, Any]] | None,
+    replay: str | None = None,
 ) -> dict[str, Any]:
     t = float(snapshot.get("playhead") or 0.0)
     boxes = store.boxes_at(t)
@@ -158,6 +209,7 @@ def _sync_payload(
         "graph": graph,
         "entities": entities,
         "markers": markers,
+        "replay": replay,
         "suggestions": list(render.SUGGESTIONS),
         "query_provider": snapshot.get("query_provider"),
     }
@@ -212,7 +264,7 @@ def build_dashboard() -> None:
             last_markers_key = mkey
 
         payload = _sync_payload(
-            store, snap, graph=graph, entities=entities, markers=markers
+            store, snap, graph=graph, entities=entities, markers=markers, replay=active_replay
         )
         ui.run_javascript(f"window.Chronicle && window.Chronicle.sync({_json(payload)});")
 
@@ -337,6 +389,22 @@ def build_dashboard() -> None:
         flush_logs()
         sync(force_graph=True)
 
+    def on_replay(event: Any) -> None:
+        nonlocal active_replay, last_graph_key, last_entities_key, last_markers_key
+        args = event.args if isinstance(event.args, list) else [event.args]
+        path = str(args[0]) if args and args[0] else ""
+        if not path or not runtime.load_replay(path):
+            return
+        active_replay = path
+        last_graph_key = None
+        last_entities_key = None
+        last_markers_key = None
+        flush_logs()
+        ui.run_javascript(
+            "window.Chronicle && window.Chronicle.clipChanged();"
+        )
+        sync(force_graph=True)
+
     def on_rate(_: Any = None) -> None:
         rates = (1.0, 0.5, 1.5, 2.0)
         index = rates.index(runtime.rate) if runtime.rate in rates else 0
@@ -362,13 +430,17 @@ def build_dashboard() -> None:
     # ---- layout ------------------------------------------------------- #
 
     initial = snapshot()
+    replay_options = _replay_options()
+    active_replay = _active_replay(replay_options)
 
     with ui.element("div").classes("chron-app"):
         ui.html(theme.topbar_html(store.session, initial), sanitize=False)
 
         with ui.element("div").classes("row-main"):
             with ui.element("div").classes("col-l"):
-                ui.html(theme.video_html(initial), sanitize=False)
+                ui.html(
+                    theme.video_html(initial, replay_options, active_replay), sanitize=False
+                )
                 ui.html(theme.chat_head_html(), sanitize=False)
             with ui.element("div").classes("rail"):
                 ui.html(theme.graph_body_html(), sanitize=False)
@@ -391,6 +463,7 @@ def build_dashboard() -> None:
     ui.on("chron-seek", on_seek)
     ui.on("chron-toggle", on_toggle)
     ui.on("chron-restart", on_restart)
+    ui.on("chron-replay", on_replay)
     ui.on("chron-rate", on_rate)
     ui.on("chron-graph-mode", on_graph_mode)
     ui.on("chron-node", on_node)
