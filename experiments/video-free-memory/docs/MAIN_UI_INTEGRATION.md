@@ -53,7 +53,7 @@ VFM is added **behind** them.
 ```bash
 chronicle serve --source synthetic
 chronicle serve --qwen                  # Qwen over the memory pack
-chronicle serve --no-vfm                # disable the panel entirely
+chronicle serve --no-vfm                # disable VFM compiles/asks (panel inert)
 chronicle serve --vfm-window-s 20 --vfm-frames-per-window 3
 chronicle serve --vfm-max-snapshots 40
 chronicle serve --vfm-delete-video      # opt-in; playback is lost
@@ -68,14 +68,16 @@ python -m pytest -q tests
 cd experiments/video-free-memory && python -m pytest -q tests
 ```
 
-Headless coverage (`tests/test_vfm.py`, 5 tests):
+Headless coverage (`tests/test_vfm.py`, 8 tests):
 
 - compile from a generated graph DB + generated video + fake captioner;
 - vault answers `where is the cup?` with no video and no VLM;
 - zip contains vault, report, pack, CSVs and `evidence/`;
 - background manager status/`job.json`/ask/artifact lookup;
 - delete-video guard refuses non-upload clips;
+- count answers expose track/peak bounds (`vault-count-visibility`);
 - dashboard routes: status, report, zip/vault download, evidence image, ask;
+- `--no-vfm` disables routes; the ingest callback is wired to the manager;
 - CLI flags parse.
 
 Not automated: real browser upload → play → seek. The existing upload handler

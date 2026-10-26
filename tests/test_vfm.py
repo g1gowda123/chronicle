@@ -361,3 +361,68 @@ def test_count_answers_expose_track_and_visibility_bounds(tmp_path: Path) -> Non
     assert answer.method == "vault-count-visibility"
     assert "2 cup tracks" in answer.answer
     assert "visible at the same instant" in answer.answer
+
+
+def test_no_vfm_disables_routes_without_breaking_the_dashboard(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+    from nicegui import app
+
+    from chronicle.ui.app import create_app
+
+    app.router.routes.clear()
+    state = create_app(
+        data_dir=tmp_path,
+        source_key="synthetic",
+        auto_run=False,
+        start_server=False,
+        vfm_enabled=False,
+    )
+    try:
+        assert state.vfm is None
+        assert state.on_ingest_done is None
+        client = TestClient(app)
+        assert client.get("/").status_code == 200
+        status = client.get("/vfm/status/synthetic")
+        assert status.status_code == 200
+        assert status.json() == {"enabled": False, "status": None}
+        assert client.get("/vfm/report/synthetic").status_code == 404
+        assert client.get("/vfm/download/synthetic/memory.zip").status_code == 404
+        assert (
+            client.post(
+                "/vfm/ask/synthetic", json={"question": "where is the cup?"}
+            ).status_code
+            == 404
+        )
+    finally:
+        state.close()
+
+
+def test_ingest_callback_is_wired_to_the_vfm_manager(tmp_path: Path) -> None:
+    from nicegui import app
+
+    from chronicle.ui.app import create_app
+
+    _make_graph_db(tmp_path / "chronicle.db")
+    video = _make_video(tmp_path / "clip.mp4")
+    source = _source(tmp_path)
+
+    app.router.routes.clear()
+    state = create_app(
+        data_dir=tmp_path,
+        source_key="synthetic",
+        auto_run=False,
+        start_server=False,
+    )
+    try:
+        assert state.vfm is not None
+        assert state.on_ingest_done is not None
+        state.vfm.captioner = _fake_captioner
+        # Simulate the ingest worker's post-run callback.
+        state.on_ingest_done(source, video)
+        status = state.vfm.wait(source, timeout=60.0)
+        assert status is not None and status["status"] == "done", status
+        assert state.vfm.artifact(source, "memory.zip") is not None
+    finally:
+        if state.vfm is not None:
+            state.vfm.close()
+        state.close()

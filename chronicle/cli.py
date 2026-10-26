@@ -261,7 +261,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument(
         "--no-vfm",
         action="store_true",
-        help="disable the VFM memory compile/export panel",
+        help="disable VFM compiles/asks (the Memory tab stays visible but inert)",
     )
     serve.add_argument(
         "--vfm-window-s",
