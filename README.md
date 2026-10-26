@@ -2,10 +2,10 @@
 
 An egocentric, episodic memory engine that parses pre-recorded first-person video into a structured, queryable 4D spatio-temporal knowledge graph.
 
-> **Status:** Role A (perception & kinematics) is implemented and tested. The
-> state machine, graph, VLM verification and UI (Roles B–D) are in progress by
-> the rest of the team. See [docs/PERCEPTION.md](docs/PERCEPTION.md) for the
-> Role A contract and integration notes.
+> **Status:** Role A (perception & kinematics) and Role C (semantic engine) are
+> implemented and tested. The state machine/graph (Role B) and UI (Role D) are
+> in progress by the rest of the team. See [docs/PERCEPTION.md](docs/PERCEPTION.md)
+> and [docs/ROLE_C.md](docs/ROLE_C.md) for the integration contracts.
 
 ## Overview
 
@@ -68,22 +68,34 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 ├── Chronicle Technical Specification.pdf   # Full architecture and algorithms
 ├── chronicle/
 │   ├── types.py                            # Shared Role A data contract
-│   └── perception/
-│       ├── motion.py                       # Background-masked affine RANSAC
-│       ├── detector.py                     # YOLO-World + palette fallback
-│       ├── hands.py                        # MediaPipe Tasks + skin fallback
-│       ├── tracker.py                      # Two-stage tracking + Re-ID
-│       ├── interactions.py                 # IoS / dwell interaction gate
-│       ├── clip_buffer.py                  # 30-frame ring + clip assembly
-│       ├── pipeline.py                     # Orchestration / JSONL
-│       ├── stream.py                       # Threaded consumer stream
-│       ├── telemetry.py                    # Telemetry bus + printer
-│       └── cli.py                          # chronicle-perception
-├── docs/PERCEPTION.md                      # Role A contract and integration guide
+│   ├── perception/                         # Role A
+│   │   ├── motion.py                       # Background-masked affine RANSAC
+│   │   ├── detector.py                     # YOLO-World + palette fallback
+│   │   ├── hands.py                        # MediaPipe Tasks + skin fallback
+│   │   ├── tracker.py                      # Two-stage tracking + Re-ID
+│   │   ├── interactions.py                 # IoS / dwell interaction gate
+│   │   ├── clip_buffer.py                  # 30-frame ring + clip assembly
+│   │   ├── pipeline.py                     # Orchestration / JSONL
+│   │   ├── stream.py                       # Threaded consumer stream
+│   │   ├── telemetry.py                    # Telemetry bus + printer
+│   │   └── cli.py                          # chronicle-perception
+│   └── semantic/                           # Role C
+│       ├── vpr.py                          # OpenCLIP place recognition
+│       ├── temporal_strip.py               # 30-frame -> 1x3 composite
+│       ├── actions.py                      # strict action JSON boundary
+│       ├── verification.py                 # Florence-2 + classifier
+│       ├── graphrag.py                     # cited answers from 2-hop subgraph
+│       └── engine.py                       # facade + telemetry events
+├── docs/
+│   ├── PERCEPTION.md                       # Role A contract
+│   └── ROLE_C.md                           # Role C contract
 ├── scripts/
 │   ├── fetch_assets.py                     # Download model weights
 │   └── make_demo.py                        # Render the offline demo clip
-└── tests/                                  # 33 unit/integration tests
+├── tests/                                  # Role A + Role C pytest/unittest suite
+├── requirements-semantic.txt               # Role C demo/test dependencies
+├── requirements-semantic-models.txt        # OpenCLIP + Florence-2 stack
+└── README.md
 ```
 
 Model weights, videos and run outputs are git-ignored.
@@ -98,7 +110,7 @@ uv sync --extra perception --torch-backend cpu   # YOLO-World, MediaPipe, OpenCL
 python scripts/fetch_assets.py
 ```
 
-### Offline synthetic demo
+### Offline synthetic demo (Role A)
 
 No model downloads, no network:
 
@@ -111,6 +123,25 @@ python -m chronicle.perception data/demo/chronicle_demo.mp4 \
 
 You get per-frame JSONL, console telemetry, and hand/keys interaction clips
 with `PRE | CONTACT | POST` composites.
+
+### Offline semantic demo (Role C)
+
+```bash
+pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
+python -m chronicle.semantic.demo
+```
+
+For the real OpenCLIP + Florence-2 stack and optional Ollama GraphRAG:
+
+```bash
+pip install -r requirements-semantic-models.txt
+ollama pull qwen2.5:3b-instruct
+```
+
+Role C consumes Role A's `InteractionClip` directly, including its
+`contact_index` and BGR `ClipFrame` images. See
+[docs/ROLE_C.md](docs/ROLE_C.md) for the Role A/B/D integration contract,
+telemetry payloads, action JSON schema, and configuration.
 
 ### Real footage (production backends)
 
@@ -129,21 +160,23 @@ Run `python -m chronicle.perception --help` for flags. The installed
 
 ```bash
 python -m pytest
-# 33 passed
+python -m unittest discover -s tests -v   # Role C suite without pytest
 ```
 
 ## Role boundaries
 
-- **Role A (this repository now):** video ingestion, motion gating, detection,
+- **Role A (implemented):** video ingestion, motion gating, detection,
   hands, tracking/Re-ID, interaction qualification, ring buffer and clips,
   telemetry.
 - **Role B:** 9-state lifecycle, containment/support reasoning, dual graph,
   persistence and query.
-- **Role C:** event-gated VLM verification, semantic labels and scene memory.
+- **Role C (implemented):** OpenCLIP place recognition, 1×3 temporal strips,
+  Florence-2 action verification with strict JSON, and cited GraphRAG answers.
 - **Role D:** NiceGUI dashboard, graph visualization and live telemetry UI.
 
 Role A intentionally does not mutate lifecycle state, call a VLM, persist a
-graph, or render a dashboard.
+graph, or render a dashboard. Role C does not mutate the graph; it emits
+validated events and answer payloads for Roles B and D.
 
 ## References
 

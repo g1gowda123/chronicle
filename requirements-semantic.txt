@@ -1,0 +1,4 @@
+# Core dependencies for Role C (demo, tests, offline fallbacks).
+# Enough to run: python -m chronicle.semantic.demo
+numpy>=1.26
+Pillow>=10.0
