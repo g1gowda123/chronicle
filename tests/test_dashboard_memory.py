@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import importlib
+
 from fastapi.testclient import TestClient
 
 from dashboard import memory
-from dashboard.app import app
+import dashboard.app as app_module
 
 
 def _fake_data(root: Path) -> None:
@@ -63,7 +65,8 @@ def test_unknown_upload_has_no_db(tmp_path: Path) -> None:
 
 
 def test_status_endpoint_answers_for_demo_clip() -> None:
-    client = TestClient(app)
+    module = importlib.reload(app_module)
+    client = TestClient(module.app)
     response = client.get("/api/vfm/status", params={"clip": "events:demo_events.jsonl"})
     assert response.status_code == 200
     body = response.json()
@@ -72,6 +75,7 @@ def test_status_endpoint_answers_for_demo_clip() -> None:
 
 
 def test_compile_endpoint_rejects_unknown_clip() -> None:
-    client = TestClient(app)
+    module = importlib.reload(app_module)
+    client = TestClient(module.app)
     response = client.post("/api/vfm/compile", params={"clip": "video:nope/missing.mp4"})
     assert response.status_code == 400

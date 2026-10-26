@@ -6,9 +6,11 @@ import io
 import zipfile
 from pathlib import Path
 
+import importlib
+
 from fastapi.testclient import TestClient
 
-from dashboard import app as app_module
+import dashboard.app as app_module
 from dashboard import transfer
 from dashboard.runtime import load_demo_events
 from dashboard.store import MemoryStore
@@ -72,7 +74,8 @@ def test_toolbar_has_export_import_controls() -> None:
 
 
 def test_export_endpoint_returns_zip() -> None:
-    client = TestClient(app_module.app)
+    module = importlib.reload(app_module)
+    client = TestClient(module.app)
     response = client.get("/api/export/graphs.zip")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/zip")
