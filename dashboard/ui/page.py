@@ -16,6 +16,7 @@ from typing import Any
 
 from nicegui import ui
 
+from ..replay_db import events_from_db, has_memory, write_events
 from ..runtime import Runtime, clip_title, default_data_dir, probe_duration, runtime
 from ..store import STATE_COLORS, MemoryStore
 from . import render, theme
@@ -78,9 +79,34 @@ def _clip_options() -> list[dict[str, str]]:
             if not video.is_file() or video == base / "demo" / "chronicle_demo.mp4":
                 continue
             entry = _clip_entry(video, base)
+            if entry["value"].startswith("video:"):
+                # The clip already has a Role B memory DB: replay it instead of
+                # playing a memory-less video.
+                try:
+                    db_path = source.db_path(base)
+                except (OSError, ValueError):
+                    db_path = None
+                if db_path is not None and has_memory(db_path):
+                    events_path = video.with_name(video.stem + ".events.jsonl")
+                    if not events_path.is_file():
+                        rel_video = video.relative_to(base).as_posix()
+                        events = events_from_db(
+                            db_path,
+                            title=source.label,
+                            video_url="/media/" + rel_video,
+                            video_path=video,
+                        )
+                        if events:
+                            write_events(events, events_path)
+                    if events_path.is_file():
+                        entry = {
+                            "value": "events:" + events_path.relative_to(base).as_posix(),
+                            "title": source.label,
+                        }
             if entry["value"].split(":", 1)[1] in seen:
                 continue
-            entry["title"] = source.label if not entry["value"].startswith("events:") else entry["title"]
+            if not entry["value"].startswith("events:"):
+                entry["title"] = source.label
             options.append(entry)
             seen.add(entry["value"].split(":", 1)[1])
     except Exception:  # registry must never take the dashboard down
