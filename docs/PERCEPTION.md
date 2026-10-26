@@ -15,6 +15,7 @@ telemetry. The lifecycle state machine, graph, VLM-verification and UI layers
 | Egocentric hands | MediaPipe Tasks `HandLandmarker` (VIDEO mode, 21 landmarks); skin-colour fallback | `chronicle/perception/hands.py` |
 | Tracking + Re-ID | ByteTrack-style high/low-confidence association (Hungarian) with an inactive-track pool reconciled by OpenCLIP cosine similarity and spatial continuity | `chronicle/perception/tracker.py` |
 | Interaction qualification | Hand hull vs. object box IoS, fingertip containment, wall-clock dwell + release grace | `chronicle/perception/interactions.py` |
+| Object attributes | Rotated-crop dominant colour (background-suppressed k-means), brightness, saturation, shape/aspect, relative size, texture, frame position | `chronicle/perception/attributes.py` |
 | Temporal memory | 30-frame downscaled RAM ring buffer, pre/post-roll interaction clips, 1×3 composites | `chronicle/perception/clip_buffer.py` |
 | Orchestration | Single-threaded `PerceptionPipeline`, background `PerceptionStream` | `chronicle/perception/pipeline.py`, `stream.py` |
 | Telemetry | Category-tagged events, fan-out bus, console printer | `chronicle/perception/telemetry.py` |
@@ -34,6 +35,7 @@ video frame
    │        (previous + current dynamic boxes masked)
    │
    ├─► YOLO-World(dynamic vocabulary) ─┐
+   ├─► crop attributes (colour et al.) ─┤
    ├─► MediaPipe Hands (21 landmarks) ──┤
    │                                    ▼
    │                         ByteTrack-style tracker
@@ -60,12 +62,16 @@ All records live in `chronicle/types.py` and serialize with deterministic
 `as_dict()` methods:
 
 - `BBox` — geometry, IoU, IoS, clipping, expansion.
-- `Detection` — label, box, confidence, optional embedding, source.
+- `Detection` — label, box, confidence, optional embedding, source, and
+  `metadata["attributes"]` with cheap appearance facts (`colour`,
+  `colour_hex`, `brightness`, `saturation`, `shape`, `aspect_ratio`, `size`,
+  `texture`, `position`, `vertical_band`).
 - `HandObservation` — `(21, 2)` landmarks, handedness, derived wrist/palm/tips/bbox.
 - `MotionEstimate` — `dx`, `dy`, `theta` (image coordinates, y down), inlier
   ratio, state, `pan_start`/`pan_end` transition, `keyframe`.
 - `TrackedObject` — ID, label, box, hits/age, velocity and camera-compensated
-  `relative_velocity`.
+  `relative_velocity`, plus the stabilised `metadata["attributes"]` carried
+  across occlusion/re-ID.
 - `InteractionObservation` / `InteractionEvent` — contact state and dwell-gated
   `start`/`end` events.
 - `ClipFrame` / `InteractionClip` — downscaled pixels, target box, hand points,
@@ -241,6 +247,8 @@ Map them back to source coordinates by the scale stored implicitly in
   furniture such as table/sofa).
 - `ClipConfig`: ring size, pre/length/post roll, max width, pending cap, frame
   saving.
+- `AttributesConfig`: `enabled=True`, `interval=3` (recompute every N frames),
+  `min_crop_px=8`, `colour_clusters=3`.
 - top level: vocabulary, device, model directory, frame stride, max frames,
   telemetry cadence.
 

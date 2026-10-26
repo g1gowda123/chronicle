@@ -36,6 +36,12 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from chronicle.attributes import (
+    COLOUR_WORDS,
+    attribute_query_field,
+    attribute_summary,
+    public_attributes,
+)
 from chronicle.config import (
     DEFAULT_THRESHOLDS,
     STATIC_FURNITURE_LABELS,
@@ -89,6 +95,9 @@ _ENTITY_CSV_COLUMNS = (
     "span",
     "track_id",
     "confidence",
+    "colour",
+    "colour_hex",
+    "attributes",
 )
 
 _ACTION_CSV_COLUMNS = (
@@ -502,8 +511,86 @@ class ChronicleRuntime:
                 answer = replace(answer, frame=frame)
         return answer
 
+    def _colour_inventory_answer(
+        self, query: str, started: float
+    ) -> RuntimeAnswer | None:
+        """Answer "what red things did you see?" from appearance attributes."""
+
+        lower = query.lower()
+        if re.search(r"\bcolou?rs?\b", lower):
+            return None
+        if not re.search(r"\b(what|which|list|show|find|any|all|do i have)\b", lower):
+            return None
+        colour = next(
+            (
+                candidate
+                for candidate in COLOUR_WORDS
+                if re.search(rf"\b{re.escape(candidate)}\b", lower)
+            ),
+            None,
+        )
+        if colour is None:
+            return None
+        if colour == "gray":
+            colour = "grey"
+        matches: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for entity in self.memory.foreground.entities():
+            appearance = public_attributes(entity.get("attrs") or {})
+            if appearance.get("colour") == colour:
+                matches.append((entity, appearance))
+        if not matches:
+            return RuntimeAnswer(
+                query=query,
+                answer=f"I don't remember any {colour} objects in this episode.",
+                source="graph",
+                grounded=False,
+                method="colour-filter",
+                elapsed=time.monotonic() - started,
+            )
+        matches.sort(
+            key=lambda item: float(item[0].get("last_seen") or 0.0), reverse=True
+        )
+        described = ", ".join(
+            f"the {entity.get('label', 'object')}"
+            + (f" ({attribute_summary(appearance)})" if attribute_summary(appearance) else "")
+            for entity, appearance in matches[:6]
+        )
+        newest_t = float(matches[0][0].get("last_seen") or 0.0)
+        suffix = f" Last seen at [t={newest_t:.1f}s]."
+        citations = tuple(
+            {
+                "timestamp": float(entity.get("last_seen") or 0.0),
+                "relation": "APPEARANCE",
+                "zone": self.memory.background.zone_label(
+                    str(entity.get("zone_id") or self.memory.active_zone or "")
+                ),
+            }
+            for entity, _ in matches[:4]
+        )
+        first = matches[0][0]
+        return RuntimeAnswer(
+            query=query,
+            answer=(
+                f"I remember {len(matches)} {colour} "
+                f"{'object' if len(matches) == 1 else 'objects'}: {described}."
+                f"{suffix}"
+            ),
+            citations=citations,
+            source="graph",
+            grounded=True,
+            method="colour-filter",
+            elapsed=time.monotonic() - started,
+            entity=str(first.get("label") or ""),
+            state=str(first.get("state") or ""),
+            zone=self.memory.background.zone_label(str(first.get("zone_id") or "")),
+            last_seen=newest_t,
+        )
+
     def _ask_impl(self, query: str) -> RuntimeAnswer:
         started = time.monotonic()
+        colour_answer = self._colour_inventory_answer(query, started)
+        if colour_answer is not None:
+            return colour_answer
         result = self.memory.query(query)
         if result is None:
             # Check for inventory / overview queries like "what did I see?", "what was tracked?"
@@ -579,10 +666,19 @@ class ChronicleRuntime:
         engine = self._ensure_semantic()
         if engine is None:
             answer = result.fallback_answer()
+            citations: tuple[dict[str, Any], ...] = ()
+            if attribute_query_field(query) and result.attributes:
+                citations = (
+                    {
+                        "timestamp": result.last_seen,
+                        "relation": "APPEARANCE",
+                        "zone": result.zone_label,
+                    },
+                )
             return RuntimeAnswer(
                 query=query,
                 answer=answer,
-                citations=(),
+                citations=citations,
                 source="graph",
                 grounded=True,
                 method="graph-template",
@@ -737,6 +833,7 @@ class ChronicleRuntime:
             last_seen=result.last_seen,
             facts=tuple(facts),
             attributes={
+                **dict(result.attributes),
                 "container": result.container_label,
                 "terminal_anchor": anchor,
                 "match_score": result.match_score,
@@ -859,9 +956,14 @@ class ChronicleRuntime:
             label = str(e.get("label", "object"))
             state = str(e.get("state", "VISIBLE_STATIC"))
             zone = e.get("zone")
+            if zone in {"-", ""}:
+                zone = None
+            first_seen = float(e.get("first_seen") or 0.0)
+            last_seen = float(e.get("last_seen") or first_seen)
+            appearance = public_attributes(e.get("attributes") or e.get("attrs") or {})
             if zone:
-                self.memory.background.ensure_zone(zone, 0.0, zone_id=zone)
-                self.memory.store.upsert_zone(zone, zone, 0.0)
+                self.memory.background.ensure_zone(zone, first_seen, zone_id=zone)
+                self.memory.store.upsert_zone(zone, zone, first_seen)
             state_val = (
                 ObjectState(state)
                 if state in ObjectState._value2member_map_
@@ -871,19 +973,21 @@ class ChronicleRuntime:
                 entity_id,
                 label,
                 state=state_val,
-                state_since=0.0,
-                first_seen=0.0,
-                last_seen=0.0,
+                state_since=last_seen,
+                first_seen=first_seen,
+                last_seen=last_seen,
                 zone_id=zone,
+                attrs=appearance,
             )
             self.memory.store.upsert_entity(
                 entity_id,
                 label,
-                state,
-                0.0,
-                0.0,
-                0.0,
+                state_val.value,
+                last_seen,
+                first_seen,
+                last_seen,
                 zone_id=zone,
+                attrs=appearance,
             )
 
     def _entity_rows(self) -> list[dict[str, Any]]:
@@ -903,6 +1007,7 @@ class ChronicleRuntime:
             anchor = self.memory.store.terminal_anchor(entity_id)
             anchor_id = anchor.anchor_id if anchor else None
             container_id = attrs.get("container_id")
+            appearance = public_attributes(attrs.get("attrs") or {})
             rows.append(
                 {
                     "id": entity_id,
@@ -919,6 +1024,10 @@ class ChronicleRuntime:
                     f"{float(attrs.get('last_seen') or 0.0):.1f}s",
                     "track_id": attrs.get("track_id"),
                     "confidence": 1.0,
+                    "colour": appearance.get("colour") or "-",
+                    "colour_hex": appearance.get("colour_hex") or "",
+                    "attributes": appearance,
+                    "appearance": attribute_summary(appearance) or "-",
                 }
             )
         rows.sort(key=lambda row: row["first_seen"])
@@ -952,12 +1061,20 @@ class ChronicleRuntime:
                 "detector": self.perception_config.detector.backend,
                 "hands": self.perception_config.hands.backend,
                 "embedder": self.perception_config.embedder.backend,
+                "attributes": "crop-attributes"
+                if self.perception_config.attributes.enabled
+                else "off",
                 "llm": self._semantic_config.llm_backend if self._semantic_config else "template",
             }
         return {
             "detector": getattr(pipeline.detector, "name", self.perception_config.detector.backend),
             "hands": getattr(pipeline.hands, "name", self.perception_config.hands.backend),
             "embedder": getattr(pipeline.embedder, "name", self.perception_config.embedder.backend),
+            "attributes": getattr(
+                pipeline.attributes,
+                "name",
+                "crop-attributes" if self.perception_config.attributes.enabled else "off",
+            ),
             "llm": self._semantic_config.llm_backend if self._semantic_config else "template",
         }
 
@@ -996,6 +1113,8 @@ class ChronicleRuntime:
             if self._semantic is not None:
                 return self._semantic
             config = self._semantic_config or SemanticConfig.from_env()
+            if os.getenv("CHRONICLE_LENIENT_CITATIONS") is None:
+                config = config.replace(lenient_citations=True)
             from chronicle.semantic.llm import ensure_local_ollama
             ensure_local_ollama(config, wait_seconds=2.0)
             # The dashboard must be usable without model downloads.  Florence is

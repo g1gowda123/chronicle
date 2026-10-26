@@ -66,22 +66,32 @@ def _zone_id(node: dict[str, Any], known_zones: set[str]) -> str | None:
     return None
 
 
+# ECharts graph coordinates are not automatically centred; explicit seed
+# positions near (0, 0) are clipped by the card's top-left corner.  Seed the
+# ring around the middle of the graph panel instead.
+GRAPH_ORIGIN = (360.0, 190.0)
+
+
 def _zone_centers(zone_ids: list[str]) -> dict[str, tuple[float, float]]:
     """Place zone anchors on a fixed ring so force layout forms room clusters."""
 
     count = len(zone_ids)
     if not count:
         return {}
+    origin_x, origin_y = GRAPH_ORIGIN
     if count == 1:
-        return {zone_ids[0]: (0.0, 0.0)}
+        return {zone_ids[0]: (origin_x, origin_y)}
     if count == 2:
-        return {zone_ids[0]: (-300.0, 0.0), zone_ids[1]: (300.0, 0.0)}
-    radius = min(480.0, 250.0 + 55.0 * count)
+        return {
+            zone_ids[0]: (origin_x - 130.0, origin_y),
+            zone_ids[1]: (origin_x + 130.0, origin_y),
+        }
+    radius = min(190.0, 110.0 + 25.0 * count)
     start = -math.pi / 2
     return {
         zone: (
-            round(radius * math.cos(start + 2 * math.pi * index / count), 2),
-            round(radius * math.sin(start + 2 * math.pi * index / count), 2),
+            round(origin_x + radius * math.cos(start + 2 * math.pi * index / count), 2),
+            round(origin_y + radius * math.sin(start + 2 * math.pi * index / count), 2),
         )
         for index, zone in enumerate(zone_ids)
     }
@@ -92,7 +102,7 @@ def _member_position(
 ) -> tuple[float, float]:
     """Seed a member node just outside its zone anchor to help force settle."""
 
-    ring = 110.0 + 48.0 * (rank // 9)
+    ring = 70.0 + 36.0 * (rank // 9)
     angle = phase + 2 * math.pi * (rank % 9) / 9
     return (
         round(center[0] + ring * math.cos(angle), 2),
@@ -165,6 +175,14 @@ def graph_options(snapshot: dict[str, Any]) -> dict[str, Any]:
         detail = label
         if state:
             detail += f" · {state}"
+        appearance = node.get("attributes") or {}
+        appearance_bits = [
+            str(appearance.get(key))
+            for key in ("colour", "shape", "size")
+            if appearance.get(key)
+        ]
+        if appearance_bits:
+            detail += f" · {' · '.join(appearance_bits)}"
         if zone_name:
             detail += f" · zone {zone_name}"
 
@@ -216,6 +234,12 @@ def graph_options(snapshot: dict[str, Any]) -> dict[str, Any]:
             if zone_color:
                 item_style["borderColor"] = zone_color
                 item_style["borderWidth"] = 2.2
+            # A detected dominant colour is a stronger identity cue than the
+            # room border, so use it as the ring when we have one.
+            colour_hex = node.get("colour_hex")
+            if colour_hex:
+                item_style["borderColor"] = str(colour_hex)
+                item_style["borderWidth"] = 2.8
             label_cfg = {"show": True, "fontSize": 11, "color": "#e2e8f0"}
 
         entry: dict[str, Any] = {
@@ -260,6 +284,11 @@ def graph_options(snapshot: dict[str, Any]) -> dict[str, Any]:
         if not source or not target:
             continue
         label = str(edge.get("label", edge.get("kind", "")))
+        # State transitions are rendered on the Timeline tab.  Their self-loops
+        # would add 100+ invisible edges to the force simulation and make the
+        # graph cluster collapse off-canvas.
+        if source == target and label == "STATE_TRANSITION":
+            continue
         linked_pairs.add((source, target))
         link: dict[str, Any] = {
             "source": source,
@@ -314,10 +343,10 @@ def graph_options(snapshot: dict[str, Any]) -> dict[str, Any]:
                 "data": data,
                 "links": links,
                 "force": {
-                    "repulsion": 260,
-                    "edgeLength": [60, 180],
-                    "gravity": 0.05,
-                    "friction": 0.18,
+                    "repulsion": 160,
+                    "edgeLength": [45, 130],
+                    "gravity": 0.12,
+                    "friction": 0.2,
                     "layoutAnimation": True,
                 },
                 "label": {

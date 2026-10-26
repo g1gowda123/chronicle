@@ -12,6 +12,8 @@ from pathlib import Path
 
 import numpy as np
 
+from chronicle.attributes import public_attributes
+from chronicle.perception.attributes import AttributeExtractor
 from chronicle.perception.clip_buffer import FrameRingBuffer, InteractionClipRecorder
 from chronicle.perception.config import PerceptionConfig
 from chronicle.perception.detector import build_detector
@@ -102,6 +104,7 @@ class PerceptionPipeline:
         self.motion = None
         self.interactions = None
         self.support: SupportTracker | None = None
+        self.attributes: AttributeExtractor | None = None
 
         self._buffer = FrameRingBuffer(
             maxlen=self.config.clip.ring_size, max_width=self.config.clip.max_width
@@ -177,6 +180,7 @@ class PerceptionPipeline:
             self.config.interaction
         )
         self.support = SupportTracker(self.config.support)
+        self.attributes = AttributeExtractor(self.config.attributes)
         self._prepared = True
 
         system_event = TelemetryEvent(
@@ -184,12 +188,14 @@ class PerceptionPipeline:
             message=(
                 f"perception ready | detector={self._detector_name} "
                 f"hands={self._hands_name} embedder={self._embedder_name} "
-                f"tracker=bytetrack-lite fps={self._fps:.1f}"
+                f"tracker=bytetrack-lite attributes={self._attributes_name} "
+                f"fps={self._fps:.1f}"
             ),
             data={
                 "detector": self._detector_name,
                 "hands": self._hands_name,
                 "embedder": self._embedder_name,
+                "attributes": self._attributes_name,
                 "fps": self._fps,
             },
         )
@@ -204,6 +210,11 @@ class PerceptionPipeline:
     @property
     def _hands_name(self) -> str:
         return getattr(self.hands, "name", type(self.hands).__name__)
+
+    @property
+    def _attributes_name(self) -> str:
+        extractor = self.attributes
+        return getattr(extractor, "name", "off") if extractor is not None else "off"
 
     @property
     def _embedder_name(self) -> str:
@@ -269,6 +280,8 @@ class PerceptionPipeline:
         assert self.interactions is not None
 
         detections = self.detector.detect(frame, frame_index, timestamp)
+        if self.attributes is not None:
+            self.attributes.annotate(frame, detections, frame_index)
         hand_interval = max(1, int(self.config.hands.interval))
         if frame_index % hand_interval == 0 or not self._last_hands:
             current_hands = self.hands.detect(frame, frame_index, timestamp)
@@ -338,13 +351,19 @@ class PerceptionPipeline:
             )
 
         for track in tracker_result.new_tracks:
+            appearance = public_attributes(track.metadata)
+            detail = f" colour={appearance['colour']}" if appearance.get("colour") else ""
             telemetry.append(
                 self._make_event(
                     EventCategory.TRACK,
-                    f"new track #{track.track_id} {track.label} conf={track.confidence:.2f}",
+                    f"new track #{track.track_id} {track.label} conf={track.confidence:.2f}{detail}",
                     timestamp=timestamp,
                     frame_index=frame_index,
-                    data={"track_id": track.track_id, "label": track.label},
+                    data={
+                        "track_id": track.track_id,
+                        "label": track.label,
+                        **appearance,
+                    },
                 )
             )
         for track in tracker_result.lost:

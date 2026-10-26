@@ -45,6 +45,9 @@ def frame_context_from_result(
     objects: list[ObjectObservation] = []
     for track in result.tracks:
         metadata = dict(track.metadata or {})
+        object_attributes = metadata.pop("attributes", None)
+        if isinstance(object_attributes, dict):
+            metadata.update(object_attributes)
         entity_id = str(
             track.entity_id or metadata.get("entity_id") or f"track_{track.track_id}"
         )

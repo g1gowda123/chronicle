@@ -1,0 +1,344 @@
+# Chronicle Notice Board
+
+**Last synced:** 2026-10-26  
+**Source of truth for scope:** `docs/chronicle-spec-condensed.tex` + current code  
+**Detailed status / history:** [`TEAM_STATUS.md`](TEAM_STATUS.md)
+
+This is the working board for the team. Pick one `READY` task, change its owner
+to your name, move it to `IN PROGRESS`, and open a small PR. Keep one task per
+PR so parallel work does not collide.
+
+## How to use this board
+
+1. Pick the highest-priority `READY` task that does not overlap your current files.
+2. Claim it by editing the task card:
+   - `Status: READY` → `IN PROGRESS (your name)`
+   - `Owner: unclaimed` → your name
+3. Work only inside the listed files unless the task says otherwise.
+4. Run the verification commands in the task before marking it `DONE`.
+5. Move the card to **Done** with the commit hash.
+
+**Priority meanings**
+
+| Priority | Meaning |
+| --- | --- |
+| `P0` | Demo blocker / correctness bug. Do before judges or recording. |
+| `P1` | Important quality or feature gap. Do after P0. |
+| `P2` | Polish / stretch. Safe to leave. |
+
+**Suggested work lanes** (to avoid conflicts)
+
+| Lane | Owns | Avoid touching |
+| --- | --- | --- |
+| Perception | `chronicle/perception/` | graph, UI |
+| Graph / state | `chronicle/graph/`, `chronicle/storage/`, `chronicle/state_machine.py` | UI |
+| Semantic | `chronicle/semantic/` | graph internals |
+| Dashboard / UI | `chronicle/ui/`, `dashboard/` | graph internals |
+| Demo / docs | `docs/`, `chronicle.sh`, `run_dashboard.py` | runtime code |
+
+> **Coordination rule:** `chronicle/integration.py` is shared by every lane.
+> Announce edits there before starting. Additive changes only.
+
+---
+
+## Board summary
+
+| ID | Pri | Task | Lane | Status | Owner |
+| --- | --- | --- | --- | --- | --- |
+| NB-01 | P0 | Clickable citations seek the video | UI | READY | unclaimed |
+| NB-02 | P0 | Show the evidence frame under each answer | UI | READY | unclaimed |
+| NB-03 | P0 | Grounding / rejection provenance in the query panel | UI | READY | unclaimed |
+| NB-04 | P0 | Demo preflight script and checklist | Ops | READY | unclaimed |
+| NB-05 | P0 | Verify every bundled source end to end | QA | READY | unclaimed |
+| NB-06 | P0 | Real-clip evidence images for demo answers | Perception | READY | unclaimed |
+| NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
+| NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | READY | unclaimed |
+| NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
+| NB-10 | P1 | Tune consolidation on the living-room clip | Graph | READY | unclaimed |
+| NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | READY | unclaimed |
+| NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | READY | unclaimed |
+| NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | READY | unclaimed |
+| NB-14 | P2 | Search and filter actions / transitions | UI | READY | unclaimed |
+| NB-15 | P2 | Colour filter dropdown for entities | UI | READY | unclaimed |
+| NB-16 | P2 | Export evidence frames with the snapshot | UI / Integration | READY | unclaimed |
+| NB-17 | P2 | Responsive and accessibility pass | UI | READY | unclaimed |
+
+---
+
+## P0 — demo blockers
+
+### NB-01 · Clickable citations seek the video
+- **Status:** READY · **Owner:** unclaimed · **Lane:** UI
+- **Why:** the spec promises “the citation is clickable and seeks the video to
+  16.4 s”. The operator dashboard currently prints citation times as text only.
+- **Scope:**
+  - Render each citation in `chronicle/ui/app.py` as a small button/chip.
+  - Clicking it seeks the `ui.video` player to `citation["timestamp"]` and
+    optionally pauses.
+  - Keep the metadata line for debugging.
+- **Files:** `chronicle/ui/app.py`, `tests/test_dashboard_smoke.py`
+- **Acceptance:** clicking a citation changes the video position; a headless
+  test asserts the handler exists; no layout regression at 1280/1440 px.
+- **Spec:** §Query; §Ten-minute demo script step 2.
+
+### NB-02 · Show the evidence frame under each answer
+- **Status:** READY · **Owner:** unclaimed · **Lane:** UI
+- **Why:** `ChronicleRuntime._answer_frame()` already produces a supporting
+  still frame, but the dashboard ignores `RuntimeAnswer.frame`.
+- **Scope:**
+  - Display `answer.frame["url"]` in the query card.
+  - Show the frame kind and timestamp.
+  - Hide gracefully when `frame` is `None`.
+- **Files:** `chronicle/ui/app.py`, `tests/test_dashboard_smoke.py`
+- **Acceptance:** grounded answers with a frame render an image preview;
+  missing frames leave the panel usable; no broken image icon on failure.
+- **Spec:** §Query, evidence frame paragraph.
+
+### NB-03 · Grounding / rejection provenance in the query panel
+- **Status:** READY · **Owner:** unclaimed · **Lane:** UI
+- **Why:** `RuntimeAnswer` exposes `grounded`, `source`, `method` and citations,
+  but the UI only shows the answer text and a metadata string. Judges cannot
+  see when an answer is ungrounded or came from a fallback.
+- **Scope:**
+  - Add a grounded / ungrounded / fallback badge.
+  - Show `source` (`template`, `llm`, `graph`) and citation count.
+  - If `grounded` is false, style the answer distinctly and explain why.
+- **Files:** `chronicle/ui/app.py`, `chronicle/ui/graph_view.py` only if helpers move
+- **Acceptance:** a known unknown query shows an ungrounded state; a template
+  answer shows `template`; no hallucinated timestamp is presented as grounded.
+- **Spec:** §Query step 4.
+
+### NB-04 · Demo preflight script and checklist
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Ops
+- **Why:** the spec lists stage pitfalls: Qwen cold load, missing evidence
+  images, un-checkpointed WAL, and claiming unavailable model backends.
+- **Scope:**
+  - Add a script (e.g. `scripts/demo_preflight.py` or `chronicle.sh preflight`)
+    that checks:
+    - selected video files exist and decode,
+    - SQLite opens and WAL can be checkpointed,
+    - configured detector/hands/embedder actually load,
+    - Ollama status and model name,
+    - evidence images or video-frame extraction work,
+    - `pytest` and `chronicle run --max-frames 30` pass.
+  - Print a short PASS/FAIL table with exact next commands.
+- **Files:** `scripts/`, `chronicle.sh`, `docs/`
+- **Acceptance:** one command reports a clear PASS/FAIL list before the demo.
+- **Spec:** §Ten-minute demo script, “Pitfalls to rehearse”.
+
+### NB-05 · Verify every bundled source end to end
+- **Status:** READY · **Owner:** unclaimed · **Lane:** QA
+- **Why:** the demo switches between synthetic, HoloLens and Aria clips.
+  A source that cannot ingest is a live failure.
+- **Scope:** run `chronicle run` for `synthetic`, `tabletop`, `cook`, `play`,
+  `walking`; record frames, entities, actions, errors, and backends used.
+  Check the dashboard source dropdown and video player for each.
+- **Files:** `docs/TEAM_STATUS.md` (table), no code unless a source is broken
+- **Acceptance:** every source either passes or has a documented blocking reason.
+- **Spec:** §Interfaces and operations; §Demo pitfalls.
+
+### NB-06 · Real-clip evidence images for demo answers
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Perception
+- **Why:** evidence frames fall back to video extraction when no stored image
+  exists. That can fail on stage or return a blank frame.
+- **Scope:** ensure interaction strips, object crops or zone keyframes exist for
+  the HoloLens/Aria clips used in the demo; verify `_answer_frame()` selects them.
+- **Files:** `chronicle/frames.py`, `chronicle/integration.py`, `runs/` fixtures
+- **Acceptance:** each demo question returns a frame candidate; fallback video
+  extraction is only used when expected.
+- **Spec:** §Query evidence frame; §Demo pitfalls (iv).
+
+---
+
+## P1 — quality and correctness
+
+### NB-07 · Label the HoloLens action timeline and run the scorer
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Semantic
+- **Why:** the action-timeline harness exists, but the “done when” bar is still
+  gated on a hand-labelled real clip.
+- **Scope:** label actions in the HoloAssist clip using
+  `docs/action_timeline.example.json`; run
+  `python -m chronicle.semantic.timeline --annotations ... --snapshot ...`.
+- **Files:** `docs/action_timeline.example.json` (new real label file),
+  `docs/TEAM_STATUS.md`
+- **Acceptance:** timeline scorer exits 0 or the remaining mismatches are
+  documented with a concrete tuning task.
+- **Spec:** §Quality; §Ten-minute demo script step 5.
+
+### NB-08 · Calibrate action thresholds against real labels
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Semantic
+- **Why:** shipped thresholds come from a 16-caption seed set.
+- **Scope:** build a JSON/JSONL label file, run
+  `python -m chronicle.semantic.calibration --labels <file>`, commit the
+  resulting `CHRONICLE_ACTION_THRESHOLDS` recommendation.
+- **Files:** `chronicle/semantic/calibration.py` (only if needed), docs
+- **Acceptance:** precision target met and the threshold source is documented.
+- **Spec:** §Quality, calibration.
+
+### NB-09 · Review drawer for rejected / ambiguous actions
+- **Status:** READY · **Owner:** unclaimed · **Lane:** UI
+- **Why:** rejected actions are currently only visible in telemetry. The
+  suggestions note asks for a review queue with strip preview.
+- **Scope:** list rejected actions with reason, confidence, caption and clip
+  reference; optionally preview the strip.
+- **Files:** `chronicle/ui/app.py`, `docs/SUGGESTIONS.txt` reference only
+- **Acceptance:** rejected actions are inspectable without reading the log.
+- **Spec:** §Quality (verification queue); SUGGESTIONS 5.2.
+
+### NB-10 · Tune consolidation on the living-room clip
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Graph
+- **Why:** the “done when” bar for Role B is one anchor per physical sofa after
+  replaying the living-room clip.
+- **Scope:** run the clip, inspect `memory.stats()["merges"]`, tune association
+  and merge gates if duplicates remain; add a regression fixture.
+- **Files:** `chronicle/graph/consolidation.py`,
+  `chronicle/graph/furniture.py`, `tests/test_consolidation.py`
+- **Acceptance:** exactly one anchor per real sofa and no merged co-visible
+  instances; tests pass.
+- **Spec:** §Data model; TEAM_STATUS Role B “Done when”.
+
+### NB-11 · Reduce per-frame support / SQLite write cost
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Graph
+- **Why:** TEAM_STATUS lists repeated support updates and per-frame SQLite
+  writes as the remaining runtime-efficiency work.
+- **Scope:** deduplicate unchanged support writes, batch entity/observation
+  writes, and keep snapshots cheap enough for 30 fps.
+- **Files:** `chronicle/graph/memory.py`,
+  `chronicle/storage/sqlite_store.py`, benchmark script
+- **Acceptance:** measurable write reduction on the walking clip with identical
+  snapshot content and passing tests.
+- **Spec:** §Storage; TEAM_STATUS “Runtime efficiency”.
+
+### NB-12 · Add appearance attributes to the spec + evaluation
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Docs / Semantic
+- **Why:** colour/shape/size/texture attributes are implemented and used by the
+  UI and GraphRAG, but the LaTeX spec and evaluation set do not mention them.
+- **Scope:**
+  - Add an “Object appearance attributes” subsection to
+    `docs/chronicle-spec-condensed.tex` (formula + thresholds).
+  - Add colour/size/describe cases to the GraphRAG evaluation set.
+  - Rebuild the PDF with `docs/build-spec.sh`.
+- **Files:** `docs/chronicle-spec-condensed.tex`,
+  `chronicle/semantic/evaluation.py`, `docs/chronicle-spec-condensed.pdf`
+- **Acceptance:** spec builds; evaluation passes with the new cases and reports
+  citation precision.
+- **Spec:** §Perception; new feature in `chronicle/perception/attributes.py`.
+
+---
+
+## P2 — polish
+
+### NB-13 · Retire or clearly separate the duplicate dashboard
+- **Status:** READY · **Owner:** unclaimed · **Lane:** UI / Docs
+- **Why:** the spec lists both `chronicle serve` (operator dashboard) and
+  `run_dashboard.py` (mission-control dashboard). Keeping both without labels
+  confuses teammates and judges.
+- **Scope:** document which is canonical for the demo; either retire the other
+  or label it clearly and document its unique features.
+- **Files:** `README.md`, `docs/INTEGRATION.md`, `run_dashboard.py`
+- **Acceptance:** one obvious entry point in the README and demo docs.
+- **Spec:** §Interfaces and operations.
+
+### NB-14 · Search and filter actions / transitions
+- **Status:** READY · **Owner:** unclaimed · **Lane:** UI
+- **Why:** tables only paginate; real episodes can have hundreds of rows.
+- **Scope:** add text filter and action-type/state filters to the Actions and
+  Timeline tabs.
+- **Files:** `chronicle/ui/app.py`
+- **Acceptance:** filters work without breaking live refresh.
+- **Spec:** §Interfaces, dashboard purpose.
+
+### NB-15 · Colour filter dropdown for entities
+- **Status:** READY · **Owner:** unclaimed · **Lane:** UI
+- **Why:** the entity filter is free-text; a colour dropdown makes the new
+  appearance data discoverable for judges.
+- **Scope:** add a colour selector populated from current entity attributes,
+  combined with the existing text filter.
+- **Files:** `chronicle/ui/app.py`
+- **Acceptance:** selecting “red” shows only red entities; clearing restores all.
+- **Spec:** appearance attributes feature.
+
+### NB-16 · Export evidence frames with the snapshot
+- **Status:** READY · **Owner:** unclaimed · **Lane:** UI / Integration
+- **Why:** snapshots contain the graph but not the still images that support
+  answers, so an imported snapshot cannot show evidence.
+- **Scope:** optional `frames` bundle in the export: answer frames keyed by
+  entity/time, or a documented manifest with relative paths.
+- **Files:** `chronicle/integration.py`, `chronicle/ui/app.py`,
+  `chronicle/ui/snapshot_io.py`
+- **Acceptance:** exported/imported snapshot can render at least one evidence
+  frame without re-ingesting video.
+- **Spec:** §Storage “Export is portable”; §Query evidence frame.
+
+### NB-17 · Responsive and accessibility pass
+- **Status:** READY · **Owner:** unclaimed · **Lane:** UI
+- **Why:** current layout is tuned for 1440 px; judges may use a laptop or
+  projector.
+- **Scope:** verify 1280/1440/1920 px; keyboard focus for query and tabs;
+  sufficient contrast for muted text; labels for icon-only buttons.
+- **Files:** `chronicle/ui/app.py`, `chronicle/ui/graph_view.py`
+- **Acceptance:** no clipped controls at 1280 px; keyboard-only query works;
+  icon buttons have tooltips and accessible labels.
+- **Spec:** §Interfaces.
+
+---
+
+## Done (recent)
+
+| ID | Task | Done by | Evidence |
+| --- | --- | --- | --- |
+| NB-D01 | Graph clipped off-canvas / not rendering | orchestrator | `chronicle/ui/graph_view.py`; screenshot verified |
+| NB-D02 | Colour + simple object attributes end to end | orchestrator | `tests/test_attributes.py`; 314 tests pass |
+| NB-D03 | Appearance in snapshot, CSV, GraphRAG and UI | orchestrator | `docs/INTEGRATION.md`, `docs/PERCEPTION.md` |
+| NB-D04 | Dashboard video upload + drag-and-drop | orchestrator | `tests/test_uploads.py` |
+| NB-D05 | Snapshot import / export | orchestrator | `tests/test_snapshot_io.py`, `tests/test_dashboard_smoke.py` |
+
+---
+
+## Verification commands
+
+Run before marking any task DONE:
+
+```bash
+.venv/bin/pytest -q
+.venv/bin/python -m unittest discover -s tests
+.venv/bin/ruff check chronicle tests
+.venv/bin/python -m chronicle.semantic.evaluation
+```
+
+For UI tasks also:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_dashboard_smoke.py
+./chronicle.sh restart
+```
+
+---
+
+## Claim template
+
+Copy this into the task card when you start:
+
+```text
+Status: IN PROGRESS (<name>)
+Owner: <name>
+Started: <date>
+Branch: <branch>
+Notes:
+- ...
+```
+
+## AI-agent handoff template
+
+When handing a task to another agent, paste the task card and this guardrail:
+
+```text
+Repository: /home/g1/projects/chronicle
+Task: <NB-ID and title>
+Read: docs/NOTICE_BOARD.md, docs/TEAM_STATUS.md, and the task's listed files.
+Scope: only edit the files listed in the task card; all other changes must be additive.
+Before finishing: run `.venv/bin/pytest -q`, `.venv/bin/python -m unittest discover -s tests`,
+and `.venv/bin/ruff check chronicle tests`.
+Report: commit hash, files changed, tests run, and any remaining risk.
+Do not revert another teammate's uncommitted work.
+```

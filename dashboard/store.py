@@ -13,13 +13,12 @@ import threading
 import time
 from collections import Counter, deque
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 from .contracts import (
     ATTENTION_STATES,
     OFFSCREEN_STATES,
     STATE_COLORS,
-    TERMINAL_STATES,
     Event,
     clean_text,
     coerce_bbox,

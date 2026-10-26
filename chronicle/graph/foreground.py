@@ -14,6 +14,7 @@ from typing import Any
 
 import networkx as nx
 
+from chronicle.attributes import attribute_summary, public_attributes
 from chronicle.config import DEFAULT_THRESHOLDS, Thresholds
 from chronicle.graph.ids import AGENT_NODE, entity_node, raw_entity_id, zone_node
 from chronicle.storage.records import EdgeRecord, EntityRecord, TransitionRecord
@@ -600,7 +601,11 @@ class ForegroundGraph:
             state = attrs.get("state", "NEW")
             raw_zone = attrs.get("zone_id")
             zone_id = zone_node(str(raw_zone)) if raw_zone else None
+            appearance = public_attributes(attrs.get("attrs") or {})
+            appearance_summary = attribute_summary(appearance)
             title = f"{attrs.get('label', node_id)}<br/>state: {state}"
+            if appearance_summary:
+                title += f"<br/>appearance: {appearance_summary}"
             if zone_id:
                 title += f"<br/>zone: {zone_id}"
             nodes.append(
@@ -611,6 +616,9 @@ class ForegroundGraph:
                     "state": state,
                     "zone_id": zone_id,
                     "title": title,
+                    "attributes": appearance,
+                    "colour": appearance.get("colour"),
+                    "colour_hex": appearance.get("colour_hex"),
                 }
             )
         edges: list[dict[str, Any]] = []

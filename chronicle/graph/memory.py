@@ -18,6 +18,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from chronicle.attributes import public_attributes
 from chronicle.config import (
     CONTAINER_LABELS,
     DEFAULT_THRESHOLDS,
@@ -649,6 +650,7 @@ class ChronicleMemory:
             state = snapshot.state if snapshot else ObjectState.NEW
             since = snapshot.state_since if snapshot else frame.t
             zone_id = (snapshot.zone_id if snapshot else None) or self._active_zone
+            appearance = public_attributes(obj.attributes)
             self.foreground.upsert_entity(
                 obj.entity_id,
                 obj.label,
@@ -661,6 +663,7 @@ class ChronicleMemory:
                 track_id=obj.track_id,
                 zone_id=zone_id,
                 container_id=snapshot.container_id if snapshot else None,
+                attrs=appearance,
             )
             self.store.upsert_entity(
                 obj.entity_id,
@@ -673,7 +676,7 @@ class ChronicleMemory:
                 embedding=obj.embedding,
                 track_id=obj.track_id,
                 zone_id=zone_id,
-                attrs={},
+                attrs=appearance,
             )
             self.bus.graph(
                 "foreground node minted",
@@ -689,7 +692,12 @@ class ChronicleMemory:
         existing = self.foreground.get_entity(snapshot.entity_id) or {}
         first_seen = float(existing.get("first_seen", snapshot.state_since))
         zone_id = existing.get("zone_id") or snapshot.zone_id
-        attrs = {**dict(existing.get("attrs") or {}), "container_id": snapshot.container_id}
+        attrs = {
+            **dict(existing.get("attrs") or {}),
+            "container_id": snapshot.container_id,
+        }
+        if obj is not None:
+            attrs.update(public_attributes(obj.attributes))
         self.foreground.upsert_entity(
             snapshot.entity_id,
             snapshot.label,
@@ -702,6 +710,7 @@ class ChronicleMemory:
             track_id=obj.track_id if obj is not None else None,
             zone_id=zone_id,
             container_id=snapshot.container_id,
+            attrs=attrs,
         )
         self.store.upsert_entity(
             snapshot.entity_id,

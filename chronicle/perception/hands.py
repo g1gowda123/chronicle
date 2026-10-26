@@ -81,16 +81,22 @@ class MediaPipeHands(BaseHands):
         if frame is None or frame.size == 0:
             return []
         height, width = frame.shape[:2]
-        working = frame
-        if self._upscale > 1.001:
+        max_width = max(0, int(getattr(self.config, "max_width", 0) or 0))
+        scale = self._upscale
+        if max_width and width * scale > max_width:
+            scale = max_width / max(1, width)
+        scale = max(0.1, min(scale, 4.0))
+        if abs(scale - 1.0) > 0.001:
             working = cv2.resize(
                 frame,
                 (
-                    max(1, int(round(width * self._upscale))),
-                    max(1, int(round(height * self._upscale))),
+                    max(1, int(round(width * scale))),
+                    max(1, int(round(height * scale))),
                 ),
-                interpolation=cv2.INTER_CUBIC,
+                interpolation=cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC,
             )
+        else:
+            working = frame
         rgb = cv2.cvtColor(working, cv2.COLOR_BGR2RGB)
         image = self._mp.Image(
             image_format=self._mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb)

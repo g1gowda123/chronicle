@@ -277,6 +277,9 @@ def test_runtime_exports_entities_csv() -> None:
             "span",
             "track_id",
             "confidence",
+            "colour",
+            "colour_hex",
+            "attributes",
         ]
         rows = list(reader)
         assert len(rows) == 1

@@ -141,8 +141,32 @@ embeddings + template GraphRAG). The HoloLens clip is available as
   the sink now merges payload keys explicitly and a model-free regression test
   covers it (`tests/test_integration.py`).
 
+### TASK-D7 / A2 — object appearance attributes
+
+- Role A now runs `chronicle/perception/attributes.py` on every Nth detection
+  crop: background-suppressed k-means gives a dominant BGR colour, converted to
+  a stable colour word + `#rrggbb` swatch; brightness, saturation, shape/aspect,
+  relative size, texture and frame position are recorded too.
+- Attributes are merged into tracker metadata (with colour stabilisation across
+  noisy frames), flattened onto `ObjectObservation.attributes`, and persisted
+  into the foreground graph + SQLite entity `attrs`.
+- The snapshot/CSV exports expose `colour`, `colour_hex`, `attributes` and an
+  `appearance` summary; graph nodes use the detected swatch as an identity ring
+  and include appearance in the tooltip.
+- New query paths: "what colour is the cup?", "how big is it?", "describe the
+  backpack" are answered from the attributes (grounded on `last_seen`), and
+  "what red objects did you see?" filters the inventory by colour.
+- Dashboard: the Entities tab gained a live filter box, colour swatch column and
+  properties column; suggestions include a colour question for tracked objects.
+- Covered by model-free `tests/test_attributes.py` plus extended export and
+  dashboard tests.
+
 ## Dynamic Task Notice Board (Priority Queue)
 
+> **Working board:** [`NOTICE_BOARD.md`](NOTICE_BOARD.md) is the standalone,
+> claimable task board for parallel work. The table below is the historical
+> cross-role index; use the notice board for new ownership and status changes.
+>
 > **Team Notice Board:** Anyone finishing early can claim the next highest-priority `[READY]` ticket or post a new task below.
 > - To claim: update status to `[IN PROGRESS (your name)]`.
 > - To post a new task: add a row with priority (`P0`/`P1`/`P2`), scope, and acceptance criteria.
@@ -167,6 +191,8 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-F1** | **P1** | **HoloLens tabletop action verification benchmark**<br>Benchmark `chronicle run --source tabletop` and evaluate action extraction against HoloLens ground truth (`docs/PERCEPTION.md`). | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[DONE (feba585)]` | karthiknk7019 |
 | **TASK-F2** | **P1** | **GraphRAG question prompt enhancement**<br>Support multi-hop queries like "Where was the cup before it was placed on the table?" using timeline edge walks. | `chronicle/semantic/graphrag.py`<br>`tests/test_graphrag.py` | `[DONE (f224d33)]` | Orchestrator / Likhithvu |
 | **TASK-F3** | **P2** | **Live stream source implementation**<br>Implement live video capture ingestion loop for the `live` ClipSource placeholder (`chronicle run --source live`). | `chronicle/sources.py`<br>`chronicle/perception/pipeline.py` | `[SUPERSEDED]` | karthiknk7019 |
+| **TASK-A2** | **P0** | **Simple object attributes in perception**<br>Extract dominant colour, swatch, brightness, saturation, shape/aspect, relative size, texture and frame position for every detection; stabilise colour across frames; carry through tracker, graph and SQLite. | `chronicle/perception/attributes.py`<br>`chronicle/perception/tracker.py`<br>`chronicle/graph/{adapter,memory,foreground}.py`<br>`tests/test_attributes.py` | `[DONE]` | Orchestrator |
+| **TASK-D7** | **P1** | **Appearance in UI, exports and GraphRAG**<br>Snapshot/CSV colour+attribute columns, graph colour rings/tooltips, entity filter + swatch column, colour/size/describe questions and colour inventory queries. | `chronicle/integration.py`<br>`chronicle/graph/query.py`<br>`chronicle/semantic/graphrag.py`<br>`chronicle/ui/{app,graph_view}.py` | `[DONE]` | Orchestrator |
 
 ## What I am working on right now
 

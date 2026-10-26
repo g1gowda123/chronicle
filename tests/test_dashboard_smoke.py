@@ -37,6 +37,8 @@ def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
         response = client.get("/")
         assert response.status_code == 200
         assert "Chronicle" in response.text
+        assert "chronicle-dropzone" in response.text
+        assert "Drag &amp; drop a video to scan live" in response.text
 
         # 2. JSON snapshot export route
         res_json = client.get("/export/snapshot.json")
@@ -62,7 +64,7 @@ def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
         )
         assert res_csv.text.startswith(
             "id,label,state,zone,anchor,container,first_seen,last_seen,"
-            "span,track_id,confidence"
+            "span,track_id,confidence,colour,colour_hex,attributes"
         )
 
         # 4. CSV actions export route

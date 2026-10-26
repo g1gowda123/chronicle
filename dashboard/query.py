@@ -10,7 +10,9 @@ Matches section 6 of the technical spec:
    still attach an external answer endpoint when one is available.
 
 Every answer is grounded in graph records and carries timestamped citations
-which the UI can seek to.
+which the UI can seek to, plus a ``frame`` descriptor for the still image that
+supports the answer (interaction strip, object crop, zone keyframe or an
+extracted video frame).
 """
 
 from __future__ import annotations
@@ -73,7 +75,8 @@ SYSTEM_PROMPT = (
     "You are Chronicle, an egocentric episodic-memory query engine. "
     "Answer ONLY from the supplied spatio-temporal subgraph; never invent objects, "
     "places or times. Cite every fact with the presentation timestamp in square "
-    "brackets, e.g. [t=16.9s]. Be concise (1-3 sentences). If the graph does not "
+    "brackets, e.g. [t=16.9s]. Answer in two to four natural sentences, "
+    "explaining what happened and where. If the graph does not "
     "contain the answer, say so. Return JSON only: "
     '{"answer": "...", "citations": [{"t": 16.9, "label": "CONTAINED", "entity_id": "keys_1"}]}'
 )
@@ -691,6 +694,7 @@ class QueryEngine:
             "duration_ms": 0.0,
             "query": "",
             "playhead": t,
+            "frame": None,
             "subgraph": {},
         }
 

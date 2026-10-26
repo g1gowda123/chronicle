@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, Response
 from nicegui import app, run, ui
 
 from chronicle.integration import ChronicleRuntime
-from chronicle.perception.config import PerceptionConfig
+from chronicle.perception.config import BROAD_VOCABULARY, PerceptionConfig
 from chronicle.semantic.config import SemanticConfig
 from chronicle.sources import (
     DEFAULT_DATA_DIR,
@@ -403,14 +403,15 @@ def create_app(
         source = source_map.get(source_key, initial)
         prompts = list(source.questions)
         tracked = _tracked_labels()
-        for label in ("cup", "joy-con", "backpack", "keys", "sofa"):
-            if label in tracked:
-                prompt = f"where is the {label}?"
+        for label in ("cup", "joy-con", "backpack", "keys", "sofa", "mug", "phone"):
+            if label not in tracked:
+                continue
+            for prompt in (f"what colour is the {label}?", f"where is the {label}?"):
                 if prompt not in prompts:
                     prompts.append(prompt)
         if "what did I see?" not in prompts:
             prompts.append("what did I see?")
-        return prompts[:4]
+        return prompts[:5]
 
     def _render_suggestions(source_key: str, ask: Any) -> None:
         row = suggestion_state["row"]
@@ -599,7 +600,10 @@ def create_app(
                 ):
                     source_sync = {"active": False}
                     upload_busy = {"active": False, "name": ""}
-                    upload_vocab = {"value": ", ".join(base_config.vocabulary)}
+                    upload_vocab = {
+                        "value": ", ".join(base_config.vocabulary),
+                        "broad": False,
+                    }
 
                     def _on_source_change(event: Any) -> None:
                         if source_sync["active"]:
@@ -640,8 +644,12 @@ def create_app(
                                 data_root,
                                 target,
                                 original_name=name,
-                                vocabulary=_upload_vocabulary(
-                                    upload_vocab["value"], base_config.vocabulary
+                                vocabulary=(
+                                    BROAD_VOCABULARY
+                                    if upload_vocab["broad"]
+                                    else _upload_vocabulary(
+                                        upload_vocab["value"], base_config.vocabulary
+                                    )
                                 ),
                             )
                             source_map[source.key] = source
@@ -708,16 +716,27 @@ def create_app(
                             ui.button(icon="stop", on_click=state.stop).props(
                                 "flat round dense color=negative"
                             ).tooltip("Stop the current run")
-                    ui.input(
-                        "Objects to track (comma separated)",
-                        value=upload_vocab["value"],
-                        on_change=lambda event: upload_vocab.__setitem__(
-                            "value", event.value
-                        ),
-                    ).props("outlined dense dark").classes("w-full").tooltip(
-                        "YOLO-World prompts for uploaded clips. Add monitor, mouse, "
-                        "keyboard or any object you want the memory to track."
-                    )
+                    with ui.row().classes("w-full items-center gap-2 flex-nowrap"):
+                        ui.input(
+                            "Objects to track (comma separated)",
+                            value=upload_vocab["value"],
+                            on_change=lambda event: upload_vocab.__setitem__(
+                                "value", event.value
+                            ),
+                        ).props("outlined dense dark").classes("grow").tooltip(
+                            "YOLO-World prompts for uploaded clips. Add monitor, mouse, "
+                            "keyboard or any object you want the memory to track."
+                        )
+                        ui.checkbox(
+                            "Broad scene",
+                            value=False,
+                            on_change=lambda event: upload_vocab.__setitem__(
+                                "broad", bool(event.value)
+                            ),
+                        ).props("dense").classes("text-xs").tooltip(
+                            "Track ~100 common household and egocentric objects. "
+                            "Better coverage, more false positives."
+                        )
                     video_upload = ui.upload(
                         label="Drag & drop a video to scan live · or add a file",
                         on_upload=_on_video_upload,
@@ -804,9 +823,22 @@ def create_app(
                                 "w-full"
                             ).style("height:396px")
                         with ui.tab_panel(entities_tab).style("padding:4px 0 0 0"):
+                            with ui.row().classes(
+                                "w-full items-center gap-2 pb-1"
+                            ).style("flex-wrap:nowrap"):
+                                entity_filter = ui.input(
+                                    placeholder="Filter by label, colour, zone…"
+                                ).props("outlined dense dark clearable").classes(
+                                    "flex-1"
+                                ).style("min-width:0")
+                                ui.label("click a row to ask · colour ring = detected colour").classes(
+                                    "text-[9px] text-slate-600 whitespace-nowrap"
+                                )
                             entity_table = ui.table(
                                 columns=[
                                     {"name": "label", "label": "Label", "field": "label", "align": "left"},
+                                    {"name": "colour", "label": "Colour", "field": "colour", "align": "left"},
+                                    {"name": "appearance", "label": "Properties", "field": "appearance", "align": "left"},
                                     {"name": "state", "label": "State", "field": "state", "align": "left"},
                                     {"name": "zone", "label": "Zone", "field": "zone", "align": "left"},
                                     {"name": "anchor", "label": "Anchor", "field": "anchor", "align": "left"},
@@ -818,7 +850,21 @@ def create_app(
                                 pagination=8,
                             ).props("dark flat dense virtual-scroll").classes(
                                 "w-full"
-                            ).style("height:396px")
+                            ).style("height:346px")
+                            entity_table.add_slot(
+                                "body-cell-colour",
+                                """
+                                <q-td :props="props">
+                                  <div style="display:flex;align-items:center;gap:6px">
+                                    <span :style="{width:'11px',height:'11px',borderRadius:'50%',
+                                      background:props.row.colour_hex || 'transparent',
+                                      border:'1px solid rgba(148,163,184,.45)',
+                                      display:'inline-block'}"></span>
+                                    <span>{{ props.value }}</span>
+                                  </div>
+                                </q-td>
+                                """,
+                            )
                         with ui.tab_panel(actions_tab).style("padding:4px 0 0 0"):
                             action_table = ui.table(
                                 columns=[
@@ -904,6 +950,23 @@ def create_app(
 
         ask_button.on("click", lambda: _ask())
         query_input.on("keydown.enter", lambda: _ask())
+
+        async def _ask_from_entity_row(event: Any) -> None:
+            """Clicking an Entities row asks where that object was last seen."""
+
+            args = getattr(event, "args", None)
+            row: Any = None
+            if isinstance(args, (list, tuple)):
+                row = next((item for item in args if isinstance(item, dict)), None)
+            elif isinstance(args, dict):
+                row = args
+            label = str((row or {}).get("label") or "").strip()
+            if not label:
+                return
+            query_input.value = f"where is the {label}?"
+            await _ask()
+
+        entity_table.on("rowClick", _ask_from_entity_row)
         _render_suggestions(initial.key, _ask)
 
         with state.lock:
@@ -913,7 +976,7 @@ def create_app(
 
         cursor = len(initial_runtime.bus.history())
         last_bus = id(initial_runtime.bus)
-        last_graph_version: tuple[int, int, int] | None = None
+        last_graph_version: tuple[int, int, int, float] | None = None
         last_timeline_version: int | None = None
         last_video_key: tuple[str, int] | None = None
         last_llm_check = 0.0
@@ -1025,7 +1088,12 @@ def create_app(
                 if error:
                     pipeline_label.text += f" · {error}"
 
-                version = (len(nodes), len(edges), len(actions))
+                version = (
+                    len(nodes),
+                    len(edges),
+                    len(actions),
+                    round(float(stats.get("timestamp", 0) or 0), 1),
+                )
                 if version != last_graph_version:
                     last_graph_version = version
                     graph_chart.options.clear()
@@ -1038,18 +1106,39 @@ def create_app(
                     timeline_chart.options.update(_timeline_options(transitions))
                     timeline_chart.update()
 
-                entity_table.rows = [
+                entity_rows = [
                     {
                         "id": row.get("id"),
                         "label": row.get("label"),
+                        "colour": row.get("colour") or "—",
+                        "colour_hex": row.get("colour_hex") or "",
+                        "appearance": row.get("appearance") or "—",
                         "state": row.get("state"),
                         "zone": row.get("zone"),
                         "anchor": row.get("anchor"),
                         "container": row.get("container"),
                         "span": row.get("span"),
+                        "_search": " ".join(
+                            str(row.get(key) or "")
+                            for key in (
+                                "label",
+                                "colour",
+                                "appearance",
+                                "state",
+                                "zone",
+                                "anchor",
+                                "container",
+                            )
+                        ).lower(),
                     }
                     for row in entities
                 ]
+                needle = str(entity_filter.value or "").strip().lower()
+                if needle:
+                    entity_rows = [
+                        row for row in entity_rows if needle in row["_search"]
+                    ]
+                entity_table.rows = entity_rows
                 entity_table.update()
 
                 action_table.rows = [

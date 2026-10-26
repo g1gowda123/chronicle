@@ -18,6 +18,7 @@ from typing import Any
 
 import numpy as np
 
+from chronicle.attributes import merge_attributes
 from chronicle.perception.config import TrackerConfig
 from chronicle.perception.utils import cosine_similarity, normalize
 from chronicle.types import BBox, Detection, TrackedObject
@@ -99,6 +100,11 @@ class Track:
                     if self.embedding is None
                     else normalize(0.75 * self.embedding + 0.25 * vector)
                 )
+        new_attributes = (detection.metadata or {}).get("attributes")
+        if isinstance(new_attributes, dict) and new_attributes:
+            self.metadata["attributes"] = merge_attributes(
+                self.metadata.get("attributes"), new_attributes
+            )
         self.history.append((timestamp, self.bbox))
 
     def mark_lost(self) -> None:
@@ -281,6 +287,13 @@ class ByteTrackLite:
         return track, score, appearance, source
 
     def _new_track(self, detection: Detection, timestamp: float, frame_index: int) -> Track:
+        metadata: dict[str, Any] = {
+            "detector": detection.source,
+            "entity_id": f"track_{self._next_id}",
+        }
+        attrs = (detection.metadata or {}).get("attributes")
+        if isinstance(attrs, dict) and attrs:
+            metadata["attributes"] = dict(attrs)
         track = Track(
             track_id=self._next_id,
             label=detection.label,
@@ -290,7 +303,7 @@ class ByteTrackLite:
             first_seen=timestamp,
             last_seen=timestamp,
             last_frame=frame_index,
-            metadata={"detector": detection.source, "entity_id": f"track_{self._next_id}"},
+            metadata=metadata,
         )
         self._next_id += 1
         return track
@@ -344,8 +357,14 @@ class ByteTrackLite:
             active_tracks = list(self._active.values())
             updated_ids: set[int] = set()
 
-            # Stage 1: high-confidence detections.
-            if frame is not None and self.embedder is not None:
+            # Stage 1: high-confidence detections.  CLIP crops are expensive;
+            # compute them on the refresh cadence instead of every frame.
+            refresh_every = max(1, int(self.config.refresh_interval))
+            if (
+                frame is not None
+                and self.embedder is not None
+                and frame_index % refresh_every == 0
+            ):
                 self._fill_embeddings(frame, high)
             pairs, remaining_tracks, remaining_high = self._assign(active_tracks, high)
             for ti, di in pairs:

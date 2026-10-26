@@ -77,6 +77,12 @@ class SemanticConfig:
     llm_num_predict: int = 220
     llm_temperature: float = 0.1
     require_citations: bool = True
+    lenient_citations: bool = False
+    """Attach the nearest context citation when the model omits one.
+
+    The CLI and dashboards enable this so a grounded model answer is not thrown
+    away for formatting. Tests keep the strict default.
+    """
     max_facts: int = 40
 
     @classmethod

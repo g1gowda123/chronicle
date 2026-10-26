@@ -17,11 +17,12 @@ Chronicle avoids running heavyweight vision-language models on every frame. Inst
 1. **Frame ingestion & affine parallax gating** — background-masked rigid motion estimation separates camera pans from head rotation and static pauses.
 2. **Open-vocabulary detection & hand landmarks** — YOLO-World tracks user-specified targets while MediaPipe Hands provides 21 egocentric landmarks.
 3. **Tracking with visual re-ID** — ByteTrack-style IDs are reconciled against OpenCLIP embeddings to avoid duplicate entities after occlusions.
-4. **Containment & interaction evaluation** — Shapely computes Intersection over Smaller Area (IoS) and hand/object containment.
-5. **Temporal state machine** — entities move through a 9-state lifecycle driven by wall-clock time, not frame counts.
-6. **Event-gated VLM verification** — state transitions trigger composite temporal-strip queries to Florence-2.
-7. **Dual-graph ingestion** — events persist to NetworkX and SQLite with monotonic timestamps.
-8. **Live telemetry** — a NiceGUI dashboard streams graph mutations, metrics, and logs over WebSockets.
+4. **Appearance attributes** — a cheap crop pass records dominant colour (with swatch), brightness, saturation, shape/aspect, relative size, texture and frame position. The graph, exports and GraphRAG answers use these facts to disambiguate look-alike objects.
+5. **Containment & interaction evaluation** — Shapely computes Intersection over Smaller Area (IoS) and hand/object containment.
+6. **Temporal state machine** — entities move through a 9-state lifecycle driven by wall-clock time, not frame counts.
+7. **Event-gated VLM verification** — state transitions trigger composite temporal-strip queries to Florence-2.
+8. **Dual-graph ingestion** — events persist to NetworkX and SQLite with monotonic timestamps.
+9. **Live telemetry** — a NiceGUI dashboard streams graph mutations, metrics, and logs over WebSockets.
 
 ## Architecture
 
@@ -102,7 +103,8 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   ├── geometry.py                         # IoS, support contact, compensated velocity
 │   ├── state_machine.py                    # nine-state lifecycle engine
 │   ├── telemetry.py                        # Role B event bus
-│   ├── text.py                             # normalization, plurals, label aliases
+│   ├── text.py                              # normalization, plurals, label aliases
+│   ├── attributes.py                       # public appearance-attribute helpers
 │   ├── integration.py                      # A -> B -> C runtime facade
 │   ├── benchmark.py                        # reproducible source benchmark + JSON report
 │   ├── sources.py                          # demo/real source registry
@@ -122,6 +124,7 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   │   ├── hands.py                        # MediaPipe Tasks + skin fallback
 │   │   ├── tracker.py                      # two-stage tracking + Re-ID
 │   │   ├── interactions.py                 # IoS / dwell interaction gate
+│   │   ├── attributes.py                   # dominant colour + simple properties
 │   │   ├── clip_buffer.py                  # 30-frame ring + clip assembly
 │   │   ├── pipeline.py                     # orchestration / JSONL
 │   │   ├── stream.py                       # threaded consumer stream
@@ -146,6 +149,7 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   ├── ROLE_B.md                           # Role B integration contract
 │   ├── ROLE_C.md                           # Role C contract
 │   ├── INTEGRATION.md                      # runtime/UI contract
+│   ├── NOTICE_BOARD.md                     # claimable, prioritised team tasks
 │   └── TEAM_STATUS.md                      # current work + role assignments
 ├── scripts/
 │   ├── fetch_assets.py                     # download model weights

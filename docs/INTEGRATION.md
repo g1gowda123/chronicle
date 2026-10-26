@@ -75,7 +75,8 @@ queue/drain ordering in `_verify_clip()` unless the pipeline contract changes.
 {
   "nodes": [{"id", "label", "group", "zone_id", "title"}],  # Role B graph
   "edges": [{"from", "to", "label", "arrows"}],
-  "entities": [{"id", "label", "state", "zone", "anchor", ...}],
+  "entities": [{"id", "label", "state", "zone", "anchor", "colour",
+                "colour_hex", "attributes", "appearance", ...}],
   "actions": [{"id", "timestamp", "action", "entity", ...}],
   "transitions": [{"id", "entity_id", "from_state", "to_state", ...}],
   "furniture": [{"anchor_id", "label", "zone_id", "bbox", ...}],
@@ -84,9 +85,14 @@ queue/drain ordering in `_verify_clip()` unless the pipeline contract changes.
   "running": bool,
   "error": str | None,
   "video": str | None,
-  "backends": {"detector", "hands", "embedder", "llm"},
+  "backends": {"detector", "hands", "embedder", "attributes", "llm"},
 }
 ```
+
+`entities[].attributes` holds the Role A appearance facts (dominant colour,
+swatch, shape, size, texture, brightness, position). `nodes[].attributes` and
+`nodes[].colour_hex` mirror the same facts for the graph, and the entity CSV
+export appends `colour`, `colour_hex` and a JSON `attributes` column.
 
 The dashboard only consumes this schema. Adding a field is backward-compatible;
 renaming one requires updating `chronicle/ui/app.py` in the same change.
@@ -118,6 +124,14 @@ Role B returns `QueryResult.edges` with `src`/`dst`/`t_start`. Role C expects
 `runtime.graph_context()` performs that translation and de-duplicates facts.
 Keep this adapter here rather than teaching either role about the other's edge
 shape.
+
+Appearance facts are folded into `GraphContext.attributes`, so GraphRAG can
+answer "what colour is the cup?", "how big is it?" and "describe the backpack"
+without an LLM. The template path cites the entity's `last_seen` timestamp;
+`GraphContext.from_mapping` also accepts attributes nested inside the entity
+object for older exports. Broad colour filters ("what red objects did you see?")
+are answered by `ChronicleRuntime._colour_inventory_answer()` before entity
+ranking, so they list every matching object instead of arbitrarily picking one.
 
 ## Static furniture
 

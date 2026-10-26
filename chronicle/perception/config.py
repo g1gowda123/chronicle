@@ -33,6 +33,115 @@ DEFAULT_ALIASES: dict[str, str] = {
     "computer mouse": "mouse",
 }
 
+#: Opt-in broad prompt set for uploaded clips.  YOLO-World is open-vocabulary
+#: but prompt-driven: it will not discover objects it was not asked about.
+#: This covers ~100 everyday egocentric/indoor objects at roughly the same
+#: per-frame cost as the starter list, at the price of more false positives.
+BROAD_VOCABULARY: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        (
+            "person",
+            "bicycle",
+            "car",
+            "motorcycle",
+            "bus",
+            "truck",
+            "bench",
+            "backpack",
+            "umbrella",
+            "handbag",
+            "suitcase",
+            "bottle",
+            "wine glass",
+            "cup",
+            "fork",
+            "knife",
+            "spoon",
+            "bowl",
+            "banana",
+            "apple",
+            "sandwich",
+            "orange",
+            "broccoli",
+            "carrot",
+            "pizza",
+            "donut",
+            "cake",
+            "chair",
+            "couch",
+            "potted plant",
+            "bed",
+            "dining table",
+            "toilet",
+            "monitor",
+            "laptop",
+            "mouse",
+            "remote",
+            "keyboard",
+            "cell phone",
+            "microwave",
+            "oven",
+            "toaster",
+            "sink",
+            "refrigerator",
+            "book",
+            "clock",
+            "vase",
+            "scissors",
+            "teddy bear",
+            "toothbrush",
+            "desk",
+            "door",
+            "window",
+            "wall",
+            "floor",
+            "shelf",
+            "cabinet",
+            "drawer",
+            "box",
+            "bag",
+            "keys",
+            "mug",
+            "paper",
+            "pen",
+            "pencil",
+            "notebook",
+            "table",
+            "countertop",
+            "headphones",
+            "speaker",
+            "router",
+            "cable",
+            "charger",
+            "plant",
+            "picture frame",
+            "trash can",
+            "towel",
+            "soap",
+            "mirror",
+            "lamp",
+            "pillow",
+            "blanket",
+            "curtain",
+            "clothes",
+            "shoe",
+            "hat",
+            "glasses",
+            "wallet",
+            "watch",
+            "ring",
+            "food",
+            "fruit",
+            "vegetable",
+            "pan",
+            "pot",
+            "plate",
+            "glass",
+            "jar",
+        )
+    )
+)
+
 
 @dataclass(slots=True)
 class MotionConfig:
@@ -48,6 +157,7 @@ class MotionConfig:
     min_distance: float = 8.0
     ransac_threshold: float = 2.5
     scale: float = 0.5  # estimate motion on a half-resolution grayscale frame
+    max_width: int = 640  # never estimate motion above this width (caps 1080p/4K cost)
     fb_error: float = 3.0  # forward-backward LK consistency gate
 
 
@@ -74,7 +184,8 @@ class HandConfig:
     max_hands: int = 2
     model: str = "hand_landmarker.task"
     upscale: float = 1.0
-    interval: int = 1  # reuse landmarks on skipped frames
+    max_width: int = 960  # downscale before MediaPipe; landmarks stay normalised
+    interval: int = 2  # reuse landmarks on skipped frames
 
 
 @dataclass(slots=True)
@@ -139,6 +250,16 @@ class ClipConfig:
 
 
 @dataclass(slots=True)
+class AttributesConfig:
+    """Cheap per-crop appearance facts (colour, shape, size, texture)."""
+
+    enabled: bool = True
+    interval: int = 3  # recompute every N frames; the tracker retains the last value
+    min_crop_px: int = 8
+    colour_clusters: int = 3
+
+
+@dataclass(slots=True)
 class SupportConfig:
     """Role A static-support candidate extraction.
 
@@ -188,6 +309,7 @@ class PerceptionConfig:
     tracker: TrackerConfig = field(default_factory=TrackerConfig)
     motion: MotionConfig = field(default_factory=MotionConfig)
     interaction: InteractionConfig = field(default_factory=InteractionConfig)
+    attributes: AttributesConfig = field(default_factory=AttributesConfig)
     support: SupportConfig = field(default_factory=SupportConfig)
     clip: ClipConfig = field(default_factory=ClipConfig)
     frame_stride: int = 1

@@ -16,6 +16,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from chronicle.attributes import attribute_query_field, describe_attribute
+
 from ._utils import warn_once
 from .config import SemanticConfig
 from .llm import ChatClient, LLMUnavailableError
@@ -27,8 +29,11 @@ Answer using ONLY the facts in the supplied table. Do not invent objects,
 places, times, or actions.
 
 Rules:
-1. Answer in one or two short sentences.
-2. If the user asks what a friend/person is holding, doing or interacting with, answer based on the objects and actions in the table (such as cup, bag, keys, etc.).
+1. Answer in two to four natural sentences. Explain what happened, where it
+   happened, and whether a manipulation action was verified.
+2. If the user asks what a friend/person is holding, doing or interacting with,
+   describe the object, the person's relation to it, and the movement you can
+   infer from the table.
 3. Include at least one timestamp citation copied from the table, e.g. [t=14.2s].
 4. Name the zone/location when it is known.
 5. If the table cannot answer the question, reply exactly:
@@ -177,6 +182,7 @@ class GraphContext:
             state = entity_info.get("state")
             zone = entity_info.get("zone") or entity_info.get("location")
             last_seen = entity_info.get("last_seen") or entity_info.get("last_seen_at")
+            embedded_attributes = entity_info.get("attributes")
         else:
             entity_label = str(
                 entity_info
@@ -190,6 +196,7 @@ class GraphContext:
             state = data.get("state")
             zone = data.get("zone") or data.get("location") or data.get("place")
             last_seen = data.get("last_seen") or data.get("last_seen_at")
+            embedded_attributes = None
 
         raw_facts = (
             data.get("facts")
@@ -219,6 +226,8 @@ class GraphContext:
             zone = _infer_zone(entity_id, entity_label, facts)
 
         attributes = data.get("attributes")
+        if not isinstance(attributes, Mapping) and isinstance(embedded_attributes, Mapping):
+            attributes = embedded_attributes
         return cls(
             entity_id=entity_id or entity_label,
             entity_label=entity_label or entity_id,
@@ -459,6 +468,11 @@ def format_context(context: GraphContext, *, max_facts: int = 40) -> str:
         f"Current state: {context.state or 'unknown'}",
         f"Current zone: {context.zone or 'unknown'}",
         f"Last seen: {'unknown' if context.last_seen is None else f't={format_timestamp(context.last_seen)}s'}",
+    ]
+    appearance = describe_attribute(context.attributes, "all")
+    if appearance:
+        lines.append(f"Appearance: {appearance}")
+    lines += [
         "",
         "| t (s) | subject | relation | object | zone | confidence |",
         "| --- | --- | --- | --- | --- | --- |",
@@ -589,6 +603,68 @@ def extract_citations(text: str, context: GraphContext, tolerance: float = 0.35)
             )
         )
     return tuple(found)
+
+
+_CLOCK_RE = re.compile(r"(?:(\d{1,2}):)?(\d{1,2}):(\d{2}(?:\.\d+)?)")
+
+
+def lenient_citations(text: str, context: GraphContext) -> tuple[Citation, ...]:
+    """Attach the closest real facts when the model's citation format differs.
+
+    Local models often write ``00:55.8`` instead of ``[t=55.8s]``, or omit the
+    bracket entirely.  In lenient mode we keep the prose but anchor it to the
+    nearest facts so the dashboard still has something to seek to.
+    """
+    facts = [fact for fact in context.facts if fact.timestamp is not None]
+    if not facts:
+        if context.last_seen is not None:
+            return (
+                Citation(
+                    timestamp=float(context.last_seen),
+                    relation="LAST_SEEN",
+                    zone=context.zone,
+                    fact=None,
+                ),
+            )
+        return ()
+
+    mentioned: list[float] = []
+    for match in _CITATION_RE.finditer(text or ""):
+        raw = match.group(1) or match.group(2)
+        try:
+            mentioned.append(float(raw))
+        except (TypeError, ValueError):
+            pass
+    for match in _CLOCK_RE.finditer(text or ""):
+        hours = int(match.group(1) or 0)
+        minutes = int(match.group(2))
+        seconds = float(match.group(3))
+        mentioned.append(hours * 3600 + minutes * 60 + seconds)
+
+    if mentioned:
+        anchor = mentioned[0]
+        ordered = sorted(facts, key=lambda fact: abs(float(fact.timestamp) - anchor))
+    else:
+        ordered = sorted(facts, key=lambda fact: float(fact.timestamp), reverse=True)
+
+    citations: list[Citation] = []
+    seen: set[tuple[float, str]] = set()
+    for fact in ordered:
+        key = (float(fact.timestamp), fact.relation)
+        if key in seen:
+            continue
+        seen.add(key)
+        citations.append(
+            Citation(
+                timestamp=float(fact.timestamp),
+                relation=fact.relation,
+                zone=fact.zone or context.zone,
+                fact=fact,
+            )
+        )
+        if len(citations) >= 2:
+            break
+    return tuple(citations)
 
 
 def _text_tokens(text: str) -> set[str]:
@@ -774,6 +850,55 @@ def _before_answer(
     )
 
 
+def _attribute_answer(
+    query: str,
+    context: GraphContext,
+    label: str,
+    field: str,
+) -> QueryAnswer:
+    """Answer a colour/shape/size question from the extracted appearance facts."""
+
+    description = describe_attribute(context.attributes, field)
+    if not description:
+        return QueryAnswer(
+            query=query,
+            answer=(
+                f"I don't have {field if field != 'all' else 'appearance'} details "
+                f"for the {label} in my memory."
+            ),
+            citations=(),
+            grounded=False,
+            source="template",
+            context=context,
+        )
+    when = (
+        f" (last observed at [t={format_timestamp(context.last_seen)}s])"
+        if context.last_seen is not None
+        else ""
+    )
+    if field == "all":
+        answer = f"The {label} looks {description}{when}."
+    else:
+        answer = f"The {label} is {description}{when}."
+    citation = (
+        Citation(
+            timestamp=float(context.last_seen),
+            relation="APPEARANCE",
+            zone=context.zone,
+        )
+        if context.last_seen is not None
+        else None
+    )
+    return QueryAnswer(
+        query=query,
+        answer=answer,
+        citations=(citation,) if citation is not None else (),
+        grounded=citation is not None,
+        source="template",
+        context=context,
+    )
+
+
 def template_answer(query: str, context: GraphContext) -> QueryAnswer:
     """Deterministic, graph-grounded fallback answer."""
     label = context.entity_label or context.entity_id or "that object"
@@ -821,6 +946,10 @@ def template_answer(query: str, context: GraphContext) -> QueryAnswer:
         if fact.subject.lower() == entity_key or fact.object_label.lower() == entity_key
     ] or facts
     query_lower = query.lower()
+
+    attribute_field = attribute_query_field(query)
+    if attribute_field:
+        return _attribute_answer(query, context, label, attribute_field)
 
     if _is_before_query(query):
         return _before_answer(query, context, entity_facts, label)
@@ -935,6 +1064,10 @@ class GraphRAG:
         citations = extract_citations(text, resolved)
         if not text:
             return template_answer(query, resolved)
+        if text.lower().rstrip(".") == "i don't have that in my memory":
+            return template_answer(query, resolved)
+        if not citations and self.config.lenient_citations:
+            citations = lenient_citations(text, resolved)
 
         if self.config.require_citations and not citations:
             warn_once(

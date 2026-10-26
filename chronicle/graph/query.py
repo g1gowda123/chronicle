@@ -15,6 +15,12 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from chronicle.attributes import (
+    attribute_query_field,
+    attribute_summary,
+    describe_attribute,
+    public_attributes,
+)
 from chronicle.config import DEFAULT_THRESHOLDS, Thresholds
 from chronicle.geometry import cosine_similarity
 from chronicle.graph.background import BackgroundGraph
@@ -84,6 +90,7 @@ class QueryResult:
     container_label: str | None = None
     zone_id: str | None = None
     zone_label: str | None = None
+    attributes: dict[str, Any] = field(default_factory=dict)
     candidates: list[dict[str, Any]] = field(default_factory=list)
     nodes: list[dict[str, Any]] = field(default_factory=list)
     edges: list[dict[str, Any]] = field(default_factory=list)
@@ -148,6 +155,7 @@ class QueryResult:
                 f"{interaction.get('kind')} at t={float(interaction.get('t', 0.0)):.1f}s "
                 f"by {interaction.get('agent', 'USER')}"
             )
+        appearance = attribute_summary(self.attributes, limit=8) or "none recorded"
         return (
             "You are Chronicle, an egocentric episodic memory assistant.\n"
             "Answer the question using ONLY the retrieved graph context below.\n"
@@ -162,6 +170,7 @@ class QueryResult:
             f"MATCH CONFIDENCE: {self.confidence:.2f} ({self.match_reason or 'direct lookup'})\n"
             f"CURRENT STATE: {self.state} since t={self.state_since:.1f}s\n"
             f"LAST OBSERVED: t={self.last_seen:.1f}s\n"
+            f"LOOK: {appearance}\n"
             f"LAST INTERACTION: {interaction_text}\n"
             f"TERMINAL ANCHOR: {anchor_text}\n"
             f"CONTAINER: {self.container_label or 'none'}\n"
@@ -287,6 +296,25 @@ class QueryResult:
 
         label = self.label
         query_text = (self.query or "").strip()
+        field = attribute_query_field(query_text)
+        if field:
+            if not self.attributes:
+                return (
+                    f"I don't have appearance details for the {label} yet. "
+                    "The perception pass has not recorded a usable crop."
+                )
+            description = describe_attribute(self.attributes, field)
+            if not description:
+                return f"I don't have that attribute recorded for the {label}."
+            if field == "all":
+                return (
+                    f"The {label} looks {description} "
+                    f"(last observed at t={self.last_seen:.1f}s)."
+                )
+            return (
+                f"The {label} is {description} "
+                f"(last observed at t={self.last_seen:.1f}s)."
+            )
         if is_temporal_multihop_query(query_text):
             prior_edge, ref_edge, ref_label, ref_found = self.walk_timeline_before(query_text)
             if not ref_found:
@@ -398,6 +426,7 @@ class QueryResult:
             "container_label": self.container_label,
             "zone_id": self.zone_id,
             "zone_label": self.zone_label,
+            "attributes": self.attributes,
             "nodes": self.nodes,
             "edges": [
                 {
@@ -599,6 +628,7 @@ class GraphQuery:
             container_label=container_label,
             zone_id=zone_id,
             zone_label=zone_label,
+            attributes=public_attributes(attrs.get("attrs") or {}),
             nodes=nodes,
             edges=edges,
         )

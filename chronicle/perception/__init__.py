@@ -9,8 +9,14 @@ Quick start::
         print(result.timestamp, result.camera_state, len(result.tracks))
 """
 
+from chronicle.perception.attributes import (
+    AttributeConfig,
+    AttributeExtractor,
+    extract_object_attributes,
+)
 from chronicle.perception.clip_buffer import FrameRingBuffer, InteractionClipRecorder
 from chronicle.perception.config import (
+    AttributesConfig,
     ClipConfig,
     DetectorConfig,
     EmbedderConfig,
@@ -49,6 +55,9 @@ from chronicle.types import (
 
 __all__ = [
     "AffineMotionEstimator",
+    "AttributeConfig",
+    "AttributeExtractor",
+    "AttributesConfig",
     "BBox",
     "ByteTrackLite",
     "CameraState",
@@ -89,4 +98,5 @@ __all__ = [
     "build_detector",
     "build_embedder",
     "build_hands",
+    "extract_object_attributes",
 ]

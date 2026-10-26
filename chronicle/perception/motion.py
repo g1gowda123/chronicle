@@ -23,6 +23,7 @@ class AffineMotionEstimator:
     def __init__(self, config: MotionConfig | None = None) -> None:
         self.config = config or MotionConfig()
         self._scale = max(0.25, min(1.0, float(self.config.scale)))
+        self._frame_scale = self._scale
         self._prev_gray: np.ndarray | None = None
         self._state = CameraState.UNKNOWN
 
@@ -36,15 +37,16 @@ class AffineMotionEstimator:
             return frame
         return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    def _mask(self, shape: tuple[int, int], boxes: Iterable[BBox]) -> np.ndarray:
+    def _mask(self, shape: tuple[int, int], boxes: Iterable[BBox], scale: float | None = None) -> np.ndarray:
         height, width = shape
         mask = np.full(shape, 255, dtype=np.uint8)
-        pad = max(0, int(round(self.config.mask_padding * self._scale)))
+        active_scale = self._scale if scale is None else max(0.05, float(scale))
+        pad = max(0, int(round(self.config.mask_padding * active_scale)))
         for bbox in boxes:
-            x1 = max(0, int(round(bbox.x1 * self._scale)) - pad)
-            y1 = max(0, int(round(bbox.y1 * self._scale)) - pad)
-            x2 = min(width, int(round(bbox.x2 * self._scale)) + pad)
-            y2 = min(height, int(round(bbox.y2 * self._scale)) + pad)
+            x1 = max(0, int(round(bbox.x1 * active_scale)) - pad)
+            y1 = max(0, int(round(bbox.y1 * active_scale)) - pad)
+            x2 = min(width, int(round(bbox.x2 * active_scale)) + pad)
+            y2 = min(height, int(round(bbox.y2 * active_scale)) + pad)
             if x2 > x1 and y2 > y1:
                 mask[y1:y2, x1:x2] = 0
         return mask
@@ -71,12 +73,19 @@ class AffineMotionEstimator:
         cannot poison the background feature set.
         """
         gray_full = self._to_gray(frame)
-        if self._scale < 0.999:
+        width = gray_full.shape[1]
+        max_width = max(0, int(getattr(self.config, "max_width", 0) or 0))
+        scale = self._scale
+        if max_width and width * scale > max_width:
+            scale = max_width / max(1, width)
+        scale = max(0.15, min(1.0, scale))
+        self._frame_scale = scale
+        if scale < 0.999:
             gray = cv2.resize(
                 gray_full,
                 (
-                    max(1, int(round(gray_full.shape[1] * self._scale))),
-                    max(1, int(round(gray_full.shape[0] * self._scale))),
+                    max(1, int(round(width * scale))),
+                    max(1, int(round(gray_full.shape[0] * scale))),
                 ),
                 interpolation=cv2.INTER_AREA,
             )
@@ -88,7 +97,7 @@ class AffineMotionEstimator:
             self._state = CameraState.UNKNOWN
             return MotionEstimate(valid=False, state=CameraState.UNKNOWN)
 
-        mask = self._mask(gray.shape[:2], exclude)
+        mask = self._mask(gray.shape[:2], exclude, scale)
         previous_points = cv2.goodFeaturesToTrack(
             self._prev_gray,
             maxCorners=max(8, int(self.config.max_corners)),
@@ -167,8 +176,8 @@ class AffineMotionEstimator:
                 tracked_points=len(source_points),
             )
 
-        dx = float(matrix[0, 2]) / self._scale
-        dy = float(matrix[1, 2]) / self._scale
+        dx = float(matrix[0, 2]) / self._frame_scale
+        dy = float(matrix[1, 2]) / self._frame_scale
         theta = math.atan2(float(matrix[1, 0]), float(matrix[0, 0]))
         magnitude = math.hypot(dx, dy)
         state = self._classify(magnitude, math.degrees(theta))
