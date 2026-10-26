@@ -1,0 +1,15 @@
+{
+  "video_url": "/media/demo.webm",
+  "duration": 26.0,
+  "fps": 15,
+  "events": 456,
+  "entities": 8,
+  "channels": [
+    "GEOM",
+    "GRAPH",
+    "SYSTEM",
+    "TRACK",
+    "VLM"
+  ],
+  "generated_by": "tools/make_demo_assets.py"
+}

@@ -1,0 +1,456 @@
+{"v":1,"kind":"session","t":0.0,"data":{"title":"Kitchen Counter · Episode 01","video_url":"/media/demo.webm","duration":26.0,"fps":15,"width":1280,"height":720,"source":"demo","notes":"Synthetic egocentric episode · judge telemetry fallback"},"seq":0}
+{"v":1,"kind":"telemetry","t":0.0,"data":{"channel":"SYSTEM","level":"info","message":"Chronicle online · YOLO-World · ByteTrack · MediaPipe Hands · Florence-2-base"},"seq":1}
+{"v":1,"kind":"telemetry","t":0.1,"data":{"channel":"SYSTEM","level":"info","message":"source /media/demo.webm · 1280x720 @ 15fps · 30-frame ring buffer"},"seq":2}
+{"v":1,"kind":"entity","t":0.3,"data":{"id":"wallet_1","label":"Wallet","class":"wallet","clip_sim":0.89,"confidence":0.87,"track_id":"101","zone_id":"kitchen","crop_url":"/media/crops/wallet.png","first_seen":-600.0,"attributes":{"source":"YOLO-World","reid":"CLIP ViT-B-32"},"bbox":[0.2713,0.2667,0.351,0.35],"last_seen":-598.0},"seq":3}
+{"v":1,"kind":"telemetry","t":0.301,"data":{"channel":"TRACK","level":"info","message":"minted wallet_1 (wallet) · state NEW · conf 0.87 · ByteTrack 101","entity_id":"wallet_1"},"seq":4}
+{"v":1,"kind":"state","t":0.32,"data":{"entity_id":"wallet_1","label":"Wallet","from":"OUT_OF_VIEW","to":"LOST","reason":"unobserved 612s > 600s · terminal anchor preserved","trigger":{"dt":612.0,"dormancy_threshold":600.0},"confidence":0.87},"seq":5}
+{"v":1,"kind":"edge","t":0.35,"data":{"id":"e_wallet_shelf","source":"wallet_1","target":"shelf","relation":"RESTING_ON","t_start":-600.0,"t_end":null,"active":true,"clip_sim":0.89},"seq":6}
+{"v":1,"kind":"telemetry","t":0.4,"data":{"channel":"GRAPH","level":"info","message":"terminal anchor retained · wallet_1 --[RESTING_ON]--> shelf (row pinned in SQLite)","entity_id":"wallet_1"},"seq":7}
+{"v":1,"kind":"entity","t":0.45,"data":{"id":"bottle_1","label":"Bottle","class":"bottle","clip_sim":0.88,"confidence":0.84,"track_id":"102","zone_id":"kitchen","crop_url":"/media/crops/bottle.png","first_seen":0.45,"attributes":{"source":"YOLO-World","reid":"CLIP ViT-B-32"},"bbox":[0.0266,0.6528,0.0829,0.85]},"seq":8}
+{"v":1,"kind":"telemetry","t":0.451,"data":{"channel":"TRACK","level":"info","message":"minted bottle_1 (bottle) · state NEW · conf 0.84 · ByteTrack 102","entity_id":"bottle_1"},"seq":9}
+{"v":1,"kind":"metrics","t":0.5,"data":{"fps":15,"latency_ms":50,"last_latency_ms":0,"frames":7,"gated_frames":5,"yolo_frames":2,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"PAN","dx":1.98,"dy":0.0,"theta":0.0,"inliers":214}},"seq":10}
+{"v":1,"kind":"telemetry","t":0.5,"data":{"channel":"GEOM","level":"info","message":"‖T‖=1.98px > τ_pan=2.0 · RANSAC inliers=199/256 · camera=PAN","dx":1.98,"dy":0.0,"theta":0.0},"seq":11}
+{"v":1,"kind":"entity","t":0.5,"data":{"id":"bottle_1","label":"Bottle","bbox":[0.0256,0.6528,0.0818,0.85],"confidence":0.83,"clip_sim":0.88},"seq":12}
+{"v":1,"kind":"entity","t":0.9,"data":{"id":"bottle_1","label":"Bottle","bbox":[0.0139,0.6528,0.0701,0.85],"confidence":0.824,"clip_sim":0.88},"seq":13}
+{"v":1,"kind":"metrics","t":1.0,"data":{"fps":15,"latency_ms":52,"last_latency_ms":0,"frames":15,"gated_frames":11,"yolo_frames":4,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"PAN","dx":3.41,"dy":0.0,"theta":0.0,"inliers":214}},"seq":14}
+{"v":1,"kind":"telemetry","t":1.25,"data":{"channel":"GEOM","level":"info","message":"‖T‖=3.97px > τ_pan=2.0 · RANSAC inliers=204/256 · camera=PAN","dx":3.97,"dy":0.0,"theta":0.0},"seq":15}
+{"v":1,"kind":"entity","t":1.3,"data":{"id":"bottle_1","label":"Bottle","bbox":[0.0,0.6528,0.0534,0.85],"confidence":0.821,"clip_sim":0.88},"seq":16}
+{"v":1,"kind":"metrics","t":1.5,"data":{"fps":15,"latency_ms":49,"last_latency_ms":0,"frames":22,"gated_frames":17,"yolo_frames":5,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"PAN","dx":4.42,"dy":0.0,"theta":0.0,"inliers":214}},"seq":17}
+{"v":1,"kind":"entity","t":1.7,"data":{"id":"bottle_1","label":"Bottle","bbox":[0.0,0.6528,0.033,0.85],"confidence":0.82,"clip_sim":0.88},"seq":18}
+{"v":1,"kind":"state","t":2.0,"data":{"entity_id":"bottle_1","label":"Bottle","from":"NEW","to":"VISIBLE_STATIC","reason":"velocity 0.03px/frame < τ_move · support ymax contact","trigger":{"dt":0.6,"velocity":0.03},"confidence":0.84},"seq":19}
+{"v":1,"kind":"metrics","t":2.0,"data":{"fps":15,"latency_ms":46,"last_latency_ms":0,"frames":30,"gated_frames":23,"yolo_frames":7,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"PAN","dx":5.02,"dy":0.0,"theta":0.0,"inliers":214}},"seq":20}
+{"v":1,"kind":"telemetry","t":2.0,"data":{"channel":"GEOM","level":"info","message":"‖T‖=5.02px > τ_pan=2.0 · RANSAC inliers=210/256 · camera=PAN","dx":5.02,"dy":0.0,"theta":0.0},"seq":21}
+{"v":1,"kind":"edge","t":2.02,"data":{"id":"e_bottle_counter_1","source":"bottle_1","target":"countertop","relation":"RESTING_ON","t_start":2.0,"t_end":null,"active":true,"clip_sim":0.88},"seq":22}
+{"v":1,"kind":"entity","t":2.1,"data":{"id":"bottle_1","label":"Bottle","bbox":[0.0,0.6528,0.0101,0.85],"confidence":0.823,"clip_sim":0.88},"seq":23}
+{"v":1,"kind":"metrics","t":2.5,"data":{"fps":15,"latency_ms":52,"last_latency_ms":0,"frames":37,"gated_frames":29,"yolo_frames":8,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"PAN","dx":5.2,"dy":0.0,"theta":0.0,"inliers":214}},"seq":24}
+{"v":1,"kind":"telemetry","t":2.75,"data":{"channel":"GEOM","level":"info","message":"‖T‖=5.13px > τ_pan=2.0 · RANSAC inliers=215/256 · camera=PAN","dx":5.13,"dy":0.0,"theta":0.0},"seq":25}
+{"v":1,"kind":"metrics","t":3.0,"data":{"fps":15,"latency_ms":52,"last_latency_ms":0,"frames":45,"gated_frames":35,"yolo_frames":10,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"PAN","dx":4.96,"dy":0.0,"theta":0.0,"inliers":214}},"seq":26}
+{"v":1,"kind":"metrics","t":3.5,"data":{"fps":15,"latency_ms":46,"last_latency_ms":0,"frames":52,"gated_frames":41,"yolo_frames":11,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"PAN","dx":4.31,"dy":0.0,"theta":0.0,"inliers":214}},"seq":27}
+{"v":1,"kind":"telemetry","t":3.5,"data":{"channel":"GEOM","level":"info","message":"‖T‖=4.31px > τ_pan=2.0 · RANSAC inliers=220/256 · camera=PAN","dx":4.31,"dy":0.0,"theta":0.0},"seq":28}
+{"v":1,"kind":"metrics","t":4.0,"data":{"fps":15,"latency_ms":48,"last_latency_ms":0,"frames":60,"gated_frames":47,"yolo_frames":13,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"PAN","dx":3.24,"dy":0.0,"theta":0.0,"inliers":214}},"seq":29}
+{"v":1,"kind":"telemetry","t":4.25,"data":{"channel":"GEOM","level":"info","message":"‖T‖=2.55px > τ_pan=2.0 · RANSAC inliers=225/256 · camera=PAN","dx":2.55,"dy":0.0,"theta":0.0},"seq":30}
+{"v":1,"kind":"metrics","t":4.5,"data":{"fps":15,"latency_ms":52,"last_latency_ms":0,"frames":67,"gated_frames":52,"yolo_frames":15,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"PAN","dx":1.76,"dy":0.0,"theta":0.0,"inliers":214}},"seq":31}
+{"v":1,"kind":"entity","t":4.55,"data":{"id":"notebook_1","label":"Notebook","class":"notebook","clip_sim":0.93,"confidence":0.9,"track_id":"103","zone_id":"kitchen","crop_url":"/media/crops/notebook.png","first_seen":4.55,"attributes":{"source":"YOLO-World","reid":"CLIP ViT-B-32"},"bbox":[0.0046,0.6528,0.1375,0.8194]},"seq":32}
+{"v":1,"kind":"telemetry","t":4.551,"data":{"channel":"TRACK","level":"info","message":"minted notebook_1 (notebook) · state NEW · conf 0.90 · ByteTrack 103","entity_id":"notebook_1"},"seq":33}
+{"v":1,"kind":"telemetry","t":4.551,"data":{"channel":"TRACK","level":"info","message":"notebook_1 pending CLIP Re-ID check · cosine < 0.82 to active nodes → new node"},"seq":34}
+{"v":1,"kind":"entity","t":4.62,"data":{"id":"mug_1","label":"Mug","class":"mug","clip_sim":0.91,"confidence":0.92,"track_id":"104","zone_id":"kitchen","crop_url":"/media/crops/mug.png","first_seen":4.62,"attributes":{"source":"YOLO-World","reid":"CLIP ViT-B-32"},"bbox":[0.1908,0.7014,0.2572,0.8472]},"seq":35}
+{"v":1,"kind":"telemetry","t":4.621,"data":{"channel":"TRACK","level":"info","message":"minted mug_1 (mug) · state NEW · conf 0.92 · ByteTrack 104","entity_id":"mug_1"},"seq":36}
+{"v":1,"kind":"telemetry","t":4.621,"data":{"channel":"TRACK","level":"info","message":"mug_1 pending CLIP Re-ID check · cosine < 0.82 to active nodes → new node"},"seq":37}
+{"v":1,"kind":"entity","t":4.7,"data":{"id":"phone_1","label":"Phone","class":"phone","clip_sim":0.95,"confidence":0.94,"track_id":"105","zone_id":"kitchen","crop_url":"/media/crops/phone.png","first_seen":4.7,"attributes":{"source":"YOLO-World","reid":"CLIP ViT-B-32"},"bbox":[0.3302,0.7222,0.381,0.8958]},"seq":38}
+{"v":1,"kind":"entity","t":4.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0021,0.6528,0.1349,0.8194],"confidence":0.92,"clip_sim":0.93},"seq":39}
+{"v":1,"kind":"telemetry","t":4.701,"data":{"channel":"TRACK","level":"info","message":"minted phone_1 (phone) · state NEW · conf 0.94 · ByteTrack 105","entity_id":"phone_1"},"seq":40}
+{"v":1,"kind":"telemetry","t":4.701,"data":{"channel":"TRACK","level":"info","message":"phone_1 pending CLIP Re-ID check · cosine < 0.82 to active nodes → new node"},"seq":41}
+{"v":1,"kind":"entity","t":4.76,"data":{"id":"tote_1","label":"Tote Bag","class":"tote","clip_sim":0.92,"confidence":0.9,"track_id":"107","zone_id":"kitchen","crop_url":"/media/crops/tote.png","first_seen":4.76,"attributes":{"source":"YOLO-World","reid":"CLIP ViT-B-32"},"bbox":[0.6029,0.6319,0.7514,0.9722]},"seq":42}
+{"v":1,"kind":"telemetry","t":4.761,"data":{"channel":"TRACK","level":"info","message":"minted tote_1 (tote) · state NEW · conf 0.90 · ByteTrack 107","entity_id":"tote_1"},"seq":43}
+{"v":1,"kind":"telemetry","t":4.761,"data":{"channel":"TRACK","level":"info","message":"tote_1 pending CLIP Re-ID check · cosine < 0.82 to active nodes → new node"},"seq":44}
+{"v":1,"kind":"entity","t":4.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1887,0.7014,0.2552,0.8472],"confidence":0.94,"clip_sim":0.91},"seq":45}
+{"v":1,"kind":"entity","t":4.84,"data":{"id":"keys_1","label":"Keys","class":"keys","clip_sim":0.94,"confidence":0.91,"track_id":"106","zone_id":"kitchen","crop_url":"/media/crops/keys.png","first_seen":4.84,"attributes":{"source":"YOLO-World","reid":"CLIP ViT-B-32"},"bbox":[0.4537,0.7917,0.5397,0.8542]},"seq":46}
+{"v":1,"kind":"telemetry","t":4.841,"data":{"channel":"TRACK","level":"info","message":"minted keys_1 (keys) · state NEW · conf 0.91 · ByteTrack 106","entity_id":"keys_1"},"seq":47}
+{"v":1,"kind":"telemetry","t":4.841,"data":{"channel":"TRACK","level":"info","message":"keys_1 pending CLIP Re-ID check · cosine < 0.82 to active nodes → new node"},"seq":48}
+{"v":1,"kind":"entity","t":4.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3287,0.7222,0.3794,0.8958],"confidence":0.96,"clip_sim":0.95},"seq":49}
+{"v":1,"kind":"entity","t":4.9,"data":{"id":"backpack_1","label":"Backpack","class":"backpack","clip_sim":0.9,"confidence":0.88,"track_id":"108","zone_id":"kitchen","crop_url":"/media/crops/backpack.png","first_seen":4.9,"attributes":{"source":"YOLO-World","reid":"CLIP ViT-B-32"},"bbox":[0.8362,0.5764,1.0,0.9056]},"seq":50}
+{"v":1,"kind":"telemetry","t":4.9,"data":{"channel":"GEOM","level":"info","message":"‖T‖=0.27px < τ_still=2.5 · camera=STATIONARY · Δθ=0.00°"},"seq":51}
+{"v":1,"kind":"telemetry","t":4.901,"data":{"channel":"TRACK","level":"info","message":"minted backpack_1 (backpack) · state NEW · conf 0.88 · ByteTrack 108","entity_id":"backpack_1"},"seq":52}
+{"v":1,"kind":"telemetry","t":4.901,"data":{"channel":"TRACK","level":"info","message":"backpack_1 pending CLIP Re-ID check · cosine < 0.82 to active nodes → new node"},"seq":53}
+{"v":1,"kind":"entity","t":4.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6018,0.6319,0.7502,0.9722],"confidence":0.92,"clip_sim":0.92},"seq":54}
+{"v":1,"kind":"entity","t":4.99,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.929,"clip_sim":0.94},"seq":55}
+{"v":1,"kind":"metrics","t":5.0,"data":{"fps":15,"latency_ms":51,"last_latency_ms":0,"frames":75,"gated_frames":59,"yolo_frames":16,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":56}
+{"v":1,"kind":"telemetry","t":5.0,"data":{"channel":"GEOM","level":"info","message":"‖T‖=0.34px < τ_still=2.5 · camera=STATIONARY · 30-frame keyframe captured"},"seq":57}
+{"v":1,"kind":"zone","t":5.02,"data":{"id":"kitchen","label":"Kitchen","clip_sim":0.93,"confidence":0.93,"keyframe_url":"/media/zones/kitchen.png","bbox":[0.0,0.0,1.0,1.0],"first_seen":5.02,"last_seen":5.02,"active":true},"seq":58}
+{"v":1,"kind":"telemetry","t":5.021,"data":{"channel":"GRAPH","level":"info","message":"zone \"Kitchen\" upserted · VPR CLIP 0.93 · anchor active","zone_id":"kitchen"},"seq":59}
+{"v":1,"kind":"telemetry","t":5.04,"data":{"channel":"GRAPH","level":"info","message":"VPR relocalization · Kitchen CLIP 0.93 ≥ 0.85 → existing zone; 0 new nodes"},"seq":60}
+{"v":1,"kind":"state","t":5.05,"data":{"entity_id":"bottle_1","label":"Bottle","from":"VISIBLE_STATIC","to":"OUT_OF_VIEW","reason":"track lost during camera pan ‖T‖=4.8px > τ_pan · spatial anchor retained","trigger":{"dt":0.2,"camera_pan":4.8},"confidence":0.84},"seq":61}
+{"v":1,"kind":"edge","t":5.05,"data":{"id":"e_bottle_counter_1","source":"bottle_1","target":"countertop","relation":"RESTING_ON","t_start":2.0,"t_end":5.05,"active":false,"clip_sim":null},"seq":62}
+{"v":1,"kind":"entity","t":5.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.899,"clip_sim":0.9},"seq":63}
+{"v":1,"kind":"zone","t":5.06,"data":{"id":"countertop","label":"Countertop","clip_sim":0.9,"confidence":0.9,"keyframe_url":"/media/zones/countertop.png","bbox":[0.0,0.55,1.0,1.0],"first_seen":5.06,"last_seen":5.06,"active":false},"seq":64}
+{"v":1,"kind":"telemetry","t":5.061,"data":{"channel":"GRAPH","level":"info","message":"zone \"Countertop\" upserted · VPR CLIP 0.90 · anchor active","zone_id":"countertop"},"seq":65}
+{"v":1,"kind":"zone","t":5.1,"data":{"id":"shelf","label":"Pantry Shelf","clip_sim":0.88,"confidence":0.88,"keyframe_url":"/media/zones/shelf.png","bbox":[0.0,0.18,0.14,0.42],"first_seen":5.1,"last_seen":5.1,"active":false},"seq":66}
+{"v":1,"kind":"entity","t":5.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.919,"clip_sim":0.93},"seq":67}
+{"v":1,"kind":"telemetry","t":5.101,"data":{"channel":"GRAPH","level":"info","message":"zone \"Pantry Shelf\" upserted · VPR CLIP 0.88 · anchor active","zone_id":"shelf"},"seq":68}
+{"v":1,"kind":"entity","t":5.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.938,"clip_sim":0.91},"seq":69}
+{"v":1,"kind":"entity","t":5.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.957,"clip_sim":0.95},"seq":70}
+{"v":1,"kind":"telemetry","t":5.3,"data":{"channel":"TRACK","level":"info","message":"ByteTrack: 8 tracks · 0 unassigned · CLIP Re-ID idle (no duplicates)"},"seq":71}
+{"v":1,"kind":"entity","t":5.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.917,"clip_sim":0.92},"seq":72}
+{"v":1,"kind":"state","t":5.32,"data":{"entity_id":"notebook_1","label":"Notebook","from":"NEW","to":"VISIBLE_STATIC","reason":"velocity 0.02px/frame · support ymax contact","trigger":{"dt":0.62,"velocity":0.02},"confidence":0.9},"seq":73}
+{"v":1,"kind":"edge","t":5.33,"data":{"id":"e_notebook_counter","source":"notebook_1","target":"countertop","relation":"RESTING_ON","t_start":5.33,"t_end":null,"active":true,"clip_sim":0.93},"seq":74}
+{"v":1,"kind":"state","t":5.38,"data":{"entity_id":"mug_1","label":"Mug","from":"NEW","to":"VISIBLE_STATIC","reason":"velocity 0.01px/frame · support ymax contact","trigger":{"dt":0.58,"velocity":0.01},"confidence":0.92},"seq":75}
+{"v":1,"kind":"edge","t":5.39,"data":{"id":"e_mug_counter","source":"mug_1","target":"countertop","relation":"RESTING_ON","t_start":5.39,"t_end":null,"active":true,"clip_sim":0.91},"seq":76}
+{"v":1,"kind":"entity","t":5.39,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.926,"clip_sim":0.94},"seq":77}
+{"v":1,"kind":"state","t":5.44,"data":{"entity_id":"phone_1","label":"Phone","from":"NEW","to":"VISIBLE_STATIC","reason":"velocity 0.02px/frame · support ymax contact","trigger":{"dt":0.54,"velocity":0.02},"confidence":0.94},"seq":78}
+{"v":1,"kind":"edge","t":5.45,"data":{"id":"e_phone_counter","source":"phone_1","target":"countertop","relation":"RESTING_ON","t_start":5.45,"t_end":null,"active":true,"clip_sim":0.95},"seq":79}
+{"v":1,"kind":"entity","t":5.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.895,"clip_sim":0.9},"seq":80}
+{"v":1,"kind":"state","t":5.5,"data":{"entity_id":"tote_1","label":"Tote Bag","from":"NEW","to":"VISIBLE_STATIC","reason":"velocity 0.03px/frame · support ymax contact","trigger":{"dt":0.52,"velocity":0.03},"confidence":0.9},"seq":81}
+{"v":1,"kind":"metrics","t":5.5,"data":{"fps":15,"latency_ms":44,"last_latency_ms":0,"frames":82,"gated_frames":64,"yolo_frames":18,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":82}
+{"v":1,"kind":"entity","t":5.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.914,"clip_sim":0.93},"seq":83}
+{"v":1,"kind":"edge","t":5.51,"data":{"id":"e_tote_counter","source":"tote_1","target":"countertop","relation":"RESTING_ON","t_start":5.51,"t_end":null,"active":true,"clip_sim":0.92},"seq":84}
+{"v":1,"kind":"state","t":5.56,"data":{"entity_id":"keys_1","label":"Keys","from":"NEW","to":"VISIBLE_STATIC","reason":"velocity 0.02px/frame · support ymax contact","trigger":{"dt":0.5,"velocity":0.02},"confidence":0.91},"seq":85}
+{"v":1,"kind":"edge","t":5.57,"data":{"id":"e_keys_counter","source":"keys_1","target":"countertop","relation":"RESTING_ON","t_start":5.57,"t_end":null,"active":true,"clip_sim":0.94},"seq":86}
+{"v":1,"kind":"entity","t":5.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.933,"clip_sim":0.91},"seq":87}
+{"v":1,"kind":"state","t":5.62,"data":{"entity_id":"backpack_1","label":"Backpack","from":"NEW","to":"VISIBLE_STATIC","reason":"velocity 0.04px/frame · support ymax contact","trigger":{"dt":0.5,"velocity":0.04},"confidence":0.88},"seq":88}
+{"v":1,"kind":"edge","t":5.63,"data":{"id":"e_backpack_counter","source":"backpack_1","target":"countertop","relation":"RESTING_ON","t_start":5.63,"t_end":null,"active":true,"clip_sim":0.9},"seq":89}
+{"v":1,"kind":"telemetry","t":5.65,"data":{"channel":"GRAPH","level":"info","message":"SQLite commit · 8 entity nodes / 8 spatial edges · 12ms"},"seq":90}
+{"v":1,"kind":"entity","t":5.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.952,"clip_sim":0.95},"seq":91}
+{"v":1,"kind":"entity","t":5.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.911,"clip_sim":0.92},"seq":92}
+{"v":1,"kind":"entity","t":5.79,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.919,"clip_sim":0.94},"seq":93}
+{"v":1,"kind":"entity","t":5.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.888,"clip_sim":0.9},"seq":94}
+{"v":1,"kind":"entity","t":5.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.907,"clip_sim":0.93},"seq":95}
+{"v":1,"kind":"entity","t":5.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.926,"clip_sim":0.91},"seq":96}
+{"v":1,"kind":"metrics","t":6.0,"data":{"fps":15,"latency_ms":50,"last_latency_ms":0,"frames":90,"gated_frames":71,"yolo_frames":19,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":97}
+{"v":1,"kind":"entity","t":6.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.945,"clip_sim":0.95},"seq":98}
+{"v":1,"kind":"entity","t":6.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.903,"clip_sim":0.92},"seq":99}
+{"v":1,"kind":"entity","t":6.19,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.912,"clip_sim":0.94},"seq":100}
+{"v":1,"kind":"entity","t":6.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.881,"clip_sim":0.9},"seq":101}
+{"v":1,"kind":"entity","t":6.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.9,"clip_sim":0.93},"seq":102}
+{"v":1,"kind":"entity","t":6.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.918,"clip_sim":0.91},"seq":103}
+{"v":1,"kind":"entity","t":6.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.937,"clip_sim":0.95},"seq":104}
+{"v":1,"kind":"metrics","t":6.5,"data":{"fps":15,"latency_ms":52,"last_latency_ms":0,"frames":97,"gated_frames":76,"yolo_frames":21,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":105}
+{"v":1,"kind":"entity","t":6.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.896,"clip_sim":0.92},"seq":106}
+{"v":1,"kind":"entity","t":6.59,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.904,"clip_sim":0.94},"seq":107}
+{"v":1,"kind":"entity","t":6.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.873,"clip_sim":0.9},"seq":108}
+{"v":1,"kind":"entity","t":6.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.892,"clip_sim":0.93},"seq":109}
+{"v":1,"kind":"entity","t":6.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.911,"clip_sim":0.91},"seq":110}
+{"v":1,"kind":"entity","t":6.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.929,"clip_sim":0.95},"seq":111}
+{"v":1,"kind":"entity","t":6.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.888,"clip_sim":0.92},"seq":112}
+{"v":1,"kind":"entity","t":6.99,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.897,"clip_sim":0.94},"seq":113}
+{"v":1,"kind":"metrics","t":7.0,"data":{"fps":15,"latency_ms":49,"last_latency_ms":0,"frames":105,"gated_frames":82,"yolo_frames":23,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":114}
+{"v":1,"kind":"entity","t":7.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.866,"clip_sim":0.9},"seq":115}
+{"v":1,"kind":"entity","t":7.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.885,"clip_sim":0.93},"seq":116}
+{"v":1,"kind":"entity","t":7.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.904,"clip_sim":0.91},"seq":117}
+{"v":1,"kind":"entity","t":7.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.924,"clip_sim":0.95},"seq":118}
+{"v":1,"kind":"entity","t":7.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.883,"clip_sim":0.92},"seq":119}
+{"v":1,"kind":"entity","t":7.39,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.892,"clip_sim":0.94},"seq":120}
+{"v":1,"kind":"entity","t":7.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.862,"clip_sim":0.9},"seq":121}
+{"v":1,"kind":"metrics","t":7.5,"data":{"fps":15,"latency_ms":45,"last_latency_ms":0,"frames":112,"gated_frames":88,"yolo_frames":24,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":122}
+{"v":1,"kind":"entity","t":7.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.881,"clip_sim":0.93},"seq":123}
+{"v":1,"kind":"entity","t":7.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.901,"clip_sim":0.91},"seq":124}
+{"v":1,"kind":"entity","t":7.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.92,"clip_sim":0.95},"seq":125}
+{"v":1,"kind":"entity","t":7.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.88,"clip_sim":0.92},"seq":126}
+{"v":1,"kind":"entity","t":7.79,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.89,"clip_sim":0.94},"seq":127}
+{"v":1,"kind":"entity","t":7.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.86,"clip_sim":0.9},"seq":128}
+{"v":1,"kind":"entity","t":7.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.88,"clip_sim":0.93},"seq":129}
+{"v":1,"kind":"entity","t":7.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.9,"clip_sim":0.91},"seq":130}
+{"v":1,"kind":"state","t":8.0,"data":{"entity_id":"mug_1","label":"Mug","from":"VISIBLE_STATIC","to":"INTERACTED","reason":"fingertip inside convex hull · IoS 0.64 sustained Δt=0.48s","trigger":{"ios":0.64,"dt":0.48,"hand_contact":true},"confidence":0.92},"seq":131}
+{"v":1,"kind":"metrics","t":8.0,"data":{"fps":15,"latency_ms":51,"last_latency_ms":0,"frames":120,"gated_frames":94,"yolo_frames":26,"detections":7,"track_count":8,"vlm_calls":0,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":132}
+{"v":1,"kind":"entity","t":8.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.92,"clip_sim":0.95},"seq":133}
+{"v":1,"kind":"entity","t":8.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.881,"clip_sim":0.92},"seq":134}
+{"v":1,"kind":"entity","t":8.19,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.891,"clip_sim":0.94},"seq":135}
+{"v":1,"kind":"interaction","t":8.25,"data":{"entity_id":"mug_1","action":"TOUCHED","caption":"A hand brushes the rim of a ceramic mug resting on the wooden counter.","clip_sim":0.83,"strip_url":"/media/strips/mug_touch.png","crop_url":"/media/crops/mug.png","model":"Florence-2-base","latency_ms":640},"seq":136}
+{"v":1,"kind":"entity","t":8.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.862,"clip_sim":0.9},"seq":137}
+{"v":1,"kind":"entity","t":8.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.882,"clip_sim":0.93},"seq":138}
+{"v":1,"kind":"entity","t":8.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.903,"clip_sim":0.91},"seq":139}
+{"v":1,"kind":"entity","t":8.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.923,"clip_sim":0.95},"seq":140}
+{"v":1,"kind":"metrics","t":8.5,"data":{"fps":15,"latency_ms":52,"last_latency_ms":640,"frames":127,"gated_frames":100,"yolo_frames":27,"detections":7,"track_count":8,"vlm_calls":1,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":141}
+{"v":1,"kind":"entity","t":8.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.884,"clip_sim":0.92},"seq":142}
+{"v":1,"kind":"state","t":8.55,"data":{"entity_id":"mug_1","label":"Mug","from":"INTERACTED","to":"OCCLUDED","reason":"track lost · camera STATIONARY · last bbox overlaps hand hull","trigger":{"dt":0.3},"confidence":0.92},"seq":143}
+{"v":1,"kind":"entity","t":8.59,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.895,"clip_sim":0.94},"seq":144}
+{"v":1,"kind":"entity","t":8.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.866,"clip_sim":0.9},"seq":145}
+{"v":1,"kind":"entity","t":8.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.887,"clip_sim":0.93},"seq":146}
+{"v":1,"kind":"entity","t":8.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.908,"clip_sim":0.91},"seq":147}
+{"v":1,"kind":"entity","t":8.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.929,"clip_sim":0.95},"seq":148}
+{"v":1,"kind":"entity","t":8.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.89,"clip_sim":0.92},"seq":149}
+{"v":1,"kind":"entity","t":8.99,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.902,"clip_sim":0.94},"seq":150}
+{"v":1,"kind":"metrics","t":9.0,"data":{"fps":15,"latency_ms":47,"last_latency_ms":640,"frames":135,"gated_frames":106,"yolo_frames":29,"detections":7,"track_count":8,"vlm_calls":1,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":151}
+{"v":1,"kind":"state","t":9.05,"data":{"entity_id":"mug_1","label":"Mug","from":"OCCLUDED","to":"VISIBLE_STATIC","reason":"track reacquired · ymax support contact","trigger":{"dt":0.2},"confidence":0.92},"seq":152}
+{"v":1,"kind":"entity","t":9.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.873,"clip_sim":0.9},"seq":153}
+{"v":1,"kind":"entity","t":9.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.894,"clip_sim":0.93},"seq":154}
+{"v":1,"kind":"entity","t":9.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.915,"clip_sim":0.91},"seq":155}
+{"v":1,"kind":"entity","t":9.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.937,"clip_sim":0.95},"seq":156}
+{"v":1,"kind":"entity","t":9.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.898,"clip_sim":0.92},"seq":157}
+{"v":1,"kind":"entity","t":9.39,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.909,"clip_sim":0.94},"seq":158}
+{"v":1,"kind":"entity","t":9.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.881,"clip_sim":0.9},"seq":159}
+{"v":1,"kind":"metrics","t":9.5,"data":{"fps":15,"latency_ms":47,"last_latency_ms":640,"frames":142,"gated_frames":112,"yolo_frames":30,"detections":7,"track_count":8,"vlm_calls":1,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":160}
+{"v":1,"kind":"entity","t":9.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.902,"clip_sim":0.93},"seq":161}
+{"v":1,"kind":"entity","t":9.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.923,"clip_sim":0.91},"seq":162}
+{"v":1,"kind":"entity","t":9.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.944,"clip_sim":0.95},"seq":163}
+{"v":1,"kind":"entity","t":9.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.906,"clip_sim":0.92},"seq":164}
+{"v":1,"kind":"entity","t":9.79,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.917,"clip_sim":0.94},"seq":165}
+{"v":1,"kind":"entity","t":9.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.888,"clip_sim":0.9},"seq":166}
+{"v":1,"kind":"entity","t":9.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.909,"clip_sim":0.93},"seq":167}
+{"v":1,"kind":"entity","t":9.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.93,"clip_sim":0.91},"seq":168}
+{"v":1,"kind":"metrics","t":10.0,"data":{"fps":15,"latency_ms":52,"last_latency_ms":640,"frames":150,"gated_frames":118,"yolo_frames":32,"detections":7,"track_count":8,"vlm_calls":1,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":169}
+{"v":1,"kind":"telemetry","t":10.05,"data":{"channel":"VLM","level":"info","message":"gate closed: hand contact 0.18s < Δt=0.30s · keys_1 · no composite strip dispatched"},"seq":170}
+{"v":1,"kind":"entity","t":10.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.952,"clip_sim":0.95},"seq":171}
+{"v":1,"kind":"entity","t":10.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.913,"clip_sim":0.92},"seq":172}
+{"v":1,"kind":"entity","t":10.19,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.924,"clip_sim":0.94},"seq":173}
+{"v":1,"kind":"state","t":10.2,"data":{"entity_id":"keys_1","label":"Keys","from":"VISIBLE_STATIC","to":"INTERACTED","reason":"fingertip inside convex hull · IoS 0.71 sustained Δt=0.42s","trigger":{"ios":0.71,"dt":0.42,"hand_contact":true},"confidence":0.91},"seq":174}
+{"v":1,"kind":"edge","t":10.2,"data":{"id":"e_keys_counter","source":"keys_1","target":"countertop","relation":"RESTING_ON","t_start":5.57,"t_end":10.2,"active":false,"clip_sim":null},"seq":175}
+{"v":1,"kind":"telemetry","t":10.2,"data":{"channel":"TRACK","level":"info","message":"hand landmarks 21/21 · wrist (0.50,0.84) · index tip inside keys_1 hull"},"seq":176}
+{"v":1,"kind":"entity","t":10.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.895,"clip_sim":0.9},"seq":177}
+{"v":1,"kind":"entity","t":10.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.915,"clip_sim":0.93},"seq":178}
+{"v":1,"kind":"entity","t":10.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.936,"clip_sim":0.91},"seq":179}
+{"v":1,"kind":"entity","t":10.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.957,"clip_sim":0.95},"seq":180}
+{"v":1,"kind":"metrics","t":10.5,"data":{"fps":15,"latency_ms":51,"last_latency_ms":640,"frames":157,"gated_frames":124,"yolo_frames":33,"detections":7,"track_count":8,"vlm_calls":1,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":181}
+{"v":1,"kind":"entity","t":10.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.918,"clip_sim":0.92},"seq":182}
+{"v":1,"kind":"entity","t":10.59,"data":{"id":"keys_1","label":"Keys","bbox":[0.4531,0.7917,0.5391,0.8542],"confidence":0.928,"clip_sim":0.94},"seq":183}
+{"v":1,"kind":"entity","t":10.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.899,"clip_sim":0.9},"seq":184}
+{"v":1,"kind":"entity","t":10.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.919,"clip_sim":0.93},"seq":185}
+{"v":1,"kind":"entity","t":10.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.939,"clip_sim":0.91},"seq":186}
+{"v":1,"kind":"entity","t":10.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.96,"clip_sim":0.95},"seq":187}
+{"v":1,"kind":"state","t":10.9,"data":{"entity_id":"keys_1","label":"Keys","from":"INTERACTED","to":"HELD","reason":"centroid displacement matches hand velocity vector · cos 0.93","trigger":{"ios":0.74,"velocity":1.8,"cos":0.93},"confidence":0.91},"seq":188}
+{"v":1,"kind":"entity","t":10.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.92,"clip_sim":0.92},"seq":189}
+{"v":1,"kind":"entity","t":10.99,"data":{"id":"keys_1","label":"Keys","bbox":[0.4321,0.6412,0.5228,0.7189],"confidence":0.93,"clip_sim":0.94},"seq":190}
+{"v":1,"kind":"metrics","t":11.0,"data":{"fps":15,"latency_ms":45,"last_latency_ms":640,"frames":165,"gated_frames":130,"yolo_frames":35,"detections":7,"track_count":8,"vlm_calls":1,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":191}
+{"v":1,"kind":"entity","t":11.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.9,"clip_sim":0.9},"seq":192}
+{"v":1,"kind":"entity","t":11.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.92,"clip_sim":0.93},"seq":193}
+{"v":1,"kind":"edge","t":11.15,"data":{"id":"a_user_keys_pick","source":"USER","target":"keys_1","relation":"PICKED_UP","t_start":11.15,"t_end":null,"active":true,"clip_sim":0.94},"seq":194}
+{"v":1,"kind":"interaction","t":11.15,"data":{"entity_id":"keys_1","action":"PICK_UP","caption":"A hand grasps a set of keys resting on the counter and lifts them clear of the surface.","clip_sim":0.94,"strip_url":"/media/strips/keys_pick_up.png","crop_url":"/media/crops/keys_hand.png","model":"Florence-2-base","latency_ms":910},"seq":195}
+{"v":1,"kind":"entity","t":11.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.94,"clip_sim":0.91},"seq":196}
+{"v":1,"kind":"telemetry","t":11.18,"data":{"channel":"VLM","level":"info","message":"Florence-2 <MORE_DETAILED_CAPTION> · 1×3 strip 10.6/11.15/11.7s · PICK_UP conf 0.94 · 910ms","entity_id":"keys_1"},"seq":197}
+{"v":1,"kind":"entity","t":11.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.959,"clip_sim":0.95},"seq":198}
+{"v":1,"kind":"entity","t":11.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.919,"clip_sim":0.92},"seq":199}
+{"v":1,"kind":"entity","t":11.39,"data":{"id":"keys_1","label":"Keys","bbox":[0.4528,0.6295,0.5434,0.7073],"confidence":0.928,"clip_sim":0.94},"seq":200}
+{"v":1,"kind":"entity","t":11.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.898,"clip_sim":0.9},"seq":201}
+{"v":1,"kind":"metrics","t":11.5,"data":{"fps":15,"latency_ms":49,"last_latency_ms":910,"frames":172,"gated_frames":135,"yolo_frames":37,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":202}
+{"v":1,"kind":"entity","t":11.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.918,"clip_sim":0.93},"seq":203}
+{"v":1,"kind":"entity","t":11.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.937,"clip_sim":0.91},"seq":204}
+{"v":1,"kind":"entity","t":11.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.956,"clip_sim":0.95},"seq":205}
+{"v":1,"kind":"entity","t":11.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.915,"clip_sim":0.92},"seq":206}
+{"v":1,"kind":"entity","t":11.79,"data":{"id":"keys_1","label":"Keys","bbox":[0.4861,0.6106,0.5767,0.6884],"confidence":0.924,"clip_sim":0.94},"seq":207}
+{"v":1,"kind":"entity","t":11.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.893,"clip_sim":0.9},"seq":208}
+{"v":1,"kind":"entity","t":11.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.912,"clip_sim":0.93},"seq":209}
+{"v":1,"kind":"entity","t":11.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.931,"clip_sim":0.91},"seq":210}
+{"v":1,"kind":"metrics","t":12.0,"data":{"fps":15,"latency_ms":52,"last_latency_ms":910,"frames":180,"gated_frames":142,"yolo_frames":38,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":211}
+{"v":1,"kind":"entity","t":12.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.95,"clip_sim":0.95},"seq":212}
+{"v":1,"kind":"entity","t":12.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.909,"clip_sim":0.92},"seq":213}
+{"v":1,"kind":"entity","t":12.19,"data":{"id":"keys_1","label":"Keys","bbox":[0.5126,0.5956,0.6032,0.6734],"confidence":0.917,"clip_sim":0.94},"seq":214}
+{"v":1,"kind":"entity","t":12.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.886,"clip_sim":0.9},"seq":215}
+{"v":1,"kind":"entity","t":12.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.905,"clip_sim":0.93},"seq":216}
+{"v":1,"kind":"entity","t":12.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.924,"clip_sim":0.91},"seq":217}
+{"v":1,"kind":"entity","t":12.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.942,"clip_sim":0.95},"seq":218}
+{"v":1,"kind":"metrics","t":12.5,"data":{"fps":15,"latency_ms":50,"last_latency_ms":910,"frames":187,"gated_frames":147,"yolo_frames":40,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":219}
+{"v":1,"kind":"entity","t":12.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.901,"clip_sim":0.92},"seq":220}
+{"v":1,"kind":"entity","t":12.59,"data":{"id":"keys_1","label":"Keys","bbox":[0.518,0.5936,0.6086,0.6714],"confidence":0.91,"clip_sim":0.94},"seq":221}
+{"v":1,"kind":"entity","t":12.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.878,"clip_sim":0.9},"seq":222}
+{"v":1,"kind":"entity","t":12.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.897,"clip_sim":0.93},"seq":223}
+{"v":1,"kind":"entity","t":12.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.916,"clip_sim":0.91},"seq":224}
+{"v":1,"kind":"entity","t":12.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.934,"clip_sim":0.95},"seq":225}
+{"v":1,"kind":"entity","t":12.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.893,"clip_sim":0.92},"seq":226}
+{"v":1,"kind":"entity","t":12.99,"data":{"id":"keys_1","label":"Keys","bbox":[0.5237,0.5974,0.6144,0.6752],"confidence":0.902,"clip_sim":0.94},"seq":227}
+{"v":1,"kind":"metrics","t":13.0,"data":{"fps":15,"latency_ms":44,"last_latency_ms":910,"frames":195,"gated_frames":154,"yolo_frames":41,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":228}
+{"v":1,"kind":"entity","t":13.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.871,"clip_sim":0.9},"seq":229}
+{"v":1,"kind":"entity","t":13.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.89,"clip_sim":0.93},"seq":230}
+{"v":1,"kind":"entity","t":13.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.909,"clip_sim":0.91},"seq":231}
+{"v":1,"kind":"entity","t":13.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.927,"clip_sim":0.95},"seq":232}
+{"v":1,"kind":"entity","t":13.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.886,"clip_sim":0.92},"seq":233}
+{"v":1,"kind":"entity","t":13.39,"data":{"id":"keys_1","label":"Keys","bbox":[0.5326,0.6033,0.6232,0.6811],"confidence":0.895,"clip_sim":0.94},"seq":234}
+{"v":1,"kind":"entity","t":13.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.865,"clip_sim":0.9},"seq":235}
+{"v":1,"kind":"metrics","t":13.5,"data":{"fps":15,"latency_ms":51,"last_latency_ms":910,"frames":202,"gated_frames":159,"yolo_frames":43,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":236}
+{"v":1,"kind":"entity","t":13.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.884,"clip_sim":0.93},"seq":237}
+{"v":1,"kind":"entity","t":13.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.903,"clip_sim":0.91},"seq":238}
+{"v":1,"kind":"entity","t":13.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.922,"clip_sim":0.95},"seq":239}
+{"v":1,"kind":"entity","t":13.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.882,"clip_sim":0.92},"seq":240}
+{"v":1,"kind":"entity","t":13.79,"data":{"id":"keys_1","label":"Keys","bbox":[0.5415,0.6093,0.6321,0.687],"confidence":0.891,"clip_sim":0.94},"seq":241}
+{"v":1,"kind":"entity","t":13.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.861,"clip_sim":0.9},"seq":242}
+{"v":1,"kind":"entity","t":13.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.881,"clip_sim":0.93},"seq":243}
+{"v":1,"kind":"entity","t":13.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.9,"clip_sim":0.91},"seq":244}
+{"v":1,"kind":"metrics","t":14.0,"data":{"fps":15,"latency_ms":52,"last_latency_ms":910,"frames":210,"gated_frames":165,"yolo_frames":45,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":245}
+{"v":1,"kind":"entity","t":14.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.92,"clip_sim":0.95},"seq":246}
+{"v":1,"kind":"entity","t":14.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.88,"clip_sim":0.92},"seq":247}
+{"v":1,"kind":"entity","t":14.19,"data":{"id":"keys_1","label":"Keys","bbox":[0.5475,0.6132,0.6381,0.691],"confidence":0.89,"clip_sim":0.94},"seq":248}
+{"v":1,"kind":"entity","t":14.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.86,"clip_sim":0.9},"seq":249}
+{"v":1,"kind":"entity","t":14.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.88,"clip_sim":0.93},"seq":250}
+{"v":1,"kind":"entity","t":14.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.901,"clip_sim":0.91},"seq":251}
+{"v":1,"kind":"entity","t":14.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.921,"clip_sim":0.95},"seq":252}
+{"v":1,"kind":"metrics","t":14.5,"data":{"fps":15,"latency_ms":48,"last_latency_ms":910,"frames":217,"gated_frames":171,"yolo_frames":46,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":253}
+{"v":1,"kind":"entity","t":14.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.881,"clip_sim":0.92},"seq":254}
+{"v":1,"kind":"entity","t":14.59,"data":{"id":"keys_1","label":"Keys","bbox":[0.5497,0.6148,0.6404,0.6925],"confidence":0.892,"clip_sim":0.94},"seq":255}
+{"v":1,"kind":"entity","t":14.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.863,"clip_sim":0.9},"seq":256}
+{"v":1,"kind":"entity","t":14.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.883,"clip_sim":0.93},"seq":257}
+{"v":1,"kind":"entity","t":14.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.904,"clip_sim":0.91},"seq":258}
+{"v":1,"kind":"entity","t":14.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.925,"clip_sim":0.95},"seq":259}
+{"v":1,"kind":"entity","t":14.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.886,"clip_sim":0.92},"seq":260}
+{"v":1,"kind":"entity","t":14.99,"data":{"id":"keys_1","label":"Keys","bbox":[0.5591,0.6212,0.6497,0.6989],"confidence":0.897,"clip_sim":0.94},"seq":261}
+{"v":1,"kind":"metrics","t":15.0,"data":{"fps":15,"latency_ms":47,"last_latency_ms":910,"frames":225,"gated_frames":177,"yolo_frames":48,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":262}
+{"v":1,"kind":"entity","t":15.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.868,"clip_sim":0.9},"seq":263}
+{"v":1,"kind":"entity","t":15.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.889,"clip_sim":0.93},"seq":264}
+{"v":1,"kind":"entity","t":15.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.91,"clip_sim":0.91},"seq":265}
+{"v":1,"kind":"entity","t":15.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.931,"clip_sim":0.95},"seq":266}
+{"v":1,"kind":"entity","t":15.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.892,"clip_sim":0.92},"seq":267}
+{"v":1,"kind":"entity","t":15.39,"data":{"id":"keys_1","label":"Keys","bbox":[0.5734,0.631,0.6641,0.7088],"confidence":0.904,"clip_sim":0.94},"seq":268}
+{"v":1,"kind":"entity","t":15.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.875,"clip_sim":0.9},"seq":269}
+{"v":1,"kind":"metrics","t":15.5,"data":{"fps":15,"latency_ms":52,"last_latency_ms":910,"frames":232,"gated_frames":183,"yolo_frames":49,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":270}
+{"v":1,"kind":"entity","t":15.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.896,"clip_sim":0.93},"seq":271}
+{"v":1,"kind":"entity","t":15.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.917,"clip_sim":0.91},"seq":272}
+{"v":1,"kind":"entity","t":15.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.939,"clip_sim":0.95},"seq":273}
+{"v":1,"kind":"entity","t":15.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.9,"clip_sim":0.92},"seq":274}
+{"v":1,"kind":"entity","t":15.79,"data":{"id":"keys_1","label":"Keys","bbox":[0.5879,0.6409,0.6786,0.7187],"confidence":0.912,"clip_sim":0.94},"seq":275}
+{"v":1,"kind":"entity","t":15.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.883,"clip_sim":0.9},"seq":276}
+{"v":1,"kind":"entity","t":15.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.904,"clip_sim":0.93},"seq":277}
+{"v":1,"kind":"entity","t":15.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.925,"clip_sim":0.91},"seq":278}
+{"v":1,"kind":"metrics","t":16.0,"data":{"fps":15,"latency_ms":51,"last_latency_ms":910,"frames":240,"gated_frames":189,"yolo_frames":51,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":279}
+{"v":1,"kind":"entity","t":16.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.947,"clip_sim":0.95},"seq":280}
+{"v":1,"kind":"entity","t":16.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.908,"clip_sim":0.92},"seq":281}
+{"v":1,"kind":"state","t":16.15,"data":{"entity_id":"tote_1","label":"Tote Bag","from":"VISIBLE_STATIC","to":"INTERACTED","reason":"hand enters container hull · IoS 0.42","trigger":{"ios":0.42,"dt":0.32},"confidence":0.9},"seq":282}
+{"v":1,"kind":"entity","t":16.19,"data":{"id":"keys_1","label":"Keys","bbox":[0.5977,0.6475,0.6883,0.7253],"confidence":0.919,"clip_sim":0.94},"seq":283}
+{"v":1,"kind":"entity","t":16.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.89,"clip_sim":0.9},"seq":284}
+{"v":1,"kind":"entity","t":16.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.911,"clip_sim":0.93},"seq":285}
+{"v":1,"kind":"entity","t":16.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.932,"clip_sim":0.91},"seq":286}
+{"v":1,"kind":"entity","t":16.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.954,"clip_sim":0.95},"seq":287}
+{"v":1,"kind":"metrics","t":16.5,"data":{"fps":15,"latency_ms":46,"last_latency_ms":910,"frames":247,"gated_frames":195,"yolo_frames":52,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":288}
+{"v":1,"kind":"entity","t":16.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.914,"clip_sim":0.92},"seq":289}
+{"v":1,"kind":"entity","t":16.59,"data":{"id":"keys_1","label":"Keys","bbox":[0.5992,0.6621,0.6898,0.7399],"confidence":0.925,"clip_sim":0.94},"seq":290}
+{"v":1,"kind":"entity","t":16.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.896,"clip_sim":0.9},"seq":291}
+{"v":1,"kind":"entity","t":16.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.917,"clip_sim":0.93},"seq":292}
+{"v":1,"kind":"entity","t":16.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.937,"clip_sim":0.91},"seq":293}
+{"v":1,"kind":"entity","t":16.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.958,"clip_sim":0.95},"seq":294}
+{"v":1,"kind":"state","t":16.9,"data":{"entity_id":"keys_1","label":"Keys","from":"HELD","to":"CONTAINED","reason":"object boundary collapses inside tote hull · IoS 0.93","trigger":{"ios":0.93,"dt":0.35},"confidence":0.91},"seq":295}
+{"v":1,"kind":"telemetry","t":16.9,"data":{"channel":"TRACK","level":"info","message":"keys_1 track persists · IoS(hand,obj)=0.86 · tote_1 hull overlap 0.93"},"seq":296}
+{"v":1,"kind":"entity","t":16.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.919,"clip_sim":0.92},"seq":297}
+{"v":1,"kind":"edge","t":16.92,"data":{"id":"e_keys_tote","source":"keys_1","target":"tote_1","relation":"INSIDE","t_start":16.9,"t_end":null,"active":true,"clip_sim":0.93},"seq":298}
+{"v":1,"kind":"telemetry","t":16.95,"data":{"channel":"GRAPH","level":"info","message":"terminal anchor preserved · keys_1 --[INSIDE]--> tote_1 · t=16.9s","entity_id":"keys_1"},"seq":299}
+{"v":1,"kind":"metrics","t":17.0,"data":{"fps":15,"latency_ms":49,"last_latency_ms":910,"frames":255,"gated_frames":201,"yolo_frames":54,"detections":7,"track_count":8,"vlm_calls":2,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":300}
+{"v":1,"kind":"entity","t":17.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.899,"clip_sim":0.9},"seq":301}
+{"v":1,"kind":"entity","t":17.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.92,"clip_sim":0.93},"seq":302}
+{"v":1,"kind":"edge","t":17.15,"data":{"id":"a_user_keys_place","source":"USER","target":"keys_1","relation":"PLACED_IN","t_start":17.15,"t_end":null,"active":true,"clip_sim":0.91},"seq":303}
+{"v":1,"kind":"interaction","t":17.15,"data":{"entity_id":"keys_1","action":"INSERT_INTO","caption":"The hand lowers the keys through the opening of a canvas tote bag.","clip_sim":0.91,"strip_url":"/media/strips/keys_insert.png","crop_url":"/media/crops/keys_tote.png","model":"Florence-2-base","latency_ms":870},"seq":304}
+{"v":1,"kind":"entity","t":17.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.94,"clip_sim":0.91},"seq":305}
+{"v":1,"kind":"telemetry","t":17.2,"data":{"channel":"GRAPH","level":"info","message":"action edge USER --[PLACED_IN]--> keys_1 @ t=17.15s · SQLite commit 9ms","entity_id":"keys_1"},"seq":306}
+{"v":1,"kind":"entity","t":17.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.96,"clip_sim":0.95},"seq":307}
+{"v":1,"kind":"entity","t":17.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.92,"clip_sim":0.92},"seq":308}
+{"v":1,"kind":"state","t":17.35,"data":{"entity_id":"tote_1","label":"Tote Bag","from":"INTERACTED","to":"VISIBLE_STATIC","reason":"hand withdrawn · ymax support contact","trigger":{"dt":0.25},"confidence":0.9},"seq":309}
+{"v":1,"kind":"entity","t":17.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.9,"clip_sim":0.9},"seq":310}
+{"v":1,"kind":"metrics","t":17.5,"data":{"fps":15,"latency_ms":52,"last_latency_ms":870,"frames":262,"gated_frames":206,"yolo_frames":56,"detections":7,"track_count":8,"vlm_calls":3,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":311}
+{"v":1,"kind":"entity","t":17.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.92,"clip_sim":0.93},"seq":312}
+{"v":1,"kind":"entity","t":17.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.939,"clip_sim":0.91},"seq":313}
+{"v":1,"kind":"entity","t":17.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.959,"clip_sim":0.95},"seq":314}
+{"v":1,"kind":"entity","t":17.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.918,"clip_sim":0.92},"seq":315}
+{"v":1,"kind":"entity","t":17.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.897,"clip_sim":0.9},"seq":316}
+{"v":1,"kind":"entity","t":17.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.916,"clip_sim":0.93},"seq":317}
+{"v":1,"kind":"entity","t":17.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.935,"clip_sim":0.91},"seq":318}
+{"v":1,"kind":"metrics","t":18.0,"data":{"fps":15,"latency_ms":50,"last_latency_ms":870,"frames":270,"gated_frames":213,"yolo_frames":57,"detections":7,"track_count":8,"vlm_calls":3,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":319}
+{"v":1,"kind":"entity","t":18.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.954,"clip_sim":0.95},"seq":320}
+{"v":1,"kind":"entity","t":18.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.913,"clip_sim":0.92},"seq":321}
+{"v":1,"kind":"entity","t":18.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.891,"clip_sim":0.9},"seq":322}
+{"v":1,"kind":"entity","t":18.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.91,"clip_sim":0.93},"seq":323}
+{"v":1,"kind":"entity","t":18.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.929,"clip_sim":0.91},"seq":324}
+{"v":1,"kind":"entity","t":18.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.948,"clip_sim":0.95},"seq":325}
+{"v":1,"kind":"metrics","t":18.5,"data":{"fps":15,"latency_ms":44,"last_latency_ms":870,"frames":277,"gated_frames":218,"yolo_frames":59,"detections":7,"track_count":8,"vlm_calls":3,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":326}
+{"v":1,"kind":"entity","t":18.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.907,"clip_sim":0.92},"seq":327}
+{"v":1,"kind":"entity","t":18.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.884,"clip_sim":0.9},"seq":328}
+{"v":1,"kind":"telemetry","t":18.7,"data":{"channel":"VLM","level":"info","message":"gate closed: hand contact 0.14s < Δt=0.30s · phone_1 · no composite strip dispatched"},"seq":329}
+{"v":1,"kind":"entity","t":18.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.903,"clip_sim":0.93},"seq":330}
+{"v":1,"kind":"entity","t":18.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.922,"clip_sim":0.91},"seq":331}
+{"v":1,"kind":"telemetry","t":18.85,"data":{"channel":"TRACK","level":"info","message":"hand landmarks 21/21 · index tip inside phone_1 hull · IoS 0.58"},"seq":332}
+{"v":1,"kind":"entity","t":18.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.94,"clip_sim":0.95},"seq":333}
+{"v":1,"kind":"state","t":18.9,"data":{"entity_id":"phone_1","label":"Phone","from":"VISIBLE_STATIC","to":"INTERACTED","reason":"fingertip inside convex hull · IoS 0.58 sustained Δt=0.36s","trigger":{"ios":0.58,"dt":0.36,"hand_contact":true},"confidence":0.94},"seq":334}
+{"v":1,"kind":"edge","t":18.9,"data":{"id":"e_phone_counter_1","source":"phone_1","target":"countertop","relation":"RESTING_ON","t_start":5.45,"t_end":18.9,"active":false,"clip_sim":null},"seq":335}
+{"v":1,"kind":"entity","t":18.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.899,"clip_sim":0.92},"seq":336}
+{"v":1,"kind":"metrics","t":19.0,"data":{"fps":15,"latency_ms":50,"last_latency_ms":870,"frames":285,"gated_frames":225,"yolo_frames":60,"detections":7,"track_count":8,"vlm_calls":3,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":337}
+{"v":1,"kind":"entity","t":19.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.876,"clip_sim":0.9},"seq":338}
+{"v":1,"kind":"entity","t":19.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.895,"clip_sim":0.93},"seq":339}
+{"v":1,"kind":"entity","t":19.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.914,"clip_sim":0.91},"seq":340}
+{"v":1,"kind":"entity","t":19.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.932,"clip_sim":0.95},"seq":341}
+{"v":1,"kind":"entity","t":19.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.891,"clip_sim":0.92},"seq":342}
+{"v":1,"kind":"state","t":19.4,"data":{"entity_id":"phone_1","label":"Phone","from":"INTERACTED","to":"HELD","reason":"object centroid tracks palm · cos 0.95","trigger":{"ios":0.69,"velocity":1.2,"cos":0.95},"confidence":0.94},"seq":343}
+{"v":1,"kind":"entity","t":19.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.869,"clip_sim":0.9},"seq":344}
+{"v":1,"kind":"metrics","t":19.5,"data":{"fps":15,"latency_ms":52,"last_latency_ms":870,"frames":292,"gated_frames":230,"yolo_frames":62,"detections":7,"track_count":8,"vlm_calls":3,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":345}
+{"v":1,"kind":"entity","t":19.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.888,"clip_sim":0.93},"seq":346}
+{"v":1,"kind":"entity","t":19.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.907,"clip_sim":0.91},"seq":347}
+{"v":1,"kind":"entity","t":19.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3245,0.5377,0.387,0.7155],"confidence":0.926,"clip_sim":0.95},"seq":348}
+{"v":1,"kind":"entity","t":19.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.885,"clip_sim":0.92},"seq":349}
+{"v":1,"kind":"edge","t":19.75,"data":{"id":"a_user_phone_pick","source":"USER","target":"phone_1","relation":"PICKED_UP","t_start":19.75,"t_end":null,"active":true,"clip_sim":0.9},"seq":350}
+{"v":1,"kind":"interaction","t":19.75,"data":{"entity_id":"phone_1","action":"PICK_UP","caption":"A hand picks up a black smartphone from the counter and raises it toward the camera.","clip_sim":0.9,"strip_url":"/media/strips/phone_pick_up.png","crop_url":"/media/crops/phone_hand.png","model":"Florence-2-base","latency_ms":780},"seq":351}
+{"v":1,"kind":"entity","t":19.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.863,"clip_sim":0.9},"seq":352}
+{"v":1,"kind":"entity","t":19.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.883,"clip_sim":0.93},"seq":353}
+{"v":1,"kind":"entity","t":19.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.902,"clip_sim":0.91},"seq":354}
+{"v":1,"kind":"metrics","t":20.0,"data":{"fps":15,"latency_ms":48,"last_latency_ms":780,"frames":300,"gated_frames":237,"yolo_frames":63,"detections":7,"track_count":8,"vlm_calls":4,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":355}
+{"v":1,"kind":"entity","t":20.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3513,0.4512,0.4138,0.629],"confidence":0.921,"clip_sim":0.95},"seq":356}
+{"v":1,"kind":"entity","t":20.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.881,"clip_sim":0.92},"seq":357}
+{"v":1,"kind":"entity","t":20.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.86,"clip_sim":0.9},"seq":358}
+{"v":1,"kind":"entity","t":20.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.88,"clip_sim":0.93},"seq":359}
+{"v":1,"kind":"entity","t":20.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.9,"clip_sim":0.91},"seq":360}
+{"v":1,"kind":"entity","t":20.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.3629,0.4275,0.4254,0.6053],"confidence":0.92,"clip_sim":0.95},"seq":361}
+{"v":1,"kind":"metrics","t":20.5,"data":{"fps":15,"latency_ms":46,"last_latency_ms":780,"frames":307,"gated_frames":242,"yolo_frames":65,"detections":7,"track_count":8,"vlm_calls":4,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":362}
+{"v":1,"kind":"entity","t":20.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.88,"clip_sim":0.92},"seq":363}
+{"v":1,"kind":"entity","t":20.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.861,"clip_sim":0.9},"seq":364}
+{"v":1,"kind":"entity","t":20.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.881,"clip_sim":0.93},"seq":365}
+{"v":1,"kind":"entity","t":20.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.901,"clip_sim":0.91},"seq":366}
+{"v":1,"kind":"entity","t":20.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3789,0.4389,0.4414,0.6167],"confidence":0.922,"clip_sim":0.95},"seq":367}
+{"v":1,"kind":"entity","t":20.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.882,"clip_sim":0.92},"seq":368}
+{"v":1,"kind":"metrics","t":21.0,"data":{"fps":15,"latency_ms":52,"last_latency_ms":780,"frames":315,"gated_frames":248,"yolo_frames":67,"detections":7,"track_count":8,"vlm_calls":4,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":369}
+{"v":1,"kind":"entity","t":21.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.864,"clip_sim":0.9},"seq":370}
+{"v":1,"kind":"entity","t":21.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.884,"clip_sim":0.93},"seq":371}
+{"v":1,"kind":"entity","t":21.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.905,"clip_sim":0.91},"seq":372}
+{"v":1,"kind":"entity","t":21.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3229,0.6193,0.3854,0.7971],"confidence":0.926,"clip_sim":0.95},"seq":373}
+{"v":1,"kind":"entity","t":21.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.887,"clip_sim":0.92},"seq":374}
+{"v":1,"kind":"entity","t":21.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.87,"clip_sim":0.9},"seq":375}
+{"v":1,"kind":"metrics","t":21.5,"data":{"fps":15,"latency_ms":52,"last_latency_ms":780,"frames":322,"gated_frames":254,"yolo_frames":68,"detections":7,"track_count":8,"vlm_calls":4,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":376}
+{"v":1,"kind":"entity","t":21.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.891,"clip_sim":0.93},"seq":377}
+{"v":1,"kind":"entity","t":21.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.912,"clip_sim":0.91},"seq":378}
+{"v":1,"kind":"entity","t":21.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3053,0.6731,0.3678,0.8509],"confidence":0.933,"clip_sim":0.95},"seq":379}
+{"v":1,"kind":"state","t":21.7,"data":{"entity_id":"phone_1","label":"Phone","from":"HELD","to":"VISIBLE_STATIC","reason":"released over counter · ymax support contact","trigger":{"dt":0.25},"confidence":0.94},"seq":380}
+{"v":1,"kind":"entity","t":21.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.894,"clip_sim":0.92},"seq":381}
+{"v":1,"kind":"edge","t":21.75,"data":{"id":"e_phone_counter_2","source":"phone_1","target":"countertop","relation":"RESTING_ON","t_start":21.75,"t_end":null,"active":true,"clip_sim":0.89},"seq":382}
+{"v":1,"kind":"entity","t":21.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.877,"clip_sim":0.9},"seq":383}
+{"v":1,"kind":"entity","t":21.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.898,"clip_sim":0.93},"seq":384}
+{"v":1,"kind":"state","t":21.95,"data":{"entity_id":"phone_1","label":"Phone","from":"VISIBLE_STATIC","to":"VISIBLE_MOVING","reason":"residual slide 0.6px/frame · IoS(Hand,Obj)=0.04 < 0.10","trigger":{"velocity":0.6,"ios":0.04},"confidence":0.94},"seq":385}
+{"v":1,"kind":"entity","t":21.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.92,"clip_sim":0.91},"seq":386}
+{"v":1,"kind":"metrics","t":22.0,"data":{"fps":15,"latency_ms":46,"last_latency_ms":780,"frames":330,"gated_frames":260,"yolo_frames":70,"detections":7,"track_count":8,"vlm_calls":4,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":387}
+{"v":1,"kind":"entity","t":22.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.941,"clip_sim":0.95},"seq":388}
+{"v":1,"kind":"edge","t":22.1,"data":{"id":"a_user_phone_put","source":"USER","target":"phone_1","relation":"PUT_DOWN","t_start":22.1,"t_end":null,"active":true,"clip_sim":0.88},"seq":389}
+{"v":1,"kind":"interaction","t":22.1,"data":{"entity_id":"phone_1","action":"PUT_DOWN","caption":"The hand places the smartphone back onto the wooden countertop.","clip_sim":0.88,"strip_url":"/media/strips/phone_put_down.png","crop_url":"/media/crops/phone.png","model":"Florence-2-base","latency_ms":820},"seq":390}
+{"v":1,"kind":"entity","t":22.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.902,"clip_sim":0.92},"seq":391}
+{"v":1,"kind":"entity","t":22.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.885,"clip_sim":0.9},"seq":392}
+{"v":1,"kind":"entity","t":22.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.906,"clip_sim":0.93},"seq":393}
+{"v":1,"kind":"entity","t":22.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.927,"clip_sim":0.91},"seq":394}
+{"v":1,"kind":"state","t":22.4,"data":{"entity_id":"phone_1","label":"Phone","from":"VISIBLE_MOVING","to":"VISIBLE_STATIC","reason":"velocity 0.02px/frame for Δt=0.45s","trigger":{"dt":0.45,"velocity":0.02},"confidence":0.94},"seq":395}
+{"v":1,"kind":"entity","t":22.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.949,"clip_sim":0.95},"seq":396}
+{"v":1,"kind":"metrics","t":22.5,"data":{"fps":15,"latency_ms":48,"last_latency_ms":820,"frames":337,"gated_frames":266,"yolo_frames":71,"detections":7,"track_count":8,"vlm_calls":5,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":397}
+{"v":1,"kind":"entity","t":22.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.91,"clip_sim":0.92},"seq":398}
+{"v":1,"kind":"entity","t":22.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8359,0.5764,1.0,0.9056],"confidence":0.892,"clip_sim":0.9},"seq":399}
+{"v":1,"kind":"entity","t":22.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0,0.6528,0.1328,0.8194],"confidence":0.913,"clip_sim":0.93},"seq":400}
+{"v":1,"kind":"entity","t":22.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.1875,0.7014,0.2539,0.8472],"confidence":0.934,"clip_sim":0.91},"seq":401}
+{"v":1,"kind":"entity","t":22.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.3281,0.7222,0.3789,0.8958],"confidence":0.955,"clip_sim":0.95},"seq":402}
+{"v":1,"kind":"entity","t":22.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6016,0.6319,0.75,0.9722],"confidence":0.916,"clip_sim":0.92},"seq":403}
+{"v":1,"kind":"metrics","t":23.0,"data":{"fps":15,"latency_ms":52,"last_latency_ms":820,"frames":345,"gated_frames":272,"yolo_frames":73,"detections":7,"track_count":8,"vlm_calls":5,"camera":{"state":"STATIONARY","dx":0.38,"dy":0.0,"theta":0.0,"inliers":214}},"seq":404}
+{"v":1,"kind":"telemetry","t":23.0,"data":{"channel":"SYSTEM","level":"info","message":"camera pan out · ‖T‖>τ_pan · detection gated, anchors retained"},"seq":405}
+{"v":1,"kind":"entity","t":23.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8361,0.5764,1.0,0.9056],"confidence":0.897,"clip_sim":0.9},"seq":406}
+{"v":1,"kind":"entity","t":23.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0007,0.6528,0.1335,0.8194],"confidence":0.918,"clip_sim":0.93},"seq":407}
+{"v":1,"kind":"entity","t":23.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.1894,0.7014,0.2558,0.8472],"confidence":0.938,"clip_sim":0.91},"seq":408}
+{"v":1,"kind":"entity","t":23.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.3321,0.7222,0.3829,0.8958],"confidence":0.959,"clip_sim":0.95},"seq":409}
+{"v":1,"kind":"entity","t":23.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6076,0.6319,0.7561,0.9722],"confidence":0.919,"clip_sim":0.92},"seq":410}
+{"v":1,"kind":"entity","t":23.45,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8483,0.5764,1.0,0.9056],"confidence":0.9,"clip_sim":0.9},"seq":411}
+{"v":1,"kind":"metrics","t":23.5,"data":{"fps":15,"latency_ms":50,"last_latency_ms":820,"frames":352,"gated_frames":278,"yolo_frames":74,"detections":7,"track_count":8,"vlm_calls":5,"camera":{"state":"PAN","dx":5.07,"dy":0.0,"theta":0.0,"inliers":214}},"seq":412}
+{"v":1,"kind":"entity","t":23.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.015,0.6528,0.1479,0.8194],"confidence":0.92,"clip_sim":0.93},"seq":413}
+{"v":1,"kind":"entity","t":23.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.2067,0.7014,0.2731,0.8472],"confidence":0.94,"clip_sim":0.91},"seq":414}
+{"v":1,"kind":"entity","t":23.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.3526,0.7222,0.4034,0.8958],"confidence":0.96,"clip_sim":0.95},"seq":415}
+{"v":1,"kind":"entity","t":23.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6303,0.6319,0.7787,0.9722],"confidence":0.92,"clip_sim":0.92},"seq":416}
+{"v":1,"kind":"entity","t":23.85,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.8756,0.5764,1.0,0.9056],"confidence":0.899,"clip_sim":0.9},"seq":417}
+{"v":1,"kind":"entity","t":23.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0439,0.6528,0.1767,0.8194],"confidence":0.919,"clip_sim":0.93},"seq":418}
+{"v":1,"kind":"entity","t":23.97,"data":{"id":"mug_1","label":"Mug","bbox":[0.2375,0.7014,0.3039,0.8472],"confidence":0.938,"clip_sim":0.91},"seq":419}
+{"v":1,"kind":"metrics","t":24.0,"data":{"fps":15,"latency_ms":44,"last_latency_ms":820,"frames":360,"gated_frames":284,"yolo_frames":76,"detections":7,"track_count":8,"vlm_calls":5,"camera":{"state":"PAN","dx":7.83,"dy":0.0,"theta":0.0,"inliers":214}},"seq":420}
+{"v":1,"kind":"entity","t":24.05,"data":{"id":"phone_1","label":"Phone","bbox":[0.3854,0.7222,0.4361,0.8958],"confidence":0.958,"clip_sim":0.95},"seq":421}
+{"v":1,"kind":"entity","t":24.11,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.6644,0.6319,0.8128,0.9722],"confidence":0.917,"clip_sim":0.92},"seq":422}
+{"v":1,"kind":"entity","t":24.25,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.9123,0.5764,1.0,0.9056],"confidence":0.895,"clip_sim":0.9},"seq":423}
+{"v":1,"kind":"entity","t":24.3,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.0814,0.6528,0.2142,0.8194],"confidence":0.915,"clip_sim":0.93},"seq":424}
+{"v":1,"kind":"entity","t":24.37,"data":{"id":"mug_1","label":"Mug","bbox":[0.2759,0.7014,0.3423,0.8472],"confidence":0.934,"clip_sim":0.91},"seq":425}
+{"v":1,"kind":"entity","t":24.45,"data":{"id":"phone_1","label":"Phone","bbox":[0.4246,0.7222,0.4754,0.8958],"confidence":0.953,"clip_sim":0.95},"seq":426}
+{"v":1,"kind":"metrics","t":24.5,"data":{"fps":15,"latency_ms":50,"last_latency_ms":820,"frames":367,"gated_frames":289,"yolo_frames":78,"detections":7,"track_count":8,"vlm_calls":5,"camera":{"state":"PAN","dx":8.66,"dy":0.0,"theta":0.0,"inliers":214}},"seq":427}
+{"v":1,"kind":"entity","t":24.51,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.7041,0.6319,0.8526,0.9722],"confidence":0.912,"clip_sim":0.92},"seq":428}
+{"v":1,"kind":"entity","t":24.65,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.9527,0.5764,1.0,0.9056],"confidence":0.889,"clip_sim":0.9},"seq":429}
+{"v":1,"kind":"entity","t":24.7,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.1218,0.6528,0.2546,0.8194],"confidence":0.908,"clip_sim":0.93},"seq":430}
+{"v":1,"kind":"entity","t":24.77,"data":{"id":"mug_1","label":"Mug","bbox":[0.3162,0.7014,0.3826,0.8472],"confidence":0.927,"clip_sim":0.91},"seq":431}
+{"v":1,"kind":"entity","t":24.85,"data":{"id":"phone_1","label":"Phone","bbox":[0.4646,0.7222,0.5154,0.8958],"confidence":0.946,"clip_sim":0.95},"seq":432}
+{"v":1,"kind":"entity","t":24.9,"data":{"id":"bottle_1","label":"Bottle","bbox":[0.0,0.6528,0.0256,0.85],"confidence":0.845,"clip_sim":0.88},"seq":433}
+{"v":1,"kind":"entity","t":24.91,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.7437,0.6319,0.8922,0.9722],"confidence":0.904,"clip_sim":0.92},"seq":434}
+{"v":1,"kind":"metrics","t":25.0,"data":{"fps":15,"latency_ms":52,"last_latency_ms":820,"frames":375,"gated_frames":296,"yolo_frames":79,"detections":7,"track_count":8,"vlm_calls":5,"camera":{"state":"PAN","dx":7.57,"dy":0.0,"theta":0.0,"inliers":214}},"seq":435}
+{"v":1,"kind":"entity","t":25.05,"data":{"id":"backpack_1","label":"Backpack","bbox":[0.9909,0.5764,1.0,0.9056],"confidence":0.882,"clip_sim":0.9},"seq":436}
+{"v":1,"kind":"entity","t":25.1,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.1592,0.6528,0.2921,0.8194],"confidence":0.901,"clip_sim":0.93},"seq":437}
+{"v":1,"kind":"entity","t":25.17,"data":{"id":"mug_1","label":"Mug","bbox":[0.3526,0.7014,0.419,0.8472],"confidence":0.919,"clip_sim":0.91},"seq":438}
+{"v":1,"kind":"telemetry","t":25.2,"data":{"channel":"GEOM","level":"info","message":"‖T‖=0.6px < τ_still=2.5 · camera=STATIONARY · relocalization keyframe captured"},"seq":439}
+{"v":1,"kind":"entity","t":25.25,"data":{"id":"phone_1","label":"Phone","bbox":[0.4995,0.7222,0.5503,0.8958],"confidence":0.938,"clip_sim":0.95},"seq":440}
+{"v":1,"kind":"entity","t":25.3,"data":{"id":"bottle_1","label":"Bottle","bbox":[0.0032,0.6528,0.0595,0.85],"confidence":0.837,"clip_sim":0.88},"seq":441}
+{"v":1,"kind":"entity","t":25.31,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.7774,0.6319,0.9258,0.9722],"confidence":0.896,"clip_sim":0.92},"seq":442}
+{"v":1,"kind":"state","t":25.45,"data":{"entity_id":"bottle_1","label":"Bottle","from":"OUT_OF_VIEW","to":"VISIBLE_STATIC","reason":"CLIP Re-ID 0.91 after pan settles · countertop support re-validated","trigger":{"dt":20.4,"clip_sim":0.91},"confidence":0.84},"seq":443}
+{"v":1,"kind":"edge","t":25.45,"data":{"id":"e_bottle_counter_2","source":"bottle_1","target":"countertop","relation":"RESTING_ON","t_start":25.45,"t_end":null,"active":true,"clip_sim":0.91},"seq":444}
+{"v":1,"kind":"metrics","t":25.5,"data":{"fps":15,"latency_ms":49,"last_latency_ms":820,"frames":382,"gated_frames":301,"yolo_frames":81,"detections":7,"track_count":8,"vlm_calls":5,"camera":{"state":"PAN","dx":4.55,"dy":0.0,"theta":0.0,"inliers":214}},"seq":445}
+{"v":1,"kind":"telemetry","t":25.5,"data":{"channel":"GRAPH","level":"info","message":"re-bound bottle_1 via CLIP Re-ID 0.91 after 20.4s OUT_OF_VIEW","entity_id":"bottle_1"},"seq":446}
+{"v":1,"kind":"entity","t":25.5,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.1881,0.6528,0.3209,0.8194],"confidence":0.893,"clip_sim":0.93},"seq":447}
+{"v":1,"kind":"entity","t":25.57,"data":{"id":"mug_1","label":"Mug","bbox":[0.3793,0.7014,0.4457,0.8472],"confidence":0.912,"clip_sim":0.91},"seq":448}
+{"v":1,"kind":"telemetry","t":25.6,"data":{"channel":"GRAPH","level":"info","message":"VPR relocalization · Kitchen CLIP 0.94 ≥ 0.85 · 0 new zone nodes"},"seq":449}
+{"v":1,"kind":"entity","t":25.65,"data":{"id":"phone_1","label":"Phone","bbox":[0.5236,0.7222,0.5744,0.8958],"confidence":0.93,"clip_sim":0.95},"seq":450}
+{"v":1,"kind":"telemetry","t":25.7,"data":{"channel":"GRAPH","level":"info","message":"2-hop subgraph index warm · 8 entities / 16 edges · avg query 38ms"},"seq":451}
+{"v":1,"kind":"entity","t":25.7,"data":{"id":"bottle_1","label":"Bottle","bbox":[0.0256,0.6528,0.0818,0.85],"confidence":0.829,"clip_sim":0.88},"seq":452}
+{"v":1,"kind":"entity","t":25.71,"data":{"id":"tote_1","label":"Tote Bag","bbox":[0.7994,0.6319,0.9478,0.9722],"confidence":0.889,"clip_sim":0.92},"seq":453}
+{"v":1,"kind":"entity","t":25.9,"data":{"id":"notebook_1","label":"Notebook","bbox":[0.2025,0.6528,0.3353,0.8194],"confidence":0.886,"clip_sim":0.93},"seq":454}
+{"v":1,"kind":"metrics","t":26.0,"data":{"fps":15,"latency_ms":45,"last_latency_ms":820,"frames":390,"gated_frames":308,"yolo_frames":82,"detections":7,"track_count":8,"vlm_calls":5,"camera":{"state":"STATIONARY","dx":0.0,"dy":0.0,"theta":0.0,"inliers":214}},"seq":455}
