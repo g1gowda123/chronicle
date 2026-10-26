@@ -149,7 +149,7 @@ PR so parallel work does not collide.
 
 ### NB-10 · Tune consolidation on the living-room clip
 - **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Graph
-- **Started:** 2026-10-27 · **Branch:** `task/nb-10-furniture-support-mapping`
+- **Started:** 2026-10-27 · **Branch:** `task/nb-10-furniture-support-mapping` · **Partial commit:** `689f471`
 - **Why:** the “done when” bar for Role B is one anchor per physical sofa after
   replaying the living-room clip.
 - **Scope:** run the clip, inspect `memory.stats()["merges"]`, tune association
