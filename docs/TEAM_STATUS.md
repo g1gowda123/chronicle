@@ -160,6 +160,7 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-D3** | **P1** | **Queue depth badge & UI error/empty states**<br>Add verification queue depth chip in dashboard header; show friendly empty/stopped/error states when video is missing or query fails. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D4** | **P2** | **Headless dashboard smoke tests**<br>Add Starlette/FastAPI `TestClient` tests for NiceGUI endpoints (`/`, `/source-video`, `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv`) verifying zero-GPU, zero-browser CI operation plus attachment headers/media types. | `tests/test_dashboard_smoke.py` | `[DONE (f52482b, 5e51c20)]` | Orchestrator / karthiknk7019 |
 | **TASK-D5** | **P1** | **Service runner script (`chronicle.sh`)**<br>Zero-argument `./chronicle.sh` launcher to start dashboard daemon, report URL, tail logs, and stop easily with in-UI source switching. | `chronicle.sh` | `[DONE (7edb9df)]` | Orchestrator |
+| **TASK-D6** | **P1** | **Dashboard video upload**<br>Add a video picker to the source card that saves the clip under `<data-dir>/uploads/<run-id>/`, registers and rediscovers it as an `UPLOAD` source, and starts ingestion immediately. | `chronicle/ui/app.py`<br>`chronicle/ui/uploads.py`<br>`tests/test_uploads.py` | `[DONE]` | Orchestrator |
 | **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source cook` / `play` / `walking` offline evaluation using the tracked video assets in `data/real/`; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[DONE (cc250a0)]` | Orchestrator / Likhithvu |
 | **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py`<br>`chronicle/ui/graph_view.py` | `[DONE (371f216)]` | Orchestrator |
 | **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget and `/import/snapshot` route in the NiceGUI dashboard so an exported `chronicle_snapshot.json` restores graph state without re-ingesting; validate it with `chronicle/ui/snapshot_io.py`. | `chronicle/ui/app.py`<br>`chronicle/integration.py`<br>`chronicle/ui/snapshot_io.py` | `[DONE (a31d417, 973798a)]` | Orchestrator |
@@ -319,6 +320,9 @@ marks). Ambient caption phrasing still needs a labelled HoloLens pass before the
   background structure, not objects with a lifecycle, rendered as golden rounded rectangles).
 - [x] Cluster the memory graph by zone with fixed room anchors, stable zone
   accents and zone-aware tooltips (`chronicle/ui/graph_view.py`).
+- [x] Change the demo video from the dashboard: the source card's video button
+  uploads a clip, persists it under `data/uploads/`, adds it as an `UPLOAD`
+  source (rediscovered on restart) and starts ingestion immediately.
 
 **Done when:** a teammate can switch sources, watch ingestion, ask a question
 and export the graph without touching Python.

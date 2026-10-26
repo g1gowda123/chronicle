@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import queue
+import shutil
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +33,15 @@ from chronicle.sources import (
 from chronicle.ui.graph_view import graph_options as _graph_options
 from chronicle.ui.graph_view import timeline_options as _timeline_options
 from chronicle.ui.snapshot_io import SnapshotImportError, parse_snapshot, snapshot_summary
+from chronicle.ui.uploads import (
+    MAX_UPLOAD_BYTES,
+    UploadError,
+    load_upload_sources,
+    media_type,
+    new_upload_target,
+    probe_video,
+    register_upload,
+)
 
 
 @dataclass
@@ -121,15 +131,18 @@ class DashboardState:
             try:
                 with self.lock:
                     old = self.runtime
-                if old is not None:
-                    old.stop()
-                    old.close()
                 runtime = self._make_runtime(request.source, reset=True)
+                # Swap and retire the previous runtime while holding the lock:
+                # ``refresh`` snapshots under the same lock, so it can never see
+                # a runtime whose SQLite connection has already been closed.
                 with self.lock:
                     if self._active is not request:
                         runtime.close()
                         continue
                     self.runtime = runtime
+                    if old is not None:
+                        old.stop()
+                        old.close()
                 summary = runtime.ingest_video(
                     request.video,
                     max_frames=request.max_frames or self.max_frames,
@@ -238,9 +251,19 @@ def create_app(
     except Exception:
         pass
     custom: ClipSource | None = None
+    upload_sources = load_upload_sources(data_root)
     if video is not None:
         video_path = Path(video).expanduser().resolve()
         matched = source_for_video(video_path, data_root)
+        if matched is None:
+            matched = next(
+                (
+                    source
+                    for source in upload_sources
+                    if source.video_path(data_root) == video_path
+                ),
+                None,
+            )
         if matched is None and video_path.is_file():
             custom = _custom_source(video_path, data_root)
             source_key = "custom"
@@ -248,10 +271,12 @@ def create_app(
             source_key = matched.key
     if source_key is None:
         source_key = (custom or default_source(data_root)).key
+    sources = ([custom] if custom is not None else []) + upload_sources + list(SOURCES)
+    source_map = {source.key: source for source in sources}
     try:
         initial = source_for_key(source_key, data_root)
     except KeyError:
-        initial = custom or default_source(data_root)
+        initial = custom or source_map.get(source_key) or default_source(data_root)
     if custom is not None:
         initial = custom
     video_path = (
@@ -259,8 +284,6 @@ def create_app(
         if video is not None
         else initial.video_path(data_root)
     )
-    sources = ([custom] if custom is not None else []) + list(SOURCES)
-    source_map = {source.key: source for source in sources}
 
     base_config = PerceptionConfig()
     base_config.detector.backend = detector_backend
@@ -281,7 +304,7 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"video not found: {path}")
         return FileResponse(
             path,
-            media_type="video/mp4",
+            media_type=media_type(path),
             headers={"Cache-Control": "no-store"},
         )
 
@@ -548,6 +571,7 @@ def create_app(
                     "flex:9 1 0;min-width:0;height:500px;display:flex;flex-direction:column"
                 ):
                     source_sync = {"active": False}
+                    upload_busy = {"active": False, "name": ""}
 
                     def _on_source_change(event: Any) -> None:
                         if source_sync["active"]:
@@ -559,6 +583,71 @@ def create_app(
                             source_sync["active"] = True
                             source_select.value = state.source_key
                             source_sync["active"] = False
+
+                    async def _on_video_upload(event: Any) -> None:
+                        """Save the selected clip and start processing immediately."""
+
+                        if upload_busy["active"]:
+                            ui.notify("A video is already uploading.", type="warning")
+                            return
+                        upload_busy["active"] = True
+                        name = Path(str(event.file.name)).name
+                        upload_busy["name"] = name
+                        upload_button.disable()
+                        target: Path | None = None
+                        try:
+                            target = new_upload_target(data_root, name)
+                            await event.file.save(target)
+                            probe = await run.io_bound(probe_video, target)
+                            if probe is None:
+                                shutil.rmtree(target.parent, ignore_errors=True)
+                                target = None
+                                ui.notify(
+                                    "The selected file could not be decoded as a video.",
+                                    type="negative",
+                                )
+                                return
+                            source = register_upload(
+                                data_root,
+                                target,
+                                original_name=name,
+                                vocabulary=tuple(base_config.vocabulary),
+                            )
+                            source_map[source.key] = source
+                            source_select.options[source.key] = source.label
+                            source_sync["active"] = True
+                            source_select.value = source.key
+                            source_sync["active"] = False
+                            source_select.update()
+                            state.request_run(source, target)
+                            width, height, fps = probe
+                            video_badge.text = f"PRE-RECORDED · {source.badge}"
+                            video_name_label.text = target.name
+                            video_caption_label.text = f"{source.caption} · processing live"
+                            ui.notify(
+                                f"Processing {name} · {width}×{height} · {fps:.1f} fps",
+                                type="positive",
+                            )
+                            log_view.push(
+                                f"[SYSTEM] uploaded {name}; live processing started"
+                            )
+                        except UploadError as exc:
+                            ui.notify(f"Upload failed: {exc}", type="negative")
+                        except Exception as exc:
+                            if target is not None and not (
+                                target.parent / "source.json"
+                            ).exists():
+                                shutil.rmtree(target.parent, ignore_errors=True)
+                            ui.notify(
+                                f"Upload failed: {type(exc).__name__}: {exc}",
+                                type="negative",
+                            )
+                            log_view.push(f"upload error: {type(exc).__name__}: {exc}")
+                        finally:
+                            upload_busy["active"] = False
+                            upload_busy["name"] = ""
+                            upload_button.enable()
+                            video_upload.reset()
 
                     with ui.row().classes("w-full items-center justify-between gap-2"):
                         with ui.row().classes("items-center gap-2 min-w-0"):
@@ -576,12 +665,28 @@ def create_app(
                             ).props("outlined dense dark options-dense").style(
                                 "min-width:180px;max-width:230px"
                             )
+                            upload_button = ui.button(
+                                icon="video_file",
+                                on_click=lambda: video_upload.run_method("pickFiles"),
+                            ).props("flat round dense color=teal").tooltip(
+                                "Change demo video · upload and process it live"
+                            )
                             ui.button(icon="play_arrow", on_click=_run_current).props(
                                 "flat round dense"
                             ).tooltip("Run the selected source")
                             ui.button(icon="stop", on_click=state.stop).props(
                                 "flat round dense color=negative"
                             ).tooltip("Stop the current run")
+                    video_upload = ui.upload(
+                        on_upload=_on_video_upload,
+                        on_rejected=lambda: ui.notify(
+                            "Only video files up to 4 GB are accepted.",
+                            type="negative",
+                        ),
+                        auto_upload=True,
+                        max_file_size=MAX_UPLOAD_BYTES,
+                        max_files=1,
+                    ).props('accept="video/*"').classes("hidden")
                     video_player = ui.video(
                         _video_url(Path(state.video)),
                         controls=True,
@@ -848,14 +953,21 @@ def create_app(
                     video_player.set_source(_video_url(video_path))
                     video_player.update()
                     video_name_label.text = video_path.name
-                    source = source_map.get(source_key)
-                    if source is not None:
-                        video_caption_label.text = f"{source.caption} · processed locally"
-                        video_badge.text = f"PRE-RECORDED · {source.badge}"
-                    if source_select.value != source_key:
-                        source_sync["active"] = True
-                        source_select.value = source_key
-                        source_sync["active"] = False
+                source = source_map.get(source_key)
+                if upload_busy["active"]:
+                    video_badge.text = "UPLOADING"
+                    video_caption_label.text = f"{upload_busy['name']} · uploading…"
+                elif source is not None:
+                    if source.key not in source_select.options:
+                        source_select.options[source.key] = source.label
+                        source_select.update()
+                    suffix = "processing live" if running else "processed locally"
+                    video_caption_label.text = f"{source.caption} · {suffix}"
+                    video_badge.text = f"PRE-RECORDED · {source.badge}"
+                if source_select.value != source_key:
+                    source_sync["active"] = True
+                    source_select.value = source_key
+                    source_sync["active"] = False
                 _render_suggestions(source_key, _ask)
 
                 pipeline_label.text = (
