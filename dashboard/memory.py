@@ -184,9 +184,9 @@ def auto_compile(clip: str | None, data_dir: Path | str) -> dict[str, Any] | Non
     instance = manager(root)
     if instance.has_memory(source):
         return None
-    state = instance.status(source) or {}
-    if state.get("status") in {"queued", "running"}:
-        return None
+    # No live-job check here: after a server restart a stale "running" job.json
+    # must not block the first real compile. `_AUTO_ATTEMPTED` already stops
+    # duplicate submissions within one process.
     if source.key in _AUTO_ATTEMPTED:
         return None
     _AUTO_ATTEMPTED.add(source.key)
