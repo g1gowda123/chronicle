@@ -22,14 +22,13 @@ from chronicle.integration import ChronicleRuntime
 from chronicle.perception.config import PerceptionConfig
 from chronicle.semantic.config import SemanticConfig
 from chronicle.sources import (
+    DEFAULT_DATA_DIR,
     SOURCES,
     ClipSource,
     default_source,
     source_for_key,
     source_for_video,
 )
-
-DEFAULT_DATA_DIR = Path("data")
 
 
 def _resolve_source(

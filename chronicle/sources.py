@@ -176,10 +176,25 @@ def default_source(data_dir: Path | str) -> ClipSource:
     return source_for_key("synthetic", data_dir)
 
 
+def default_data_dir() -> Path:
+    local = Path("data")
+    if local.is_dir() and ((local / "demo").is_dir() or (local / "real").is_dir()):
+        return local
+    repo_data = Path(__file__).resolve().parents[1] / "data"
+    if repo_data.is_dir():
+        return repo_data
+    return local
+
+
+DEFAULT_DATA_DIR: Path = default_data_dir()
+
+
 __all__ = [
     "ClipSource",
+    "DEFAULT_DATA_DIR",
     "SOURCES",
     "available_sources",
+    "default_data_dir",
     "default_source",
     "source_for_key",
     "source_for_video",

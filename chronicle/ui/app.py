@@ -24,6 +24,7 @@ from chronicle.integration import ChronicleRuntime
 from chronicle.perception.config import PerceptionConfig
 from chronicle.semantic.config import SemanticConfig
 from chronicle.sources import (
+    DEFAULT_DATA_DIR,
     SOURCES,
     ClipSource,
     default_source,
@@ -213,7 +214,7 @@ def _custom_source(video: Path, data_dir: Path) -> ClipSource:
 
 def create_app(
     *,
-    data_dir: str | Path = "data",
+    data_dir: str | Path | None = None,
     video: str | Path | None = None,
     source_key: str | None = None,
     auto_run: bool = False,
@@ -226,7 +227,7 @@ def create_app(
     embedder_backend: str = "auto",
     start_server: bool = True,
 ) -> DashboardState:
-    data_root = Path(data_dir).expanduser().resolve()
+    data_root = DEFAULT_DATA_DIR if data_dir is None else Path(data_dir).expanduser().resolve()
     try:
         from nicegui import core
 
