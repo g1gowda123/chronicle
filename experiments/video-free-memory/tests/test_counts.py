@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "prototype"))
 
 import compile as vfm_compile  # noqa: E402
 import query  # noqa: E402
+import report as vfm_report  # noqa: E402
 
 
 def _make_source(path: Path) -> None:
@@ -120,6 +121,22 @@ def test_count_answer_reports_physical_range(tmp_path: Path) -> None:
         assert "At most 2 bowl tracks were visible" in cars.answer
     finally:
         con.close()
+
+
+def test_report_embeds_counts_and_uses_bounds(tmp_path: Path) -> None:
+    source = tmp_path / "chronicle.db"
+    _make_source(source)
+    vault = tmp_path / "vault.db"
+    vfm_compile.compile_vault(source, vault)
+    out = tmp_path / "memory.html"
+
+    summary = vfm_report.build_report(vault, out, data_root=tmp_path)
+    html = out.read_text(encoding="utf-8")
+
+    assert summary["html"] == str(out)
+    assert '"counts"' in html
+    assert '"peak": 2' in html
+    assert "vault-count-visibility" in html
 
 
 def test_legacy_vault_without_counts_keeps_old_wording(tmp_path: Path) -> None:

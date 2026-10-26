@@ -127,7 +127,7 @@ function respond(){
     text="I don't have that in my memory."; method='no-match';
   } else if(intent==='count'){
     if(!e){text="I don't have that in my memory.";method='no-match';}
-    else{const n=DATA.entities.filter(x=>x.label.toLowerCase()===e.label.toLowerCase()).length; const ev=latest(eventsFor(e.label)); text=`The memory tracked ${n} ${e.label.toLowerCase()} track${n===1?'':'s'}. The tracker can split one physical object into more than one track, so this is a track count, not a verified object count.`; if(ev){cites.push(cite(ev.t,caption(ev)));evidenceT=+ev.t;} method='vault-count';}
+    else{const n=DATA.entities.filter(x=>x.label.toLowerCase()===e.label.toLowerCase()).length; const ev=latest(eventsFor(e.label)); const bound=DATA.counts&&DATA.counts[e.label.toLowerCase()]; const peak=bound&&+bound.peak||0; if(peak&&peak<n){text=`The memory tracked ${n} ${e.label.toLowerCase()} track${n===1?'':'s'}. At most ${peak} ${e.label.toLowerCase()} track${peak===1?'':'s'} ${peak===1?'was':'were'} visible at the same instant, so the physical count is between ${peak} and ${n}: fragmentation or occlusion may inflate the track count.`; method='vault-count-visibility';} else if(peak===1&&n===1){text=`The memory tracked 1 ${e.label.toLowerCase()} track. It was visible in the observation window, but this is still a track count, not a verified physical count.`; method='vault-count-visibility';} else if(peak){text=`The memory tracked ${n} ${e.label.toLowerCase()} track${n===1?'':'s'}. Up to ${peak} were visible at the same instant, which is still a track count, not a verified physical count.`; method='vault-count-visibility';} else {text=`The memory tracked ${n} ${e.label.toLowerCase()} track${n===1?'':'s'}. The tracker can split one physical object into more than one track, so this is a track count, not a verified object count.`; method='vault-count';} if(ev){cites.push(cite(ev.t,caption(ev)));evidenceT=+ev.t;}}
   } else if(intent==='where'){
     if(!e){const hit=keyword(q); text=hit.text; cites=hit.cites; evidenceT=hit.evidenceT; method=hit.method;}
     else{const rows=eventsFor(e.label); const last=latest(rows); const places=rows.filter(x=>x.kind==='anchor'&&['PLACED_ON','PLACED_IN','RESTING_ON','INSIDE'].includes(x.relation.toUpperCase())); const place=latest(places); if(!last){text=`I don't have a location for the ${e.label.toLowerCase()}.`;method='no-match';} else {const held=last.kind==='interaction'&&last.relation.toUpperCase()==='HELD'; const seen=Math.max(+e.last_seen||0,+last.t); text=`The ${e.label.toLowerCase()} was last ${held?'held':'seen'} at t=${seen.toFixed(1)}s${e.zone?' in the '+e.zone:''}.`; if(place)text+=` Last recorded placement: ${caption(place).replace(/^At t=[\\d.]+s, /,'').replace(/\\.$/,'')}.`; else text+=` Last recorded event: ${caption(last).replace(/^At t=[\\d.]+s, /,'').replace(/\\.$/,'')}.`; cites.push(cite(last.t,caption(last))); evidenceT=+last.t; method='vault-where';}}
@@ -276,6 +276,9 @@ def build_report(
 
     memory_data = {
         "duration": round(store.duration, 3),
+        # Per-label {"tracks", "peak"}: track count is the upper bound, peak
+        # simultaneous visibility the lower bound. Empty on caption-first vaults.
+        "counts": store.counts,
         "entities": [
             {
                 "id": entity["id"],

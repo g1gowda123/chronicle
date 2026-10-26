@@ -37,7 +37,7 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 | P1-EXTERNAL | P1 | External benchmark (EgoSchema / Ego4D NLQ / CapMem) | `prototype/`, `benchmark/`, `docs/RESEARCH.md` | READY | unclaimed |
 | P1-GEMINI | P1 | Paid/faster online VLM baseline | `prototype/online_baseline.py` | READY | unclaimed |
 | P1-FLORENCE | P1 | Florence-2 vs Qwen2.5-VL A/B on 30 s windows | `prototype/`, `docs/JOURNAL.md` | READY | unclaimed |
-| P2-RETENTION | P2 | Snapshot dedup + 24 h / 7 day retention test | `prototype/retention.py`, `tests/` | READY | unclaimed |
+| P2-RETENTION | P2 | Snapshot dedup + 24 h / 7 day retention test | `prototype/retention.py`, `tests/test_retention.py` | IN PROGRESS | opencode/DeepSeek-V4.1-Flash |
 | P2-PACK | P2 | Token-budget selector (2k / 4k / 8k) | `prototype/memory_pack.py`, `prototype/studio_app.py`, `tests/test_pack.py` | DONE (see journal Session 7) | opencode/DeepSeek-V4.1-Flash |
 | QUICK-WINDOW | Quick | Caption-window fine-tune (10/15/20/30/45/60 s) | `prototype/caption_ledger.py`, `docs/JOURNAL.md` | READY | unclaimed |
 
@@ -61,12 +61,10 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 > `docs/COUNTS.md` is correct that co-visible boxes are spatially distinct on cook; my merge idea
 > only affected the knife pair (IoU 0.41) and is dropped. P2-PACK owner out of the P1-COUNTS lane.
 
-> **Coordination — P0-VFM-UI (2026-10-27 03:45 IST):** `chronicle/vfm/` is a stable copy of
-> `prototype/` at HEAD `51a09d9` (`memory_pack.py` and `nlq.py` include P2-PACK). It does **not**
-> yet include the uncommitted P1-COUNTS changes in `prototype/compile.py` / `prototype/query.py`.
-> After P1-COUNTS commits, port `visibility_counts` and the count-bound answer wording into
-> `chronicle/vfm/` and add a regression test there. Do not copy half-finished prototype files
-> while P1-COUNTS is still being edited.
+> **Coordination — P0-VFM-UI (2026-10-27 03:45 IST):** `chronicle/vfm/` was synced to
+> `prototype/` at `f4e915f` after P1-COUNTS landed; `memory_pack.py` / `nlq.py` include P2-PACK.
+> The dashboard now reports count bounds with method `vault-count-visibility`. Keep the package in
+> sync when `prototype/` changes; do not import the experiment directory from the dashboard.
 
 ## Rules for parallel agents
 

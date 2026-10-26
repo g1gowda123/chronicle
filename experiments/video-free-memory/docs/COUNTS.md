@@ -88,6 +88,19 @@ The first sentence still contains the track count, so the existing 30-question r
 (which expects `2 plate`, `4 bowl`, …) is unchanged. Method changes from `vault-count` to
 `vault-count-visibility` when the bounds are available.
 
+### Where it shows up
+
+| Surface | Behaviour |
+| --- | --- |
+| `query.py` / CLI | `how many bowls?` reports the range; `--stats --json` includes the `counts` map. |
+| Studio (deterministic ask) | Uses `query.answer`, so the range is shown without Qwen. |
+| Studio (`--qwen`) | The verified answer is in the memory pack; Qwen phrases the same range. |
+| Single-file `memory.html` | `DATA.counts` is embedded and the client-side count branch renders the same range offline; no server or model needed. |
+| Caption-first uploads | No observations, so they keep the caption-coverage wording and must not claim physical counts. |
+
+`tests/test_counts.py` covers the compile contract, the range wording, singular grammar, the
+legacy-vault fallback, and that the HTML report embeds `counts` and the visibility branch.
+
 ## Verification
 
 ```bash

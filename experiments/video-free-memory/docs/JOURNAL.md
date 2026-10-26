@@ -585,3 +585,13 @@ fragmentation from a real second object.
 
 - Hand-label one episode's physical counts (bowls/cars) to turn the bounds into a measured range.
 - Surface `peak` in the HTML report/Studio count card if it helps the demo narrative.
+
+### Addendum — count bounds in the offline report
+
+- `prototype/report.py` now embeds `store.counts` in `DATA` and the client-side count branch
+  uses it. Opening `memory.html` and asking "how many bowls?" gives the same
+  "physical count between 2 and 4" answer with no server, model or video.
+- Verified on the rebuilt cook vault: `DATA.counts` has bowl 4/2, cup 2/2, plate 2/2, knife 2/1;
+  the report is 412 KB; `node --check` passes on the extracted script.
+- `tests/test_counts.py` now also asserts the report embeds `counts` and the visibility branch.
+  Full experiment suite: **21 passed**.
