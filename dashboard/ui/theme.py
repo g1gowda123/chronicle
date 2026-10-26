@@ -101,7 +101,6 @@ def topbar_html(session: dict[str, Any], snapshot: dict[str, Any]) -> str:
 # --------------------------------------------------------------------------- #
 
 VIDEO_HUD_HTML = """
-<div class="video-overlay" id="chron-overlay"></div>
 <div class="hud">
   <div class="hud-row">
     <div class="hud-stack">
@@ -131,10 +130,10 @@ VIDEO_HUD_HTML = """
 
 def clip_menu_html(options: list[dict[str, str]], active: str = "") -> str:
     """Clip switcher dropdown (recorded replay timelines)."""
-    selected = active or (options[0].get("path") if options else "")
+    selected = active or (options[0].get("value") if options else "")
     items = "".join(
-        f'<option value="{_e(option.get("path"))}"'
-        f'{" selected" if option.get("path") == selected else ""}>'
+        f'<option value="{_e(option.get("value"))}"'
+        f'{" selected" if option.get("value") == selected else ""}>'
         f'{_e(option.get("title"))}</option>'
         for option in options
     )
@@ -199,7 +198,15 @@ def video_html(snapshot: dict[str, Any], replays: list[dict[str, str]] | None = 
     <span class="t-sep"></span>
     <span class="transport-label" id="transport-label">SYNCED PLAYBACK · LOOP</span>
     <span class="t-loop" id="t-loop">{_e(snapshot.get("source_label") or "")}</span>
-    <span class="chipz chipz-secondary" style="font-size:.62rem">showing evidence overlays</span>
+    <label class="btnz btnz-ghost clip-upload" title="Upload a clip to play in the stage">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+        <path d="M8 11 V2.5 M4.5 6 L8 2.5 L11.5 6 M3 13.5 H13" stroke="currentColor"
+              stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      upload
+      <input type="file" id="chron-upload" accept="video/*" hidden
+             onchange="Chronicle.uploadClip(this)">
+    </label>
   </div>
   <div class="chron-timeline">
     <div class="tl-track">

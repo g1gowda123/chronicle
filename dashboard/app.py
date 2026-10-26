@@ -17,6 +17,7 @@ CHRONICLE_OLLAMA_URL   Ollama base URL (default http://127.0.0.1:11434)
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from nicegui import app, ui
 
-from .runtime import default_data_dir, runtime
+from .runtime import clip_title, default_data_dir, probe_duration, runtime
 from .ui.page import build_dashboard
 
 DATA_DIR = default_data_dir()
@@ -106,6 +107,39 @@ async def ingest(request: Request) -> JSONResponse:
             "mode": runtime.mode,
             "live_events": runtime.live_events,
             "playhead": round(runtime.playhead, 3),
+        }
+    )
+
+
+@app.post("/api/upload")
+async def upload(request: Request) -> JSONResponse:
+    """Store an uploaded clip under ``data/uploads`` and return its URL."""
+    raw_name = Path(str(request.query_params.get("name") or "clip.mp4")).name
+    suffix = Path(raw_name).suffix.lower()
+    if suffix not in {".mp4", ".webm", ".mov", ".mkv"}:
+        return JSONResponse({"error": "unsupported video type"}, status_code=400)
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(raw_name).stem).strip("-") or "clip"
+    uploads = DATA_DIR / "uploads"
+    uploads.mkdir(parents=True, exist_ok=True)
+    target = uploads / f"{stem}{suffix}"
+    counter = 1
+    while target.exists():
+        counter += 1
+        target = uploads / f"{stem}-{counter}{suffix}"
+    body = await request.body()
+    if not body:
+        return JSONResponse({"error": "empty upload"}, status_code=400)
+    if len(body) > 512 * 1024 * 1024:
+        return JSONResponse({"error": "file too large"}, status_code=413)
+    target.write_bytes(body)
+    rel = target.relative_to(DATA_DIR).as_posix()
+    return JSONResponse(
+        {
+            "path": rel,
+            "video_url": "/media/" + rel,
+            "title": clip_title(target),
+            "duration": probe_duration(target),
+            "bytes": len(body),
         }
     )
 

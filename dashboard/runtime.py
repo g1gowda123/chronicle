@@ -21,6 +21,34 @@ from .query import QueryEngine
 from .store import MemoryStore
 
 DEMO_MARKER_KINDS = {"state", "interaction", "edge", "zone", "session"}
+VIDEO_SUFFIXES = {".mp4", ".webm", ".mov", ".mkv"}
+
+
+def probe_duration(path: Path) -> float:
+    """Read a clip's duration with ffprobe (fast; falls back to 30 s)."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(path)],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+        return max(1.0, float(result.stdout.strip() or 30.0))
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 30.0
+
+
+def clip_title(path: Path) -> str:
+    """Pretty label for a clip filename (uploads use their original name)."""
+    stem = path.stem
+    if stem.lower() in {"source", "video", "clip", "upload"} and path.parent.name:
+        parts = path.parent.name.split("-", 2)
+        if len(parts) == 3 and parts[2]:
+            stem = parts[2]
+    stem = stem.replace("_", " ").strip()
+    words = [word.upper() if word.lower().startswith("aria") else word.capitalize() for word in stem.split()]
+    return " ".join(words) or path.name
 
 
 def project_root() -> Path:
@@ -269,6 +297,36 @@ class Runtime:
             self.playing = True
             self.seek(max(0.0, min(start, self.duration - 0.05)))
         return True
+
+    def play_video(
+        self, video_url: str, title: str, duration: float = 30.0, *, fps: float = 30.0
+    ) -> None:
+        """Play a raw clip with no recorded memory events (no overlays yet)."""
+        duration = max(1.0, float(duration or 30.0))
+        session = {
+            "title": title,
+            "video_url": video_url,
+            "duration": duration,
+            "fps": fps,
+            "width": 1280,
+            "height": 720,
+            "source": "video",
+        }
+        session_event = Event(kind="session", t=0.0, data=dict(session))
+        with self._lock:
+            self.demo_events = [session_event]
+            self.demo_session = session
+            self.demo_duration = duration
+            self.demo_available = True
+            self.mode = "demo"
+            self.live_events = 0
+            self.duration = duration
+            self._reset_demo_session()
+            self.store.clear(keep_session=False)
+            self.demo_idx = 0
+            self.playhead = 0.0
+            self.playing = True
+            self.seek(0.0)
 
     # ------------------------------------------------------------------ #
     # Ingestion

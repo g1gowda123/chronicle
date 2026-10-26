@@ -440,48 +440,6 @@ body {
   background: #171410;
 }
 
-.video-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.video-overlay .obj-box {
-  position: absolute;
-  pointer-events: auto;
-  border: 2px dashed var(--obj-color, #ffd34d);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.12s ease;
-}
-.video-overlay .obj-box:hover { transform: scale(1.02); }
-.video-overlay .obj-box.held { border-style: solid; }
-.video-overlay .obj-tag {
-  position: absolute;
-  top: -22px;
-  left: -2px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--cardz);
-  border: 1.5px solid var(--ink);
-  border-radius: 6px;
-  padding: 2px 7px;
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: 9.5px;
-  letter-spacing: 0.02em;
-  color: var(--ink);
-  transform: rotate(-1.4deg);
-  box-shadow: 2px 2px 0 0 var(--ink);
-  white-space: nowrap;
-}
-.video-overlay .obj-state {
-  font-family: var(--mono);
-  font-weight: 500;
-  font-size: 8.5px;
-  color: var(--inksoft);
-}
-
 /* HUD -------------------------------------------------------------------- */
 
 .hud {

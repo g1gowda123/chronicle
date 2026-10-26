@@ -16,7 +16,7 @@ from typing import Any
 
 from nicegui import ui
 
-from ..runtime import Runtime, default_data_dir, runtime
+from ..runtime import Runtime, clip_title, default_data_dir, probe_duration, runtime
 from ..store import STATE_COLORS, MemoryStore
 from . import render, theme
 
@@ -26,8 +26,10 @@ MARKERS_LIMIT = 80
 
 
 # --------------------------------------------------------------------------- #
-# Replay clip registry
+# Clip registry (uses the existing chronicle.sources backend + uploads)
 # --------------------------------------------------------------------------- #
+
+VIDEO_SUFFIXES = {".mp4", ".webm", ".mov", ".mkv"}
 
 
 def _session_title(path: Path) -> str:
@@ -45,32 +47,75 @@ def _session_title(path: Path) -> str:
     return ""
 
 
-def _replay_options() -> list[dict[str, str]]:
+def _clip_entry(video: Path, base: Path) -> dict[str, str]:
+    rel = video.relative_to(base).as_posix()
+    events = video.with_name(video.stem + ".events.jsonl")
+    if events.is_file():
+        return {
+            "value": "events:" + events.relative_to(base).as_posix(),
+            "title": _session_title(events) or clip_title(video),
+        }
+    return {"value": "video:" + rel, "title": clip_title(video)}
+
+
+def _clip_options() -> list[dict[str, str]]:
     base = default_data_dir()
     options: list[dict[str, str]] = []
+    seen: set[str] = set()
+
     demo = base / "demo_events.jsonl"
     if demo.is_file():
         options.append(
-            {"path": "demo_events.jsonl", "title": _session_title(demo) or "Kitchen counter · demo"}
+            {"value": "events:demo_events.jsonl", "title": _session_title(demo) or "Synthetic demo"}
         )
-    for path in sorted(base.rglob("*.events.jsonl")):
-        rel = path.relative_to(base).as_posix()
-        if rel == "demo_events.jsonl":
+        seen.add("demo_events.jsonl")
+
+    try:
+        from chronicle.sources import available_sources
+
+        for source in available_sources(base):
+            video = source.video_path(base)
+            if not video.is_file() or video == base / "demo" / "chronicle_demo.mp4":
+                continue
+            entry = _clip_entry(video, base)
+            if entry["value"].split(":", 1)[1] in seen:
+                continue
+            entry["title"] = source.label if not entry["value"].startswith("events:") else entry["title"]
+            options.append(entry)
+            seen.add(entry["value"].split(":", 1)[1])
+    except Exception:  # registry must never take the dashboard down
+        pass
+
+    stems = {Path(option["value"].split(":", 1)[1]).stem for option in options}
+    for folder in (base / "real", base / "uploads"):
+        if not folder.is_dir():
             continue
-        options.append({"path": rel, "title": _session_title(path) or path.name})
+        for video in sorted(folder.rglob("*")):
+            if not video.is_file() or video.suffix.lower() not in VIDEO_SUFFIXES:
+                continue
+            entry = _clip_entry(video, base)
+            rel = entry["value"].split(":", 1)[1]
+            if rel in seen or rel == "demo/chronicle_demo.mp4" or video.stem in stems:
+                continue
+            options.append(entry)
+            seen.add(rel)
+            stems.add(video.stem)
+
+    options.sort(key=lambda option: not option["value"].startswith("events:"))
     return options
 
 
-def _active_replay(options: list[dict[str, str]]) -> str:
+def _active_clip(options: list[dict[str, str]]) -> str:
     env = os.getenv("CHRONICLE_REPLAY") or ""
     if env:
         try:
             rel = Path(env).resolve().relative_to(default_data_dir().resolve()).as_posix()
-            if any(option["path"] == rel for option in options):
-                return rel
+            for option in options:
+                if option["value"] == "events:" + rel:
+                    return option["value"]
         except (OSError, ValueError):
             pass
-    return options[0]["path"] if options else ""
+    return options[0]["value"] if options else ""
 
 
 # --------------------------------------------------------------------------- #
@@ -264,7 +309,7 @@ def build_dashboard() -> None:
             last_markers_key = mkey
 
         payload = _sync_payload(
-            store, snap, graph=graph, entities=entities, markers=markers, replay=active_replay
+            store, snap, graph=graph, entities=entities, markers=markers, replay=active_clip
         )
         ui.run_javascript(f"window.Chronicle && window.Chronicle.sync({_json(payload)});")
 
@@ -390,19 +435,34 @@ def build_dashboard() -> None:
         sync(force_graph=True)
 
     def on_replay(event: Any) -> None:
-        nonlocal active_replay, last_graph_key, last_entities_key, last_markers_key
+        nonlocal active_clip, last_graph_key, last_entities_key, last_markers_key
         args = event.args if isinstance(event.args, list) else [event.args]
-        path = str(args[0]) if args and args[0] else ""
-        if not path or not runtime.load_replay(path):
+        value = str(args[0]) if args and args[0] else ""
+        if not value:
             return
-        active_replay = path
+        kind, _, rel = value.partition(":")
+        if kind == "events":
+            ok = runtime.load_replay(rel)
+        elif kind == "video":
+            path = (default_data_dir() / rel).resolve()
+            try:
+                path.relative_to(default_data_dir().resolve())
+            except ValueError:
+                return
+            if not path.is_file():
+                return
+            runtime.play_video("/media/" + rel, clip_title(path), probe_duration(path))
+            ok = True
+        else:
+            return
+        if not ok:
+            return
+        active_clip = value
         last_graph_key = None
         last_entities_key = None
         last_markers_key = None
         flush_logs()
-        ui.run_javascript(
-            "window.Chronicle && window.Chronicle.clipChanged();"
-        )
+        ui.run_javascript("window.Chronicle && window.Chronicle.clipChanged();")
         sync(force_graph=True)
 
     def on_rate(_: Any = None) -> None:
@@ -430,8 +490,8 @@ def build_dashboard() -> None:
     # ---- layout ------------------------------------------------------- #
 
     initial = snapshot()
-    replay_options = _replay_options()
-    active_replay = _active_replay(replay_options)
+    clip_options = _clip_options()
+    active_clip = _active_clip(clip_options)
 
     with ui.element("div").classes("chron-app"):
         ui.html(theme.topbar_html(store.session, initial), sanitize=False)
@@ -439,7 +499,7 @@ def build_dashboard() -> None:
         with ui.element("div").classes("row-main"):
             with ui.element("div").classes("col-l"):
                 ui.html(
-                    theme.video_html(initial, replay_options, active_replay), sanitize=False
+                    theme.video_html(initial, clip_options, active_clip), sanitize=False
                 )
                 ui.html(theme.chat_head_html(), sanitize=False)
             with ui.element("div").classes("rail"):

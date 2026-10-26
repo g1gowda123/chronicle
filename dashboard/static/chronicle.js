@@ -405,9 +405,9 @@
 
       const shell = byId("chron-shell");
       this.video = document.querySelector("#chron-shell video") || document.querySelector(".chron-video");
-      this.overlay = byId("chron-overlay");
+      this.overlay = null;
 
-      if (!shell || !this.overlay || (this.video === null && document.querySelector("#stage-hint") === null)) {
+      if (!shell || (this.video === null && document.querySelector("#stage-hint") === null)) {
         if (this.attempts < 80) setTimeout(() => this.boot(), 100);
         return false;
       }
@@ -511,7 +511,6 @@
       this.rate = safeFloat(data.rate, 1);
 
       this.syncVideo(data);
-      this.renderBoxes(data.boxes || [], data);
       this.renderHud(data.hud || {}, data);
       this.setTransport(data);
       this.setStats(data.stats || {}, data);
@@ -582,64 +581,6 @@
       } else if (!video.paused) {
         video.pause();
       }
-    },
-
-    renderBoxes(boxes, data) {
-      const overlay = this.overlay;
-      const video = this.video;
-      if (!overlay) return;
-      if (!boxes.length) {
-        if (this.lastHtml.boxes) {
-          this.lastHtml.boxes = "";
-          overlay.innerHTML = "";
-        }
-        return;
-      }
-      if (!video) return;
-
-      const overlayRect = overlay.getBoundingClientRect();
-      const videoRect = video.getBoundingClientRect();
-      if (!overlayRect.width || !overlayRect.height) return;
-
-      const vw = video.videoWidth || safeFloat(data && data.width, 1280);
-      const vh = video.videoHeight || safeFloat(data && data.height, 720);
-      const scale = Math.min(videoRect.width / vw, videoRect.height / vh);
-      const contentW = vw * scale;
-      const contentH = vh * scale;
-      const offsetX = videoRect.left - overlayRect.left + (videoRect.width - contentW) / 2;
-      const offsetY = videoRect.top - overlayRect.top + (videoRect.height - contentH) / 2;
-
-      const html = [];
-      boxes.forEach((box) => {
-        const bbox = Array.isArray(box.bbox) ? box.bbox : null;
-        if (!bbox || bbox.length < 4) return;
-        const x1 = Math.max(0, Math.min(1, safeFloat(bbox[0], 0)));
-        const y1 = Math.max(0, Math.min(1, safeFloat(bbox[1], 0)));
-        const x2 = Math.max(0, Math.min(1, safeFloat(bbox[2], 0)));
-        const y2 = Math.max(0, Math.min(1, safeFloat(bbox[3], 0)));
-        const width = (x2 - x1) * contentW;
-        const height = (y2 - y1) * contentH;
-        if (width < 4 || height < 4) return;
-
-        const color = zineColor(box.state) || "#ffd34d";
-        const state = String(box.state || "NEW").replace(/_/g, " ").toLowerCase();
-        const label = String(box.label || box.id || "");
-        const held = box.held ? " held" : "";
-        html.push(
-          '<div class="obj-box' + held + '" data-node-id="' +
-            escapeHtml(box.id) +
-            '" onclick="Chronicle.node(this.dataset.nodeId)" style="' +
-            "left:" + (offsetX + x1 * contentW).toFixed(2) + "px;top:" +
-            (offsetY + y1 * contentH).toFixed(2) + "px;width:" + width.toFixed(2) +
-            "px;height:" + height.toFixed(2) + "px;--obj-color:" + escapeHtml(color) + ';">' +
-            '<span class="obj-tag">' + escapeHtml(label) +
-            ' <span class="obj-state">' + escapeHtml(state) + "</span></span></div>"
-        );
-      });
-      const next = html.join("");
-      if (this.lastHtml.boxes === next) return;
-      this.lastHtml.boxes = next;
-      overlay.innerHTML = next;
     },
 
     renderHud(hud, data) {
@@ -851,6 +792,41 @@
       if (window.emitEvent) emitEvent("chron-replay", String(path));
     },
 
+    uploadClip(input) {
+      const file = input && input.files && input.files[0];
+      if (!file) return;
+      const status = byId("chat-status");
+      if (status) status.textContent = "uploading " + file.name + "…";
+      const query = "?name=" + encodeURIComponent(file.name);
+      fetch("/api/upload" + query, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: file,
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (!data || !data.video_url) throw new Error((data && data.error) || "upload failed");
+          const clip = byId("chron-clip");
+          const value = "video:" + data.path;
+          if (clip) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = data.title || file.name;
+            clip.appendChild(option);
+            clip.value = value;
+          }
+          if (window.emitEvent) emitEvent("chron-replay", value);
+          if (status) status.textContent = "clip uploaded · playing";
+        })
+        .catch((error) => {
+          if (status) status.textContent = "upload failed";
+          console.error(error);
+        })
+        .finally(() => {
+          input.value = "";
+        });
+    },
+
     clipChanged() {
       /* server loaded another replay clip: drop stale client caches */
       this.selected = null;
@@ -858,7 +834,6 @@
       this.markers = [];
       this.lastHtml = { boxes: "" };
       this.lastVideoUrl = "__clip-switch__";
-      if (this.overlay) this.overlay.innerHTML = "";
       if (this.graph) this.graph.setSelected(null);
       this.closeInspector();
     },
