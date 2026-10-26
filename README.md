@@ -149,6 +149,7 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   ├── ROLE_B.md                           # Role B integration contract
 │   ├── ROLE_C.md                           # Role C contract
 │   ├── INTEGRATION.md                      # runtime/UI contract
+│   ├── CALIBRATION.md                      # real-label action thresholds + report
 │   ├── NOTICE_BOARD.md                     # claimable, prioritised team tasks
 │   └── TEAM_STATUS.md                      # current work + role assignments
 ├── scripts/
