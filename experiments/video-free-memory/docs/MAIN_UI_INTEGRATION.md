@@ -103,10 +103,15 @@ The numbers are regression evidence, not a new benchmark.
 
 ## P1-COUNTS sync
 
-`chronicle/vfm/` is synced with `prototype/` at commit `f4e915f` (P1-COUNTS) and
-includes P2-PACK. The dashboard therefore reports count **bounds**: track count
-(upper bound) plus peak simultaneous visibility (lower bound), with method
-`vault-count-visibility`. `tests/test_vfm.py` covers this.
+`chronicle/vfm/` is synced with `prototype/` at commit `f4e915f` (P1-COUNTS bounds) and
+includes P2-PACK. The dashboard reports count **bounds**: track count (upper bound) plus peak
+simultaneous visibility (lower bound), with method `vault-count-visibility`.
+`tests/test_vfm.py` covers this.
+
+A later cross-label dedup refinement in `prototype/compile.py` / `query.py` / `report.py` is
+being synced by the P1-COUNTS owner. `chronicle/vfm/report.py` already understands the optional
+`physical` / `duplicates` / `transient` fields and falls back to the bounds wording until the
+compiler copy is updated.
 
 Keep the package in sync when `prototype/` changes. The copy is deliberate:
 the dashboard must not import the experiment directory or rely on `sys.path`.
