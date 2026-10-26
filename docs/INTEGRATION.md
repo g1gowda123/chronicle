@@ -161,6 +161,33 @@ SQLite path, zone label, vocabulary and suggested questions. Both the CLI and
 the dashboard pick it up automatically. Missing videos are shown as unavailable
 instead of failing at startup.
 
+## VFM memory panel
+
+The dashboard can compile a **video-free memory** from the current run and expose it next to the
+existing graph. It does not replace the upload button, player or Export menu.
+
+- Package: `chronicle/vfm/` (copied from the experiment prototype; no `sys.path`).
+- Trigger: `DashboardState.on_ingest_done` after a successful ingest, or the Memory-tab
+  **Compile** button, or `POST /vfm/compile/<source-key>`.
+- Output: `vault.db`, `memory.html`, `memory_pack.md/json`, `events.csv`, `windows.csv`,
+  480 px WebP `evidence/` and `memory.zip` under `<data-dir>/uploads/<run>/vfm/` (uploads) or
+  `<data-dir>/vfm/<source-key>/` (bundled sources).
+- Routes: `GET /vfm/status|report|download|evidence/<source-key>...`,
+  `POST /vfm/ask/<source-key>`.
+- Ask: deterministic `query.answer` by default; `--qwen` or the Memory-tab toggle uses
+  `nlq.answer_nl` over the memory pack. Qwen never receives frames.
+- Playback: the source video is kept by default. `--vfm-delete-video` is opt-in and refuses paths
+  outside `<data-dir>/uploads/`.
+
+```bash
+chronicle serve --source synthetic --qwen
+chronicle serve --no-vfm
+chronicle serve --vfm-window-s 20 --vfm-frames-per-window 3 --vfm-max-snapshots 40
+```
+
+Tests: `tests/test_vfm.py` and `tests/test_dashboard_smoke.py`. Full details and measurements:
+`experiments/video-free-memory/docs/MAIN_UI_INTEGRATION.md`.
+
 ## Tests
 
 ```bash
