@@ -18,6 +18,34 @@ from chronicle.types import (
     TrackedObject,
 )
 
+CONTAINER_LABELS = frozenset(
+    {
+        "backpack",
+        "bag",
+        "basket",
+        "bin",
+        "bowl",
+        "box",
+        "bucket",
+        "cabinet",
+        "case",
+        "comfort_grip",
+        "container",
+        "cup",
+        "drawer",
+        "fridge",
+        "grip",
+        "jar",
+        "mug",
+        "pocket",
+        "pot",
+        "refrigerator",
+        "shelf",
+        "trash can",
+        "tray",
+    }
+)
+
 
 @dataclass(slots=True)
 class FrameSnapshot:
@@ -128,11 +156,22 @@ class _ClipBuilder:
     ended: bool = False
     end_ts: float | None = None
     end_frame: int | None = None
+    container: str | None = None
+    contact_evidence: dict[str, object] = field(default_factory=dict)
 
     def add(self, snapshot: FrameSnapshot) -> None:
         if self.frames and snapshot.frame_index <= self.frames[-1].frame_index:
             return
         self.frames.append(snapshot)
+        if self.container is None and self.track_id in snapshot.boxes:
+            target_box = snapshot.boxes[self.track_id]
+            for other_id, other_box in snapshot.boxes.items():
+                if other_id == self.track_id:
+                    continue
+                label = snapshot.labels.get(other_id, "").lower()
+                if label in CONTAINER_LABELS and (target_box.ios(other_box) > 0.10 or target_box.iou(other_box) > 0.05):
+                    self.container = label
+                    break
 
     def mark_end(self, event: InteractionEvent) -> None:
         self.ended = True
@@ -179,6 +218,19 @@ class InteractionClipRecorder:
             range(len(frames)),
             key=lambda index: abs(frames[index].timestamp - event.start_timestamp),
         )
+        container: str | None = None
+        if event.bbox is not None:
+            for snap in reversed(frames):
+                for other_id, other_box in snap.boxes.items():
+                    if other_id == event.track_id:
+                        continue
+                    label = snap.labels.get(other_id, "").lower()
+                    if label in CONTAINER_LABELS and (event.bbox.ios(other_box) > 0.10 or event.bbox.iou(other_box) > 0.05):
+                        container = label
+                        break
+                if container is not None:
+                    break
+
         builder = _ClipBuilder(
             clip_id=clip_id,
             track_id=event.track_id,
@@ -189,6 +241,13 @@ class InteractionClipRecorder:
             max_ios=event.ios,
             frames=frames,
             contact_index=contact_index,
+            container=container,
+            contact_evidence={
+                "trigger": event.trigger,
+                "ios": round(event.ios, 4),
+                "hand": event.hand.lower(),
+                "start_timestamp": round(event.start_timestamp, 3),
+            },
         )
         return builder
 
@@ -217,6 +276,20 @@ class InteractionClipRecorder:
                 "ended": builder.ended,
                 "pre_roll": self.config.pre_roll,
                 "post_roll": self.config.post_roll,
+                "container": builder.container,
+                "contact_evidence": {
+                    "trigger": builder.trigger,
+                    "max_ios": round(builder.max_ios, 4),
+                    "contact_start_ts": round(builder.start_ts, 3),
+                    "hand": builder.hand,
+                    "ended": builder.ended,
+                    "container": builder.container,
+                },
+                "evidence": (
+                    f"{builder.hand} hand contact with {builder.label} via {builder.trigger} "
+                    f"(max IoS={builder.max_ios:.2f})"
+                    + (f" in/with {builder.container}" if builder.container else "")
+                ),
             },
         )
         clip.build_composite()

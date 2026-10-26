@@ -106,6 +106,13 @@ class Track:
         self.time_since_update += 1
 
     def as_object(self) -> TrackedObject:
+        reid_score = self.metadata.get("reid_score")
+        reid_similarity = self.metadata.get("reid_similarity")
+        decision_score = (
+            reid_similarity
+            if self.metadata.get("reid_source") == "appearance" and reid_similarity is not None
+            else reid_score
+        )
         return TrackedObject(
             track_id=self.track_id,
             label=self.label,
@@ -120,6 +127,9 @@ class Track:
             embedding=self.embedding,
             source="bytetrack",
             metadata=dict(self.metadata),
+            entity_id=str(self.metadata.get("entity_id") or f"track_{self.track_id}"),
+            reid_score=float(decision_score) if decision_score is not None else None,
+            reid_source=str(self.metadata.get("reid_source") or ""),
         )
 
 
@@ -243,7 +253,7 @@ class ByteTrackLite:
 
     def _try_rebind(
         self, detection: Detection, timestamp: float
-    ) -> tuple[Track | None, float, str]:
+    ) -> tuple[Track | None, float, float, str]:
         best: tuple[float, float, str, Track] | None = None
         for track in self._inactive.values():
             if track.label != detection.label:
@@ -266,9 +276,9 @@ class ByteTrackLite:
             if best is None or score > best[0]:
                 best = (score, appearance, source, track)
         if best is None:
-            return None, 0.0, "spatial"
+            return None, 0.0, 0.0, "spatial"
         score, appearance, source, track = best
-        return track, score, source
+        return track, score, appearance, source
 
     def _new_track(self, detection: Detection, timestamp: float, frame_index: int) -> Track:
         track = Track(
@@ -280,7 +290,7 @@ class ByteTrackLite:
             first_seen=timestamp,
             last_seen=timestamp,
             last_frame=frame_index,
-            metadata={"detector": detection.source},
+            metadata={"detector": detection.source, "entity_id": f"track_{self._next_id}"},
         )
         self._next_id += 1
         return track
@@ -335,6 +345,8 @@ class ByteTrackLite:
             updated_ids: set[int] = set()
 
             # Stage 1: high-confidence detections.
+            if frame is not None and self.embedder is not None:
+                self._fill_embeddings(frame, high)
             pairs, remaining_tracks, remaining_high = self._assign(active_tracks, high)
             for ti, di in pairs:
                 track = active_tracks[ti]
@@ -373,12 +385,14 @@ class ByteTrackLite:
             rebound: list[Track] = []
             used_detections: set[int] = set()
             for di, detection in enumerate(remaining_high):
-                track, score, source = self._try_rebind(detection, timestamp)
+                track, score, appearance, source = self._try_rebind(detection, timestamp)
                 if track is None:
                     continue
                 self._inactive.pop(track.track_id, None)
                 track.update(detection, timestamp, frame_index, reset_velocity=True)
-                track.metadata["reid_score"] = round(score, 4)
+                sim_used = appearance if source == "appearance" else score
+                track.metadata["reid_score"] = round(sim_used, 4)
+                track.metadata["reid_similarity"] = round(appearance, 4)
                 track.metadata["reid_source"] = source
                 self._active[track.track_id] = track
                 rebound.append(track)
@@ -389,6 +403,7 @@ class ByteTrackLite:
                         "track_id": track.track_id,
                         "label": track.label,
                         "score": round(score, 4),
+                        "similarity": round(appearance, 4),
                         "source": source,
                         "timestamp": timestamp,
                     }

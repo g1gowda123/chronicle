@@ -130,6 +130,45 @@ class ClipConfig:
 
 
 @dataclass(slots=True)
+class SupportConfig:
+    """Role A static-support candidate extraction.
+
+    Role A does not claim to *verify* physical support; it emits persistent
+    furniture candidates so Role B can reason about ``RESTING_ON`` without
+    waiting for a separate surface detector.  Association is deliberately
+    conservative and camera-compensated, mirroring the graph-level furniture
+    registry.
+    """
+
+    enabled: bool = True
+    labels: tuple[str, ...] = (
+        "table",
+        "desk",
+        "counter",
+        "countertop",
+        "sofa",
+        "couch",
+        "shelf",
+        "floor",
+        "bed",
+        "chair",
+        "bench",
+        "stool",
+        "tv",
+        "television",
+        "sink",
+        "stove",
+        "oven",
+    )
+    min_hits: int = 2  # emit after the candidate is confirmed across frames
+    iou_threshold: float = 0.25
+    center_distance_ratio: float = 0.12
+    match_threshold: float = 0.38
+    max_missed_s: float = 45.0
+    camera_compensation: bool = True
+
+
+@dataclass(slots=True)
 class PerceptionConfig:
     vocabulary: tuple[str, ...] = DEFAULT_VOCABULARY
     device: str = "auto"  # auto | cpu | cuda:0
@@ -140,6 +179,7 @@ class PerceptionConfig:
     tracker: TrackerConfig = field(default_factory=TrackerConfig)
     motion: MotionConfig = field(default_factory=MotionConfig)
     interaction: InteractionConfig = field(default_factory=InteractionConfig)
+    support: SupportConfig = field(default_factory=SupportConfig)
     clip: ClipConfig = field(default_factory=ClipConfig)
     frame_stride: int = 1
     max_frames: int | None = None

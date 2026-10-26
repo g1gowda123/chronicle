@@ -45,8 +45,12 @@ def frame_context_from_result(
     objects: list[ObjectObservation] = []
     for track in result.tracks:
         metadata = dict(track.metadata or {})
-        entity_id = str(metadata.get("entity_id") or f"track_{track.track_id}")
-        reid_score = metadata.get("reid_score")
+        entity_id = str(
+            track.entity_id or metadata.get("entity_id") or f"track_{track.track_id}"
+        )
+        reid_score = track.reid_score
+        if reid_score is None:
+            reid_score = metadata.get("reid_score")
         objects.append(
             ObjectObservation(
                 entity_id=entity_id,
@@ -59,6 +63,16 @@ def frame_context_from_result(
                 attributes=metadata,
             )
         )
+
+    # Role A may emit support candidates directly on FrameResult.  Keep any
+    # caller-supplied supports as the higher-priority source, then add Role A's
+    # candidates that do not duplicate an anchor id.
+    merged_supports: list[SupportSurface] = list(supports)
+    seen_anchors = {surface.anchor_id for surface in merged_supports}
+    for surface in result.supports:
+        if surface.anchor_id not in seen_anchors:
+            merged_supports.append(surface)
+            seen_anchors.add(surface.anchor_id)
 
     frame_size = None
     if result.image is not None:
@@ -75,7 +89,7 @@ def frame_context_from_result(
         t=result.timestamp,
         objects=objects,
         hands=tuple(result.hands),
-        supports=tuple(supports),
+        supports=tuple(merged_supports),
         camera=CameraMotion(
             dx=result.motion.dx,
             dy=result.motion.dy,

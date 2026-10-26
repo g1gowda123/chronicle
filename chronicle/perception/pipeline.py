@@ -20,6 +20,7 @@ from chronicle.perception.hands import build_hands
 from chronicle.perception.interactions import InteractionTracker
 from chronicle.perception.motion import AffineMotionEstimator
 from chronicle.perception.sources import VideoSource
+from chronicle.perception.support import SupportTracker
 from chronicle.perception.tracker import ByteTrackLite
 from chronicle.types import (
     CameraState,
@@ -29,10 +30,34 @@ from chronicle.types import (
     InteractionEvent,
     MotionEstimate,
     RunSummary,
+    SupportSurface,
     TelemetryEvent,
+    TrackedObject,
 )
 
 LOGGER = logging.getLogger(__name__)
+
+# Detector labels that can contain a manipulated object.  This is only an
+# evidence hint for Role C; Role B owns the final containment semantics.
+_CONTAINER_HINTS = frozenset(
+    {
+        "backpack",
+        "bag",
+        "basket",
+        "bin",
+        "bowl",
+        "box",
+        "bucket",
+        "case",
+        "container",
+        "drawer",
+        "fridge",
+        "jar",
+        "pot",
+        "shelf",
+        "trash can",
+    }
+)
 
 
 class PerceptionPipeline:
@@ -76,6 +101,7 @@ class PerceptionPipeline:
         self.tracker = None
         self.motion = None
         self.interactions = None
+        self.support: SupportTracker | None = None
 
         self._buffer = FrameRingBuffer(
             maxlen=self.config.clip.ring_size, max_width=self.config.clip.max_width
@@ -86,6 +112,8 @@ class PerceptionPipeline:
         self._source_name = ""
         self._fps = 30.0
         self._last_hands: list = []
+        self._last_supports: list[SupportSurface] = []
+        self._last_tracks: list[TrackedObject] = []
         self._last_dynamic_boxes: list = []
         self._previous_timestamp: float | None = None
         self._last_timestamp = 0.0
@@ -148,6 +176,7 @@ class PerceptionPipeline:
         self.interactions = self._interactions_override or InteractionTracker(
             self.config.interaction
         )
+        self.support = SupportTracker(self.config.support)
         self._prepared = True
 
         system_event = TelemetryEvent(
@@ -188,6 +217,8 @@ class PerceptionPipeline:
             self.motion.reset()
         if self.interactions is not None:
             self.interactions.reset()
+        if self.support is not None:
+            self.support.reset()
         self._buffer.clear()
         self._recorder = InteractionClipRecorder(self.config.clip)
         self._last_hands = []
@@ -266,6 +297,15 @@ class PerceptionPipeline:
             track.relative_velocity = (
                 track.velocity[0] - camera_velocity[0],
                 track.velocity[1] - camera_velocity[1],
+            )
+
+        supports: list[SupportSurface] = []
+        if self.support is not None:
+            supports = self.support.update(
+                tracker_result.tracks,
+                timestamp,
+                camera_dx=relative_to[0],
+                camera_dy=relative_to[1],
             )
 
         interaction_observations, interaction_events = self.interactions.update(
@@ -392,6 +432,7 @@ class PerceptionPipeline:
             clips=clips,
             telemetry=telemetry,
             image=frame.copy(),
+            supports=supports,
         )
         for event in telemetry:
             self._publish(event)

@@ -786,10 +786,16 @@ class ChronicleRuntime:
             # The dashboard must be usable without model downloads.  Florence is
             # opt-in; the deterministic captioner/rule classifier is the
             # documented offline fallback.  OpenCLIP auto-degrades too.
+            embedder = (
+                getattr(self._pipeline, "embedder", None)
+                if self._pipeline is not None
+                else None
+            )
             self._semantic = SemanticEngine(
                 config=config,
                 captioner_backend="auto",
                 embedder_backend="auto",
+                embedder=embedder,
                 on_event=self._on_semantic_event,
             )
             return self._semantic

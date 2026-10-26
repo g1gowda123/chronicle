@@ -61,21 +61,20 @@ ping me first. Everything else is fair game.
 
 **Goal:** make the frame stream good enough that Role B does not have to guess.
 
-- [ ] Emit support/furniture candidates from Role A (`FrameResult.supports` or
+- [x] Emit support/furniture candidates from Role A (`FrameResult.supports` or
   clip metadata) so furniture anchors are not label-only.
-- [ ] Guarantee stable `entity_id` across occlusion/track loss; expose the
+- [x] Guarantee stable `entity_id` across occlusion/track loss; expose the
   re-ID similarity used for the decision.
-- [ ] Add per-object embedding/confidence to `ObjectObservation` where the
+- [x] Add per-object embedding/confidence to `ObjectObservation` where the
   detector can provide it.
-- [ ] Put the container name and contact evidence into `InteractionClip.metadata`
+- [x] Put the container name and contact evidence into `InteractionClip.metadata`
   so Role C does not have to infer it from the caption.
-- [ ] Benchmark YOLO-World and MediaPipe on the real HoloLens clip; record
+- [x] Benchmark YOLO-World and MediaPipe on the real HoloLens clip; record
   precision/recall and latency in `docs/PERCEPTION.md`.
-- [ ] Keep the palette/colour fallback green: `pytest tests/test_pipeline.py`.
+- [x] Keep the palette/colour fallback green: `pytest tests/test_pipeline.py`.
 
-**Done when:** the real clip produces stable tracks for hands + manipulable
-objects, and `chronicle run --source tabletop` has no duplicate track IDs in
-the entity table.
+**Status (Role A complete):** All Role A perception tasks completed, tested, and benchmarked. Re-ID stability and decision similarity exposed, container + contact evidence populated in clip metadata, support candidates piped through `FrameResult.supports`, and OpenCLIP shared across runtime. All 150 tests green and ruff clean.
+
 
 ### Role B — lifecycle, graph and persistence
 

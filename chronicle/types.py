@@ -159,6 +159,16 @@ class SupportSurface:
             raise ValueError("support polygon must be non-empty")
         self.label = (self.label or "surface").strip().lower()
 
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "anchor_id": self.anchor_id,
+            "label": self.label,
+            "zone_id": self.zone_id,
+            "is_fixed": self.is_fixed,
+            "polygon": [[round(float(x), 2), round(float(y), 2)] for x, y in self.polygon.exterior.coords],
+            "attributes": _jsonable(self.attributes),
+        }
+
 
 @dataclass
 class FrameContext:
@@ -623,6 +633,9 @@ class TrackedObject:
     embedding: np.ndarray | None = None
     source: str = "bytetrack"
     metadata: dict[str, Any] = field(default_factory=dict)
+    entity_id: str | None = None
+    reid_score: float | None = None
+    reid_source: str = ""
 
     @property
     def speed(self) -> float:
@@ -639,6 +652,7 @@ class TrackedObject:
     def as_dict(self, *, include_embedding: bool = False) -> dict[str, Any]:
         data: dict[str, Any] = {
             "track_id": self.track_id,
+            "entity_id": self.entity_id,
             "label": self.label,
             "bbox": self.bbox.as_dict(),
             "confidence": round(float(self.confidence), 4),
@@ -653,6 +667,8 @@ class TrackedObject:
             "relative_speed": round(float(self.relative_speed), 2),
             "has_embedding": self.embedding is not None,
             "source": self.source,
+            "reid_score": self.reid_score,
+            "reid_source": self.reid_source,
         }
         if include_embedding and self.embedding is not None:
             data["embedding"] = self.embedding.tolist()
@@ -922,6 +938,7 @@ class FrameResult:
     clips: list[InteractionClip]
     telemetry: list[TelemetryEvent]
     image: np.ndarray | None = None
+    supports: list[SupportSurface] = field(default_factory=list)
 
     @property
     def camera_state(self) -> CameraState:
@@ -941,6 +958,7 @@ class FrameResult:
             ],
             "hands": [h.as_dict(include_landmarks=include_landmarks) for h in self.hands],
             "tracks": [t.as_dict(include_embedding=include_embeddings) for t in self.tracks],
+            "supports": [support.as_dict() for support in self.supports],
             "interactions": [i.as_dict() for i in self.interactions],
             "interaction_events": [e.as_dict() for e in self.interaction_events],
             "clips": [c.as_dict() for c in self.clips],
