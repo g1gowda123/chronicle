@@ -88,9 +88,11 @@ def events_from_db(
 def write_events(events: list[dict[str, Any]], out: str | Path) -> Path:
     target = Path(out)
     target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("w", encoding="utf-8") as handle:
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as handle:
         for event in events:
             handle.write(json.dumps(event, separators=(",", ":"), default=str) + "\n")
+    tmp.replace(target)
     return target
 
 

@@ -129,6 +129,8 @@ async def upload(request: Request) -> JSONResponse:
     body = await request.body()
     if not body:
         return JSONResponse({"error": "empty upload"}, status_code=400)
+    if len(body) < 1024 or body[:64].startswith(b"version https://git-lfs"):
+        return JSONResponse({"error": "not a video file (Git-LFS placeholder?)"}, status_code=400)
     if len(body) > 512 * 1024 * 1024:
         return JSONResponse({"error": "file too large"}, status_code=413)
     target.write_bytes(body)

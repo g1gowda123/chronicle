@@ -78,4 +78,4 @@ data/uploads/
 !data/real/*.json
 !data/real/*.md
 !data/demo/*.mp4
-data/real/*/*.events.jsonl
+data/replays/

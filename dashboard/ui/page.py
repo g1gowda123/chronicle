@@ -31,6 +31,18 @@ MARKERS_LIMIT = 80
 # --------------------------------------------------------------------------- #
 
 VIDEO_SUFFIXES = {".mp4", ".webm", ".mov", ".mkv"}
+LFS_POINTER = b"version https://git-lfs"
+
+
+def _is_playable(video: Path) -> bool:
+    """Skip empty files, Git-LFS pointers and other non-video placeholders."""
+    try:
+        if not video.is_file() or video.stat().st_size < 1024:
+            return False
+        with video.open("rb") as handle:
+            return not handle.read(64).startswith(LFS_POINTER)
+    except OSError:
+        return False
 
 
 def _session_title(path: Path) -> str:
@@ -71,13 +83,18 @@ def _clip_options() -> list[dict[str, str]]:
         )
         seen.add("demo_events.jsonl")
 
+    registered: set[Path] = set()
     try:
         from chronicle.sources import available_sources
 
         for source in available_sources(base):
             video = source.video_path(base)
-            if not video.is_file() or video == base / "demo" / "chronicle_demo.mp4":
+            if not _is_playable(video) or video == base / "demo" / "chronicle_demo.mp4":
                 continue
+            try:
+                registered.add(video.resolve())
+            except OSError:
+                pass
             entry = _clip_entry(video, base)
             if entry["value"].startswith("video:"):
                 # The clip already has a Role B memory DB: replay it instead of
@@ -87,7 +104,7 @@ def _clip_options() -> list[dict[str, str]]:
                 except (OSError, ValueError):
                     db_path = None
                 if db_path is not None and has_memory(db_path):
-                    events_path = video.with_name(video.stem + ".events.jsonl")
+                    events_path = base / "replays" / f"{source.key}.events.jsonl"
                     if not events_path.is_file():
                         rel_video = video.relative_to(base).as_posix()
                         events = events_from_db(
@@ -106,7 +123,7 @@ def _clip_options() -> list[dict[str, str]]:
             if entry["value"].split(":", 1)[1] in seen:
                 continue
             if not entry["value"].startswith("events:"):
-                entry["title"] = source.label
+                entry["title"] = source.label + " · video only"
             options.append(entry)
             seen.add(entry["value"].split(":", 1)[1])
     except Exception:  # registry must never take the dashboard down
@@ -117,12 +134,19 @@ def _clip_options() -> list[dict[str, str]]:
         if not folder.is_dir():
             continue
         for video in sorted(folder.rglob("*")):
-            if not video.is_file() or video.suffix.lower() not in VIDEO_SUFFIXES:
+            if video.suffix.lower() not in VIDEO_SUFFIXES or not _is_playable(video):
+                continue
+            try:
+                if video.resolve() in registered:
+                    continue
+            except OSError:
                 continue
             entry = _clip_entry(video, base)
             rel = entry["value"].split(":", 1)[1]
             if rel in seen or rel == "demo/chronicle_demo.mp4" or video.stem in stems:
                 continue
+            if not entry["value"].startswith("events:"):
+                entry["title"] += " · video only"
             options.append(entry)
             seen.add(rel)
             stems.add(video.stem)

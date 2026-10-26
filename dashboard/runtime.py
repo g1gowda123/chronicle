@@ -43,8 +43,10 @@ def clip_title(path: Path) -> str:
     """Pretty label for a clip filename (uploads use their original name)."""
     stem = path.stem
     if stem.lower() in {"source", "video", "clip", "upload"} and path.parent.name:
-        parts = path.parent.name.split("-", 2)
-        if len(parts) == 3 and parts[2]:
+        parts = path.parent.name.split("-", 3)
+        if len(parts) == 4 and parts[3]:
+            stem = parts[3]
+        elif len(parts) == 3 and parts[2]:
             stem = parts[2]
     stem = stem.replace("_", " ").strip()
     words = [word.upper() if word.lower().startswith("aria") else word.capitalize() for word in stem.split()]
@@ -290,8 +292,8 @@ class Runtime:
             self.mode = "demo"
             self.live_events = 0
             self.duration = duration
-            self._reset_demo_session()
             self.store.clear(keep_session=False)
+            self._reset_demo_session()
             self.demo_idx = 0
             self.playhead = 0.0
             self.playing = True
@@ -321,8 +323,8 @@ class Runtime:
             self.mode = "demo"
             self.live_events = 0
             self.duration = duration
-            self._reset_demo_session()
             self.store.clear(keep_session=False)
+            self._reset_demo_session()
             self.demo_idx = 0
             self.playhead = 0.0
             self.playing = True
