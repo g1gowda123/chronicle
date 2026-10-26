@@ -63,7 +63,7 @@ PR so parallel work does not collide.
 | NB-15 | P2 | Colour filter dropdown for entities | UI | READY | unclaimed |
 | NB-16 | P2 | Export evidence frames with the snapshot | UI / Integration | READY | unclaimed |
 | NB-17 | P2 | Responsive and accessibility pass | UI | READY | unclaimed |
-| NB-18 | P1 | Reduce the pre-grasp PICK_UP false positive | Semantic | READY | unclaimed |
+| NB-18 | P1 | Reduce the pre-grasp PICK_UP false positive | Semantic | DONE | opencode (AI) |
 
 ---
 
@@ -185,21 +185,6 @@ PR so parallel work does not collide.
   citation precision.
 - **Spec:** §Perception; new feature in `chronicle/perception/attributes.py`.
 
-### NB-18 · Reduce the pre-grasp `PICK_UP` false positive
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Semantic
-- **Why:** NB-08 found that `"The hand reaches toward the Joy-Con but does not
-  grasp it."` is classified as `PICK_UP` at 0.74. Raising the `PICK_UP`
-  threshold above 0.74 would also reject the three true pickups, so this needs
-  a classifier/phrasing fix, not a threshold change.
-- **Scope:** add negation or contact-aware gating to the rule classifier (or
-  require a grasp/lift verb for `PICK_UP`), rerun the real-label calibration,
-  and keep recall at 1.00 while raising `PICK_UP` precision.
-- **Files:** `chronicle/semantic/actions.py`, `tests/test_actions.py`,
-  `docs/CALIBRATION.md`, `docs/calibration.holoassist.report.json`
-- **Acceptance:** real-label precision at least 0.95 with recall 1.00;
-  `DEFAULT_ACTION_THRESHOLDS` re-derived from the new report, not hand-tuned.
-- **Spec:** §Quality, calibration.
-
 ---
 
 ## P2 — polish
@@ -268,11 +253,25 @@ PR so parallel work does not collide.
 | NB-D03 | Appearance in snapshot, CSV, GraphRAG and UI | orchestrator | `docs/INTEGRATION.md`, `docs/PERCEPTION.md` |
 | NB-D04 | Dashboard video upload + drag-and-drop | orchestrator | `tests/test_uploads.py` |
 | NB-D05 | Snapshot import / export | orchestrator | `tests/test_snapshot_io.py`, `tests/test_dashboard_smoke.py` |
-| NB-08 | Calibrate action thresholds against real labels | opencode (AI) | `9ed6735`; `docs/CALIBRATION.md`; 19 labels, precision 0.93 / recall 1.00 |
+| NB-08 | Calibrate action thresholds against real labels | opencode (AI) | `9ed6735`; `docs/CALIBRATION.md`; 19 labels, precision 1.00 / recall 1.00 |
 | NB-04 | Demo preflight script and checklist | opencode (AI) | `3b74ef5`; `scripts/demo_preflight.py`; `docs/DEMO_PREFLIGHT.md` |
 | NB-05 | Verify every bundled source end to end | opencode (AI) | `f8fcd0e`; `docs/PERCEPTION.md` NB-05 tables; 5/5 sources 9/9 checks |
 | NB-06 | Real-clip evidence images for demo answers | opencode (AI) | `f967a71`; `data/*/evidence/`; `scripts/build_evidence_fixtures.py` |
 | NB-07 | Label the HoloLens action timeline and run the scorer | opencode (AI) | `68b1432`; `docs/action_timeline.holoassist.json`; 1/7, 6.3% precision |
+| NB-18 | Reduce the pre-grasp PICK_UP false positive | opencode (AI) | negation-aware rule matching; precision 1.00 / recall 1.00 |
+
+### NB-18 details
+
+- **Branch:** `task/nb-18-pickup-negation`
+- **Fix:** `RuleBasedActionClassifier` rejects negated action verbs before the
+  positive patterns, so a pre-grasp "reaches … does not grasp" caption becomes
+  `OTHER`; true pickups still match.
+- **Result:** real-label calibration is now 19 labels, 14 accepted, 5 correct
+  rejections, **precision 1.000 / recall 1.000**; thresholds unchanged
+  (`PICK_UP` 0.74). This is a phrasing fix, not a cutoff change.
+- **Docs/tests:** `docs/CALIBRATION.md`, `docs/ROLE_C.md`, report JSON,
+  `tests/test_actions.py` (negation + true action with "without dropping") and
+  `tests/test_calibration.py` (PICK_UP precision/recall).
 
 ### NB-07 details
 
@@ -351,8 +350,8 @@ PR so parallel work does not collide.
   `docs/CALIBRATION.md`, calibrated defaults in `actions.py`, and fixes for the
   two regex gaps the real labels exposed ("slide …" → `PUSH`, "withdraw …" →
   `REMOVE_FROM`).
-- **Acceptance:** precision target 0.9 met (0.933), threshold source
-  documented, model-free regression tests added.
+- **Acceptance:** precision target 0.9 met (now 1.000 after NB-18), threshold
+  source documented, model-free regression tests added.
 - **Known follow-up:** the pre-grasp "reaches toward …" caption is still a
   `PICK_UP` false positive. Raising the threshold would reject true pickups, so
   it needs a classifier/phrasing fix rather than a threshold change.

@@ -262,9 +262,12 @@ class CalibrationReportTest(unittest.TestCase):
         report = result.report
         self.assertGreaterEqual(report.samples, 18)
         self.assertGreater(report.accepted, 0)
-        self.assertGreaterEqual(report.precision, 0.9)
-        self.assertGreaterEqual(report.recall, 0.9)
+        self.assertEqual(report.precision, 1.0)
+        self.assertEqual(report.recall, 1.0)
         self.assertGreaterEqual(report.rejected_correct, 1)
+        pick_up = dict(report.metrics)["PICK_UP"]
+        self.assertEqual(pick_up.precision, 1.0)
+        self.assertEqual(pick_up.recall, 1.0)
         thresholds = dict(result.thresholds)
         for action, expected in (
             ("PICK_UP", 0.74),

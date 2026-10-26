@@ -132,8 +132,8 @@ embeddings + template GraphRAG). The HoloLens clip is available as
   pre-grasp `OTHER` negatives. The file records timestamps and original event
   strings so every label is traceable; captions are labels, not model output.
 - Ran `python -m chronicle.semantic.calibration` at a 0.9 precision target:
-  **19 labels, 15 accepted, 4 correct rejections, precision 0.933, recall
-  1.000, F1 0.966**; committed the report to
+  **19 labels, 14 accepted, 5 correct rejections, precision 1.000, recall
+  1.000, F1 1.000** after NB-18; committed the report to
   `docs/calibration.holoassist.report.json`.
 - Updated `DEFAULT_ACTION_THRESHOLDS` to the calibrated values (`PICK_UP` 0.74,
   `PUT_DOWN` 0.76, `INSERT_INTO` 0.80, `REMOVE_FROM` 0.78, `HOLD` 0.62,
@@ -144,12 +144,27 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 - Real labels exposed two rule-classifier regex gaps: "slide …" was not
   `PUSH` and "withdraw …" was not `REMOVE_FROM`. Both are fixed in
   `chronicle/semantic/actions.py` with regression tests.
-- Follow-up captured on the board: the one remaining false positive is a
-  pre-grasp "reaches toward …" caption classified as `PICK_UP`; raising the
-  threshold would also reject true pickups, so it needs a classifier/phrasing
-  fix rather than a threshold change.
+- The one remaining false positive was a pre-grasp "reaches toward …" caption
+  classified as `PICK_UP`; NB-18 fixed it with negation-aware rule matching
+  (see below), and the report now has precision 1.000 / recall 1.000.
 - Reproduce from `docs/CALIBRATION.md`; model-free coverage is in
   `tests/test_calibration.py` and `tests/test_actions.py`.
+
+### NB-18 — pre-grasp `PICK_UP` false positive closed
+
+- `RuleBasedActionClassifier` now rejects negated action verbs
+  (`does not grasp`, `doesn't pick up`, `without pulling`, …) before the
+  positive regexes run. The pre-grasp caption
+  `"The hand reaches toward the Joy-Con but does not grasp it."` becomes
+  `OTHER`; the three true pickups stay accepted.
+- Re-ran the real-label calibration: **19 labels, 14 accepted, 5 correct
+  rejections, precision 1.000, recall 1.000, F1 1.000**. The per-action
+  thresholds are unchanged (`PICK_UP` 0.74) — this was a phrasing fix, not a
+  threshold hack.
+- `docs/CALIBRATION.md`, `docs/ROLE_C.md` and
+  `docs/calibration.holoassist.report.json` now show the new numbers; tests
+  cover negation, a true action with "without dropping", and the calibration
+  target.
 - Shipped on `main` (`9ed6735..d5870b3`; full `pytest` green, 142 unittest
   tests, ruff clean, evaluation 9/9).
 

@@ -166,9 +166,8 @@ Test status (all model-free, no network):
     Replace ActionVerifier.chat_client with a vision client to change that;
     the schema and fallbacks stay the same.
   - Calibration now uses 19 real HoloAssist labels and the resulting defaults
-    (precision 0.93, recall 1.00; see docs/CALIBRATION.md). One PICK_UP false
-    positive remains on a pre-grasp "reaches ..." caption; raising the cutoff
-    would also reject true pickups, so it needs a classifier/phrasing fix. The
+    (precision 1.00, recall 1.00; see docs/CALIBRATION.md). NB-18 closed the
+    pre-grasp PICK_UP false positive with negation-aware rule matching. The
     timeline scorer is ready and the real HoloAssist labels are committed
     (docs/action_timeline.holoassist.json). NB-07 scores 1/7 because the
     Florence-2 captioner is unavailable, so every strip collapses to PICK_UP;

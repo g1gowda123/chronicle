@@ -448,7 +448,7 @@ python -m chronicle.semantic.calibration \
   --labels docs/calibration_labels.holoassist.json \
   --target-precision 0.9 \
   --write docs/calibration.holoassist.report.json
-# labels=19 accepted=15 rejected_correct=4 precision=0.93 recall=1.00
+# labels=19 accepted=14 rejected_correct=5 precision=1.00 recall=1.00
 # CHRONICLE_ACTION_THRESHOLDS=CLOSE=0.6,HAND_OFF=0.6,HOLD=0.62,...
 
 python -m chronicle.semantic.calibration \
@@ -458,8 +458,9 @@ python -m chronicle.semantic.calibration \
 
 `docs/calibration_labels.example.json` is the small smoke-test fixture. See
 [`docs/CALIBRATION.md`](CALIBRATION.md) for the label provenance, the
-per-action table, the recommended thresholds and the remaining `PICK_UP`
-false-positive gap.
+per-action table and the recommended thresholds. NB-18 removed the pre-grasp
+`PICK_UP` false positive with negation-aware rule matching, so the real-label
+report is now precision 1.00 / recall 1.00.
 
 Accepted label shapes are a list of `{"caption", "action"}` objects,
 `(caption, action)` pairs, `{"labels": [...]}`, or
@@ -673,13 +674,13 @@ The suite has **no model downloads and no network access**.
   is a matter of replacing `ActionVerifier.chat_client` with a vision client;
   the schema and fallbacks stay unchanged.
 * Calibration now ships with real HoloAssist labels
-  (`docs/calibration_labels.holoassist.json`, 19 labels, precision 0.93 /
-  recall 1.00) and the resulting per-action defaults. The remaining `PICK_UP`
-  false positive is a classifier-phrasing gap (a pre-grasp "reaches …" caption),
-  tracked on `NOTICE_BOARD.md`. The action-timeline harness
-  (`python -m chronicle.semantic.timeline`) still needs a full hand-labelled
-  timeline pass before the Role C “done when” line in `TEAM_STATUS.md` is
-  ticked.
+  (`docs/calibration_labels.holoassist.json`, 19 labels, precision 1.00 /
+  recall 1.00) and the resulting per-action defaults. NB-18 closed the pre-grasp
+  `PICK_UP` false positive with negation-aware rule matching. The
+  action-timeline labels are committed (`docs/action_timeline.holoassist.json`)
+  but the real score is still 1/7 because Florence-2 is unavailable; NB-19
+  reruns with real VLM captions before the Role C “done when” line in
+  `TEAM_STATUS.md` is ticked.
 * The deterministic embedder is intentionally not CLIP-quality. It exists for
   offline demos/tests; production must install `requirements-semantic-models.txt`.
 * Zone prototypes are in-memory + JSON by default. Role B can persist

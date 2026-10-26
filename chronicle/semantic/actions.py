@@ -95,6 +95,20 @@ _AMBIGUOUS_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "The hand reaches toward the keys but does not grasp them" describes a
+# pre-grasp moment, not a pick-up.  The rule classifier deliberately rejects
+# negated action verbs instead of letting a nearby positive verb win.
+_NEGATED_ACTION_RE = re.compile(
+    r"\b(?:(?:does|do|did|is|are|was|were)\s+not|doesn't|don't|didn't|"
+    r"isn't|aren't|wasn't|weren't|without)\b"
+    r"\s+(?:\w+\s+){0,3}"
+    r"(?:grasp|grasping|pick|picking|lift|lifting|take|taking|hold|holding|"
+    r"place|placing|put|putting|insert|inserting|remove|removing|open|opening|"
+    r"close|closing|push|pushing|pull|pulling|slide|sliding|withdraw|"
+    r"withdrawing|carry|carrying|hand|handing)\b",
+    re.IGNORECASE,
+)
+
 _CONTAINER_CONNECTORS = (
     "out of",
     "out from",
@@ -673,6 +687,16 @@ class RuleBasedActionClassifier:
                 "container": container,
                 "confidence": 0.2,
                 "evidence": "no visual caption was available",
+            }
+
+        negated = _NEGATED_ACTION_RE.search(text)
+        if negated is not None:
+            return {
+                "action": ActionPrimitive.OTHER.value,
+                "object": object_label,
+                "container": container,
+                "confidence": 0.25,
+                "evidence": f"negated action: {negated.group(0)[:140]}",
             }
 
         for action, pattern, confidence in self._PATTERNS:

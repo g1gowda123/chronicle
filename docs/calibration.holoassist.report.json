@@ -14,11 +14,11 @@
   },
   "report": {
     "samples": 19,
-    "accepted": 15,
-    "rejected_correct": 4,
-    "precision": 0.9333,
+    "accepted": 14,
+    "rejected_correct": 5,
+    "precision": 1.0,
     "recall": 1.0,
-    "f1": 0.9655,
+    "f1": 1.0,
     "thresholds": {
       "CLOSE": 0.6,
       "HAND_OFF": 0.6,
@@ -56,8 +56,8 @@
         "false_negatives": 0
       },
       "OTHER": {
-        "support": 4,
-        "correct": 4,
+        "support": 5,
+        "correct": 5,
         "accepted": 0,
         "precision": 0.0,
         "recall": 0.0,
@@ -67,14 +67,14 @@
         "false_negatives": 0
       },
       "PICK_UP": {
-        "support": 4,
+        "support": 3,
         "correct": 3,
-        "accepted": 4,
-        "precision": 0.75,
+        "accepted": 3,
+        "precision": 1.0,
         "recall": 1.0,
-        "f1": 0.8571,
+        "f1": 1.0,
         "true_positives": 3,
-        "false_positives": 1,
+        "false_positives": 0,
         "false_negatives": 0
       },
       "PUSH": {

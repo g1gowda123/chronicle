@@ -84,6 +84,9 @@ class RuleClassifierTest(unittest.TestCase):
             "The hand slides the Joy-Con along the rail.": ActionPrimitive.PUSH,
             "The hand opens the cabinet door.": ActionPrimitive.OPEN,
             "The lid closes.": ActionPrimitive.CLOSE,
+            "The hand reaches toward the Joy-Con but does not grasp it.": ActionPrimitive.OTHER,
+            "The hand does not pick up the keys.": ActionPrimitive.OTHER,
+            "She places the mug on the desk without dropping it.": ActionPrimitive.PUT_DOWN,
         }
         for caption, expected in cases.items():
             with self.subTest(caption=caption):

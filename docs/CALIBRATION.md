@@ -18,16 +18,16 @@ The shipped defaults in `chronicle/semantic/actions.py` are generated from
   --write docs/calibration.holoassist.report.json
 ```
 
-Result on the real HoloAssist clip (19 labels, 4 correct rejections):
+Result on the real HoloAssist clip (19 labels, 5 correct rejections):
 
 | Metric | Value |
 | --- | --- |
 | Labels | 19 |
-| Accepted | 15 |
-| Correct rejections | 4 |
-| Precision | **0.933** |
+| Accepted | 14 |
+| Correct rejections | 5 |
+| Precision | **1.000** |
 | Recall | **1.000** |
-| F1 | **0.966** |
+| F1 | **1.000** |
 
 The command exits `0` because precision is at or above the `0.9` target.
 
@@ -93,20 +93,19 @@ values are already the code defaults.
 
 | Action | Support | Correct | Accepted | Precision | Recall |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `PICK_UP` | 4 | 3 | 4 | 0.750 | 1.000 |
+| `PICK_UP` | 3 | 3 | 3 | 1.000 | 1.000 |
 | `HOLD` | 3 | 3 | 3 | 1.000 | 1.000 |
 | `PUSH` | 2 | 2 | 2 | 1.000 | 1.000 |
 | `PUT_DOWN` | 3 | 3 | 3 | 1.000 | 1.000 |
 | `INSERT_INTO` | 1 | 1 | 1 | 1.000 | 1.000 |
 | `REMOVE_FROM` | 2 | 2 | 2 | 1.000 | 1.000 |
-| `OTHER` | 4 | 4 | 0 | — | — |
+| `OTHER` | 5 | 5 | 0 | — | — |
 
-`PICK_UP` is deliberately weak: the pre-grasp caption
-`"The hand reaches toward the Joy-Con but does not grasp it."` is classified as
-`PICK_UP` at 0.74. Raising the threshold above 0.74 would reject the three true
-pickups too, because the rule classifier emits one pinned confidence per
-action. This is a classifier-phrasing gap, not a threshold gap; it is tracked
-as **NB-18** in `NOTICE_BOARD.md`.
+**NB-18** removed the pre-grasp false positive. The caption
+`"The hand reaches toward the Joy-Con but does not grasp it."` now maps to
+`OTHER` because the rule classifier rejects negated action verbs; the three
+true pickups remain accepted. Precision is now 1.00 with recall 1.00, and the
+per-action thresholds are unchanged (the fix is phrasing, not a cutoff).
 
 ## Why `OTHER` does not lower recall
 
