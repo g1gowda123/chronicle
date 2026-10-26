@@ -57,7 +57,7 @@ PR so parallel work does not collide.
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
 | NB-10 | P1 | Tune consolidation on the living-room clip | Graph | READY | unclaimed |
 | NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | READY | unclaimed |
-| NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | IN PROGRESS | opencode (AI) |
+| NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | DONE | opencode (AI) |
 | NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | READY | unclaimed |
 | NB-14 | P2 | Search and filter actions / transitions | UI | READY | unclaimed |
 | NB-15 | P2 | Colour filter dropdown for entities | UI | READY | unclaimed |
@@ -170,26 +170,6 @@ PR so parallel work does not collide.
   snapshot content and passing tests.
 - **Spec:** §Storage; TEAM_STATUS “Runtime efficiency”.
 
-### NB-12 · Add appearance attributes to the spec + evaluation
-- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Docs / Semantic
-- **Started:** 2026-10-27 · **Branch:** `task/nb-12-appearance-spec`
-- **Why:** colour/shape/size/texture attributes are implemented and used by the
-  UI and GraphRAG, but the LaTeX spec and evaluation set did not mention them.
-- **Scope:**
-  - Add an “Object appearance attributes” subsection to
-    `docs/chronicle-spec-condensed.tex` (formula + thresholds).
-  - Add colour/size/describe/missing-appearance cases to the GraphRAG
-    evaluation set.
-  - Rebuild the PDF with `docs/build-spec.sh`.
-- **Files:** `docs/chronicle-spec-condensed.tex`,
-  `chronicle/semantic/evaluation.py`, `docs/chronicle-spec-condensed.pdf`,
-  `tests/test_evaluation.py`, docs.
-- **Acceptance:** spec builds; evaluation passes with the new cases and reports
-  citation precision.
-- **Progress note:** evaluation is now 13/13 with 100 % citation precision; the
-  PDF rebuilds cleanly via TinyTeX.
-- **Spec:** §Perception; new feature in `chronicle/perception/attributes.py`.
-
 ---
 
 ## P2 — polish
@@ -264,6 +244,21 @@ PR so parallel work does not collide.
 | NB-06 | Real-clip evidence images for demo answers | opencode (AI) | `f967a71`; `data/*/evidence/`; `scripts/build_evidence_fixtures.py` |
 | NB-07 | Label the HoloLens action timeline and run the scorer | opencode (AI) | `68b1432`; `docs/action_timeline.holoassist.json`; 1/7, 6.3% precision |
 | NB-18 | Reduce the pre-grasp PICK_UP false positive | opencode (AI) | `dfcd4d7`; negation-aware rule matching; precision 1.00 / recall 1.00 |
+| NB-12 | Add appearance attributes to the spec + evaluation | opencode (AI) | `5518a91`; spec PDF + 4 appearance cases; evaluation 13/13 |
+
+### NB-12 details
+
+- **Branch:** `task/nb-12-appearance-spec` · **Commit:** `5518a91`
+- **Spec:** added the “Object appearance attributes” subsection to
+  `docs/chronicle-spec-condensed.tex` (k-means colour formula, background
+  suppression, colour word bands, shape/size/brightness/saturation/texture
+  thresholds, colour stability) and rebuilt the PDF.
+- **Evaluation:** added colour, size, describe and missing-appearance cases;
+  `chronicle.semantic.evaluation` is now **13/13, 100 % citation precision**.
+- **Docs:** updated `README.md`, `docs/ROLE_C.md`, `docs/SUGGESTIONS.txt`,
+  `docs/TEAM_STATUS.md` and `tests/test_evaluation.py` from 9 to 13 cases.
+- **Acceptance:** `docs/build-spec.sh` exits 0; evaluation passes with the new
+  cases.
 
 ### NB-18 details
 
