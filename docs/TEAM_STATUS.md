@@ -78,7 +78,7 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-D4** | **P2** | **Headless dashboard smoke tests**<br>Add Starlette/FastAPI `TestClient` tests for NiceGUI endpoints (`/`, `/source-video`, `/export/snapshot.json`, `/export/entities.csv`) verifying zero-GPU, zero-browser CI operation. | `tests/test_dashboard_smoke.py` | `[DONE]` | Orchestrator |
 | **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source aria-cook` / `aria-living-room` offline evaluation when video assets are present; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[BLOCKED — data/real Aria clips missing]` | Open / Any Teammate |
 | **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py`<br>`chronicle/ui/graph_view.py` | `[DONE (371f216)]` | Orchestrator |
-| **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget in NiceGUI dashboard allowing users to upload an exported `chronicle_snapshot.json` and call `runtime.load_snapshot_json()` directly from the UI without CLI. | `chronicle/ui/app.py`<br>`chronicle/ui/snapshot_io.py` | `[DONE]` | Orchestrator |
+| **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget in NiceGUI dashboard allowing users to upload an exported `chronicle_snapshot.json` and call `runtime.load_snapshot_json()` directly from the UI without CLI. | `chronicle/ui/app.py`<br>`chronicle/ui/snapshot_io.py` | `[DONE (a31d417)]` | Orchestrator |
 
 ## What I am working on right now
 
