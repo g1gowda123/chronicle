@@ -93,6 +93,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "evaluate_action_timeline": "timeline",
     "load_action_labels": "timeline",
     "load_action_predictions": "timeline",
+    "load_annotation_actions": "timeline",
     "predictions_from_snapshot": "timeline",
 }
 
@@ -176,6 +177,7 @@ __all__ = [
     "is_ambiguous_caption",
     "load_action_labels",
     "load_action_predictions",
+    "load_annotation_actions",
     "load_calibration_labels",
     "parse_action_json",
     "predictions_from_snapshot",

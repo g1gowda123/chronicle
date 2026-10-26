@@ -121,6 +121,11 @@ def cmd_run(args: argparse.Namespace) -> int:
             fps_override=args.fps,
         )
         print(json.dumps(summary.as_dict(), indent=2))
+        if args.snapshot_out:
+            snapshot_path = Path(args.snapshot_out).expanduser()
+            snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+            snapshot_path.write_text(runtime.export_snapshot_json(), encoding="utf-8")
+            print(json.dumps({"snapshot": str(snapshot_path)}, indent=2))
         if args.ask:
             for question in args.ask:
                 print(json.dumps(runtime.ask(question).to_dict(), indent=2))
@@ -193,6 +198,10 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--fps", type=float, help="override video FPS")
     run.add_argument("--reset", action="store_true", help="recreate the database before ingesting")
     run.add_argument("--ask", action="append", help="question to answer after ingestion")
+    run.add_argument(
+        "--snapshot-out",
+        help="write the post-ingestion ChronicleRuntime snapshot JSON to this path",
+    )
     _add_backend_flags(run)
     run.set_defaults(func=cmd_run)
 

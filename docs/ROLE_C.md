@@ -478,6 +478,7 @@ Label file (also accepted as `{"labels": [...]}`):
 from chronicle.semantic import (
     evaluate_action_timeline,
     load_action_labels,
+    load_annotation_actions,
     predictions_from_snapshot,
 )
 
@@ -495,6 +496,13 @@ report.entity_accuracy            # None when no prediction has an entity
 report.container_accuracy         # None when neither side names a container
 print("\n".join(report.summary_lines()))
 ```
+
+HoloAssist annotations can be scored without converting them first.
+`load_annotation_actions()` reads `ground_truth.actions` (or a bare action
+list), takes the first candidate in each row's `actions` list that maps to a
+Chronicle primitive (`PICK_UP`, `PLACE` -> `PUT_DOWN`, `INSERT_INTO`,
+`REMOVE_FROM`, ...), and skips movement-only rows (`MOVE`/`VISIBLE_MOVING`).
+`data/real/holoassist_switch_34s.json` yields 7 scorable labels.
 
 Matching is greedy by nearest `|Δt|` among predictions with the same action
 primitive. Wrong-action or out-of-window predictions count as extras (they lower
@@ -514,7 +522,20 @@ python -m chronicle.semantic.timeline \
 python -m chronicle.semantic.timeline \
   --labels docs/action_timeline.example.json \
   --predictions docs/action_predictions.example.json --json
+
+# HoloLens benchmark: export a snapshot, then score HoloAssist annotations
+python -m chronicle.cli run --source tabletop \
+  --db runs/hololens.db --reset --snapshot-out runs/hololens_snapshot.json
+python -m chronicle.semantic.timeline \
+  --annotations data/real/holoassist_switch_34s.json \
+  --snapshot runs/hololens_snapshot.json --tolerance 2.2 --ignore-entity
 ```
+
+`--annotations` is mutually exclusive with `--labels`. `--ignore-entity` still
+matches actions and timestamps but reports entity/container accuracy as `None`
+and drops those checks from the PASS gate; use it when the ground truth and the
+runtime detector use different vocabularies (for example HoloAssist `joy-con`
+vs. the colour fallback's `cup`/`mug`).
 
 The command exits 0 only when every label is matched, there are no extra
 predictions, and (where comparable) entity/container names agree; otherwise it
@@ -604,8 +625,9 @@ The Role C suite covers:
 * labelled-caption files: JSON list/mapping/`labels` wrapper, JSONL, alias
   action names, invalid-label rejection, CLI `--json`/`--write` output;
 * action timeline: tolerance boundaries, nearest-match pairing, extra / missing /
-  wrong-action accounting, entity/container aliases, rejected predictions,
-  snapshot + prediction loaders and CLI exit codes;
+  wrong-action accounting, entity/container aliases, entity-agnostic scoring,
+  rejected predictions, snapshot/prediction/annotation loaders and CLI exit
+  codes;
 * GraphRAG evaluation: 9 cases (location, time, action, temporal before-placement,
   remove, lost, zone-only, unknown), 100 % citation precision,
   hallucinated-timestamp fallback.

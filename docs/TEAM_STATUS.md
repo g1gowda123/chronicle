@@ -89,6 +89,20 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 - Added `before-placement` to the GraphRAG evaluation set (now 9/9, 100 %
   citation precision) and model-free coverage in `tests/test_graphrag.py`.
 
+### TASK-F1 — HoloLens tabletop action benchmark
+
+- `load_annotation_actions()` reads HoloAssist `ground_truth.actions`, picks the
+  first candidate per row that maps to a Chronicle primitive, and skips
+  movement-only rows. The bundled `holoassist_switch_34s.json` yields 7
+  scorable labels.
+- `chronicle run --snapshot-out PATH` exports the post-ingestion snapshot, and
+  `python -m chronicle.semantic.timeline --annotations ... --snapshot ...`
+  scores it (`--ignore-entity` drops entity/container agreement from the gate).
+- Fallback benchmark (colour detector/hands/embedder; production models are not
+  installed here): 19 predictions, 1 match, precision 5.3 %, recall 14.3 %,
+  mean |Δt| 0.28 s, FAIL. Documented as fallback-only in
+  `docs/PERCEPTION.md`; re-run with the production backends for the real number.
+
 ## Dynamic Task Notice Board (Priority Queue)
 
 > **Team Notice Board:** Anyone finishing early can claim the next highest-priority `[READY]` ticket or post a new task below.

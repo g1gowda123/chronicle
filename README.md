@@ -202,6 +202,10 @@ python -m chronicle.semantic.calibration   # per-action thresholds from labelled
 python -m chronicle.semantic.timeline \
   --labels docs/action_timeline.example.json \
   --predictions docs/action_predictions.example.json   # verified actions vs labels
+python -m chronicle.semantic.timeline \
+  --annotations data/real/holoassist_switch_34s.json \
+  --snapshot runs/hololens_snapshot.json \
+  --tolerance 2.2 --ignore-entity                   # HoloAssist ground truth
 ```
 
 The demo exercises VPR, temporal strips, action verification, the bounded

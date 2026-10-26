@@ -312,12 +312,19 @@ def evaluate_action_timeline(
     *,
     tolerance: float = DEFAULT_TIMELINE_TOLERANCE,
     accepted_only: bool = True,
+    compare_entities: bool = True,
 ) -> TimelineReport:
     """Greedy nearest-time match of same-action predictions to labels.
 
     Matching requires the same action primitive and ``|Δt| <= tolerance``.
     Wrong-action or out-of-window predictions stay in ``unmatched_predictions``
     (they lower precision); unmatched labels lower recall.
+
+    ``compare_entities=False`` skips the entity/container name agreement used by
+    :attr:`TimelineReport.passed`.  It is useful when the ground truth uses a
+    different vocabulary from the runtime's detector labels (the HoloAssist
+    clip labels everything ``joy-con`` while the colour fallback detects
+    ``cup``/``mug``).
     """
     if tolerance < 0:
         raise ValueError("tolerance must be >= 0")
@@ -359,11 +366,15 @@ def evaluate_action_timeline(
             entity_ok=_text_match(
                 predicted_events[prediction_index].entity,
                 label_events[label_index].entity,
-            ),
+            )
+            if compare_entities
+            else None,
             container_ok=_text_match(
                 predicted_events[prediction_index].container,
                 label_events[label_index].container,
-            ),
+            )
+            if compare_entities
+            else None,
         )
         for label_index, prediction_index, delta in pairs
     )
@@ -417,6 +428,75 @@ def load_action_labels(
     return _events(_event_rows(data))
 
 
+def _annotation_rows(data: Any) -> Sequence[Any]:
+    if isinstance(data, Mapping):
+        ground_truth = data.get("ground_truth")
+        if isinstance(ground_truth, Mapping) and "actions" in ground_truth:
+            rows = ground_truth["actions"]
+        elif "actions" in data:
+            rows = data["actions"]
+        else:
+            raise ValueError(
+                "annotations need a 'ground_truth.actions' or 'actions' list"
+            )
+    else:
+        rows = data
+    if isinstance(rows, (str, bytes)) or not isinstance(rows, Sequence):
+        raise ValueError("expected a list of annotation actions")
+    return rows
+
+
+def load_annotation_actions(
+    source: str | Path | Mapping[str, Any] | Sequence[Any],
+) -> tuple[ActionEvent, ...]:
+    """Load a HoloAssist annotation file as ground-truth actions.
+
+    HoloAssist rows carry a ``label`` (the entity), a ``time`` and an ordered
+    ``actions`` list of candidate primitives, e.g. ``["PICK_UP", "TOUCH"]``.
+    The first candidate that maps to a Chronicle primitive wins.  Rows whose
+    candidates are all movement-only (``MOVE`` / ``VISIBLE_MOVING``) cannot be
+    verified by Role C and are skipped.
+
+    Both ``{"ground_truth": {"actions": [...]}}`` (the bundled
+    ``data/real/holoassist_switch_34s.json`` shape) and a bare action list are
+    accepted.
+    """
+    data = _read_json(source) if isinstance(source, (str, Path)) else source
+    events: list[ActionEvent] = []
+    for index, row in enumerate(_annotation_rows(data)):
+        if not isinstance(row, Mapping):
+            raise ValueError(f"annotation entry {index} must be a mapping")
+        timestamp = _first(row, "time", "timestamp", "t", "start")
+        if timestamp is None:
+            raise ValueError(f"annotation entry {index} needs a timestamp ('time')")
+        candidates = row.get("actions")
+        if isinstance(candidates, str):
+            candidates = [candidates]
+        if candidates is None:
+            single = _first(row, "action", "primitive")
+            candidates = [single] if single is not None else []
+        if isinstance(candidates, (str, bytes)) or not isinstance(candidates, Sequence):
+            raise ValueError(f"annotation entry {index} needs an 'actions' list")
+        action: ActionPrimitive | None = None
+        for candidate in candidates:
+            try:
+                action = coerce_action(candidate)
+            except (TypeError, ValueError):
+                continue
+            break
+        if action is None:
+            continue
+        events.append(
+            ActionEvent(
+                timestamp=float(timestamp),
+                action=action,
+                entity=_first(row, "label", "entity", "entity_label", "object") or "",
+                caption=str(_first(row, "source", "caption", "event") or ""),
+            )
+        )
+    return tuple(events)
+
+
 def load_action_predictions(
     source: str | Path | Mapping[str, Any] | Sequence[Any],
 ) -> tuple[ActionEvent, ...]:
@@ -436,7 +516,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Match verified actions against a labelled action timeline"
     )
-    parser.add_argument("--labels", required=True, help="ground-truth JSON file")
+    truth = parser.add_mutually_exclusive_group(required=True)
+    truth.add_argument("--labels", help="ground-truth JSON file")
+    truth.add_argument(
+        "--annotations",
+        help="HoloAssist annotation JSON; uses ground_truth.actions",
+    )
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--predictions", help="prediction JSON file")
     source.add_argument(
@@ -453,10 +538,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="score predictions that Role C marked accepted=false",
     )
+    parser.add_argument(
+        "--ignore-entity",
+        action="store_true",
+        help="ignore entity/container name agreement when scoring and deciding PASS",
+    )
     parser.add_argument("--json", action="store_true", help="print the full report")
     args = parser.parse_args(argv)
 
-    labels = load_action_labels(args.labels)
+    labels = (
+        load_annotation_actions(args.annotations)
+        if args.annotations
+        else load_action_labels(args.labels)
+    )
     predictions = (
         predictions_from_snapshot(_read_json(args.snapshot))
         if args.snapshot
@@ -467,6 +561,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         labels,
         tolerance=args.tolerance,
         accepted_only=not args.include_rejected,
+        compare_entities=not args.ignore_entity,
     )
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))

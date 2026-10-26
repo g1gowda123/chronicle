@@ -15,6 +15,7 @@ from chronicle.semantic import (
     evaluate_action_timeline,
     load_action_labels,
     load_action_predictions,
+    load_annotation_actions,
     predictions_from_snapshot,
     timeline,
 )
@@ -130,6 +131,18 @@ class TimelineMatchingTest(unittest.TestCase):
         self.assertFalse(near_miss.matches[0].entity_ok)
         self.assertFalse(near_miss.passed)
 
+    def test_compare_entities_can_be_disabled(self) -> None:
+        report = evaluate_action_timeline(
+            [event(4.4, "PUT_DOWN", "mug")],
+            [event(4.2, "PUT_DOWN", "joy-con", "table")],
+            compare_entities=False,
+        )
+        self.assertTrue(report.passed)
+        self.assertIsNone(report.matches[0].entity_ok)
+        self.assertIsNone(report.matches[0].container_ok)
+        self.assertIsNone(report.entity_accuracy)
+        self.assertIsNone(report.container_accuracy)
+
     def test_rejected_predictions_are_skipped_by_default(self) -> None:
         label = event(1.9, "PICK_UP")
         rejected = [event(1.9, "PICK_UP", accepted=False)]
@@ -225,6 +238,57 @@ class TimelineLoaderTest(unittest.TestCase):
             load_action_labels(self.write("bad.json", {"nope": []}))
 
 
+class AnnotationLoaderTest(unittest.TestCase):
+    def test_holoassist_annotations_pick_first_mappable_action(self) -> None:
+        annotations = {
+            "ground_truth": {
+                "actions": [
+                    {
+                        "label": "joy-con",
+                        "actions": ["PICK_UP", "TOUCH"],
+                        "time": 4.2,
+                        "source": "grab joy_con_controller",
+                    },
+                    {"label": "joy-con", "actions": ["MOVE"], "time": 28.11},
+                    {"label": "joy-con", "actions": ["MOVE", "VISIBLE_MOVING"], "time": 28.9},
+                    {
+                        "label": "joy-con",
+                        "actions": ["PLACE", "TOUCH"],
+                        "time": 18.1,
+                        "source": "place joy_con_controller",
+                    },
+                    {"label": "joy-con", "actions": ["REMOVE_FROM", "PICK_UP"], "time": 22.1},
+                ]
+            }
+        }
+        events = load_annotation_actions(annotations)
+        self.assertEqual(
+            [(event.timestamp, event.action.value) for event in events],
+            [(4.2, "PICK_UP"), (18.1, "PUT_DOWN"), (22.1, "REMOVE_FROM")],
+        )
+        self.assertEqual({event.entity for event in events}, {"joy-con"})
+        self.assertEqual(events[0].caption, "grab joy_con_controller")
+
+    def test_bundled_holoassist_file_loads_mappable_rows(self) -> None:
+        events = load_annotation_actions(
+            ROOT / "data" / "real" / "holoassist_switch_34s.json"
+        )
+        self.assertEqual(len(events), 7)
+        self.assertNotIn("MOVE", {event.action.value for event in events})
+        self.assertEqual(events[0].action, ActionPrimitive.PICK_UP)
+        self.assertEqual(events[0].entity, "joy-con")
+
+    def test_bare_action_list_and_invalid_rows(self) -> None:
+        events = load_annotation_actions(
+            [{"time": 1.0, "action": "PICK_UP", "label": "keys"}]
+        )
+        self.assertEqual(len(events), 1)
+        with self.assertRaises(ValueError):
+            load_annotation_actions([{"actions": ["PICK_UP"]}])
+        with self.assertRaises(ValueError):
+            load_annotation_actions({"kind": "no actions here"})
+
+
 class TimelineCliTest(unittest.TestCase):
     def test_example_files_pass(self) -> None:
         buffer = io.StringIO()
@@ -271,6 +335,65 @@ class TimelineCliTest(unittest.TestCase):
             self.assertIn("FAIL", buffer.getvalue())
             self.assertIn("MISS", buffer.getvalue())
             self.assertIn("EXTRA", buffer.getvalue())
+
+    def test_annotations_mode_with_ignore_entity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            annotations = root / "annotations.json"
+            annotations.write_text(
+                json.dumps(
+                    {
+                        "ground_truth": {
+                            "actions": [
+                                {
+                                    "label": "joy-con",
+                                    "actions": ["PICK_UP", "TOUCH"],
+                                    "time": 4.2,
+                                },
+                                {
+                                    "label": "joy-con",
+                                    "actions": ["MOVE", "VISIBLE_MOVING"],
+                                    "time": 15.16,
+                                },
+                            ]
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            predictions = root / "predictions.json"
+            predictions.write_text(
+                json.dumps(
+                    [
+                        {
+                            "timestamp": 4.4,
+                            "action": "PICK_UP",
+                            "entity": "mug",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                code = timeline.main(
+                    [
+                        "--annotations",
+                        str(annotations),
+                        "--predictions",
+                        str(predictions),
+                        "--ignore-entity",
+                    ]
+                )
+            self.assertEqual(code, 0)
+            self.assertIn("PASS", buffer.getvalue())
+            self.assertIn("1/1 labels matched", buffer.getvalue())
+
+            with redirect_stdout(io.StringIO()):
+                strict = timeline.main(
+                    ["--annotations", str(annotations), "--predictions", str(predictions)]
+                )
+            self.assertEqual(strict, 1)
 
     def test_snapshot_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

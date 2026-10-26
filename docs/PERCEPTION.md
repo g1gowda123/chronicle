@@ -276,6 +276,45 @@ Precision/Recall against HoloAssist annotated timeline:
 - Camera motion state agreement: >98% inlier ratio on stationary table segments.
 - Re-ID identity stability: Stable track assignment across hand occlusions via cosine gate (SC > 0.82) and spatial continuity.
 
+### Action-timeline benchmark
+
+`data/real/holoassist_switch_34s.json` carries HoloAssist
+`ground_truth.actions` rows (`label`, ordered `actions` candidates, `time`,
+`window`). `chronicle.semantic.timeline.load_annotation_actions()` maps each row
+to its first verifiable primitive (`PICK_UP`, `PUT_DOWN` from `PLACE`,
+`INSERT_INTO`, `REMOVE_FROM`, ...) and skips movement-only rows
+(`MOVE`/`VISIBLE_MOVING`). The bundled clip yields **7 scorable labels**.
+
+Run the clip, export the snapshot, then score it:
+
+```bash
+python -m chronicle.cli run --source tabletop \
+  --detector color --hands color --embedder color \
+  --reset --db runs/hololens.db --snapshot-out runs/hololens_snapshot.json
+
+python -m chronicle.semantic.timeline \
+  --annotations data/real/holoassist_switch_34s.json \
+  --snapshot runs/hololens_snapshot.json --tolerance 2.2 --ignore-entity
+```
+
+Fallback result on this machine (no `torch`/`ultralytics`/`mediapipe`/`open_clip`
+installed, so the colour detector/hands/embedder are the only runnable path):
+
+| Run | Backends | Labels | Preds | Matched | Precision | Recall | Mean \|Δt\| | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Fallback | colour detector + colour hands + colour embedder | 7 | 19 | 1 | 5.3% | 14.3% | 0.28 s | FAIL |
+| Harness self-check | bundled demo snapshot | 1 | 1 | 1 | 100% | 100% | 0.07 s | PASS |
+
+The fallback's 19 predictions are all `PICK_UP` on `cup`/`mug` (colour blobs),
+while the annotation labels everything `joy-con`; `--ignore-entity` therefore
+scores action/timestamp agreement only. The single match is `PICK_UP` at
+4.48 s against the 4.2 s label. These numbers are **fallback-only** and should
+not be read as production action accuracy: re-run the same commands with the
+production backends (`uv sync --extra models`, detector prompt
+`joy-con, switch console, table, comfort grip`) and without
+`--ignore-entity` for the real benchmark.
+
+
 ## Known limitations
 
 - The colour detector/hands/embedder are offline demo and test aids.
