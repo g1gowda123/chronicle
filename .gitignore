@@ -45,6 +45,8 @@ weights/
 *.onnx
 runs/
 logs/
+*.pid
+.chronicle.pid
 *.db
 *.db-shm
 *.db-wal
