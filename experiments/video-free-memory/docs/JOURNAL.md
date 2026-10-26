@@ -447,3 +447,74 @@ No code this entry; clarifying deployment choices.
   that video's pack. Cross-video/global memory and entity resolution are still future work.
 - The main UI integration remains the top priority (see `HANDOFF.md`); the Studio is a separate
   reference implementation, not a replacement for the dashboard the user built.
+
+---
+
+## 2026-10-27 — Session 6: main-UI VFM integration (in progress)
+
+### Claim
+
+P0 main-UI integration is claimed on `docs/AGENT_BOARD.md`. Parallel agents should take the
+unclaimed P1/P2 lanes; do not edit `chronicle/ui/app.py` or the new `chronicle/vfm/` package while
+this entry is `in progress`.
+
+### Plan
+
+1. Copy the experiment query/compile modules into a stable `chronicle/vfm/` package in the
+   worktree (no `sys.path` hacks, no `studio_app.py` import).
+2. Add a background `VFMJobManager` that snapshots the run DB, captions the video if the VLM is
+   reachable, compiles the vault, attaches the ledger, extracts 480 px WebP evidence, renders
+   `memory.html`, writes the memory pack and builds the zip.
+3. Trigger it after the existing upload/live ingest completes; reuse the existing upload button,
+   player, progress and Export menu. Add a Memory tab with status, downloads and an optional Qwen
+   ask box (default off).
+4. Preserve the source video for playback. Deletion stays opt-in and is refused outside
+   `<data-dir>/uploads/`.
+5. Add headless tests for the service and the new dashboard routes.
+
+### Docs touched
+
+- `docs/AGENT_BOARD.md` (new coordination board)
+- `HANDOFF.md` (parallel-agent pointer)
+- this journal entry
+
+Results and measurements will be appended as a separate entry when the integration lands.
+
+---
+
+## 2026-10-27 — Session 7: token-budget selector (P2-PACK)
+
+### Built
+
+- `memory_pack.py`: `token_budget=` on `build_pack` / `build_pack_data`, `TOKEN_BUDGETS =
+  (2000, 4000, 8000)`, `CHARS_PER_TOKEN = 4.0`, and `--token-budget` / `--list-budgets` CLI flags.
+  The pack always keeps the verified answer, the answering rules and the section headers; a small
+  budget trims windows/events/evidence and appends an explicit "N more … omitted" note. It never
+  cuts a line in half.
+- `studio_app.py`: `--pack-budget`, plus `memory_pack_2k.md` / `_4k.md` / `_8k.md` exports in the
+  job directory, download list and zip. Jobs report the size of every variant.
+- `nlq.py`: passes the selected budget into the pack used for Qwen phrasing.
+- `tests/test_pack.py`: synthetic 36-window vault asserts every budget stays under its ceiling,
+  keeps instructions, and grows monotonically (2k < 4k < 8k).
+
+### Measured
+
+| Vault | 2k pack | 4k pack | 8k pack |
+| --- | ---: | ---: | ---: |
+| `/tmp/vfm/cook.db` (1 window) | 6,347 chars · ~1,587 t | same (fits) | same (fits) |
+| `/tmp/vfm/scale/synth_60m.db` (220 windows) | 7,847 chars · 7 windows | 15,824 chars | 31,833 chars · 26 windows |
+
+- On the 60-minute synthetic vault the 2k variant shows 7 windows / 4 events, the 8k variant shows
+  26 windows / 77 events, and both keep the verified answer and rules.
+- `pytest -q tests` → 17 passed.
+
+### Decision
+
+- Budget is a hard character ceiling (`tokens × 4`), not a claim about the tokenizer.
+- The verified answer and instructions are never dropped; detail is what gets cut.
+- Default stays 4k (the Studio `--pack-budget` default), smaller budgets are opt-in.
+
+### Next
+
+- Validate the 2k pack on the 30-question Qwen baseline (accuracy should hold if the verified
+  answer is retained; measure latency/token savings).

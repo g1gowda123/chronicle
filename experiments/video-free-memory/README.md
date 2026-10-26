@@ -136,14 +136,19 @@ export GEMINI_API_KEY=...
   --source-root /home/g1/projects/chronicle/data/real \
   --vault-dir /tmp/vfm --frames 9
 
-# 6. Retention budget and snapshot-policy sweep
+# 6. LLM memory pack (default, or trimmed to a token budget)
+python3 prototype/memory_pack.py --db /tmp/vfm/cook.db --out /tmp/vfm/cook_pack.md
+python3 prototype/memory_pack.py --db /tmp/vfm/cook.db --token-budget 2000
+python3 prototype/memory_pack.py --db /tmp/vfm/cook.db --list-budgets
+
+# 7. Retention budget and snapshot-policy sweep
 python3 prototype/retention.py --vault /tmp/vfm/cook.db --report --sweep 40,12,4
 
-# 7. Single-file offline memory browser (query box runs client-side)
+# 8. Single-file offline memory browser (query box runs client-side)
 python3 prototype/report.py --db /tmp/vfm/cook.db \
   --out /tmp/vfm/cook.html --data-root /tmp/vfm
 
-# 8. Tests
+# 9. Tests
 /home/g1/projects/chronicle/.venv/bin/python -m pytest -q tests
 ```
 
@@ -167,41 +172,19 @@ Options:
 | `--vlm-model` | compile-time captioner, default `qwen2.5vl:3b` |
 | `--window-s` / `--frames-per-window` | caption window policy (default 30 s / 3 frames) |
 | `--delete-video` | remove the uploaded source after compile (no playback) |
+| `--pack-budget` | default pack ceiling in tokens (2k/4k/8k variants are always exported) |
 | `--data-dir` | job workspace (default `/tmp/vfm/studio`) |
 | `--port` / `--host` | server bind |
 
-The Studio:
+Upload MP4/MOV/WebM/MKV. The Studio:
 
 1. saves the upload and shows it in a normal HTML5 player;
 2. captions 30 s windows once with the local VLM;
-3. builds a SQLite vault + WebP evidence + offline HTML report + CSV exports;
-4. lets you download `memory.zip`, `vault.db`, `memory.html`, `ledger.json`, `events.csv`,
-   `windows.csv`;
-5. if `--qwen` is on, answers questions from the **compiled ledger/events**, not video.
-
-The downloaded memory is video-free. Keeping the source for playback does not change the LLM
-context; `nlq.py` sends only captions/events to Qwen. Use `--delete-video` if playback is not
-wanted.
-
-## Studio: upload → compile → download
-
-The user-facing app keeps video playback; the compiled vault and downloaded files are video-free.
-
-```bash
-cd /home/g1/projects/chronicle-vfm/experiments/video-free-memory
-./run_studio.sh --qwen --port 8093
-# open http://127.0.0.1:8093/
-```
-
-Upload MP4/MOV/WebM/MKV. The Studio:
-
-1. previews the source video with native playback;
-2. captions 30 s windows with the local VLM;
-3. builds a queryable SQLite vault and LLM-ready memory pack;
-4. extracts 480 px WebP evidence and a single-file HTML report;
-5. offers downloads: `vault.db`, `memory.html`, `memory_pack.md`,
+3. builds a queryable SQLite vault + WebP evidence + offline HTML report + CSV exports;
+4. writes the LLM memory pack in full and at 2k/4k/8k token ceilings;
+5. offers downloads: `vault.db`, `memory.html`, `memory_pack.md`, `memory_pack_{2,4,8}k.md`,
    `memory_pack.json`, `ledger.json`, `events.csv`, `windows.csv`, `memory.zip`;
-6. answers questions from the memory pack with Qwen when `--qwen` is on.
+6. if `--qwen` is on, answers questions from the **compiled ledger/events**, not video.
 
 Useful launch options:
 
@@ -212,8 +195,10 @@ Useful launch options:
 ./run_studio.sh --help
 ```
 
-The source video is **kept for playback by default**. The vault, memory pack, report and zip
-never reference it. `--delete-video` removes playback and makes the session strictly video-free.
+The downloaded memory is video-free. Keeping the source for playback does not change the LLM
+context; `nlq.py` sends only captions/events to Qwen. The source video is **kept for playback by
+default**; `--delete-video` removes playback and makes the session strictly video-free. The vault,
+memory pack, report and zip never reference the source video either way.
 
 ### Why the memory pack is easier for an LLM
 
@@ -225,6 +210,21 @@ The compiler now produces `memory_pack.md` / `memory_pack.json` with:
 - salient events with `[t=..s]` citations,
 - evidence references,
 - explicit counts and “say unknown” rules.
+
+The pack honours a **token budget** (`--token-budget`, `build_pack(..., token_budget=...)`).
+A budget is a ceiling, not a target: it keeps the verified answer and the answering rules, then
+adds caption windows, events and evidence references until the ceiling is reached, and writes an
+explicit “N more … omitted” note instead of cutting a line in half. The Studio exports
+`memory_pack_2k.md`, `memory_pack_4k.md`, `memory_pack_8k.md` next to the full pack. Short clips
+often fit entirely under 2k; long episodes scale up to the requested ceiling.
+
+Synthetic 60-minute vault (2,474 events, 120 caption windows):
+
+| Budget | Pack chars | Approx. tokens | Behaviour |
+|---:|---:|---:|---|
+| 2,000 | 7,844 | 1,961 | verified answer + rules + a few windows/events |
+| 4,000 | 15,821 | 3,955 | more windows and events |
+| 8,000 | 31,830 | 7,958 | full retrieval set for the episode |
 
 Measured on the same 30 questions:
 

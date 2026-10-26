@@ -114,11 +114,16 @@ def answer_nl(
     model: str = "qwen2.5:7b-instruct",
     host: str = caption_ledger.DEFAULT_HOST,
     timeout: float = 180.0,
+    token_budget: int | None = None,
 ) -> query.Answer:
     started = time.perf_counter()
     deterministic = query.answer(store, question, use_cache=False)
     pack = memory_pack.build_pack(
-        store, question, verified_answer=deterministic, max_chars=12000
+        store,
+        question,
+        verified_answer=deterministic,
+        max_chars=12000,
+        token_budget=token_budget,
     )
     prompt = (
         "You are Chronicle, an egocentric memory assistant. Answer using ONLY the memory "

@@ -141,6 +141,10 @@ def _zip_job(job: dict[str, Any], vault: Path, evidence_dir: Path | None) -> Pat
         (job["dir"] / "ledger.json", "ledger.json"),
         (job["dir"] / "memory_pack.md", "memory_pack.md"),
         (job["dir"] / "memory_pack.json", "memory_pack.json"),
+        *[
+            (job["dir"] / f"memory_pack_{budget // 1000}k.md", f"memory_pack_{budget // 1000}k.md")
+            for budget in memory_pack.TOKEN_BUDGETS
+        ],
         (job["dir"] / "events.csv", "events.csv"),
         (job["dir"] / "windows.csv", "windows.csv"),
     ]
@@ -160,6 +164,7 @@ def _zip_job(job: dict[str, Any], vault: Path, evidence_dir: Path | None) -> Pat
             "memory.html   single-file offline memory browser + query box\n"
             "ledger.json   dense timestamped VLM captions\n"
             "memory_pack.md   LLM-ready memory pack (captions, events, evidence refs)\n"
+            "memory_pack_Nk.md  same pack trimmed to a ~Nk-token budget\n"
             "memory_pack.json same pack as structured JSON\n"
             "events.csv    packed event ledger export\n"
             "windows.csv   caption windows export\n"
@@ -253,23 +258,44 @@ def process_job(job: dict[str, Any]) -> None:
                 }
                 for event in sorted(store.events, key=lambda row: float(row["t"]))[:120]
             ]
-            job["pack_chars"] = len(memory_pack.build_pack(store, max_chars=14000))
-            pack_md = memory_pack.build_pack(store)
-            pack_json = memory_pack.build_pack_data(store)
+            pack_md = memory_pack.build_pack(
+                store,
+                token_budget=ARGS.pack_budget,
+                max_chars=14000,
+            )
+            pack_json = memory_pack.build_pack_data(
+                store, token_budget=ARGS.pack_budget
+            )
             (job_dir / "memory_pack.md").write_text(pack_md, encoding="utf-8")
             (job_dir / "memory_pack.json").write_text(
                 json.dumps(pack_json, indent=2, ensure_ascii=False), encoding="utf-8"
             )
+            budgets: dict[str, dict[str, int]] = {}
+            for budget in memory_pack.TOKEN_BUDGETS:
+                variant = memory_pack.build_pack(store, token_budget=budget)
+                name = f"memory_pack_{budget // 1000}k.md"
+                (job_dir / name).write_text(variant, encoding="utf-8")
+                budgets[str(budget)] = {
+                    "chars": len(variant),
+                    "approx_tokens": round(len(variant) / memory_pack.CHARS_PER_TOKEN),
+                }
+            job["pack_chars"] = len(pack_md)
             job["pack"] = {
                 "chars": len(pack_md),
-                "approx_tokens": round(len(pack_md) / 4.0),
+                "approx_tokens": round(len(pack_md) / memory_pack.CHARS_PER_TOKEN),
+                "token_budget": ARGS.pack_budget,
+                "budgets": budgets,
                 "windows": len(store.ledger_windows),
                 "events": len(store.events),
             }
             _log(
                 job,
                 f"LLM memory pack: {job['pack']['chars']} chars, "
-                f"~{job['pack']['approx_tokens']} tokens",
+                f"~{job['pack']['approx_tokens']} tokens · "
+                + " / ".join(
+                    f"{int(budget) // 1000}k={data['approx_tokens']}t"
+                    for budget, data in budgets.items()
+                ),
             )
         finally:
             con.close()
@@ -281,6 +307,10 @@ def process_job(job: dict[str, Any]) -> None:
             "ledger.json": ledger_path,
             "memory_pack.md": job_dir / "memory_pack.md",
             "memory_pack.json": job_dir / "memory_pack.json",
+            **{
+                f"memory_pack_{budget // 1000}k.md": job_dir / f"memory_pack_{budget // 1000}k.md"
+                for budget in memory_pack.TOKEN_BUDGETS
+            },
             "events.csv": job_dir / "events.csv",
             "windows.csv": job_dir / "windows.csv",
             "memory.zip": zip_path,
@@ -431,6 +461,10 @@ def build_ui() -> None:
                     "memory.html",
                     "memory_pack.md",
                     "memory_pack.json",
+                    *[
+                        f"memory_pack_{budget // 1000}k.md"
+                        for budget in memory_pack.TOKEN_BUDGETS
+                    ],
                     "ledger.json",
                     "events.csv",
                     "windows.csv",
@@ -443,9 +477,15 @@ def build_ui() -> None:
                                 f"/jobs/{job['id']}/download/{name}"
                             ),
                         ).props("outline dense no-caps").classes("text-xs chronicle-mono")
+                pack = job.get("pack") or {}
+                budget_text = " · ".join(
+                    f"{int(budget) // 1000}k≈{data.get('approx_tokens', 0)}t"
+                    for budget, data in (pack.get("budgets") or {}).items()
+                )
                 ui.label(
                     f"{job.get('duration_s', 0):.1f}s · source kept for playback · "
                     f"LLM pack {job.get('pack_chars', 0)/1024:.1f} KB text · 0 frames"
+                    + (f" · budgets {budget_text}" if budget_text else "")
                 ).classes("text-[11px] chronicle-mono text-slate-500")
             if not state.get("timeline_loaded"):
                 render_timeline(job)
@@ -553,6 +593,7 @@ def build_ui() -> None:
                         model=ARGS.qwen_model,
                         host=ARGS.ollama_url,
                         timeout=ARGS.qwen_timeout,
+                        token_budget=ARGS.pack_budget,
                     )
                 else:
                     result = await run.io_bound(query.answer, store, text, use_cache=True)
@@ -716,6 +757,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--frames-per-window", type=int, default=3)
     parser.add_argument("--frame-width", type=int, default=640)
     parser.add_argument("--max-snapshots", type=int, default=40)
+    parser.add_argument(
+        "--pack-budget",
+        type=int,
+        default=None,
+        help="default memory pack size in tokens (e.g. 2000/4000/8000); "
+        "all three variants are always exported",
+    )
     parser.add_argument("--max-upload-gb", type=float, default=2.0)
     parser.add_argument("--data-dir", type=Path, default=Path("/tmp/vfm/studio"))
     parser.add_argument(

@@ -33,6 +33,15 @@ _STOP = {
 }
 _KIND_WEIGHT = {"interaction": 4, "anchor": 3, "state": 2, "keyframe": 1}
 
+#: Rough character/token ratio used for budget sizing. The pack is plain English
+#: with short numbers and timestamps; four characters per token is the same
+#: approximation used by the benchmark and Studio.
+CHARS_PER_TOKEN = 4.0
+
+#: Suggested budgets. Any positive integer is accepted; these are the defaults
+#: exposed by the CLI and Studio selector.
+TOKEN_BUDGETS = (2000, 4000, 8000)
+
 
 def _tokens(text: str) -> set[str]:
     return {token for token in _TOKEN.findall(str(text).lower()) if token}
@@ -97,30 +106,87 @@ def _select_events(
     return rows[-max_events:]
 
 
-def build_pack(
+_RULES = [
+    "## Answering rules",
+    "- The verified structured answer, when present, is authoritative.",
+    "- Question terms may be synonyms (mug/cup, coffee cup/cup, rucksack/backpack); do not",
+    "  answer unknown when a verified answer exists.",
+    "- Answer only from this memory. Do not invent objects, places, times or actions.",
+    "- Write counts as digits, e.g. '2 cup tracks', not 'two cups'.",
+    "- Cite timestamps as [t=12.3s].",
+    "- If the memory cannot answer, reply exactly: I don't have that in my memory.",
+]
+
+
+def _approx_tokens(text: str) -> int:
+    return int(round(len(text) / CHARS_PER_TOKEN))
+
+
+def _budget_chars(token_budget: int | None, max_chars: int) -> int:
+    """Translate a token budget into a character ceiling.
+
+    ``max_chars`` is kept for backwards compatibility. When ``token_budget`` is
+    given it wins, because that it is what the CLI/Studio selector exposes.
+    """
+
+    if token_budget is None:
+        return max(2000, int(max_chars))
+    return max(800, int(round(float(token_budget) * CHARS_PER_TOKEN)))
+
+
+def _window_block(window: dict[str, Any], *, include_frames: bool = True) -> list[str]:
+    start = float(window.get("t_start") or 0.0)
+    end = float(window.get("t_end") or start + 30.0)
+    caption = str(window.get("caption") or window.get("text") or "").strip()
+    lines = [f"[{start:.1f}-{end:.1f}s] {caption}"]
+    objects = ", ".join(str(value) for value in window.get("objects") or [])
+    actions = ", ".join(str(value) for value in window.get("actions") or [])
+    zone = str(window.get("zone") or "")
+    if objects:
+        lines.append(f"  objects: {objects}")
+    if actions:
+        lines.append(f"  actions: {actions}")
+    if zone and zone != "unknown":
+        lines.append(f"  zone: {zone}")
+    if include_frames:
+        for frame in window.get("frames") or []:
+            if isinstance(frame, dict) and frame.get("caption"):
+                lines.append(f"  frame t={float(frame.get('t') or 0):.1f}s: {frame['caption']}")
+    return lines
+
+
+def _event_line(event: dict[str, Any]) -> str:
+    return f"- [t={float(event['t']):.1f}s] {query.caption_for(event)}"
+
+
+def _evidence_line(row: dict[str, Any]) -> str:
+    return f"- [t={float(row['t']):.1f}s] {row.get('label') or row.get('kind')}"
+
+
+def _header_lines(
     store: query.EventStore,
-    question: str | None = None,
+    question: str | None,
+    window_count: int,
+    event_count: int,
+    evidence_count: int,
     *,
-    verified_answer: query.Answer | None = None,
-    max_chars: int = 14000,
-    max_windows: int = 12,
-    max_events: int = 60,
-) -> str:
-    windows = _select_windows(store, question, max_windows)
-    events = _select_events(store, question, max_events)
+    token_budget: int | None = None,
+) -> list[str]:
     counts: dict[str, int] = {}
     for entity in store.entities:
         label = str(entity["label"])
         counts[label] = counts.get(label, 0) + 1
-
-    lines: list[str] = [
+    lines = [
         "# Chronicle memory pack",
         f"Duration: {store.duration:.1f}s",
-        f"Caption windows: {len(store.ledger_windows)} total, {len(windows)} shown",
+        f"Caption windows: {len(store.ledger_windows)} total, {window_count} shown",
         "Counts (tracker tracks, not verified physical objects): "
         + ", ".join(f"{label}: {count}" for label, count in sorted(counts.items())),
-        "",
     ]
+    if token_budget is not None:
+        lines.append(f"Budget: ~{int(token_budget)} tokens")
+    lines.append(f"Events shown: {event_count} · evidence refs: {evidence_count}")
+    lines.append("")
     if question:
         entity = query._match_entity(store, question)
         if entity is not None:
@@ -129,45 +195,63 @@ def build_pack(
                 "(treat synonyms such as mug/cup or rucksack/backpack as this entity)."
             )
             lines.append("")
-    if verified_answer is not None and verified_answer.method not in {"no-match", "empty"}:
-        lines.extend(
-            [
-                "## Verified structured answer",
-                "Use this as the primary answer; use the captions below for extra detail.",
-                verified_answer.answer,
-            ]
+    return lines
+
+
+def _verified_lines(
+    verified_answer: query.Answer | None, *, max_answer_chars: int | None = None
+) -> list[str]:
+    if verified_answer is None or verified_answer.method in {"no-match", "empty"}:
+        return []
+    answer = str(verified_answer.answer or "")
+    if max_answer_chars is not None and len(answer) > max_answer_chars:
+        answer = answer[: max(40, max_answer_chars)].rstrip() + " …"
+    lines = [
+        "## Verified structured answer",
+        "Use this as the primary answer; use the captions below for extra detail.",
+        answer,
+    ]
+    for citation in verified_answer.citations[:4]:
+        lines.append(
+            f"- citation [t={float(citation.get('t') or 0):.1f}s] "
+            f"{str(citation.get('caption') or '')[:240]}"
         )
-        for citation in verified_answer.citations[:4]:
-            lines.append(
-                f"- citation [t={float(citation.get('t') or 0):.1f}s] "
-                f"{str(citation.get('caption') or '')[:240]}"
-            )
-        lines.append("")
+    lines.append("")
+    return lines
 
-    lines.extend(["## Timestamped caption windows"])
-    for window in windows:
-        start = float(window.get("t_start") or 0.0)
-        end = float(window.get("t_end") or start + 30.0)
-        caption = str(window.get("caption") or window.get("text") or "").strip()
-        lines.append(f"[{start:.1f}-{end:.1f}s] {caption}")
-        objects = ", ".join(str(value) for value in window.get("objects") or [])
-        actions = ", ".join(str(value) for value in window.get("actions") or [])
-        zone = str(window.get("zone") or "")
-        if objects:
-            lines.append(f"  objects: {objects}")
-        if actions:
-            lines.append(f"  actions: {actions}")
-        if zone and zone != "unknown":
-            lines.append(f"  zone: {zone}")
-        for frame in window.get("frames") or []:
-            if isinstance(frame, dict) and frame.get("caption"):
-                lines.append(f"  frame t={float(frame.get('t') or 0):.1f}s: {frame['caption']}")
 
-    lines.extend(["", "## Event ledger"])
-    for event in events:
-        lines.append(f"- [t={float(event['t']):.1f}s] {query.caption_for(event)}")
+def build_pack(
+    store: query.EventStore,
+    question: str | None = None,
+    *,
+    verified_answer: query.Answer | None = None,
+    max_chars: int = 14000,
+    max_windows: int = 12,
+    max_events: int = 60,
+    token_budget: int | None = None,
+) -> str:
+    """Render a memory pack that fits ``token_budget`` (or ``max_chars``).
 
-    lines.extend(["", "## Evidence references"])
+    A budget never cuts a line in half. It keeps the verified answer and the
+    answering rules, then adds caption windows, events and evidence references
+    until the budget is full. Smaller budgets therefore lose detail, not
+    instructions.
+    """
+
+    limit = _budget_chars(token_budget, max_chars)
+    # A small reserve lets us append "(N omitted ...)" notes without crossing
+    # the ceiling. Without a token budget the legacy max_chars path is used.
+    reserve = 220 if token_budget is not None else 120
+    working_limit = max(400, limit - reserve)
+
+    if token_budget is not None:
+        # Let larger budgets actually use their headroom instead of being
+        # capped by the small default retrieval window.
+        max_windows = max(max_windows, max(6, int(token_budget // 300)))
+        max_events = max(max_events, max(20, int(token_budget // 50)))
+
+    windows = _select_windows(store, question, max_windows)
+    events = _select_events(store, question, max_events)
     evidence = sorted(
         store.evidence,
         key=lambda row: (
@@ -177,25 +261,92 @@ def build_pack(
             )
         ),
     )[:24]
-    for row in evidence:
-        lines.append(f"- [t={float(row['t']):.1f}s] {row.get('label') or row.get('kind')}")
 
-    lines.extend(
-        [
-            "",
-            "## Answering rules",
-            "- The verified structured answer, when present, is authoritative.",
-            "- Question terms may be synonyms (mug/cup, coffee cup/cup, rucksack/backpack); do not",
-            "  answer unknown when a verified answer exists.",
-            "- Answer only from this memory. Do not invent objects, places, times or actions.",
-            "- Write counts as digits, e.g. '2 cup tracks', not 'two cups'.",
-            "- Cite timestamps as [t=12.3s].",
-            "- If the memory cannot answer, reply exactly: I don't have that in my memory.",
-        ]
-    )
-    text = "\n".join(lines)
-    if len(text) > max_chars:
-        text = text[:max_chars].rsplit("\n", 1)[0] + "\n... (memory pack truncated)"
+    chosen_windows: list[list[str]] = []
+    chosen_events: list[str] = []
+    chosen_evidence: list[str] = []
+    omitted = {"windows": 0, "events": 0, "evidence": 0}
+    verified_text_limit: int | None = None
+
+    def render() -> str:
+        lines = _header_lines(
+            store,
+            question,
+            len(chosen_windows),
+            len(chosen_events),
+            len(chosen_evidence),
+            token_budget=token_budget,
+        )
+        lines.extend(_verified_lines(verified_answer, max_answer_chars=verified_text_limit))
+        lines.append("## Timestamped caption windows")
+        if chosen_windows:
+            for block in chosen_windows:
+                lines.extend(block)
+        else:
+            lines.append("(no caption windows in this vault)")
+        lines.extend(["", "## Event ledger"])
+        if chosen_events:
+            lines.extend(chosen_events)
+        else:
+            lines.append("(no events in this vault)")
+        lines.extend(["", "## Evidence references"])
+        if chosen_evidence:
+            lines.extend(chosen_evidence)
+        else:
+            lines.append("(no evidence snapshots)")
+        lines.extend([""] + _RULES)
+        if any(omitted.values()):
+            notes = [
+                f"{count} more {name} omitted for the "
+                f"{int(token_budget)}-token budget"
+                if token_budget is not None
+                else f"{count} more {name} omitted for the size limit"
+                for name, count in omitted.items()
+                if count
+            ]
+            lines.extend(["", "… " + "; ".join(notes) + "."])
+        return "\n".join(lines)
+
+    # If even the fixed part (header + verified answer + rules) is over budget,
+    # shorten only the verified answer text; never drop the instructions.
+    if len(render()) > working_limit and verified_answer is not None:
+        fixed_without_answer = len(render())
+        answer_len = len(str(verified_answer.answer or ""))
+        overflow = fixed_without_answer - working_limit
+        verified_text_limit = max(80, answer_len - overflow - 80)
+
+    for window in windows:
+        block = _window_block(window, include_frames=True)
+        chosen_windows.append(block)
+        if len(render()) <= working_limit:
+            continue
+        chosen_windows.pop()
+        lean = _window_block(window, include_frames=False)
+        chosen_windows.append(lean)
+        if len(render()) <= working_limit:
+            continue
+        chosen_windows.pop()
+        omitted["windows"] += 1
+
+    for event in events:
+        chosen_events.append(_event_line(event))
+        if len(render()) <= working_limit:
+            continue
+        chosen_events.pop()
+        omitted["events"] += 1
+
+    for row in evidence:
+        chosen_evidence.append(_evidence_line(row))
+        if len(render()) <= working_limit:
+            continue
+        chosen_evidence.pop()
+        omitted["evidence"] += 1
+
+    text = render()
+    if len(text) > limit:
+        # Last-resort guard for pathological strings (e.g. an enormous verified
+        # answer). Trim on a line boundary so the pack stays valid text.
+        text = text[:limit].rsplit("\n", 1)[0] + "\n... (memory pack truncated)"
     return text
 
 
@@ -204,9 +355,11 @@ def build_pack_data(
     *,
     max_windows: int = 200,
     max_events: int = 400,
+    token_budget: int | None = None,
 ) -> dict[str, Any]:
     windows = store.ledger_windows[:max_windows]
     events = sorted(store.events, key=lambda event: float(event["t"]))[:max_events]
+    pack = build_pack(store, token_budget=token_budget)
     return {
         "version": 1,
         "duration_s": round(store.duration, 3),
@@ -255,8 +408,9 @@ def build_pack_data(
             for row in sorted(store.evidence, key=lambda row: float(row["t"]))
         ],
         "stats": {
-            "chars": len(build_pack(store)),
-            "approx_tokens": round(len(build_pack(store)) / 4.0),
+            "chars": len(pack),
+            "approx_tokens": _approx_tokens(pack),
+            "token_budget": token_budget,
             "windows": len(store.ledger_windows),
             "events": len(store.events),
             "evidence": len(store.evidence),
@@ -276,20 +430,66 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--question", default=None)
     parser.add_argument("--max-chars", type=int, default=14000)
+    parser.add_argument(
+        "--token-budget",
+        type=int,
+        default=None,
+        help="target pack size in tokens, e.g. 2000, 4000 or 8000 (overrides --max-chars)",
+    )
+    parser.add_argument(
+        "--list-budgets",
+        action="store_true",
+        help="print pack size at each suggested budget and exit",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     store = load_store(args.db.expanduser().resolve())
     try:
-        if args.json:
-            payload = build_pack_data(store)
+        if args.list_budgets:
+            rows = []
+            for budget in TOKEN_BUDGETS:
+                text = build_pack(
+                    store,
+                    args.question,
+                    token_budget=budget,
+                    max_chars=max(2000, args.max_chars),
+                )
+                rows.append(
+                    {
+                        "token_budget": budget,
+                        "chars": len(text),
+                        "approx_tokens": _approx_tokens(text),
+                    }
+                )
+            text = json.dumps(rows, indent=2)
+            if not args.out:
+                print(text)
+                return 0
+        elif args.json:
+            payload = build_pack_data(store, token_budget=args.token_budget)
             text = json.dumps(payload, indent=2, ensure_ascii=False)
         else:
-            text = build_pack(store, args.question, max_chars=max(2000, args.max_chars))
+            text = build_pack(
+                store,
+                args.question,
+                token_budget=args.token_budget,
+                max_chars=max(2000, args.max_chars),
+            )
     finally:
         store.con.close()
     if args.out:
         args.out.expanduser().resolve().write_text(text, encoding="utf-8")
-        print(json.dumps({"out": str(args.out), "chars": len(text), "approx_tokens": round(len(text) / 4)}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "out": str(args.out),
+                    "chars": len(text),
+                    "approx_tokens": _approx_tokens(text),
+                    "token_budget": args.token_budget,
+                },
+                indent=2,
+            )
+        )
     else:
         print(text)
     return 0

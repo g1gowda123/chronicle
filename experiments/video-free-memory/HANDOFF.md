@@ -12,6 +12,10 @@
 
 Read first: `README.md`, `docs/DESIGN.md`, `docs/JOURNAL.md`, `docs/RESEARCH.md`.
 
+> **Parallel agents:** claim your task in [`docs/AGENT_BOARD.md`](docs/AGENT_BOARD.md) before
+> editing. The P0 main-UI integration is currently **IN PROGRESS** (opencode/AI); P1, P2 and the
+> caption-window task are unclaimed.
+
 ---
 
 ## TL;DR
@@ -264,7 +268,8 @@ report, zip and pack downloads returned 200.
 ### P2 — product polish
 
 13. Snapshot dedup / perceptual hash and a 24 h / 7 day retention test.
-14. Add a token-budget selector to the pack (2k/4k/8k).
+14. ~~Add a token-budget selector to the pack (2k/4k/8k).~~ **DONE** — `--token-budget` /
+    `--pack-budget`, `memory_pack_{2,4,8}k.md` exports, `tests/test_pack.py`.
 15. Optional audio/speech ledger (EgoCITE).
 16. Int8 embeddings only if lexical/dense retrieval misses measurable cases.
 17. Multi-video registry and cross-episode entity resolution; not built yet.
