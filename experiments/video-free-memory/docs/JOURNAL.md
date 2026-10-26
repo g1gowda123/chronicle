@@ -539,8 +539,8 @@ Results and measurements will be appended as a separate entry when the integrati
 ### Goal
 
 Stop assuming 30 s without data. Keep the VLM, prompts, frames/window, evidence/report/pack
-pipeline and 30 questions fixed; vary only `caption_ledger.py --window-s` on cook (10/20/30 s
-first, per the handoff).
+pipeline and 30 questions fixed; vary only `caption_ledger.py --window-s` on cook
+(10/15/20/30/45/60 s). Walking/hololens remain for the follow-up pass.
 
 ### Setup
 
@@ -552,31 +552,38 @@ first, per the handoff).
 
 ### Measured
 
-| Window | Ledger zlib | Windows | VLM calls | Caption wall | Objects / actions | Full cook pack | Qwen pack/question | Qwen p50 | 30-Q accuracy |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 10 s | 1,804 B | 5 | 15 | 40.4 s | 23 / 55 | 2,158 tok | 1,152 tok | 1,363 ms | 30/30 |
-| 20 s | 1,438 B | 3 | 9 | 24.0 s | 22 / 49 | 1,704 tok | 1,050 tok | 1,155 ms | 30/30 |
-| 30 s | **1,095 B** | **2** | **6** | **16.0 s** | 21 / 31 | **1,641 tok** | **1,041 tok** | **1,113 ms** | 30/30 |
+| Window | Ledger zlib | Windows | VLM calls | Caption wall | Objects / actions | Full cook pack | Qwen pack/question | Qwen p50 | 30-Q accuracy | Chinese actions |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 10 s | 1,804 B | 5 | 15 | 40.4 s | 23 / 55 | 2,158 tok | 1,152 tok | 1,363 ms | 30/30 | 47 |
+| 15 s | 1,192 B | 3 | 9 | 31.0 s | 21 / 40 | 1,755 tok | 1,077 tok | 1,201 ms | 30/30 | 0 |
+| 20 s | 1,438 B | 3 | 9 | 24.0 s | 22 / 49 | 1,704 tok | 1,050 tok | 1,155 ms | 30/30 | 98 |
+| 30 s | **1,095 B** | **2** | **6** | **16.0 s** | 21 / 31 | **1,641 tok** | **1,041 tok** | **1,113 ms** | 30/30 | 0 |
+| 45 s | 680 B | 1 | 3 | 8.9 s | 12 / 15 | 1,304 tok | 887 tok | 1,056 ms | 30/30 | 0 |
+| 60 s | 648 B | 1 | 3 | 6.3 s | 14 / 17 | 1,267 tok | 862 tok | 1,054 ms | 30/30 | 0 |
 
-- Deterministic accuracy is unchanged (30/30, p50 0.045–0.058 ms) because event timestamps, not
+- Deterministic accuracy is unchanged (30/30, p50 0.059–0.072 ms) because event timestamps, not
   captions, carry the temporal answer. Caption windows only affect caption/keyword/LLM paths.
 - 10 s buys no accuracy and costs ~65% more ledger bytes, 2.5× the VLM calls and ~35% more Qwen
   prompt tokens than 30 s.
-- Caption language is unstable at short windows in this Ollama build: the 10 s and 20 s ledgers
-  contained Chinese action strings, and the 20 s synthesis produced a one-word "kitchen" window.
-  The 30 s ledger was English and the most coherent.
+- 45/60 s collapse the 45 s clip to one window and lose roughly half the caption objects/actions
+  (12–14 objects, 15–17 actions vs 21/31 at 30 s).
+- Caption language is unstable at some windows in this Ollama build: the 10 s and 20 s ledgers
+  contained Chinese action strings (47 and 98 non-ASCII characters), and the 20 s synthesis
+  produced a one-word "kitchen" window. The 30 s ledger was English and coherent.
 
 ### Decision
 
-- **Keep 30 s as the default.** All candidates pass the regression set; 30 s is the smallest
-  ledger/pack and the fastest compile, with the cleanest captions. Tie-break rule says 30 s.
-- Do not claim the window sweep is complete: 15/45/60 s and walking/hololens are still unmeasured.
-  The 30 s default is justified by the cook pass and by the earlier 30 vs 60 s comparison
+- **Keep 30 s as the default.** All six candidates pass the regression set. 30 s is the smallest
+  window that keeps the full 45 s caption coverage (2 windows, 21 objects, 31 actions), is smaller
+  than 10/15/20 s, and has no language artifacts. 45/60 s are cheaper only because they lose a
+  window; they are not better memory. Tie-break rule says 30 s.
+- The 30 s default is justified by the cook sweep and by the earlier 30 vs 60 s comparison
   (Session 4: 30 s wins on recall per byte).
+- Do not claim the window sweep is complete: walking and hololens are still unmeasured.
 
 ### Next
 
-1. Run 15/45/60 s on walking + hololens (the expensive half; dominated by VLM calls).
+1. Run the same six windows on walking + hololens (the expensive half; dominated by VLM calls).
 2. Ablate the event-ledger anchor interval (`compile.py WINDOW_S`) separately from the caption
    window; they are both 30 s today but serve different purposes.
 3. If a shorter window is ever wanted for uploads, fix caption language/synthesis quality first;
