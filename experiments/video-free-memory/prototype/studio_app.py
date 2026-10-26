@@ -35,6 +35,7 @@ import caption_ledger
 import memory_pack
 import nlq
 import query
+import retention
 import video_vault
 from report import build_report
 
@@ -237,6 +238,38 @@ def process_job(job: dict[str, Any]) -> None:
             )
             job["evidence"] = evidence
             _log(job, f"evidence: {evidence['snapshots']} snapshots, {evidence['snapshot_bytes']} B")
+            if not ARGS.no_dedup_evidence:
+                try:
+                    pruned = retention.apply(
+                        vault,
+                        keep_per_hour=1_000_000,
+                        data_root=job_dir,
+                        delete_files=True,
+                        drop_cache=False,
+                        vacuum=False,
+                        dedup=True,
+                    )
+                    remaining_bytes = sum(
+                        item.stat().st_size
+                        for item in evidence_dir.glob("*")
+                        if item.is_file()
+                    )
+                    job["evidence"].update(
+                        {
+                            "snapshots": pruned["evidence_after"],
+                            "snapshot_bytes": remaining_bytes,
+                            "dedup_dropped": pruned["dedup_dropped"],
+                        }
+                    )
+                    if pruned["dedup_dropped"]:
+                        _log(
+                            job,
+                            f"evidence dedup: {pruned['evidence_before']} → "
+                            f"{pruned['evidence_after']} snapshots "
+                            f"({pruned['dedup_dropped']} near-identical removed)",
+                        )
+                except Exception as exc:
+                    _log(job, f"evidence dedup skipped: {type(exc).__name__}: {exc}")
         except Exception as exc:
             job["evidence"] = {"snapshots": 0, "snapshot_bytes": 0, "error": str(exc)}
             _log(job, f"evidence skipped: {type(exc).__name__}: {exc}")
@@ -757,6 +790,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--frames-per-window", type=int, default=3)
     parser.add_argument("--frame-width", type=int, default=640)
     parser.add_argument("--max-snapshots", type=int, default=40)
+    parser.add_argument(
+        "--no-dedup-evidence",
+        action="store_true",
+        help="keep near-identical evidence snapshots (dedup is on by default)",
+    )
     parser.add_argument(
         "--pack-budget",
         type=int,

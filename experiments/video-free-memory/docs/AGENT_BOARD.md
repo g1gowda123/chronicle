@@ -37,7 +37,7 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 | P1-EXTERNAL | P1 | External benchmark (EgoSchema / Ego4D NLQ / CapMem) | `prototype/`, `benchmark/`, `docs/RESEARCH.md` | READY | unclaimed |
 | P1-GEMINI | P1 | Paid/faster online VLM baseline | `prototype/online_baseline.py` | READY | unclaimed |
 | P1-FLORENCE | P1 | Florence-2 vs Qwen2.5-VL A/B on 30 s windows | `prototype/`, `docs/JOURNAL.md` | READY | unclaimed |
-| P2-RETENTION | P2 | Snapshot dedup + 24 h / 7 day retention test | `prototype/retention.py`, `tests/test_retention.py` | IN PROGRESS | opencode/DeepSeek-V4.1-Flash |
+| P2-RETENTION | P2 | Snapshot dedup + 24 h / 7 day retention test | `prototype/retention.py`, `tests/test_retention.py` | DONE (`0ac94d0`) | opencode/DeepSeek-V4.1-Flash |
 | P2-PACK | P2 | Token-budget selector (2k / 4k / 8k) | `prototype/memory_pack.py`, `prototype/studio_app.py`, `tests/test_pack.py` | DONE (see journal Session 7) | opencode/DeepSeek-V4.1-Flash |
 | QUICK-WINDOW | Quick | Caption-window fine-tune (10/15/20/30/45/60 s) | `prototype/caption_ledger.py`, `docs/JOURNAL.md` | READY | unclaimed |
 

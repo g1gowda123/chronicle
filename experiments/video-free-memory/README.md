@@ -175,6 +175,7 @@ Options:
 | `--window-s` / `--frames-per-window` | caption window policy (default 30 s / 3 frames) |
 | `--delete-video` | remove the uploaded source after compile (no playback) |
 | `--pack-budget` | default pack ceiling in tokens, default 4k (2k/4k/8k variants are always exported) |
+| `--no-dedup-evidence` | keep near-identical snapshots (dHash dedup is on by default) |
 | `--data-dir` | job workspace (default `/tmp/vfm/studio`) |
 | `--port` / `--host` | server bind |
 
@@ -182,7 +183,8 @@ Upload MP4/MOV/WebM/MKV. The Studio:
 
 1. saves the upload and shows it in a normal HTML5 player;
 2. captions 30 s windows once with the local VLM;
-3. builds a queryable SQLite vault + WebP evidence + offline HTML report + CSV exports;
+3. builds a queryable SQLite vault + WebP evidence (near-identical snapshots deduped) +
+   offline HTML report + CSV exports;
 4. writes the LLM memory pack in full and at 2k/4k/8k token ceilings;
 5. offers downloads: `vault.db`, `memory.html`, `memory_pack.md`, `memory_pack_{2,4,8}k.md`,
    `memory_pack.json`, `ledger.json`, `events.csv`, `windows.csv`, `memory.zip`;
