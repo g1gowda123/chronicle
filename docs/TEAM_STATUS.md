@@ -40,6 +40,25 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### NB-05 — every bundled source verified end to end
+
+- Ran all five registered sources (`synthetic`, `tabletop`, `walking`, `cook`,
+  `play`) through `chronicle.benchmark` with full clips and offline fallbacks:
+  **all 5 sources completed and passed 9/9 snapshot invariants**.
+- Ran a bounded production pass (180 frames, YOLO-World + MediaPipe + OpenCLIP)
+  on the four real clips: all four passed 9/9; tabletop produced 127 detections
+  / 2 entities / 4 actions, cook 574 / 9 / 1, play 918 / 5 / 0, walking
+  193 / 3 / 0. Full tables and commands are in `docs/PERCEPTION.md`.
+- Confirmed the lead-in issue: a 30-frame tabletop run starts before the first
+  Joy-Con action at 4.2 s and may report zero detections; use at least 180
+  frames (or seek past the lead-in) for the HoloLens rehearsal.
+- Added a headless dashboard check that every registered clip is served by
+  `/source-video` with HTTP 200 and a `video/*` content type
+  (`tests/test_dashboard_smoke.py`). The interactive dropdown/video player
+  remains the UI owner's later pass.
+- No source has a blocking failure. The only gap is Aria action accuracy,
+  which needs annotations; structure/query completion is green.
+
 ### NB-04 — demo preflight
 
 - Added `scripts/demo_preflight.py` and `./chronicle.sh preflight`: one command

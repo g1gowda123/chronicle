@@ -101,7 +101,29 @@ def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
         snapshot_after = json.loads(client.get("/export/snapshot.json").text)
         assert any(e["label"] == "cup" for e in snapshot_after["entities"])
 
-        # 6. Missing source-video returns 404 cleanly
+        # 6. Every registered source clip is servable by the player
+        repo_data = Path(__file__).resolve().parents[1] / "data"
+        from chronicle.sources import SOURCES
+
+        checked = 0
+        for source in SOURCES:
+            video = source.video_path(repo_data)
+            if not video.is_file():
+                continue
+            with state.lock:
+                state.source = source
+                state.source_key = source.key
+                state.video = video
+            response = client.get("/source-video")
+            assert response.status_code == 200, source.key
+            assert response.headers["content-type"].startswith("video/"), source.key
+            assert len(response.content) > 1024, source.key
+            checked += 1
+        assert checked > 0
+
+        # 7. Missing source-video returns 404 cleanly
+        with state.lock:
+            state.video = tmp_path / "missing.mp4"
         res_video = client.get("/source-video")
         assert res_video.status_code == 404
     finally:

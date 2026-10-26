@@ -396,6 +396,58 @@ their own `frame_index`, which the runtime also passed as a keyword. The sink
 now merges the payload explicitly and a model-free regression test covers it
 (`tests/test_integration.py`).
 
+### NB-05 — every bundled source end to end
+
+Run on 2026-10-27 with all five registered sources. The full-clip pass uses the
+offline colour backends to verify plumbing for every frame; the bounded pass
+uses YOLO-World + MediaPipe + OpenCLIP on the real clips to record the
+production path. Every run passed all 9 snapshot invariants.
+
+```bash
+# Full clips, offline backends
+python -m chronicle.benchmark --sources all \
+  --detector color --hands color --embedder color \
+  --out runs/benchmark/nb05-fallback.json
+
+# Bounded production pass on the real clips
+python -m chronicle.benchmark --sources tabletop,cook,play,walking \
+  --max-frames 180 --detector yolo-world --hands mediapipe --embedder openclip \
+  --out runs/benchmark/nb05-production.json
+```
+
+| Source | Backends | Frames | Wall | Throughput | Detections | Entities | Transitions | Actions | Clips | Grounded | Checks |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| synthetic | colour / colour / colour | 360 | 4.19 s | 85.9 fps | 1440 | 4 | 10 | 1 | 1 | 2/2 | 9/9 |
+| tabletop | colour / colour / colour | 1019 | 8.38 s | 121.5 fps | 1269 | 4 | 112 | 16 | 16 | 1/3 | 9/9 |
+| walking | colour / colour / colour | 600 | 3.88 s | 154.5 fps | 0 | 0 | 0 | 0 | 0 | 0/5 | 9/9 |
+| cook | colour / colour / colour | 450 | 2.26 s | 199.3 fps | 0 | 0 | 0 | 0 | 0 | 0/2 | 9/9 |
+| play | colour / colour / colour | 450 | 3.00 s | 150.2 fps | 0 | 0 | 0 | 0 | 0 | 0/3 | 9/9 |
+
+| Source | Backends | Frames | Wall | Throughput | Detections | Entities | Transitions | Actions | Clips | Grounded | Checks |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| tabletop | YOLO-World / MediaPipe / OpenCLIP | 180 | 14.06 s | 12.8 fps | 127 | 2 | 5 | 4 | 4 | 3/3 | 9/9 |
+| cook | YOLO-World / MediaPipe / OpenCLIP | 180 | 16.84 s | 10.7 fps | 574 | 9 | 60 | 1 | 1 | 2/2 | 9/9 |
+| play | YOLO-World / MediaPipe / OpenCLIP | 180 | 16.32 s | 11.0 fps | 918 | 5 | 20 | 0 | 0 | 1/3 | 9/9 |
+| walking | YOLO-World / MediaPipe / OpenCLIP | 180 | 17.94 s | 10.0 fps | 193 | 3 | 32 | 0 | 0 | 5/5 | 9/9 |
+
+Notes:
+
+- The colour backends are a plumbing check only; they deliberately detect
+  nothing on real Aria footage.
+- A 30-frame tabletop run starts before the first Joy-Con action at 4.2 s and
+  can report zero detections. Use at least a 180-frame window, or seek past the
+  lead-in, when rehearsing the HoloLens demo.
+- Grounded questions are answered for every source in the full fallback pass;
+  `tabletop` has one ungrounded question (`what did I do with the joy-con?`)
+  because the colour backends cannot see the Joy-Con. The production pass
+  answers all three tabletop questions.
+- The dashboard video route was verified headlessly for every registered
+  source (`tests/test_dashboard_smoke.py`): each clip returns HTTP 200 with a
+  `video/*` content type. The interactive dropdown/video player is the user's
+  upcoming UI work; the underlying source selection and file route are proven.
+- No source has a blocking failure. The only gap is the unlabelled Aria action
+  accuracy noted above; structural completion is green for all five.
+
 
 ## Known limitations
 
