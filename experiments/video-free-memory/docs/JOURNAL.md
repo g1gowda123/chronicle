@@ -730,3 +730,72 @@ no Qwen). This exercises the server-side ingest callback, not a hand-submitted j
 - Added tests for `--no-vfm` (routes inert/404) and the `on_ingest_done` → manager wiring.
 - `tests/test_vfm.py` is now **8 tests**; `tests/test_vfm.py tests/test_dashboard_smoke.py` →
   9 passed; ruff clean.
+
+---
+
+## 2026-10-27 — Session 9: cross-label duplicate counts (P1-COUNTS accuracy)
+
+### What the frames showed
+
+I extracted cook frames and drew the source observation boxes. The two plates are emitted under
+**both** labels:
+
+- empty plate by the sink: `bowl:track_2` early, then `plate:track_8`;
+- plate with tomato slices: `bowl:track_3`, then `plate:track_11` and `bowl:track_12`;
+- `bowl:track_20` is a single frame.
+
+Co-visible cross-label boxes are the same pixels: IoU 0.99 for track_2/track_8, 0.91 for
+track_3/track_8, 0.95 for track_12/track_11. So "4 bowls" was not fragmentation — it was two
+plates counted twice under the wrong label. The visual check at 0/12/20/30/40/44 s shows two
+plates and no bowls on the counter.
+
+### Built
+
+- `compile.py::visibility_counts`: in addition to `tracks` and `peak`, it now detects
+  **cross-label duplicates** (different labels, same frame, IoU ≥ 0.90, centres ≤ 5 px, winner =
+  label with more total observations). It also drops one-frame transients. Stored per label:
+  `physical`, `duplicates`, `transient`, `merged_into`.
+- `query.py`: new `vault-count-dedup` branch. Bowls answer:
+  "The memory tracked 4 bowl tracks. 3 of them are near-identical duplicate detections of 3 plate
+  tracks and 1 one-frame track is transient, so the physical bowl count is 0."
+- `report.py` (both `prototype/` and `chronicle/vfm/`): the offline JS count branch renders the
+  same dedup answer from embedded `DATA.counts`.
+- `tests/test_counts.py`: synthetic cross-label duplicate pair + report branch assertions.
+
+### Measured
+
+| Episode | Label | Tracks | Peak | Physical | Method |
+| --- | --- | ---: | ---: | ---: | --- |
+| cook | bowl | 4 | 2 | **0** | dedup |
+| cook | plate | 2 | 2 | 2 | visibility |
+| cook | cup | 2 | 2 | 2 | visibility |
+| walking | car | 2 | 1 | 2 | visibility (range 1–2) |
+| walking | person | 4 | 3 | 4 | visibility (range 3–4) |
+| hololens | joy-con | 2 | 2 | 2 | visibility |
+
+- Walking backpack/person max cross-label IoU is 0.63, below the 0.90 gate, so the backpack is not
+  absorbed into the person. No false merge.
+- Full 30-question suite after rebuilding the vaults: **30/30 cold, 30/30 warm, 4/4 cache hits**,
+  p50 0.051 ms cold / 0.062 ms warm. C3 still contains `4 bowl` and now also says physical `0`.
+- `pytest -q tests` → **22 passed**.
+
+### Decision
+
+- Keep the raw track count as the first sentence for regression stability, then give the
+  physical estimate. Never present the raw count as physical truth.
+- Dedup only across labels with near-identical boxes; never merge same-label co-visible boxes
+  (their IoU is ~0.01) and never chain labels.
+- Treat one-frame tracks as transient for counts, but keep them in the event ledger.
+- The benchmark expectation `4 bowl` is a track-count regression, not physical truth; documented
+  in `docs/COUNTS.md` rather than silently changing the suite.
+
+### Next
+
+- Hand-label the walking/hololens counts to validate car/person bounds.
+- If the benchmark is extended, add physical-count expectations separately from track counts.
+
+### Session 6 addendum — compile route
+
+- Added `POST /vfm/compile/{source_key}` (optional `?force=true`) so automation/another client can
+  queue a compile without the NiceGUI button. `tests/test_vfm.py` now has **9 tests**; our subset
+  (`test_vfm.py + test_dashboard_smoke.py`) → 10 passed.

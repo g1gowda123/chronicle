@@ -37,6 +37,7 @@ VFM is added **behind** them.
   a successful run, so compilation happens even if the upload tab is closed.
 - New routes:
   - `GET /vfm/status/{source_key}`
+  - `POST /vfm/compile/{source_key}` (optional `?force=true`)
   - `GET /vfm/report/{source_key}`
   - `GET /vfm/download/{source_key}/{name}`
   - `GET /vfm/evidence/{source_key}/{name}`
@@ -70,7 +71,7 @@ python -m pytest -q tests
 cd experiments/video-free-memory && python -m pytest -q tests
 ```
 
-Headless coverage (`tests/test_vfm.py`, 8 tests):
+Headless coverage (`tests/test_vfm.py`, 9 tests):
 
 - compile from a generated graph DB + generated video + fake captioner;
 - vault answers `where is the cup?` with no video and no VLM;
@@ -79,6 +80,7 @@ Headless coverage (`tests/test_vfm.py`, 8 tests):
 - delete-video guard refuses non-upload clips;
 - count answers expose track/peak bounds (`vault-count-visibility`);
 - dashboard routes: status, report, zip/vault download, evidence image, ask;
+- `POST /vfm/compile/{source}` queues a job and reaches done;
 - `--no-vfm` disables routes; the ingest callback is wired to the manager;
 - CLI flags parse.
 

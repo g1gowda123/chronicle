@@ -450,6 +450,16 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"evidence not found: {name}")
         return FileResponse(path)
 
+    @app.post("/vfm/compile/{source_key}")
+    def _vfm_compile_route(source_key: str, force: bool = False) -> dict[str, Any]:
+        if vfm is None:
+            raise HTTPException(status_code=404, detail="VFM is disabled")
+        source = _vfm_source(source_key)
+        job = vfm.submit(source, source.video_path(data_root), force=force)
+        if job is None:
+            raise HTTPException(status_code=409, detail="VFM is disabled")
+        return job.to_dict()
+
     @app.post("/vfm/ask/{source_key}")
     async def _vfm_ask_route(source_key: str, request: Request) -> dict[str, Any]:
         if vfm is None:

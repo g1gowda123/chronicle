@@ -426,3 +426,36 @@ def test_ingest_callback_is_wired_to_the_vfm_manager(tmp_path: Path) -> None:
         if state.vfm is not None:
             state.vfm.close()
         state.close()
+
+
+def test_compile_route_queues_a_job(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+    from nicegui import app
+
+    from chronicle.ui.app import create_app
+    from chronicle.ui.uploads import load_upload_sources, new_upload_target, register_upload
+
+    app.router.routes.clear()
+    video = new_upload_target(tmp_path, "clip.mp4")
+    _make_video(video)
+    source = register_upload(
+        tmp_path, video, original_name="clip.mp4", vocabulary=("cup", "plate")
+    )
+    _make_graph_db(video.parent / "chronicle.db")
+    state = create_app(
+        data_dir=tmp_path, source_key=source.key, auto_run=False, start_server=False
+    )
+    try:
+        loaded = load_upload_sources(tmp_path)[0]
+        state.vfm.captioner = _fake_captioner
+        client = TestClient(app)
+        response = client.post(f"/vfm/compile/{loaded.key}")
+        assert response.status_code == 200
+        assert response.json()["status"] in {"queued", "running", "done"}
+        status = state.vfm.wait(loaded, timeout=60.0)
+        assert status is not None and status["status"] == "done", status
+        assert client.get(f"/vfm/status/{loaded.key}").json()["status"]["status"] == "done"
+    finally:
+        if state.vfm is not None:
+            state.vfm.close()
+        state.close()
