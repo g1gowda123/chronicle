@@ -272,10 +272,11 @@ PR so parallel work does not collide.
 | NB-04 | Demo preflight script and checklist | opencode (AI) | `3b74ef5`; `scripts/demo_preflight.py`; `docs/DEMO_PREFLIGHT.md` |
 | NB-05 | Verify every bundled source end to end | opencode (AI) | `f8fcd0e`; `docs/PERCEPTION.md` NB-05 tables; 5/5 sources 9/9 checks |
 | NB-06 | Real-clip evidence images for demo answers | opencode (AI) | `f967a71`; `data/*/evidence/`; `scripts/build_evidence_fixtures.py` |
-| NB-07 | Label the HoloLens action timeline and run the scorer | opencode (AI) | `docs/action_timeline.holoassist.json` + report; 1/7, 6.3% precision |
+| NB-07 | Label the HoloLens action timeline and run the scorer | opencode (AI) | `68b1432`; `docs/action_timeline.holoassist.json`; 1/7, 6.3% precision |
 
 ### NB-07 details
 
+- **Branch:** `task/nb-07-holoassist-timeline` · **Commit:** `68b1432`
 - **Labels:** `docs/action_timeline.holoassist.json` (7 scorable events from
   the published HoloAssist annotations, with source event strings).
 - **Run:** full 1019-frame tabletop clip with YOLO-World + MediaPipe + OpenCLIP
