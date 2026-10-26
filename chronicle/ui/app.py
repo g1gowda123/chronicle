@@ -212,6 +212,18 @@ def _custom_source(video: Path, data_dir: Path) -> ClipSource:
     )
 
 
+def _upload_vocabulary(raw: str, fallback: tuple[str, ...]) -> tuple[str, ...]:
+    """Parse a comma/semicolon separated target list for a video upload."""
+    labels = tuple(
+        dict.fromkeys(
+            part.strip().lower()
+            for part in raw.replace("\n", ",").replace(";", ",").split(",")
+            if part.strip()
+        )
+    )
+    return labels or tuple(fallback)
+
+
 def create_app(
     *,
     data_dir: str | Path | None = None,
@@ -439,6 +451,18 @@ def create_app(
             "letter-spacing:.18em;color:#64748b;}"
             ".q-field__control{background:rgba(2,6,13,.55)!important;}"
             ".q-tab{padding:0 14px;min-height:34px;}"
+            ".chronicle-dropzone{flex-shrink:0;}"
+            ".chronicle-dropzone .q-uploader{width:100%;max-height:118px;"
+            "background:rgba(2,6,13,.35);border:1px dashed rgba(45,212,191,.42);"
+            "border-radius:10px;box-shadow:none;}"
+            ".chronicle-dropzone .q-uploader__header{background:transparent!important;"
+            "color:#94a3b8!important;}"
+            ".chronicle-dropzone .q-uploader__header-content{padding:5px 10px;"
+            "min-height:34px;}"
+            ".chronicle-dropzone .q-uploader__list{background:transparent!important;"
+            "color:#cbd5e1!important;padding:0 10px 6px;}"
+            ".chronicle-dropzone .q-uploader__file{background:transparent!important;}"
+            ".chronicle-dropzone .q-uploader__header .q-btn{color:#2dd4bf!important;}"
             "</style>"
         )
 
@@ -575,6 +599,7 @@ def create_app(
                 ):
                     source_sync = {"active": False}
                     upload_busy = {"active": False, "name": ""}
+                    upload_vocab = {"value": ", ".join(base_config.vocabulary)}
 
                     def _on_source_change(event: Any) -> None:
                         if source_sync["active"]:
@@ -592,6 +617,7 @@ def create_app(
 
                         if upload_busy["active"]:
                             ui.notify("A video is already uploading.", type="warning")
+                            video_upload.reset()
                             return
                         upload_busy["active"] = True
                         name = Path(str(event.file.name)).name
@@ -614,7 +640,9 @@ def create_app(
                                 data_root,
                                 target,
                                 original_name=name,
-                                vocabulary=tuple(base_config.vocabulary),
+                                vocabulary=_upload_vocabulary(
+                                    upload_vocab["value"], base_config.vocabulary
+                                ),
                             )
                             source_map[source.key] = source
                             source_select.options[source.key] = source.label
@@ -680,7 +708,18 @@ def create_app(
                             ui.button(icon="stop", on_click=state.stop).props(
                                 "flat round dense color=negative"
                             ).tooltip("Stop the current run")
+                    ui.input(
+                        "Objects to track (comma separated)",
+                        value=upload_vocab["value"],
+                        on_change=lambda event: upload_vocab.__setitem__(
+                            "value", event.value
+                        ),
+                    ).props("outlined dense dark").classes("w-full").tooltip(
+                        "YOLO-World prompts for uploaded clips. Add monitor, mouse, "
+                        "keyboard or any object you want the memory to track."
+                    )
                     video_upload = ui.upload(
+                        label="Drag & drop a video to scan live · or add a file",
                         on_upload=_on_video_upload,
                         on_rejected=lambda: ui.notify(
                             "Only video files up to 4 GB are accepted.",
@@ -689,7 +728,9 @@ def create_app(
                         auto_upload=True,
                         max_file_size=MAX_UPLOAD_BYTES,
                         max_files=1,
-                    ).props('accept="video/*"').classes("hidden")
+                    ).props(
+                        'accept="video/*" flat bordered dark color=teal'
+                    ).classes("w-full chronicle-dropzone")
                     video_player = ui.video(
                         _video_url(Path(state.video)),
                         controls=True,

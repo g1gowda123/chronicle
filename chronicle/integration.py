@@ -518,7 +518,10 @@ class ChronicleRuntime:
                     label = str(e.get("label", "object"))
                     counts[label] = counts.get(label, 0) + 1
                 items_str = ", ".join(f"{count} {label}{'s' if count > 1 else ''}" for label, count in counts.items())
-                zone = self.active_zone or (self.memory.background.zones[0].label if self.memory.background.zones else "the scene")
+                zone = (
+                    self.memory.background.zone_label(self.memory.active_zone)
+                    or "the scene"
+                )
                 engine = self._ensure_semantic()
                 if engine and engine.chat_client:
                     facts = [

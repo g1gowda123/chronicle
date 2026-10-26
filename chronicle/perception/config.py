@@ -14,6 +14,11 @@ DEFAULT_VOCABULARY: tuple[str, ...] = (
     "cup",
     "table",
     "sofa",
+    "monitor",
+    "mouse",
+    "keyboard",
+    "laptop",
+    "desk",
 )
 
 DEFAULT_ALIASES: dict[str, str] = {
@@ -22,6 +27,10 @@ DEFAULT_ALIASES: dict[str, str] = {
     "mobile phone": "phone",
     "smartphone": "phone",
     "couch": "sofa",
+    "screen": "monitor",
+    "computer monitor": "monitor",
+    "computer screen": "monitor",
+    "computer mouse": "mouse",
 }
 
 

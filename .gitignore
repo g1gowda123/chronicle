@@ -58,6 +58,7 @@ data/*.db
 data/**/*.db
 data/**/*.db-shm
 data/**/*.db-wal
+data/uploads/
 *.mov
 *.avi
 *.mkv
