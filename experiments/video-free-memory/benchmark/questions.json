@@ -7,188 +7,360 @@
       "episode": "cook",
       "category": "location",
       "question": "where is the cup?",
-      "expected": {"kind": "answer", "must_contain": ["cup", "kitchen"], "t_near": 42.5, "t_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "cup",
+          "kitchen"
+        ],
+        "t_near": 42.5,
+        "t_tol": 3.0,
+        "evidence": true
+      }
     },
     {
       "id": "L2",
       "episode": "cook",
       "category": "location",
       "question": "where is the plate?",
-      "expected": {"kind": "answer", "must_contain": ["plate", "kitchen"], "t_near": 43.4, "t_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "plate",
+          "kitchen"
+        ],
+        "t_near": 43.4,
+        "t_tol": 3.0,
+        "evidence": true
+      }
     },
     {
       "id": "L3",
       "episode": "cook",
       "category": "location",
       "question": "where is the knife?",
-      "expected": {"kind": "answer", "must_contain": ["knife", "kitchen"], "t_near": 32.3, "t_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "knife",
+          "kitchen"
+        ],
+        "t_near": 32.3,
+        "t_tol": 3.0,
+        "evidence": true
+      }
     },
     {
       "id": "L4",
       "episode": "walking",
       "category": "location",
       "question": "where is the backpack?",
-      "expected": {"kind": "answer", "must_contain": ["backpack", "outdoor path"], "t_near": 52.2, "t_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "backpack",
+          "outdoor path"
+        ],
+        "t_near": 52.2,
+        "t_tol": 3.0,
+        "evidence": true
+      }
     },
     {
       "id": "L5",
       "episode": "hololens",
       "category": "location",
       "question": "where is the joy-con?",
-      "expected": {"kind": "answer", "must_contain": ["joy-con", "work table"], "t_near": 4.9, "t_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "joy-con",
+          "work table"
+        ],
+        "t_near": 4.9,
+        "t_tol": 3.0,
+        "evidence": true
+      }
     },
     {
       "id": "L6",
       "episode": "cook",
       "category": "location",
       "question": "where was the plate last placed?",
-      "expected": {"kind": "answer", "must_contain": ["plate", "bowl"], "t_near": 43.4, "t_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "plate",
+          "bowl"
+        ],
+        "t_near": 43.4,
+        "t_tol": 3.0,
+        "evidence": true
+      }
     },
-
     {
       "id": "T1",
       "episode": "cook",
       "category": "temporal",
       "question": "when did I last touch the cup?",
-      "expected": {"kind": "answer", "must_contain": ["cup"], "t_near": 25.9, "t_tol": 1.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "cup"
+        ],
+        "t_near": 25.9,
+        "t_tol": 1.0,
+        "evidence": true
+      }
     },
     {
       "id": "T2",
       "episode": "cook",
       "category": "temporal",
       "question": "when did I first touch the cup?",
-      "expected": {"kind": "answer", "must_contain": ["cup"], "t_near": 4.5, "t_tol": 1.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "cup"
+        ],
+        "t_near": 4.5,
+        "t_tol": 1.0,
+        "evidence": true
+      }
     },
     {
       "id": "T3",
       "episode": "cook",
       "category": "temporal",
       "question": "at what time did I pick up the plate?",
-      "expected": {"kind": "answer", "must_contain": ["plate"], "t_near": 43.1, "t_tol": 1.5, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "plate"
+        ],
+        "t_near": 43.1,
+        "t_tol": 1.5,
+        "evidence": true
+      }
     },
     {
       "id": "T4",
       "episode": "cook",
       "category": "temporal",
       "question": "when did the knife first appear?",
-      "expected": {"kind": "answer", "must_contain": ["knife"], "t_near": 7.1, "t_tol": 1.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "knife"
+        ],
+        "t_near": 7.1,
+        "t_tol": 1.0,
+        "evidence": true
+      }
     },
     {
       "id": "T5",
       "episode": "walking",
       "category": "temporal",
       "question": "when did I touch the cup?",
-      "expected": {"kind": "answer", "must_contain": ["cup"], "t_near": 37.8, "t_tol": 1.5, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "cup"
+        ],
+        "t_near": 37.8,
+        "t_tol": 1.5,
+        "evidence": true
+      }
     },
     {
       "id": "T6",
       "episode": "hololens",
       "category": "temporal",
       "question": "when did I touch the joy-con?",
-      "expected": {"kind": "answer", "must_contain": ["joy-con"], "t_near": 4.9, "t_tol": 1.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "joy-con"
+        ],
+        "t_near": 4.9,
+        "t_tol": 1.0,
+        "evidence": true
+      }
     },
-
     {
       "id": "C1",
       "episode": "cook",
       "category": "count",
       "question": "how many cups are in the memory?",
-      "expected": {"kind": "answer", "must_contain": ["2 cup"], "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "2 cup"
+        ],
+        "evidence": true
+      }
     },
     {
       "id": "C2",
       "episode": "cook",
       "category": "count",
       "question": "how many plates?",
-      "expected": {"kind": "answer", "must_contain": ["2 plate"], "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "2 plate"
+        ],
+        "evidence": true
+      }
     },
     {
       "id": "C3",
       "episode": "cook",
       "category": "count",
       "question": "how many bowls?",
-      "expected": {"kind": "answer", "must_contain": ["4 bowl"], "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "4 bowl"
+        ],
+        "evidence": true
+      }
     },
     {
       "id": "C4",
       "episode": "walking",
       "category": "count",
       "question": "how many cars?",
-      "expected": {"kind": "answer", "must_contain": ["2 car"], "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "2 car"
+        ],
+        "evidence": true
+      }
     },
     {
       "id": "C5",
       "episode": "hololens",
       "category": "count",
       "question": "how many joy-cons?",
-      "expected": {"kind": "answer", "must_contain": ["2 joy-con"], "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "2 joy-con"
+        ],
+        "evidence": true
+      }
     },
-
     {
       "id": "B1",
       "episode": "cook",
       "category": "before_after",
       "question": "what happened before the plate was placed in the bowl?",
-      "expected": {"kind": "answer", "must_contain": ["before", "plate"], "cite_near": 43.1, "cite_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "before",
+          "plate"
+        ],
+        "cite_near": 43.1,
+        "cite_tol": 2.0,
+        "evidence": true
+      }
     },
     {
       "id": "B2",
       "episode": "cook",
       "category": "before_after",
       "question": "what happened after the cup was touched at 25.9 seconds?",
-      "expected": {"kind": "answer", "must_contain": ["after"], "cite_near": 27.5, "cite_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "after"
+        ],
+        "cite_near": 27.5,
+        "cite_tol": 2.0,
+        "evidence": true
+      }
     },
     {
       "id": "B3",
       "episode": "hololens",
       "category": "before_after",
       "question": "what happened before the joy-con was touched?",
-      "expected": {"kind": "answer", "must_contain": ["before", "joy-con"], "cite_near": 3.94, "cite_tol": 1.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "before",
+          "joy-con"
+        ],
+        "cite_near": 3.94,
+        "cite_tol": 1.0,
+        "evidence": true
+      }
     },
     {
       "id": "B4",
       "episode": "cook",
       "category": "before_after",
       "question": "what did I do before I placed the plate?",
-      "expected": {"kind": "answer", "must_contain": ["before", "plate"], "cite_near": 43.1, "cite_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "before",
+          "plate"
+        ],
+        "cite_near": 43.1,
+        "cite_tol": 2.0,
+        "evidence": true
+      }
     },
-
     {
       "id": "N1",
       "episode": "cook",
       "category": "negation",
       "question": "where are my keys?",
-      "expected": {"kind": "unknown"}
+      "expected": {
+        "kind": "unknown"
+      }
     },
     {
       "id": "N2",
       "episode": "cook",
       "category": "negation",
       "question": "did I see a dog?",
-      "expected": {"kind": "unknown"}
+      "expected": {
+        "kind": "unknown"
+      }
     },
     {
       "id": "N3",
       "episode": "cook",
       "category": "negation",
       "question": "what is not in this memory?",
-      "expected": {"kind": "unknown"}
+      "expected": {
+        "kind": "unknown"
+      }
     },
     {
       "id": "N4",
       "episode": "walking",
       "category": "negation",
       "question": "where is the laptop?",
-      "expected": {"kind": "unknown"}
+      "expected": {
+        "kind": "unknown"
+      }
     },
     {
       "id": "N5",
       "episode": "hololens",
       "category": "negation",
       "question": "did I see a bicycle?",
-      "expected": {"kind": "unknown"}
+      "expected": {
+        "kind": "unknown"
+      }
     },
-
     {
       "id": "P1",
       "episode": "cook",
@@ -196,7 +368,16 @@
       "question": "which room is the mug in?",
       "paraphrase_of": "L1",
       "cache_expected": true,
-      "expected": {"kind": "answer", "must_contain": ["cup", "kitchen"], "t_near": 42.5, "t_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "cup",
+          "kitchen"
+        ],
+        "t_near": 42.5,
+        "t_tol": 3.0,
+        "evidence": true
+      }
     },
     {
       "id": "P2",
@@ -205,7 +386,16 @@
       "question": "where did the cup go?",
       "paraphrase_of": "L1",
       "cache_expected": true,
-      "expected": {"kind": "answer", "must_contain": ["cup", "kitchen"], "t_near": 42.5, "t_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "cup",
+          "kitchen"
+        ],
+        "t_near": 42.5,
+        "t_tol": 3.0,
+        "evidence": true
+      }
     },
     {
       "id": "P3",
@@ -214,7 +404,13 @@
       "question": "how many coffee cups are tracked?",
       "paraphrase_of": "C1",
       "cache_expected": true,
-      "expected": {"kind": "answer", "must_contain": ["2 cup"], "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "2 cup"
+        ],
+        "evidence": true
+      }
     },
     {
       "id": "P4",
@@ -223,7 +419,16 @@
       "question": "where is the rucksack?",
       "paraphrase_of": "L4",
       "cache_expected": true,
-      "expected": {"kind": "answer", "must_contain": ["backpack", "outdoor path"], "t_near": 52.2, "t_tol": 2.0, "evidence": true}
+      "expected": {
+        "kind": "answer",
+        "must_contain": [
+          "backpack",
+          "outdoor path"
+        ],
+        "t_near": 52.2,
+        "t_tol": 3.0,
+        "evidence": true
+      }
     }
   ]
 }

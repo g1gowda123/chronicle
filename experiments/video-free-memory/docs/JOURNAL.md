@@ -306,6 +306,13 @@ contact sheets. Vault: 30/30, 0.12 ms p50, 0 tokens, 404 KB at rest, 48.8× smal
 Per category vault/VLM: location 6/1, temporal 6/0, count 5/0, before-after 4/2, negation 5/4,
 paraphrase 4/0.
 
+**Original Chronicle baseline** — `ChronicleRuntime.ask()` graph + Qwen2.5:7b-instruct on the same
+30 questions: **14/30 (46.7%)**, p50 847 ms, p95 4,610 ms. Categories original/vault: location 3/6,
+temporal 2/6, count 0/5, before-after 2/4, negation 5/5, paraphrase 2/4. The original is more
+fluent but reads terminal anchors: plate "resting on the countertop at 38.1s" after it was placed
+in the bowl at 43.4s; knife first appeared at 19.0s instead of 7.1s. Counts are a track-count
+comparison, not a verified physical count; the original may be more physically correct.
+
 **Scaling** — 10/30/60 min: 453/1,257/2,474 events, vault 51/86/139 KB, load 1.1/2.8/5.5 ms,
 p50 0.68/1.86/3.64 ms, p95 1.91/5.30/10.42 ms. Latency is not flat; it grows with event count,
 not frames, but stays well under 50 ms.
@@ -329,6 +336,9 @@ the only video, then queried and rendered the report. Zero videos remained; all 
   result is reported.
 - The Gemini free-tier probe took **234 s for one question**, 1,134 prompt tokens, 3 output
   tokens, 0/1. Not viable for 30 questions; no online number is claimed.
+- The original graph+Qwen 7B path scored 14/30: fluent, but stale terminal anchors (plate
+  "countertop at 38.1s" after placement at 43.4s; knife first seen at 19.0s vs 7.1s) and wrong
+  track counts. It is better at natural-language phrasing, not exact history.
 - Counts are track counts, not physical counts. Cook has 2 plate tracks and 4 bowl tracks, while
   the VLM may see 4 plates and 2 bowls. The count category is not a clean physical-count win.
 - The cook 30 s caption said "another person" though only one person was tracked. VLM captions

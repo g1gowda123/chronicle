@@ -49,6 +49,7 @@ prototype/
   attach_ledger.py    attach compressed ledger to a vault
   query.py            where/when/around/before/after/count/inventory/keyword + cache
   benchmark.py        multi-episode 30-question evaluation + legacy smoke test
+  original_baseline.py original Chronicle graph + Qwen 7B, same 30 questions
   vlm_baseline.py     measured video-to-LLM baseline (9-frame contact sheet, Ollama)
   online_baseline.py  same baseline against OpenAI / Anthropic / Gemini (key required)
   extract_evidence.py one-time video pass -> 480 px WebP snapshots, optional delete
@@ -103,6 +104,12 @@ python3 prototype/benchmark.py \
   --source-root /home/g1/projects/chronicle/data/real \
   --vault-dir /tmp/vfm --model qwen2.5vl:3b --frames 9
 
+# 5c. Original Chronicle graph + Qwen 7B on the same questions
+/home/g1/projects/chronicle/.venv/bin/python prototype/original_baseline.py \
+  --questions benchmark/questions.json \
+  --source-root /home/g1/projects/chronicle/data/real \
+  --model qwen2.5:7b-instruct
+
 # 5c. Optional online baseline (real API key; no key is bundled)
 export GEMINI_API_KEY=...
 /home/g1/projects/chronicle/.venv/bin/python prototype/online_baseline.py \
@@ -121,6 +128,28 @@ python3 prototype/report.py --db /tmp/vfm/cook.db \
 # 8. Tests
 /home/g1/projects/chronicle/.venv/bin/python -m pytest -q tests
 ```
+
+## Test the two UIs side by side
+
+Original Chronicle dashboard (video + graph + Qwen):
+
+```bash
+cd /home/g1/projects/chronicle
+.venv/bin/chronicle --data-dir data serve --source cook --host 127.0.0.1 --port 8091
+# open http://127.0.0.1:8091/
+```
+
+VFM memory browser (single file, no video, client-side query box):
+
+```bash
+cd /home/g1/projects/chronicle-vfm/experiments/video-free-memory
+python3 prototype/report.py --db /tmp/vfm/cook.db --out /tmp/vfm/cook.html --data-root /tmp/vfm
+python3 -m http.server 8092 --directory /tmp/vfm
+# open http://127.0.0.1:8092/cook.html
+```
+
+Try the same question in both: `where is the plate?`, `what happened around 20s?`,
+`how many plates?`, `what happened before the plate was placed in the bowl?`.
 
 ## v3 baseline (Aria cook, 45 s, 11 entities)
 
@@ -160,6 +189,43 @@ three frames per window.
 30 s windows cost roughly 350 B more per episode but carry materially more objects/actions.
 The structured questions do not change because events answer exact times; the dense ledger is
 for recall and paraphrase/object coverage. **Default: 30 s windows, three frames.**
+
+## Original Chronicle vs VFM (same 30 questions)
+
+Ran the original `ChronicleRuntime.ask()` path (graph + Qwen2.5:7b-instruct) against the
+three source DBs, then the vault against the same questions. Same scoring code.
+
+| System | 30-question accuracy | p50 / p95 | Query-time model | Video at query | At-rest footprint |
+|---|---:|---:|---|---|---:|
+| **Original Chronicle** | **14/30 (46.7%)** | **847 / 4,610 ms** | Qwen2.5 7B (4.7 GB) | yes, for playback/evidence | 436 KB DB + 2.99 MB video (cook) |
+| **VFM vault** | **30/30 (100%)** | **0.045 / 0.113 ms** | none | **no** | 164.5 KB (cook) |
+| Qwen2.5-VL 9-frame sheet | 7/30 (23.3%) | 4,456 / 7,202 ms | Qwen2.5-VL 3B | yes, 19.24 MB | video + 395 KB sheets |
+
+Per category (original / vault):
+
+| Category | Original | Vault | Total |
+|---|---:|---:|---:|
+| location | 3 | 6 | 6 |
+| temporal | 2 | 6 | 6 |
+| count | 0 | 5 | 5 |
+| before/after | 2 | 4 | 4 |
+| negation | 5 | 5 | 5 |
+| paraphrase | 2 | 4 | 4 |
+
+The original is **more fluent** and often explains the scene naturally, but it reads the current
+graph/terminal anchors, so it reports stale locations and misses early history: e.g. the plate is
+"resting on the countertop at 38.1 s" after it was placed in the bowl at 43.4 s; the knife's first
+appearance is 19.0 s instead of 7.1 s. The vault keeps the full event ledger and answers exactly.
+
+Honest caveat on **count** questions: the original says "one cup", "one plate", "at least three
+bowls"; the vault says "2 cup tracks", "2 plate tracks", "4 bowl tracks". The tracker splits
+physical objects, so the vault's count is a **track count**, not necessarily the physical count.
+The count category is not a clean win without visual ground truth. The original also answers
+`where is the mug?` with "I don't have that in my memory" while the vault maps mug → cup, and it
+only tracks terminal states rather than the full history.
+
+So: **better for retention, speed, video independence, exact temporal lookup and regression
+accuracy; not strictly better at natural-language richness or physical object counting.**
 
 ## Video-to-LLM baseline (measured)
 

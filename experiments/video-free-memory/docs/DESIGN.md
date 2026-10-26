@@ -169,13 +169,20 @@ Measured on a synthetic 60-minute episode (2,474 events, 40-snapshot cap):
 The ledger grows with events (~42 KB/hour); evidence grows with the snapshot budget. The cache is
 regenerable and should be dropped before quoting at-rest size.
 
-### 7.2 Video-to-LLM baseline
+### 7.2 Original vs VFM vs video LLM
 
-A local Qwen2.5-VL:3b given a 9-frame timestamped contact sheet scores **7/30 (23.3%)** at
-**4.46 s p50**, 764 tokens/question, $0.0036/30 at illustrative API prices. The vault scores
-**30/30** at **0.12 ms p50**. The 9-frame baseline is a proxy, not a true video LLM; a Gemini
-free-tier probe took 234 s for one question and is not usable as a benchmark. Count questions are
-track counts, not verified physical counts.
+Same 30 questions:
+
+| System | Accuracy | p50 / p95 | Query model | Video at query |
+|---|---:|---:|---|---|
+| Original Chronicle | 14/30 (46.7%) | 847 / 4,610 ms | Qwen2.5 7B | yes |
+| VFM vault | 30/30 | 0.045 / 0.113 ms | none | no |
+| 9-frame Qwen2.5-VL | 7/30 (23.3%) | 4,456 / 7,202 ms | Qwen2.5-VL 3B | yes |
+
+The original is more fluent but reads terminal anchors, so its locations/timestamps are stale
+(plate "on countertop at 38.1s" after it was placed in the bowl at 43.4s; knife first seen at
+19.0s instead of 7.1s). The vault keeps the full ledger. Counts are track counts, not verified
+physical counts.
 
 ## 8. Query API (v0 prototype)
 
@@ -220,8 +227,9 @@ smaller than the three source videos combined.
 
 ### E2 — Query accuracy vs ladder rung
 
-30 questions across location, time, count, before/after, negation, paraphrase. Result: vault
-30/30; 9-frame Qwen2.5-VL 7/30. Per-category table in README/DESIGN §7.2.
+30 questions across location, time, count, before/after, negation, paraphrase. Result: original
+graph+Qwen 7B 14/30; vault 30/30; 9-frame Qwen2.5-VL 7/30. Per-category table in README/DESIGN
+§7.2.
 
 ### E3 — Caption interval ablation
 

@@ -138,11 +138,17 @@ would test questions we did not design.
 
 ### Baseline economics
 
-A useful external benchmark needs a **video-to-LLM baseline**, not just vault accuracy. Our
-measured proxy is a 9-frame timestamped contact sheet sent to Qwen2.5-VL once per question:
-7/30 at 4.46 s p50, 764 tokens/question, 19.24 MB of video required at query time. The vault is
-30/30 at 0.12 ms with zero query-time tokens and no video. A free-tier Gemini probe took 234 s for
-one question, so the online comparison needs a faster/paid key; no online numbers are claimed.
+A useful external benchmark needs **both** the original system and a video-to-LLM baseline, not
+just vault accuracy. Measured on the same 30 questions:
+
+- original Chronicle graph + Qwen2.5 7B: 14/30, 847 ms p50, 4.6 s p95, requires the DB/video;
+- 9-frame timestamped contact sheet + Qwen2.5-VL: 7/30, 4.46 s p50, 764 tokens/question,
+  19.24 MB of video at query;
+- VFM vault: 30/30, 0.045 ms p50, 0 tokens, no video, 404 KB at rest.
+
+The original is more fluent but reads terminal anchors, so it gives stale locations/timestamps.
+The vault wins on exact temporal lookup at the cost of natural-language richness. Counts remain
+track counts, not verified physical counts.
 
 The advantage grows with duration: a real video LLM must either scale frames/tokens with length
 or keep a fixed frame budget and lose coverage. The vault grows with events (~42 KB/hour) plus a
