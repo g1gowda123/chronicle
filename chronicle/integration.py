@@ -309,13 +309,15 @@ class ChronicleRuntime:
         fps_override: float | None = None,
         stop_event: threading.Event | None = None,
         on_progress: Callable[[dict[str, Any]], None] | None = None,
+        on_frame: Callable[[FrameResult], None] | None = None,
         reset: bool = False,
     ) -> RuntimeSummary:
         """Ingest a recorded video through A -> B -> C.
 
         ``reset=True`` recreates the in-memory/SQLite memory first.  The
         dashboard passes ``reset=True`` when replaying a source so repeated
-        runs do not accumulate duplicate episodes.
+        runs do not accumulate duplicate episodes.  ``on_frame`` observes every
+        post-memory ``FrameResult`` (used by the Role D event exporter).
         """
 
         with self._lock:
@@ -364,6 +366,11 @@ class ChronicleRuntime:
             ):
                 self._observe_result(result)
                 self._drain_clips()
+                if on_frame is not None:
+                    try:
+                        on_frame(result)
+                    except Exception:
+                        logger.exception("on_frame callback failed")
                 with self._lock:
                     self._frames += 1
                     self._last_timestamp = result.timestamp

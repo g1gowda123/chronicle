@@ -40,6 +40,13 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### TASK-F4 — Source vocabulary & production-detector benchmark
+
+- chronicle run --source tabletop now passes ClipSource.vocabulary into _perception_config(), ensuring YOLO-World prompts include joy-con, switch console, 	able, etc.
+- Added --conf (confidence threshold) and --imgsz (input image size) flags to chronicle run for detector tuning.
+- Benchmark results recorded in docs/PERCEPTION.md: with the source vocabulary, YOLO-World correctly detects joy-con entities with 100% entity accuracy and reduces mean timestamp error from 0.28 s to 0.06 s on the matched PICK_UP joy-con action.
+- Added unit tests in 	ests/test_cli.py covering vocabulary extraction, CLI flag parsing, and runtime propagation.
+
 ### TASK-E2 — zone-clustered graph
 
 - The dashboard graph now clusters nodes around their room/zone anchor. Zone

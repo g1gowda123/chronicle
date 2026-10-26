@@ -531,7 +531,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--tolerance",
         type=float,
         default=DEFAULT_TIMELINE_TOLERANCE,
-        help="maximum |Δt| in seconds (default: 2.0)",
+        help="maximum |dt| in seconds (default: 2.0)",
     )
     parser.add_argument(
         "--include-rejected",

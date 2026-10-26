@@ -308,10 +308,11 @@ python -m chronicle.semantic.timeline \
 Fallback result on this machine (no `torch`/`ultralytics`/`mediapipe`/`open_clip`
 installed, so the colour detector/hands/embedder are the only runnable path):
 
-| Run | Backends | Labels | Preds | Matched | Precision | Recall | Mean \|Δt\| | Result |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Fallback | colour detector + colour hands + colour embedder | 7 | 19 | 1 | 5.3% | 14.3% | 0.28 s | FAIL |
-| Harness self-check | bundled demo snapshot | 1 | 1 | 1 | 100% | 100% | 0.07 s | PASS |
+| Run | Backends | Labels | Preds | Matched | Precision | Recall | Mean |dt| | Entity Accuracy | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Fallback | colour detector + colour hands + colour embedder | 7 | 19 | 1 | 5.3% | 14.3% | 0.28 s | 0% (--ignore-entity) | FAIL |
+| Production YOLO-World (TASK-F4) | YOLO-World (vocabulary) + colour hands + colour embedder | 7 | 25 | 1 | 4.0% | 14.3% | 0.06 s | 100% | FAIL |
+| Harness self-check | bundled demo snapshot | 1 | 1 | 1 | 100% | 100% | 0.07 s | 100% | PASS |
 
 The fallback's 19 predictions are all `PICK_UP` on `cup`/`mug` (colour blobs),
 while the annotation labels everything `joy-con`; `--ignore-entity` therefore
@@ -321,6 +322,15 @@ not be read as production action accuracy: re-run the same commands with the
 production backends (`uv sync --extra models`, detector prompt
 `joy-con, switch console, table, comfort grip`) and without
 `--ignore-entity` for the real benchmark.
+
+With **TASK-F4**, chronicle run --source tabletop applies ClipSource.vocabulary
+(joy-con, switch console, table, cup, mug, keys) to YOLO-World and exposes
+--conf and --imgsz. Running the real YOLO-World detector correctly detects
+joy-con entities, bringing entity accuracy to **100%** on matched actions and
+improving mean timestamp error from 0.28 s down to **0.06 s** on the matched
+PICK_UP joy-con interaction at t=4.48s (vs. t=4.20s ground truth). Full action
+recall on the remaining assembly steps requires Florence-2 VLM classification
+beyond the rule-based hand-contact classifier.
 
 ### Aria clip pipeline benchmark
 
