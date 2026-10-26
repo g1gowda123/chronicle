@@ -205,6 +205,13 @@ class OllamaChatClient:
         self.num_predict = int(num_predict)
         self.temperature = float(temperature)
         self._resolved_model: str | None = None
+        self.calls: list[dict[str, int]] = []
+
+    provider = "ollama"
+
+    @property
+    def last_usage(self) -> dict[str, int]:
+        return self.calls[-1] if self.calls else {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     @property
     def active_model(self) -> str:
@@ -299,6 +306,15 @@ class OllamaChatClient:
         except Exception as exc:
             raise LLMUnavailableError(f"Ollama returned an invalid response: {exc}") from exc
 
+        prompt_tokens = int(data.get("prompt_eval_count") or 0)
+        completion_tokens = int(data.get("eval_count") or 0)
+        self.calls.append(
+            {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            }
+        )
         try:
             text = str(data["message"]["content"]).strip()
             # Clean possible markdown wrap or ANSWER: header
@@ -308,6 +324,128 @@ class OllamaChatClient:
             return text
         except (KeyError, TypeError) as exc:
             raise LLMUnavailableError(f"unexpected Ollama payload: {data!r}") from exc
+
+
+class GeminiChatClient:
+    """Gemini via the OpenAI-compatible endpoint (stdlib only).
+
+    The API key is read from ``GEMINI_API_KEY`` (never stored in the repo).
+    Usage is accumulated in :attr:`calls` so benchmarks can report tokens.
+    """
+
+    provider = "gemini"
+
+    def __init__(
+        self,
+        model: str = "gemini-2.5-flash",
+        *,
+        api_key: str | None = None,
+        base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai",
+        timeout_s: float = 120.0,
+        num_predict: int = 220,
+        temperature: float = 0.1,
+        max_retries: int = 4,
+    ) -> None:
+        self.model = model
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+        self.base_url = base_url.rstrip("/")
+        self.timeout_s = float(timeout_s)
+        self.num_predict = int(num_predict)
+        self.temperature = float(temperature)
+        self.max_retries = max(1, int(max_retries))
+        self.calls: list[dict[str, int]] = []
+
+    @property
+    def active_model(self) -> str:
+        return self.model
+
+    @property
+    def last_usage(self) -> dict[str, int]:
+        return self.calls[-1] if self.calls else {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    def is_available(self, timeout_s: float = 3.0) -> bool:
+        if not self.api_key:
+            return False
+        request = urllib.request.Request(
+            f"{self.base_url}/models",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_s) as response:
+                return 200 <= int(response.status) < 300
+        except Exception:  # noqa: BLE001
+            return False
+
+    def complete(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        json_mode: bool = False,
+    ) -> str:
+        if not self.api_key:
+            raise LLMUnavailableError("GEMINI_API_KEY is not set")
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": self.temperature,
+            "max_tokens": self.num_predict,
+        }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+        data = self._post(payload)
+        try:
+            text = str(data["choices"][0]["message"]["content"]).strip()
+        except (KeyError, IndexError, TypeError) as exc:
+            raise LLMUnavailableError(f"unexpected Gemini payload: {data!r}") from exc
+        text = re.sub(r"^```(?:text|json)?\s*|\s*```$", "", text).strip()
+        if "ANSWER:" in text:
+            text = text.split("ANSWER:", 1)[1].strip()
+        usage = data.get("usage") or {}
+        self.calls.append(
+            {
+                "prompt_tokens": int(usage.get("prompt_tokens") or 0),
+                "completion_tokens": int(usage.get("completion_tokens") or 0),
+                "total_tokens": int(usage.get("total_tokens") or 0),
+            }
+        )
+        return text
+
+    def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
+        delay = 2.0
+        for attempt in range(1, self.max_retries + 1):
+            request = urllib.request.Request(
+                f"{self.base_url}/chat/completions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.api_key}",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                body = exc.read().decode("utf-8", "replace")[:300]
+                if exc.code in {429, 500, 502, 503, 504} and attempt < self.max_retries:
+                    retry_after = exc.headers.get("retry-after") if exc.headers else None
+                    wait = float(retry_after) if retry_after else delay * attempt
+                    time.sleep(min(wait, 30.0))
+                    continue
+                raise LLMUnavailableError(f"Gemini HTTP {exc.code}: {body}") from exc
+            except urllib.error.URLError as exc:
+                if attempt < self.max_retries:
+                    time.sleep(delay * attempt)
+                    continue
+                raise LLMUnavailableError(f"Gemini request failed: {exc}") from exc
+            except Exception as exc:  # noqa: BLE001
+                raise LLMUnavailableError(f"Gemini returned an invalid response: {exc}") from exc
+        raise LLMUnavailableError("Gemini retries exhausted")
 
 
 class TransformersChatClient:
