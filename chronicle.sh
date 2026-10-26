@@ -20,6 +20,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT_DIR}"
+export PYTHONPATH="${ROOT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
 PID_FILE="${ROOT_DIR}/.chronicle.pid"
 PORT_FILE="${ROOT_DIR}/.chronicle.port"
 LLM_FILE="${ROOT_DIR}/.chronicle.llm"
@@ -27,7 +28,11 @@ LOG_DIR="${ROOT_DIR}/logs"
 LOG_FILE="${LOG_DIR}/chronicle.log"
 
 DEFAULT_SOURCE="synthetic"
-DEFAULT_PORT=8080
+DEFAULT_PORT="${CHRONICLE_PORT:-8080}"
+# The experiment worktree has no local .venv; keep it off main's :8080.
+if [ "$(basename "${ROOT_DIR}")" = "chronicle-vfm" ] && [ -z "${CHRONICLE_PORT:-}" ]; then
+    DEFAULT_PORT=8082
+fi
 LLM_BACKEND="${CHRONICLE_LLM_BACKEND:-auto}"
 LLM_MODEL="${CHRONICLE_LLM_MODEL:-qwen2.5:7b-instruct}"
 OLLAMA_URL="${CHRONICLE_OLLAMA_URL:-http://127.0.0.1:11434}"
@@ -44,14 +49,31 @@ BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 # Determine Python / chronicle executable
+make_cli_wrapper() {
+    CHRONICLE_BIN="${ROOT_DIR}/.chronicle-cli"
+    cat > "${CHRONICLE_BIN}" <<WRAPPER
+#!/usr/bin/env bash
+export PYTHONPATH="${ROOT_DIR}\${PYTHONPATH:+:\${PYTHONPATH}}"
+exec "${PYTHON_BIN}" -c 'from chronicle.cli import main; raise SystemExit(main())' "\$@"
+WRAPPER
+    chmod +x "${CHRONICLE_BIN}"
+}
+
 if [ -x "${ROOT_DIR}/.venv/bin/chronicle" ]; then
     CHRONICLE_BIN="${ROOT_DIR}/.venv/bin/chronicle"
     PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
+elif [ -x "${ROOT_DIR}/.venv/bin/python" ]; then
+    PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
+    make_cli_wrapper
+elif [ -x "${ROOT_DIR}/../chronicle/.venv/bin/python" ]; then
+    # Experiment worktree: use the main checkout's venv, but import this tree.
+    PYTHON_BIN="${ROOT_DIR}/../chronicle/.venv/bin/python"
+    make_cli_wrapper
 elif command -v chronicle >/dev/null 2>&1; then
     CHRONICLE_BIN="$(command -v chronicle)"
     PYTHON_BIN="$(command -v python)"
 else
-    echo -e "${RED}Error: Virtual environment not found at .venv/ and 'chronicle' not in PATH.${NC}"
+    echo -e "${RED}Error: no local .venv and no sibling ../chronicle/.venv.${NC}"
     echo "Please run: python -m venv .venv && source .venv/bin/activate && pip install -e '.[ui]'"
     exit 1
 fi
@@ -358,9 +380,9 @@ show_logs() {
 
 run_tests() {
     echo -e "${BOLD}${CYAN}Running Chronicle automated test suite...${NC}\n"
-    "${ROOT_DIR}/.venv/bin/pytest"
+    "${PYTHON_BIN}" -m pytest
     echo -e "\n${BOLD}${CYAN}Running ruff linter check...${NC}"
-    "${ROOT_DIR}/.venv/bin/ruff" check chronicle tests
+    "${PYTHON_BIN}" -m ruff check chronicle tests
     echo -e "\n${BOLD}${CYAN}Running GraphRAG evaluation suite...${NC}"
     "${PYTHON_BIN}" -m chronicle.semantic.evaluation
 }

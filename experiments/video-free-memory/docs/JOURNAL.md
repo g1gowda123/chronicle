@@ -933,3 +933,18 @@ fetched `/`, parsed the video uploader URL (`/_nicegui/client/<client>/upload/85
 
 - Hand-label the remaining count episodes.
 - Optional: persist screenshots server-side for an evidence gallery.
+
+---
+
+## 2026-10-27 — Session 11: run/stop script for the worktree
+
+`chronicle.sh` now works from the experiment worktree without a local `.venv`:
+
+- falls back to `../chronicle/.venv/bin/python` and a generated `.chronicle-cli`
+  wrapper that imports *this* tree via `PYTHONPATH`;
+- defaults this worktree to **:8082** so it never fights main's `:8080`;
+- `start`, `stop`, `restart`, `status`, `logs`, `pipeline`, `test` all verified;
+- `test` uses the same interpreter (`pytest`, `ruff`, GraphRAG evaluation).
+
+Verified end-to-end: `./chronicle.sh start` → HTTP 200 on `:8082` → `status`
+shows PID/URL → `stop` stops only the worktree PID; main's `:8080` untouched.

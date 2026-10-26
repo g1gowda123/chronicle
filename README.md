@@ -299,7 +299,23 @@ use stable headers so they can be diffed between runs.
 The default mission control is the zine dashboard — warm paper cards, the
 head-cam feed with evidence overlays, a grounded chat with citation chips, the
 memory graph, entity dossiers, state-change timelines and pipeline vitals.
-Launch it with ``./chronicle.sh start`` or ``python run_dashboard.py``. It
+Launch it with ``./chronicle.sh start`` or ``python run_dashboard.py``.
+
+**This worktree's control script.** `chronicle.sh` works without a local
+`.venv` by using the sibling main checkout's interpreter and importing this
+tree (`PYTHONPATH`). Because main already owns `:8080`, the experiment worktree
+defaults to **:8082** (`CHRONICLE_PORT=...` overrides it):
+
+```bash
+./chronicle.sh start            # zine UI in background on :8082
+./chronicle.sh status           # PID, URL, recent log lines
+./chronicle.sh logs             # tail the log
+./chronicle.sh restart
+./chronicle.sh stop             # stops only this worktree's PID
+./chronicle.sh pipeline         # foreground live-pipeline/VFM UI
+./chronicle.sh test             # pytest + ruff + GraphRAG evaluation
+```
+ It
 drives the event contract from ``dashboard/``; ``--source live`` waits for
 ``POST /api/ingest`` instead of replaying the bundled demo. The live-pipeline
 demo (real perception, clip switching, exports) stays available via
