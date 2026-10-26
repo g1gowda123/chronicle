@@ -17,10 +17,15 @@ from chronicle.sources import available_sources
 from chronicle.vfm.service import VFMJobManager
 
 _MANAGERS: dict[Path, VFMJobManager] = {}
+_AUTO_ATTEMPTED: set[str] = set()
 
 
 def enabled() -> bool:
     return os.getenv("CHRONICLE_VFM", "1").strip().lower() not in {"0", "false", "off", "no"}
+
+
+def auto_enabled() -> bool:
+    return os.getenv("CHRONICLE_VFM_AUTO", "1").strip().lower() not in {"0", "false", "off", "no"}
 
 
 @dataclass(frozen=True)
@@ -161,6 +166,32 @@ def resolve(clip: str | None, data_dir: Path | str) -> MemorySource | None:
         db=db if db.is_file() else None,
         video=video,
     )
+
+
+def auto_compile(clip: str | None, data_dir: Path | str) -> dict[str, Any] | None:
+    """Compile a clip's memory once, in the background, when it is first seen.
+
+    Answers are deterministic and instant once the vault exists; this only pays
+    the one-time VLM/evidence cost. A failed job is not retried automatically.
+    """
+
+    if not enabled() or not auto_enabled():
+        return None
+    root = Path(data_dir).expanduser().resolve()
+    source = resolve(clip, root)
+    if source is None or source.db is None or not source.db.is_file():
+        return None
+    instance = manager(root)
+    if instance.has_memory(source):
+        return None
+    state = instance.status(source) or {}
+    if state.get("status") in {"queued", "running"}:
+        return None
+    if source.key in _AUTO_ATTEMPTED:
+        return None
+    _AUTO_ATTEMPTED.add(source.key)
+    job = instance.submit(source, source.video)
+    return job.to_dict() if job is not None else None
 
 
 def status(clip: str | None, data_dir: Path | str) -> dict[str, Any]:

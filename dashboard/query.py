@@ -36,6 +36,11 @@ from .store import ACTION_RELATIONS, SPATIAL_RELATIONS, Edge, Entity, MemoryStor
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _HTML_RE = re.compile(r"<[^>]+>")
+_TIME_HINT_RE = re.compile(
+    r"\b(?:around|at|near|about|after|before|by)\s+(\d+(?:\.\d+)?)\s*"
+    r"(?:s|sec|secs|second|seconds)?\b",
+    re.IGNORECASE,
+)
 
 #: Everyday words -> canonical labels.  Keep this small and predictable.
 ALIASES: dict[str, set[str]] = {
@@ -148,7 +153,8 @@ class QueryEngine:
         elif zone is not None:
             result = self._answer_zone(zone, query, t)
         elif self._wants_timeline(query):
-            result = self._answer_timeline(query, t)
+            hint = self._time_hint(query)
+            result = self._answer_timeline(query, hint if hint is not None else t)
         elif self._last_entity and self.store.entities.get(self._last_entity):
             result = self._answer_entity(self.store.entities[self._last_entity], query, t)
             result["answer"] = "(Resolved 'it' to the last inspected object.) " + result["answer"]
@@ -306,6 +312,16 @@ class QueryEngine:
                 query.lower(),
             )
         )
+
+    @staticmethod
+    def _time_hint(query: str) -> float | None:
+        match = _TIME_HINT_RE.search(query or "")
+        if match is None:
+            return None
+        try:
+            return max(0.0, float(match.group(1)))
+        except ValueError:
+            return None
 
     # ------------------------------------------------------------------ #
     # Subgraph
@@ -599,19 +615,7 @@ class QueryEngine:
         actions = [i for i in self.store.interactions if i.t <= t + 0.05]
         actions.sort(key=lambda item: item.t)
         if not actions:
-            return {
-                "route": "timeline",
-                "answer": "No VLM-verified interactions have been recorded yet in this episode.",
-                "citations": [],
-                "rows": [],
-                "table": "| no interactions |",
-                "entities": [],
-                "zones": [],
-                "edges": [],
-                "confidence": None,
-                "prompt": "",
-                "subgraph": {},
-            }
+            return self._answer_states_around(query, t)
         recent = actions[-6:]
         parts = [
             f"{record.t:.1f}s — {RELATION_VERBS.get(record.action, record.action.replace('_', ' ').lower())} "
@@ -653,6 +657,140 @@ class QueryEngine:
             "zones": [],
             "edges": [],
             "confidence": None,
+            "prompt": "",
+            "subgraph": {},
+        }
+
+    @staticmethod
+    def _state_words(value: str) -> str:
+        return {
+            "VISIBLE_STATIC": "came to rest",
+            "VISIBLE_MOVING": "moved",
+            "HELD": "was held",
+            "CONTAINED": "was put inside something",
+            "INTERACTED": "was touched",
+            "LOST": "was lost from view",
+            "OUT_OF_VIEW": "left the frame",
+            "NEW": "appeared",
+        }.get(str(value or "").upper(), str(value or "").replace("_", " ").lower())
+
+    def _entity_label(self, ref: Any) -> str:
+        key = str(ref or "")
+        entity = self.store.entities.get(key)
+        if entity is not None and entity.label:
+            return entity.label
+        zone = self.store.zones.get(key)
+        if zone is not None:
+            return zone.label
+        return pretty_ref(key).replace("_", " ")
+
+    def _answer_states_around(self, query: str, t: float) -> dict[str, Any]:
+        """Fallback for replay clips that have state changes but no VLM interactions.
+
+        The old answer ("No VLM-verified interactions…") was technically true but
+        unhelpful: most recorded clips have a rich state/edge timeline and no
+        interaction table. Summarise what actually changed near the requested
+        time, with labelled entities and citations.
+        """
+
+        window = 6.0
+        candidates: list[tuple[float, str, str, str]] = []
+        for event in list(self.store.events):
+            if abs(float(event.t) - t) > window:
+                continue
+            data = event.data or {}
+            if event.kind == "state":
+                to_state = str(data.get("to") or "").upper()
+                from_state = str(data.get("from") or "").upper()
+                reason = str(data.get("reason") or "").lower()
+                if to_state in {"", "NEW", "OUT_OF_VIEW"}:
+                    continue
+                if reason in {"camera_pan", "occluder_overlap", "line_of_sight_lost"}:
+                    continue
+                label = self._entity_label(data.get("entity_id"))
+                if from_state in {"", "NEW", "OUT_OF_VIEW"}:
+                    text = f"{label} {self._state_words(to_state)}"
+                else:
+                    text = f"{label} {self._state_words(from_state)} → {self._state_words(to_state)}"
+                candidates.append((float(event.t), text, "state", label))
+            elif event.kind == "edge":
+                relation = str(data.get("relation") or data.get("predicate") or "").upper()
+                if not relation or relation in {"IN_ZONE"}:
+                    continue
+                source = self._entity_label(data.get("source") or data.get("subject"))
+                target = self._entity_label(data.get("target") or data.get("object"))
+                if not source or not target:
+                    continue
+                text = f"{source} {relation.replace('_', ' ').lower()} {target}"
+                candidates.append((float(event.t), text, "edge", source))
+            elif event.kind == "entity":
+                label = str(data.get("label") or "").strip()
+                if label:
+                    candidates.append((float(event.t), f"{label} appeared", "entity", label))
+
+        seen: set[tuple[float, str]] = set()
+        unique: list[tuple[float, str, str, str]] = []
+        for row in sorted(candidates, key=lambda item: item[0]):
+            key = (round(row[0], 1), row[1].lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(row)
+
+        if not unique:
+            return {
+                "route": "timeline",
+                "answer": f"No state changes or verified interactions were recorded around {t:.1f}s.",
+                "citations": [],
+                "rows": [],
+                "table": "| no state changes |",
+                "entities": [],
+                "zones": [],
+                "edges": [],
+                "confidence": None,
+                "prompt": "",
+                "subgraph": {},
+            }
+
+        chosen = sorted(unique, key=lambda row: (abs(row[0] - t), row[0]))[:6]
+        chosen.sort(key=lambda row: row[0])
+        answer = f"Around {t:.1f}s: " + "; ".join(
+            f"{row[0]:.1f}s — {row[1]}" for row in chosen
+        ) + "."
+        citations = [
+            {
+                "t": round(row[0], 3),
+                "label": row[3],
+                "kind": row[2],
+                "entity_id": None,
+                "detail": row[1],
+            }
+            for row in chosen
+        ]
+        rows = [
+            {
+                "node": row[1],
+                "id": "",
+                "type": row[2],
+                "state": row[2],
+                "relation": "STATE" if row[2] == "state" else "EVENT",
+                "target": "—",
+                "t_start": round(row[0], 3),
+                "t_end": None,
+                "clip_sim": 0.0,
+            }
+            for row in chosen
+        ]
+        return {
+            "route": "timeline",
+            "answer": answer,
+            "citations": citations,
+            "rows": rows,
+            "table": self._rows_to_table(rows),
+            "entities": [],
+            "zones": [],
+            "edges": [],
+            "confidence": 0.55,
             "prompt": "",
             "subgraph": {},
         }

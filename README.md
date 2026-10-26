@@ -342,13 +342,19 @@ captures that exact frame (stamped with clip and timestamp), and opens it in a
 lightbox with **save PNG** and **fullscreen**. The lightbox itself can go
 fullscreen, so judges can blow up an evidence frame without leaving the page.
 
-**Memory card.** When the active clip has a graph DB, a small `MEMORY ·
-VIDEO-FREE` card appears under the vitals: compile the VFM vault, open the
-offline report, download `vault.db` / `memory_pack.md` / `memory.zip`, and ask
-questions. With a compiled vault, the zine chat answers through the memory
-(`provider: vfm-memory`), so count bounds and deduped physical estimates appear
-in the main UI. Clips that only have a replay timeline and no DB show a clear
-"no graph DB" note instead.
+**Memory card / VLM answers.** When the active clip has a graph DB, the zine
+chat uses the compiled VFM vault: dense VLM caption windows + event ledger +
+evidence, answered deterministically in **~0.05 ms** without touching the video.
+The first time a clip is opened the memory is compiled **automatically in the
+background** (VLM captions, one-time cost); the `MEMORY · VIDEO-FREE` card shows
+progress and then the report/downloads (`vault.db`, `memory.html`,
+`memory_pack.md`, `memory.zip`). Disable auto-compile with
+`CHRONICLE_VFM_AUTO=0`, disable the whole panel with `CHRONICLE_VFM=0`.
+
+With a compiled vault, answers show `provider: vfm-memory`; count questions get
+the track/visibility bounds and deduped physical estimate. Clips that only have
+a replay timeline and no DB show a clear "no graph DB" note; the graph fallback
+still answers state/edge questions instead of claiming there were no events.
 
 The **canonical demo surface is `./chronicle.sh start`** (zine mission control,
 port 8080); the live-pipeline/VFM operator UI is `./chronicle.sh pipeline`

@@ -599,6 +599,9 @@ def build_dashboard() -> None:
         nonlocal last_memory_key
         if memory_host is None or not memory.enabled():
             return
+        # First sight of a clip: build its VLM memory in the background. Once
+        # ready, the same chat answers from the vault in ~0.05 ms, no video.
+        memory.auto_compile(active_clip, default_data_dir())
         state = memory.status(active_clip, default_data_dir())
         files = state.get("files") if isinstance(state.get("files"), dict) else {}
         key = (

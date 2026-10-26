@@ -948,3 +948,35 @@ fetched `/`, parsed the video uploader URL (`/_nicegui/client/<client>/upload/85
 
 Verified end-to-end: `./chronicle.sh start` → HTTP 200 on `:8082` → `status`
 shows PID/URL → `stop` stops only the worktree PID; main's `:8080` untouched.
+
+---
+
+## 2026-10-27 — Session 12: restore the VLM memory as the primary answer path
+
+The main UI bug: replay clips have state/edge events but no `interactions` table, so
+"What happened around 10s?" hit `_answer_timeline` and returned "No VLM-verified interactions…".
+That was true but useless, and it hid the VFM architecture that answers in microseconds.
+
+### Fixed
+
+- **Auto-compile on first view.** `dashboard.memory.auto_compile()` submits the VLM vault once per
+  clip in the background when a graph DB exists (`CHRONICLE_VFM_AUTO=0` disables). After that the
+  zine chat routes to the vault (`provider: vfm-memory`), so caption/event answers are instant.
+- **Timeline fallback.** If no vault exists yet, `_answer_timeline` summarises labelled state/edge
+  events around the requested time instead of the old "no VLM interactions" dead end. It parses
+  "around 10s" (previously it used the playhead, 23.98s).
+- **Entity labels early.** Replay entity events now emit at `first_seen`, not `last_seen`, so the
+  UI shows `person`/`cup`/`car` instead of anonymous `Track` rows for most of the episode.
+
+### Measured
+
+- Walking VLM memory compiled from the 60 s clip → caption windows + event ledger; deterministic
+  `what happened around 10s?` returns the caption/events, `what did I see?` returns the inventory.
+- Vault answers remain ~0.05 ms; compile is the only one-time cost (~12 s for 4 s demo, ~30 s for
+  60 s walking on this machine).
+- Full test suite still green.
+
+### Note
+
+This is the old architecture's advantage, now inside main's UI: **compile once with VLM, answer
+from text/events at memory speed**. The graph-only fallback remains for clips with no DB/memory.

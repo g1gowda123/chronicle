@@ -94,3 +94,16 @@ done
   vault/pack/zip, and the chat answers through the vault when it is ready.
 - Clips without a graph DB (replay-only or fresh upload) show a clear note; the Memory card needs
   `<clip>/chronicle.db` (gitignored, copied locally for the demo).
+
+## Answer path
+
+- The VLM/VFM architecture is primary again: the first time a clip is opened, its memory is
+  compiled in the background (dense captions + event ledger + evidence). After that the chat
+  answers from the vault in **~0.05 ms**, without touching the video.
+- The zine UI shows `provider: vfm-memory` for those answers; the Memory card shows compile
+  progress and downloads.
+- `CHRONICLE_VFM_AUTO=0` disables auto-compile; `CHRONICLE_VFM=0` hides the whole memory panel.
+- If a clip has no DB/memory yet, "what happened around 10s?" now summarises labelled state/edge
+  events around 10s instead of the old "No VLM-verified interactions" dead end.
+- Replay entity labels are emitted at first sight, so the UI shows `person`/`cup`/`car` rather than
+  anonymous `Track` rows.

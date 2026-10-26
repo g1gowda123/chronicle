@@ -305,11 +305,12 @@ class _SQLiteMirror:
             parsed = self._json(attributes)
             if isinstance(parsed, dict):
                 data["attributes"] = parsed
-            t = data.get("last_seen")
-            for candidate in ("last_seen", "first_seen"):
-                if data.get(candidate) is not None:
-                    t = data[candidate]
-                    break
+            # Emit the entity at first sight, not last: replay consumers need
+            # the label/zone before the early state events arrive (otherwise the
+            # UI shows anonymous "Track" rows for most of the episode).
+            t = data.get("first_seen")
+            if t is None:
+                t = data.get("last_seen")
             if self.runtime.ingest({"kind": "entity", "t": t or 0, "data": data}, origin=self._origin()):
                 accepted += 1
         self._advance("entities", rows)
