@@ -314,6 +314,33 @@ python -m pytest
 python -m unittest discover -s tests -v   # Role C suite without pytest
 ```
 
+## Video-free memory (VFM)
+
+The dashboard can compile a small, queryable memory from the current run or an uploaded video:
+packed events, dense VLM captions, 480 px WebP evidence, a single-file HTML report and an
+LLM-ready pack. The source video is kept for playback; it is not required to answer questions.
+
+```bash
+# deterministic memory panel, Qwen off
+chronicle serve --source synthetic
+
+# Qwen answers over the memory pack (no frames)
+chronicle serve --source synthetic --qwen
+
+# control the compile; --no-vfm disables compiles
+chronicle serve --vfm-window-s 20 --vfm-frames-per-window 3 --vfm-max-snapshots 40
+chronicle serve --no-vfm
+```
+
+A successful ingest triggers a background compile; the **Memory** tab shows progress, opens the
+report, downloads `vault.db` / `memory.html` / `memory_pack.md` / `memory.zip`, and answers
+questions. Citation chips seek the existing player. Counts are track/visibility bounds (and a
+deduped physical estimate where the compiler can compute one), never a claim of verified physical
+counts.
+
+Files: `chronicle/vfm/`, tests `tests/test_vfm.py`, full details
+`experiments/video-free-memory/docs/MAIN_UI_INTEGRATION.md`.
+
 ## Role boundaries
 
 - **Role A (implemented):** video ingestion, motion gating, detection, hands,
