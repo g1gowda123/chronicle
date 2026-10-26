@@ -258,11 +258,11 @@ PR so parallel work does not collide.
 | NB-05 | Verify every bundled source end to end | opencode (AI) | `f8fcd0e`; `docs/PERCEPTION.md` NB-05 tables; 5/5 sources 9/9 checks |
 | NB-06 | Real-clip evidence images for demo answers | opencode (AI) | `f967a71`; `data/*/evidence/`; `scripts/build_evidence_fixtures.py` |
 | NB-07 | Label the HoloLens action timeline and run the scorer | opencode (AI) | `68b1432`; `docs/action_timeline.holoassist.json`; 1/7, 6.3% precision |
-| NB-18 | Reduce the pre-grasp PICK_UP false positive | opencode (AI) | negation-aware rule matching; precision 1.00 / recall 1.00 |
+| NB-18 | Reduce the pre-grasp PICK_UP false positive | opencode (AI) | `dfcd4d7`; negation-aware rule matching; precision 1.00 / recall 1.00 |
 
 ### NB-18 details
 
-- **Branch:** `task/nb-18-pickup-negation`
+- **Branch:** `task/nb-18-pickup-negation` · **Commit:** `dfcd4d7`
 - **Fix:** `RuleBasedActionClassifier` rejects negated action verbs before the
   positive patterns, so a pre-grasp "reaches … does not grasp" caption becomes
   `OTHER`; true pickups still match.
