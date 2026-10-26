@@ -234,8 +234,14 @@ For the real OpenCLIP + Florence-2 stack and optional Ollama GraphRAG:
 
 ```bash
 pip install -r requirements-semantic-models.txt
-ollama pull qwen2.5:3b-instruct
+ollama pull qwen2.5:7b-instruct
 ```
+
+Both `chronicle ask` and the dashboard query console answer through the local
+Ollama model when it is reachable, then fall back to the deterministic
+GraphRAG answer. Select another model with `CHRONICLE_LLM_MODEL` or
+`--llm-model`; `./chronicle.sh start --no-llm` runs the dashboard without
+Ollama.
 
 Role C consumes Role A's `InteractionClip` directly, including its
 `contact_index` and BGR `ClipFrame` images. See

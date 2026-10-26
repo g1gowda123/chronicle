@@ -9,12 +9,14 @@ CHRONICLE_DATA_DIR directory holding demo assets (default ``./data``)
 CHRONICLE_VIDEO    override the video URL (e.g. ``/media/session.webm``)
 CHRONICLE_EVENTS_JSONL  tail a producer's JSONL event file
 CHRONICLE_DB       poll a producer's SQLite database
-CHRONICLE_QUERY_URL  optional Role C GraphRAG/LLM endpoint
+CHRONICLE_QUERY_URL  optional external GraphRAG/LLM endpoint
+CHRONICLE_LLM_BACKEND  auto | ollama | template | none (default auto)
+CHRONICLE_LLM_MODEL    Ollama model (default qwen2.5:7b-instruct)
+CHRONICLE_OLLAMA_URL   Ollama base URL (default http://127.0.0.1:11434)
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 

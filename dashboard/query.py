@@ -4,9 +4,10 @@ Matches section 6 of the technical spec:
 
 1. resolve the entity + active spatial anchor,
 2. serialise the 2-hop relational subgraph,
-3. synthesise an answer.  A deterministic local answerer keeps the dashboard
-   useful without a GPU, while Role C's LLM endpoint can be plugged in with
-   ``CHRONICLE_QUERY_URL``.
+3. synthesise an answer.  The deterministic answerer keeps the dashboard
+   useful without a GPU, while a local Ollama model (Qwen 2.5 by default)
+   turns the evidence table into natural prose.  ``CHRONICLE_QUERY_URL`` can
+   still attach an external answer endpoint when one is available.
 
 Every answer is grounded in graph records and carries timestamped citations
 which the UI can seek to.
@@ -19,12 +20,16 @@ import difflib
 import json
 import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Iterable
+from collections.abc import Callable, Iterable
+from pathlib import Path
+from typing import Any
 
 from .contracts import clean_text, pretty_ref
+from .frames import AnswerFrameSelector
 from .store import ACTION_RELATIONS, SPATIAL_RELATIONS, Edge, Entity, MemoryStore, Zone
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -73,14 +78,50 @@ SYSTEM_PROMPT = (
     '{"answer": "...", "citations": [{"t": 16.9, "label": "CONTAINED", "entity_id": "keys_1"}]}'
 )
 
+DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
+DEFAULT_LLM_MODEL = "qwen2.5:7b-instruct"
+NO_MEMORY_PHRASE = "i don't have that in my memory"
+
 
 class QueryEngine:
-    def __init__(self, store: MemoryStore, endpoint: str | None = None, token: str | None = None) -> None:
+    def __init__(
+        self,
+        store: MemoryStore,
+        endpoint: str | None = None,
+        token: str | None = None,
+        *,
+        llm_backend: str | None = None,
+        llm_model: str | None = None,
+        ollama_url: str | None = None,
+        data_dir: str | Path | None = None,
+        video_path: str | Path | Callable[[], str | Path | None] | None = None,
+    ) -> None:
         self.store = store
         self.endpoint = endpoint if endpoint is not None else os.getenv("CHRONICLE_QUERY_URL")
         self.token = token if token is not None else os.getenv("CHRONICLE_QUERY_TOKEN")
+        self.frames = AnswerFrameSelector(
+            store,
+            data_dir=data_dir,
+            video_path=video_path,
+        )
+        self.llm_backend = (
+            llm_backend
+            if llm_backend is not None
+            else os.getenv("CHRONICLE_LLM_BACKEND", "auto")
+        ).strip().lower()
+        self.llm_model = (
+            llm_model if llm_model is not None else os.getenv("CHRONICLE_LLM_MODEL", DEFAULT_LLM_MODEL)
+        ).strip()
+        self.ollama_url = (
+            ollama_url if ollama_url is not None else os.getenv("CHRONICLE_OLLAMA_URL", DEFAULT_OLLAMA_URL)
+        ).rstrip("/")
         self._last_entity: str | None = None
         self.last_provider = "local-graphrag"
+        self._chat_client: Any = None
+        self._llm_checked = False
+        self._llm_status: dict[str, Any] = {}
+        self._llm_checked_at = 0.0
+        self._llm_lock = threading.Lock()
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -90,7 +131,9 @@ class QueryEngine:
         started = time.perf_counter()
         query = clean_text(query, 300)
         if not query:
-            return self._empty("Ask a question about an object in the episode.", t)
+            result = self._empty("Ask a question about an object in the episode.", t)
+            result["frame"] = None
+            return result
 
         match = self._match_entities(query)
         zone = self._match_zone(query) if not match else None
@@ -116,7 +159,8 @@ class QueryEngine:
         result["model"] = "chronicle-local"
         result["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
 
-        if self.endpoint and result.get("route") in {"entity", "zone", "timeline"}:
+        route = result.get("route")
+        if self.endpoint and route in {"entity", "zone", "timeline"}:
             external = self._ask_external(query, t, result)
             if external:
                 if external.get("answer"):
@@ -125,7 +169,64 @@ class QueryEngine:
                     result["model"] = external.get("model") or "role-c"
                 else:
                     result["llm_error"] = external.get("llm_error")
+        elif route in {"entity", "zone", "timeline"} and result.get("rows") and self._llm_enabled():
+            local = self._ask_local_llm(query, t, result)
+            if local:
+                if local.get("answer"):
+                    result["answer"] = local["answer"]
+                    result["citations"] = local.get("citations") or result.get("citations") or []
+                    result["provider"] = local.get("provider") or f"ollama:{self.llm_model}"
+                    result["model"] = local.get("model") or self.llm_model
+                    result["llm_error"] = None
+                else:
+                    if self.llm_backend == "ollama":
+                        result["llm_error"] = local.get("llm_error")
+        self.last_provider = str(result.get("provider") or "local-graphrag")
+        result["frame"] = self.frames.for_answer(result, t)
+        result["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
         return result
+
+    def status(self, *, refresh: bool = False) -> dict[str, Any]:
+        """Return the configured answer provider without blocking the UI."""
+        if self.endpoint:
+            return {
+                "provider": "role-c-llm",
+                "model": "role-c",
+                "backend": "external",
+                "server": True,
+                "available": True,
+            }
+        configured = self._llm_enabled()
+        if not configured:
+            return {
+                "provider": "local-graphrag",
+                "model": "chronicle-local",
+                "backend": self.llm_backend,
+                "server": False,
+                "available": False,
+            }
+        now = time.monotonic()
+        with self._llm_lock:
+            if refresh or not self._llm_status or now - self._llm_checked_at >= 15.0:
+                self._llm_status = self._probe_llm()
+                self._llm_checked_at = now
+            status = dict(self._llm_status)
+        return {
+            "provider": f"ollama:{self.llm_model}" if status.get("available") else "local-graphrag",
+            "model": self.llm_model if status.get("available") else "chronicle-local",
+            "backend": "ollama",
+            "server": bool(status.get("server")),
+            "available": bool(status.get("available")),
+            "loaded": status.get("loaded") or [],
+            "version": status.get("version"),
+        }
+
+    def provider_label(self) -> str:
+        if self.endpoint:
+            return "role-c-llm"
+        if self._llm_enabled():
+            return f"ollama:{self.llm_model}"
+        return "local-graphrag"
 
     async def answer_async(self, query: str, t: float) -> dict[str, Any]:
         return await asyncio.to_thread(self.answer, query, t)
@@ -409,7 +510,7 @@ class QueryEngine:
                 if state in {"VISIBLE_STATIC", "CONTAINED", "VISIBLE_MOVING"}:
                     sentence += f" It is now {state.replace('_', ' ').lower()} {location}."
                 elif state == "HELD":
-                    sentence += f" You are still holding it."
+                    sentence += " You are still holding it."
             else:
                 sentence = f"No hand interaction has been recorded for the {label}."
                 if location:
@@ -773,6 +874,154 @@ class QueryEngine:
             f"RESOLVED ENTITY: {entity.label} ({entity.id}), state={state}\n\n"
             f"2-HOP SUBGRAPH:\n{table}"
         )
+
+    # ------------------------------------------------------------------ #
+    # Local Qwen via Ollama
+    # ------------------------------------------------------------------ #
+
+    def _llm_enabled(self) -> bool:
+        return self.llm_backend not in {"template", "none", "off"}
+
+    def _ensure_chat_client(self) -> Any:
+        if not self._llm_enabled():
+            return None
+        with self._llm_lock:
+            if self._chat_client is not None:
+                return self._chat_client
+            if self._llm_checked:
+                return None
+            self._llm_checked = True
+            try:
+                from chronicle.semantic.config import SemanticConfig
+                from chronicle.semantic.llm import OllamaChatClient, ensure_local_ollama
+            except Exception as exc:  # pragma: no cover - defensive import guard
+                self._llm_status = {
+                    "server": False,
+                    "available": False,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+                return None
+            config = SemanticConfig(
+                llm_backend="ollama",
+                llm_model=self.llm_model,
+                ollama_url=self.ollama_url,
+            )
+            try:
+                ensure_local_ollama(config, wait_seconds=3.0)
+            except Exception:
+                pass
+            self._chat_client = OllamaChatClient(
+                model=self.llm_model,
+                base_url=self.ollama_url,
+                timeout_s=config.llm_timeout_s,
+                keep_alive=config.llm_keep_alive,
+                num_ctx=config.llm_num_ctx,
+                num_predict=config.llm_num_predict,
+                temperature=config.llm_temperature,
+            )
+            return self._chat_client
+
+    def _probe_llm(self) -> dict[str, Any]:
+        try:
+            from chronicle.semantic.llm import probe_ollama_runtime
+        except Exception as exc:  # pragma: no cover - defensive import guard
+            return {"server": False, "available": False, "error": f"{type(exc).__name__}: {exc}"}
+        return probe_ollama_runtime(self.ollama_url, self.llm_model, timeout=0.8)
+
+    def _ask_local_llm(self, query: str, t: float, local: dict[str, Any]) -> dict[str, Any]:
+        client = self._ensure_chat_client()
+        if client is None:
+            return {"llm_error": "local Ollama client is unavailable"}
+        prompt = str(local.get("prompt") or "")
+        if prompt.startswith(SYSTEM_PROMPT):
+            prompt = prompt[len(SYSTEM_PROMPT) :].lstrip()
+        if not prompt:
+            prompt = (
+                f"PLAYHEAD: {t:.1f}s\nQUESTION: {query}\n\n"
+                f"2-HOP SUBGRAPH:\n{local.get('table') or '| no rows |'}"
+            )
+        try:
+            raw = client.complete(SYSTEM_PROMPT, prompt)
+        except Exception as exc:
+            return {"llm_error": f"{type(exc).__name__}: {exc}"}
+        active = str(getattr(client, "active_model", "") or self.llm_model)
+
+        answer, citations, model = self._parse_external(raw)
+        if answer and answer.lstrip().startswith("{"):
+            salvaged = self._salvage_json_answer(raw)
+            if salvaged is not None:
+                answer, citations = salvaged
+        if not answer or answer.strip().lower().rstrip(".") == NO_MEMORY_PHRASE:
+            return {"llm_error": "Qwen returned no grounded answer"}
+        citations = citations or local.get("citations") or []
+        answer = self._ensure_citation(answer, citations)
+        return {
+            "answer": answer,
+            "citations": citations,
+            "provider": f"ollama:{model or active}",
+            "model": model or active,
+        }
+
+    @staticmethod
+    def _ensure_citation(answer: str, citations: list[dict[str, Any]]) -> str:
+        """Keep the answer seekable: attach the newest evidence stamp if absent."""
+        if re.search(r"\[t=|\bt=\d", answer):
+            return answer
+        stamped = [
+            citation
+            for citation in citations
+            if isinstance(citation, dict) and citation.get("t") is not None
+        ]
+        if not stamped:
+            return answer
+        latest = max(stamped, key=lambda citation: float(citation.get("t") or 0.0))
+        return f"{answer.rstrip('. ')} [t={float(latest['t']):.1f}s]."
+
+    @staticmethod
+    def _salvage_json_answer(raw: str) -> tuple[str, list[dict[str, Any]]] | None:
+        """Recover ``{"answer": ...}`` from slightly malformed model JSON.
+
+        Small local models often emit ``[t=4.8s]`` inside JSON strings or forget
+        to quote numeric stamps, which ``json.loads`` rejects.  Keep the prose
+        and lift whatever citations are readable.
+        """
+        match = re.search(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
+        if match is None:
+            return None
+        try:
+            answer = json.loads(f'"{match.group(1)}"')
+        except json.JSONDecodeError:
+            answer = match.group(1).replace('\\"', '"')
+        citations: list[dict[str, Any]] = []
+        for object_match in re.finditer(r"\{[^{}]*?\"t\"[^{}]*?\}", raw):
+            body = object_match.group(0)
+            stamp = re.search(r'"t"\s*:\s*"?(\d+(?:\.\d+)?)s?"?', body)
+            if stamp is None:
+                continue
+            label = re.search(r'"label"\s*:\s*"([^"]*)"', body)
+            entity_id = re.search(r'"entity_id"\s*:\s*"([^"]*)"', body)
+            detail = re.search(r'"detail"\s*:\s*"([^"]*)"', body)
+            citations.append(
+                {
+                    "t": round(float(stamp.group(1)), 3),
+                    "label": label.group(1) if label else "STATE",
+                    "kind": "action" if label else "state",
+                    "entity_id": entity_id.group(1) if entity_id else None,
+                    "detail": detail.group(1) if detail else "",
+                }
+            )
+        if not citations and re.search(r"\[t=|\bt=\d", raw):
+            for stamp in re.finditer(r"\[t=(\d+(?:\.\d+)?)s\]", raw):
+                citations.append(
+                    {
+                        "t": round(float(stamp.group(1)), 3),
+                        "label": "TIMESTAMP",
+                        "kind": "state",
+                        "entity_id": None,
+                        "detail": "",
+                    }
+                )
+        return answer.strip(), citations
 
     def _ask_external(self, query: str, t: float, local: dict[str, Any]) -> dict[str, Any] | None:
         if not self.endpoint:

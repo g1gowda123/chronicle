@@ -92,7 +92,13 @@ SOURCES: tuple[ClipSource, ...] = (
         relative_db="real/walking/chronicle.db",
         zone_label="Outdoor Path",
         vocabulary=("person", "cup", "backpack", "car", "table"),
-        questions=("where was the cup last found?", "what did I see?"),
+        questions=(
+            "what is my friend holding?",
+            "what was my friend doing with the cup?",
+            "where was the cup last found?",
+            "where is the cup?",
+            "what did I see?",
+        ),
     ),
     ClipSource(
         key="cook",

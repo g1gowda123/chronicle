@@ -28,9 +28,9 @@ import io
 import json
 import logging
 import os
+import re
 import threading
 import time
-import urllib.request
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -489,13 +489,72 @@ class ChronicleRuntime:
         started = time.monotonic()
         result = self.memory.query(query)
         if result is None:
-            return RuntimeAnswer(
-                query=query,
-                answer="I don't have that in my memory.",
-                source="graph",
-                grounded=False,
-                elapsed=time.monotonic() - started,
-            )
+            # Check for inventory / overview queries like "what did I see?", "what was tracked?"
+            q_lower = query.lower()
+            all_entities = list(self.memory.foreground.entities())
+            if all_entities and re.search(
+                r"\b(what did i see|what did i observe|what was tracked|summary|overview|what objects|inventory)\b",
+                q_lower,
+            ):
+                counts: dict[str, int] = {}
+                for e in all_entities:
+                    label = str(e.get("label", "object"))
+                    counts[label] = counts.get(label, 0) + 1
+                items_str = ", ".join(f"{count} {label}{'s' if count > 1 else ''}" for label, count in counts.items())
+                zone = self.active_zone or (self.memory.background.zones[0].label if self.memory.background.zones else "the scene")
+                engine = self._ensure_semantic()
+                if engine and engine.chat_client:
+                    facts = [
+                        Fact(
+                            subject=str(e.get("label", "entity")),
+                            relation="OBSERVED_IN",
+                            object_label=zone,
+                            timestamp=float(e.get("last_seen", 0.0) or 0.0),
+                            zone=zone,
+                        )
+                        for e in all_entities
+                    ]
+                    inv_context = GraphContext(
+                        entity_id="inventory",
+                        entity_label="scene objects",
+                        zone=zone,
+                        facts=tuple(facts),
+                    )
+                    ans = engine.answer_query(query, inv_context)
+                    return RuntimeAnswer(
+                        query=query,
+                        answer=ans.answer,
+                        citations=tuple(c.to_dict() for c in ans.citations),
+                        source=ans.source,
+                        grounded=True,
+                        method=ans.source,
+                        elapsed=time.monotonic() - started,
+                        zone=zone,
+                    )
+                return RuntimeAnswer(
+                    query=query,
+                    answer=f"The episodic memory tracked {len(all_entities)} entities across {zone}: {items_str}.",
+                    source="graph",
+                    grounded=True,
+                    method="inventory",
+                    elapsed=time.monotonic() - started,
+                    zone=zone,
+                )
+
+            if all_entities and re.search(r"\b(who|who's|anyone)\b", q_lower):
+                people = [e for e in all_entities if str(e.get("label", "")).lower() in {"person", "people"}]
+                if people:
+                    best_person = max(people, key=lambda e: float(e.get("last_seen", 0.0) or 0.0))
+                    result = self.memory.query_entity(str(best_person.get("node_id", "")), question=query)
+
+            if result is None:
+                return RuntimeAnswer(
+                    query=query,
+                    answer="I don't have that in my memory.",
+                    source="graph",
+                    grounded=False,
+                    elapsed=time.monotonic() - started,
+                )
         context = self.graph_context(result)
         engine = self._ensure_semantic()
         if engine is None:
@@ -856,46 +915,37 @@ class ChronicleRuntime:
         config = self._semantic_config or SemanticConfig()
         model = config.llm_model
         base_url = config.ollama_url.rstrip("/")
-        status: dict[str, Any] = {
-            "backend": config.llm_backend,
-            "model": model,
-            "server": False,
-            "available": False,
-            "loaded": [],
-            "version": None,
-        }
         if config.llm_backend in {"template", "none"}:
-            status["backend"] = "template"
-            return status
-        try:
-            with urllib.request.urlopen(f"{base_url}/api/tags", timeout=0.8) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-            names = [str(item.get("name", "")) for item in payload.get("models", [])]
-            status["server"] = True
-            status["available"] = True
-            status["model_present"] = any(
-                name.split(":")[0] == model.split(":")[0] for name in names
-            )
-            try:
-                with urllib.request.urlopen(f"{base_url}/api/ps", timeout=0.8) as response:
-                    running = json.loads(response.read().decode("utf-8"))
-                status["loaded"] = running.get("models", [])
-            except Exception:
-                pass
-        except Exception:
-            status["server"] = False
-        return status
+            return {
+                "backend": "template",
+                "model": model,
+                "server": False,
+                "available": False,
+                "loaded": [],
+                "version": None,
+            }
+        from chronicle.semantic.llm import probe_ollama_runtime
+        return probe_ollama_runtime(base_url, model)
 
     # ------------------------------------------------------------------ internal
     def _ensure_semantic(self) -> SemanticEngine | None:
         if not self.semantic_enabled:
             return None
         if self._semantic is not None:
+            if self._semantic.chat_client is None:
+                from chronicle.semantic.llm import build_chat_client
+                client = build_chat_client(self._semantic.config)
+                if client is not None:
+                    self._semantic.chat_client = client
+                    self._semantic.graphrag.chat_client = client
+                    self._semantic.verifier.chat_client = client
             return self._semantic
         with self._lock:
             if self._semantic is not None:
                 return self._semantic
             config = self._semantic_config or SemanticConfig.from_env()
+            from chronicle.semantic.llm import ensure_local_ollama
+            ensure_local_ollama(config, wait_seconds=2.0)
             # The dashboard must be usable without model downloads.  Florence is
             # opt-in; the deterministic captioner/rule classifier is the
             # documented offline fallback.  OpenCLIP auto-degrades too.

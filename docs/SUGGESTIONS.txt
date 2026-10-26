@@ -136,7 +136,7 @@ Test status (all model-free, no network):
 6. PRODUCTION RUNTIME CHECKLIST
 -------------------------------
   pip install -r requirements-semantic-models.txt
-  ollama pull qwen2.5:3b-instruct
+  ollama pull qwen2.5:7b-instruct
 
   CHRONICLE_CLIP_MODEL_NAME        ViT-B-32
   CHRONICLE_CLIP_PRETRAINED        laion2b_s34b_b79k

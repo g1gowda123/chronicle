@@ -67,9 +67,15 @@ class SemanticConfig:
 
     # --- Local LLM (Ollama by default, transformers optional) -------------
     llm_backend: str = "auto"  # auto | ollama | transformers | template | none
-    llm_model: str = "qwen2.5:3b-instruct"
+    llm_model: str = "qwen2.5:7b-instruct"
     ollama_url: str = "http://127.0.0.1:11434"
-    llm_timeout_s: float = 60.0
+    ollama_bin: str | None = None
+    hf_llm_model: str = "Qwen/Qwen2.5-1.5B-Instruct"
+    llm_timeout_s: float = 120.0
+    llm_keep_alive: str = "30m"
+    llm_num_ctx: int = 4096
+    llm_num_predict: int = 220
+    llm_temperature: float = 0.1
     require_citations: bool = True
     max_facts: int = 40
 

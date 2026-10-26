@@ -37,7 +37,7 @@ python -m unittest discover -s tests -v
 
 ```powershell
 pip install -r requirements-semantic-models.txt
-ollama pull qwen2.5:3b-instruct   # optional but recommended
+ollama pull qwen2.5:7b-instruct   # optional but recommended
 ```
 
 `torch` chooses CUDA automatically; override with `CHRONICLE_DEVICE=cpu|cuda|mps`.
@@ -568,7 +568,7 @@ Every field of `SemanticConfig` can be set with
 | `CHRONICLE_VERIFICATION_QUEUE_POLICY` | `drop_oldest` | `drop_oldest`, `reject` |
 | `CHRONICLE_VERIFICATION_DEDUP_WINDOW` | `1024` | clip ids remembered |
 | `CHRONICLE_LLM_BACKEND` | `auto` | `auto`, `ollama`, `transformers`, `template`, `none` |
-| `CHRONICLE_LLM_MODEL` | `qwen2.5:3b-instruct` | Ollama / HF model id |
+| `CHRONICLE_LLM_MODEL` | `qwen2.5:7b-instruct` | Ollama / HF model id |
 | `CHRONICLE_OLLAMA_URL` | `http://127.0.0.1:11434` | daemon URL |
 | `CHRONICLE_LLM_TIMEOUT_S` | `60` | generation timeout |
 | `CHRONICLE_REQUIRE_CITATIONS` | `true` | reject uncited LLM answers |

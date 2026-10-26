@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import html
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 from ..contracts import STATE_COLORS, clean_text, pretty_ref
 from ..store import ACTION_RELATIONS, MemoryStore
@@ -173,7 +174,8 @@ def query_hint_html() -> str:
     <strong>Ask the episodic memory</strong>
     <span>Resolve natural language against the dual graph, then jump to the
     timestamped evidence behind every answer.</span>
-    <span>Local GraphRAG is active. Set CHRONICLE_QUERY_URL to attach Role C's LLM.</span>
+    <span>Local GraphRAG is active. Answers use Qwen via Ollama when available
+    (set CHRONICLE_LLM_MODEL / CHRONICLE_OLLAMA_URL to change models).</span>
   </div>
 </div>
 """.strip()

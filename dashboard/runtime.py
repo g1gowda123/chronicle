@@ -12,8 +12,9 @@ import json
 import os
 import threading
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .contracts import Event, parse_event
 from .query import QueryEngine
@@ -70,7 +71,7 @@ class Runtime:
     ) -> None:
         self.data_dir = Path(data_dir) if data_dir is not None else default_data_dir()
         self.store = MemoryStore()
-        self.query = QueryEngine(self.store)
+        self.query = QueryEngine(self.store, data_dir=self.data_dir, video_path=self.video_file)
         self._lock = threading.RLock()
         self._seq = 0
         self._task: asyncio.Task[None] | None = None
@@ -326,6 +327,24 @@ class Runtime:
             return None
         return "/media/" + relative.as_posix()
 
+    def video_file(self) -> Path | None:
+        """Return the local video backing the current source, if one exists."""
+
+        url = self.video_url
+        if not url or url.startswith(("http://", "https://", "data:")):
+            return None
+        if url.startswith("/media/"):
+            path = self.data_dir / url[len("/media/") :]
+        else:
+            path = Path(url).expanduser()
+            if not path.is_absolute():
+                path = self.data_dir / path
+        try:
+            resolved = path.expanduser().resolve()
+        except OSError:
+            return None
+        return resolved if resolved.is_file() else None
+
     def snapshot(self, *, mode: str | None = None) -> dict[str, Any]:
         with self._lock:
             t = self.playhead
@@ -351,7 +370,7 @@ class Runtime:
                 "demo_available": self.demo_available,
                 "live_events": self.live_events,
                 "rejected_events": self.rejected_events,
-                "query_provider": "role-c-llm" if self.query.endpoint else "local-graphrag",
+                "query_provider": self.query.provider_label(),
             }
 
     def timeline(self, *, include_future: bool = True) -> list[dict[str, Any]]:

@@ -47,6 +47,8 @@ runs/
 logs/
 *.pid
 .chronicle.pid
+.chronicle.port
+.chronicle.llm
 *.db
 *.db-shm
 *.db-wal

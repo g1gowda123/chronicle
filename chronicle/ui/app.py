@@ -225,6 +225,7 @@ def create_app(
     detector_backend: str = "auto",
     hands_backend: str = "auto",
     embedder_backend: str = "auto",
+    semantic_config: SemanticConfig | None = None,
     start_server: bool = True,
 ) -> DashboardState:
     data_root = DEFAULT_DATA_DIR if data_dir is None else Path(data_dir).expanduser().resolve()
@@ -295,6 +296,7 @@ def create_app(
         initial,
         video_path,
         base_config=base_config,
+        semantic_config=semantic_config,
         max_frames=max_frames,
     )
 

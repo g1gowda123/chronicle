@@ -80,6 +80,16 @@ def _perception_config(args: argparse.Namespace) -> PerceptionConfig:
     return config
 
 
+def _semantic_config(args: argparse.Namespace) -> SemanticConfig:
+    config = SemanticConfig.from_env()
+    changes = {}
+    if getattr(args, "llm", None) is not None:
+        changes["llm_backend"] = args.llm
+    if getattr(args, "llm_model", None) is not None:
+        changes["llm_model"] = args.llm_model
+    return config.replace(**changes) if changes else config
+
+
 def cmd_sources(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir).expanduser().resolve()
     rows = []
@@ -106,10 +116,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         video=args.video,
     )
     db_path = Path(args.db).expanduser() if args.db else source.db_path(data_dir)
+    sem_cfg = _semantic_config(args)
+    from chronicle.semantic.llm import ensure_local_ollama
+    ensure_local_ollama(sem_cfg)
     runtime = ChronicleRuntime(
         db_path,
         perception_config=_perception_config(args),
-        semantic_config=SemanticConfig.from_env(),
+        semantic_config=sem_cfg,
         zone_label=args.zone or source.zone_label,
         reset=args.reset,
     )
@@ -134,9 +147,12 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_ask(args: argparse.Namespace) -> int:
+    sem_cfg = _semantic_config(args)
+    from chronicle.semantic.llm import ensure_local_ollama
+    ensure_local_ollama(sem_cfg)
     runtime = ChronicleRuntime(
         args.db,
-        semantic_config=SemanticConfig.from_env(),
+        semantic_config=sem_cfg,
         load=True,
     )
     try:
@@ -155,6 +171,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
             "Install them with: uv sync --extra ui  (or pip install 'nicegui>=3.0')"
         ) from exc
 
+    sem_cfg = _semantic_config(args)
+    from chronicle.semantic.llm import ensure_local_ollama
+    ensure_local_ollama(sem_cfg)
+
     create_app(
         data_dir=args.data_dir,
         video=args.video,
@@ -167,6 +187,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         detector_backend=args.detector,
         hands_backend=args.hands,
         embedder_backend=args.embedder,
+        semantic_config=sem_cfg,
     )
     return 0
 
@@ -175,6 +196,8 @@ def _add_backend_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--detector", default="auto", help="auto|color|yolo-world")
     parser.add_argument("--hands", default="auto", help="auto|color|mediapipe")
     parser.add_argument("--embedder", default="auto", help="auto|color|deterministic|openclip")
+    parser.add_argument("--llm", default=None, help="auto|ollama|transformers|template")
+    parser.add_argument("--llm-model", default=None, help="Ollama / HF model name (default: qwen2.5:7b-instruct)")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -207,6 +230,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask = subparsers.add_parser("ask", help="ask a persisted memory a question")
     ask.add_argument("question")
     ask.add_argument("--db", required=True)
+    _add_backend_flags(ask)
     ask.set_defaults(func=cmd_ask)
 
     serve = subparsers.add_parser("serve", help="launch the NiceGUI dashboard")

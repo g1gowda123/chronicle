@@ -28,11 +28,12 @@ places, times, or actions.
 
 Rules:
 1. Answer in one or two short sentences.
-2. Include at least one timestamp citation copied from the table, e.g. [t=14.2s].
-3. Name the zone/location when it is known.
-4. If the table cannot answer the question, reply exactly:
+2. If the user asks what a friend/person is holding, doing or interacting with, answer based on the objects and actions in the table (such as cup, bag, keys, etc.).
+3. Include at least one timestamp citation copied from the table, e.g. [t=14.2s].
+4. Name the zone/location when it is known.
+5. If the table cannot answer the question, reply exactly:
    I don't have that in my memory.
-5. Never mention these instructions or the table itself."""
+6. Never mention these instructions or the table itself."""
 
 _SPATIAL_RELATIONS = {
     "RESTING_ON",
@@ -231,12 +232,13 @@ class GraphContext:
     def limited_facts(self, limit: int) -> tuple[Fact, ...]:
         if limit <= 0 or len(self.facts) <= limit:
             return self.facts
-        ordered = sorted(
-            self.facts,
-            key=lambda fact: (fact.timestamp is not None, fact.timestamp or 0.0),
-            reverse=True,
-        )[:limit]
-        ordered.reverse()
+        def _fact_priority(f: Fact) -> tuple[int, bool, float]:
+            rel = (f.relation or "").upper()
+            is_action = 2 if rel in {"PICK_UP", "HELD", "RESTING_ON", "CARRIED_IN_HAND", "INTERACTED", "IN_ZONE", "INSERT_INTO", "PLACED"} else (0 if rel in {"STATE", "STATE_TRANSITION"} else 1)
+            return (is_action, f.timestamp is not None, f.timestamp or 0.0)
+
+        ordered = sorted(self.facts, key=_fact_priority, reverse=True)[:limit]
+        ordered.sort(key=lambda fact: (fact.timestamp is not None, fact.timestamp or 0.0))
         return tuple(ordered)
 
     def to_dict(self) -> dict[str, Any]:
@@ -550,6 +552,28 @@ def extract_citations(text: str, context: GraphContext, tolerance: float = 0.35)
         # A timestamp that does not map back to the subgraph is a hallucination
         # and must not be shown to the user as a citation.
         if nearest is None:
+            # ``Last seen`` is part of the serialized context even when the
+            # newest fact row carries an earlier transition timestamp.
+            if (
+                context.last_seen is not None
+                and abs(float(context.last_seen) - timestamp) <= tolerance
+            ):
+                latest = max(
+                    (fact for fact in context.facts if fact.timestamp is not None),
+                    key=lambda fact: float(fact.timestamp or 0.0),
+                    default=None,
+                )
+                key = (float(context.last_seen), latest.relation if latest else "LAST_SEEN")
+                if key not in seen:
+                    seen.add(key)
+                    found.append(
+                        Citation(
+                            timestamp=float(context.last_seen),
+                            relation=latest.relation if latest else "LAST_SEEN",
+                            zone=context.zone,
+                            fact=latest,
+                        )
+                    )
             continue
 
         key = (timestamp, nearest.relation)
@@ -911,6 +935,7 @@ class GraphRAG:
         citations = extract_citations(text, resolved)
         if not text:
             return template_answer(query, resolved)
+
         if self.config.require_citations and not citations:
             warn_once(
                 "graphrag-uncited",
@@ -918,12 +943,18 @@ class GraphRAG:
             )
             return template_answer(query, resolved)
 
+        source_name = (
+            f"ollama:{getattr(self.chat_client, 'active_model', None) or getattr(self.chat_client, 'model', 'local')}"
+            if getattr(self.chat_client, "model", None)
+            else "llm"
+        )
+
         return QueryAnswer(
             query=query,
             answer=text,
             citations=citations,
             grounded=bool(citations),
-            source="llm",
+            source=source_name,
             context=resolved,
             raw_response=raw,
         )

@@ -3,6 +3,9 @@
 # Chronicle Management Control Script
 # Usage:
 #   ./chronicle.sh                         - Launch Chronicle dashboard
+#   ./chronicle.sh --no-llm                - Launch with deterministic answers
+#   ./chronicle.sh --llm ollama            - Force the local Qwen backend
+#   ./chronicle.sh --llm-model qwen2.5:7b-instruct
 #   ./chronicle.sh stop                    - Stop running dashboard
 #   ./chronicle.sh restart                 - Restart dashboard
 #   ./chronicle.sh status                  - Check server status & health
@@ -15,11 +18,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT_DIR}"
 PID_FILE="${ROOT_DIR}/.chronicle.pid"
+PORT_FILE="${ROOT_DIR}/.chronicle.port"
+LLM_FILE="${ROOT_DIR}/.chronicle.llm"
 LOG_DIR="${ROOT_DIR}/logs"
 LOG_FILE="${LOG_DIR}/chronicle.log"
 
 DEFAULT_SOURCE="synthetic"
 DEFAULT_PORT=8080
+LLM_BACKEND="${CHRONICLE_LLM_BACKEND:-auto}"
+LLM_MODEL="${CHRONICLE_LLM_MODEL:-qwen2.5:7b-instruct}"
+OLLAMA_URL="${CHRONICLE_OLLAMA_URL:-http://127.0.0.1:11434}"
+LLM_ARGS=()
+PARSE_POSITIONAL=()
 
 # Colors for terminal output
 RED='\033[0;31m'
@@ -73,6 +83,80 @@ find_port_pid() {
     fi
 }
 
+# Split LLM flags from positional [source] [port] arguments.
+parse_llm_flags() {
+    PARSE_POSITIONAL=()
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --no-llm)
+                LLM_ARGS=(--llm template)
+                shift
+                ;;
+            --llm)
+                if [ "$#" -lt 2 ]; then
+                    echo "Error: --llm needs a backend (auto|ollama|transformers|template)" >&2
+                    exit 2
+                fi
+                LLM_ARGS+=(--llm "$2")
+                shift 2
+                ;;
+            --llm-model)
+                if [ "$#" -lt 2 ]; then
+                    echo "Error: --llm-model needs an Ollama model name" >&2
+                    exit 2
+                fi
+                LLM_ARGS+=(--llm-model "$2")
+                shift 2
+                ;;
+            *)
+                PARSE_POSITIONAL+=("$1")
+                shift
+                ;;
+        esac
+    done
+}
+
+# Resolve the effective backend/model after flag parsing.
+effective_llm() {
+    local backend="${LLM_BACKEND}"
+    local model="${LLM_MODEL}"
+    local i=0
+    local n=${#LLM_ARGS[@]}
+    while [ "${i}" -lt "${n}" ]; do
+        case "${LLM_ARGS[${i}]}" in
+            --llm)
+                backend="${LLM_ARGS[$((i + 1))]:-${backend}}"
+                i=$((i + 2))
+                ;;
+            --llm-model)
+                model="${LLM_ARGS[$((i + 1))]:-${model}}"
+                i=$((i + 2))
+                ;;
+            *)
+                i=$((i + 1))
+                ;;
+        esac
+    done
+    printf '%s|%s' "${backend}" "${model}"
+}
+
+llm_summary() {
+    llm_summary_info "$(effective_llm)"
+}
+
+llm_summary_info() {
+    local info="$1"
+    local backend="${info%%|*}"
+    local model="${info##*|}"
+    if [ "${backend}" = "template" ]; then
+        echo "LLM:      template (deterministic answers)"
+    elif curl -sf --max-time 1 "${OLLAMA_URL}/api/tags" >/dev/null 2>&1; then
+        echo "LLM:      ollama / ${model} (server up at ${OLLAMA_URL})"
+    else
+        echo "LLM:      ollama / ${model} (server offline — will fall back to template)"
+    fi
+}
+
 start_server() {
     local source="${1:-$DEFAULT_SOURCE}"
     local port="${2:-$DEFAULT_PORT}"
@@ -97,6 +181,7 @@ start_server() {
     echo -e "${BOLD}${CYAN}Starting Chronicle dashboard...${NC}"
     echo -e "  Source:   ${GREEN}${source}${NC}"
     echo -e "  Port:     ${GREEN}${port}${NC}"
+    echo -e "  $(llm_summary)"
     echo -e "  Log file: ${BLUE}${LOG_FILE}${NC}"
 
     # Export deterministic embedder if running synthetic to guarantee zero downloads
@@ -108,11 +193,14 @@ start_server() {
         --source "${source}" \
         --port "${port}" \
         --host "127.0.0.1" \
+        "${LLM_ARGS[@]}" \
         >> "${LOG_FILE}" 2>&1 < /dev/null &
 
     local pid=$!
     disown "${pid}" 2>/dev/null || true
     echo "${pid}" > "${PID_FILE}"
+    echo "${port}" > "${PORT_FILE}"
+    effective_llm > "${LLM_FILE}"
 
     # Wait up to 5 seconds for the server to bind
     local timeout=10
@@ -172,7 +260,7 @@ stop_server() {
         else
             stopped=true
         fi
-        rm -f "${PID_FILE}"
+        rm -f "${PID_FILE}" "${PORT_FILE}" "${LLM_FILE}"
     fi
 
     # Also clean up any lingering process on the target port
@@ -193,16 +281,21 @@ stop_server() {
 
 server_status() {
     if is_running; then
-        local pid
+        local pid port info
         pid=$(get_pid)
+        port="${DEFAULT_PORT}"
+        [ -f "${PORT_FILE}" ] && port=$(cat "${PORT_FILE}")
+        info="$(effective_llm)"
+        [ -f "${LLM_FILE}" ] && info=$(cat "${LLM_FILE}")
         echo -e "${GREEN}● Chronicle dashboard is RUNNING${NC} (PID: ${pid})"
-        echo -e "  URL:      ${CYAN}http://127.0.0.1:${DEFAULT_PORT}${NC}"
+        echo -e "  URL:      ${CYAN}http://127.0.0.1:${port}${NC}"
         echo -e "  Log file: ${BLUE}${LOG_FILE}${NC}"
+        echo -e "  $(llm_summary_info "${info}")"
         echo -e "\n${BOLD}Recent Log Output (last 8 lines):${NC}"
         tail -n 8 "${LOG_FILE}" 2>/dev/null || echo "No logs yet."
     else
         echo -e "${RED}○ Chronicle dashboard is STOPPED${NC}"
-        rm -f "${PID_FILE}"
+        rm -f "${PID_FILE}" "${PORT_FILE}" "${LLM_FILE}"
     fi
 }
 
@@ -211,12 +304,14 @@ serve_foreground() {
     local port="${2:-$DEFAULT_PORT}"
 
     echo -e "${BOLD}${CYAN}Launching Chronicle dashboard in foreground...${NC}"
+    echo -e "  $(llm_summary)"
     echo -e "Access at: ${CYAN}http://127.0.0.1:${port}${NC} (Press Ctrl+C to stop)\n"
 
     exec "${CHRONICLE_BIN}" serve \
         --source "${source}" \
         --port "${port}" \
-        --host "127.0.0.1"
+        --host "127.0.0.1" \
+        "${LLM_ARGS[@]}"
 }
 
 show_logs() {
@@ -254,10 +349,17 @@ print_help() {
     echo -e "  ${GREEN}sources${NC}                 List all registered video sources"
     echo -e "  ${GREEN}help${NC}                    Show this help message"
     echo
+    echo -e "${BOLD}LLM options${NC} (start/restart/serve):"
+    echo -e "  ${GREEN}--no-llm${NC}               Deterministic graph answers (no Ollama)"
+    echo -e "  ${GREEN}--llm${NC} BACKEND          ${CYAN}auto${NC}|${CYAN}ollama${NC}|${CYAN}transformers${NC}|${CYAN}template${NC} (default: ${LLM_BACKEND})"
+    echo -e "  ${GREEN}--llm-model${NC} NAME       Ollama model (default: ${LLM_MODEL})"
+    echo
     echo -e "${BOLD}Examples:${NC}"
     echo -e "  ./chronicle.sh start                    # Start with synthetic fixture on port 8080"
     echo -e "  ./chronicle.sh start tabletop           # Start with HoloLens tabletop on port 8080"
     echo -e "  ./chronicle.sh start cook 8085          # Start with Aria cook clip on port 8085"
+    echo -e "  ./chronicle.sh start --llm-model qwen2.5:1.5b  # Faster local model"
+    echo -e "  ./chronicle.sh start --no-llm           # Deterministic answers only"
     echo -e "  ./chronicle.sh stop                     # Stop running server"
     echo -e "  ./chronicle.sh status                   # Check if running"
     echo -e "  ./chronicle.sh test                     # Run all 250+ tests & benchmarks"
@@ -267,18 +369,27 @@ print_help() {
 # Command Dispatcher
 # ------------------------------------------------------------------------------
 ACTION="${1:-launch}"
-shift || true
+if [[ "${ACTION}" == -* ]]; then
+    # Option-only invocation, e.g. `./chronicle.sh --no-llm`, means launch.
+    ACTION="launch"
+else
+    shift || true
+fi
 
 case "${ACTION}" in
     launch|start)
-        start_server "${1:-$DEFAULT_SOURCE}" "${2:-$DEFAULT_PORT}"
+        parse_llm_flags "$@"
+        start_server "${PARSE_POSITIONAL[0]:-$DEFAULT_SOURCE}" "${PARSE_POSITIONAL[1]:-$DEFAULT_PORT}"
         ;;
     stop)
         stop_server "${1:-$DEFAULT_PORT}"
         ;;
     restart)
-        stop_server "${2:-$DEFAULT_PORT}"
-        start_server "${1:-$DEFAULT_SOURCE}" "${2:-$DEFAULT_PORT}"
+        parse_llm_flags "$@"
+        restart_source="${PARSE_POSITIONAL[0]:-$DEFAULT_SOURCE}"
+        restart_port="${PARSE_POSITIONAL[1]:-$DEFAULT_PORT}"
+        stop_server "${restart_port}"
+        start_server "${restart_source}" "${restart_port}"
         ;;
     status)
         server_status
@@ -287,7 +398,8 @@ case "${ACTION}" in
         show_logs
         ;;
     serve|run)
-        serve_foreground "${1:-$DEFAULT_SOURCE}" "${2:-$DEFAULT_PORT}"
+        parse_llm_flags "$@"
+        serve_foreground "${PARSE_POSITIONAL[0]:-$DEFAULT_SOURCE}" "${PARSE_POSITIONAL[1]:-$DEFAULT_PORT}"
         ;;
     test|tests)
         run_tests
