@@ -1,0 +1,181 @@
+CHRONICLE - ROLE C HANDOFF AND SUGGESTIONS
+==========================================
+Date: 2026-10-26
+Role C commit: 0e10fa4 (rebased onto Role A 57541f5, pushed to origin/main)
+
+
+1. WHAT IS IN THE REPO NOW
+--------------------------
+Role C (semantic engine) is complete, tested, and pushed:
+
+  chronicle/semantic/vpr.py             OpenCLIP VPR, 0.85 cosine relocalization
+  chronicle/semantic/temporal_strip.py  30-frame buffer -> 1x3 PRE/CONTACT/POST
+  chronicle/semantic/florence.py        Florence-2-base dense captioning
+  chronicle/semantic/actions.py         strict action JSON + rule fallback
+  chronicle/semantic/verification.py    caption -> LLM JSON -> validated action
+  chronicle/semantic/graphrag.py        serialized subgraph -> cited answer
+  chronicle/semantic/llm.py             Ollama / transformers / template clients
+  chronicle/semantic/engine.py          facade + telemetry events
+  chronicle/semantic/adapters.py        Role A embedder -> Role C batch protocol
+  chronicle/semantic/config.py          env-driven configuration
+  chronicle/semantic/demo.py            offline end-to-end demo
+  docs/ROLE_C.md                        integration contract
+
+Test status:
+  python -m pytest -q                   91 passed, 16 subtests passed
+  python -m unittest discover -s tests  58 tests (Role C only)
+  python -m chronicle.semantic.demo     exits 0, fully offline
+
+Everything degrades safely: no model downloads or network are needed for the
+demo or the tests.
+
+
+2. SUGGESTED NEXT STEPS - ROLE A (PERCEPTION)
+---------------------------------------------
+2.1 Wire clips into Role C (small change, high value)
+    Role A already produces chronicle.types.InteractionClip. Role C now accepts
+    it directly, so the VLM worker becomes:
+
+        result = engine.verify_interaction(clip)
+
+    No adapter code is required for frames. Read result.action,
+    result.strip, and the clip correlation fields (clip_id, track_id,
+    trigger, hand, max_ios) copied onto the result.
+
+2.2 Share one OpenCLIP model
+    Pass Role A's EmbeddingService as embedder= to SemanticEngine. Role C
+    wraps it with PerceptionEmbedderAdapter, so ViT-B-32 is loaded once for
+    both Re-ID and place recognition. This avoids roughly 400 MB of duplicate
+    weights and one extra model init.
+
+2.3 Resolve the lint failures in Role A files
+    The merged pyproject.toml enables select = ["E","F","I","UP","B"]. Role A
+    files currently fail it (Role C is clean). Current list:
+
+      chronicle/perception/embedder.py:12   F401 unused import: pathlib.Path
+      chronicle/perception/embedder.py:197  B905 zip() without strict=
+      chronicle/perception/hands.py:43      I001 import block not sorted
+      chronicle/perception/tracker.py:198   B905 zip() without strict=
+      chronicle/perception/tracker.py:239   B905 zip() without strict=
+      chronicle/perception/tracker.py:297   B905 zip() without strict=
+      chronicle/perception/tracker.py:357   B905 zip() without strict=
+      chronicle/perception/tracker.py:359   B905 zip() without strict=
+      chronicle/perception/utils.py:5       F401 unused import: typing.Any
+      chronicle/types.py:14                 UP035 import Sequence from collections.abc
+      chronicle/types.py:19                 UP042 CameraState -> StrEnum
+      chronicle/types.py:26                 UP042 EventCategory -> StrEnum
+      chronicle/types.py:476                B905 zip() without strict=
+
+    Safe auto-fixes:  python -m ruff check chronicle tests --fix
+    The B905 and UP042 items are marked unsafe because they can change runtime
+    behavior. Add strict= only where the paired sequences are provably the same
+    length; otherwise leave the zip as-is and ignore B905 for that line.
+    Role C left these files untouched on purpose to avoid stepping on Role A.
+
+2.4 Confirm the clip contract in tests
+    If contact_index, contact_ts, or metadata["container"] change shape, update
+    tests/test_role_a_integration.py. It is the cross-role regression guard.
+
+
+3. SUGGESTED NEXT STEPS - ROLE B (GRAPH / STATE)
+------------------------------------------------
+3.1 Consume zone events
+    VLM ZONE_CREATED / ZONE_RELOCALIZED events carry zone_id, label,
+    similarity, prototype, and timestamp. Use zone_id as the room/place key in
+    the graph instead of a free-text room name.
+
+3.2 Consume action events
+    VLM ACTION_VERIFIED carries action, object, confidence, evidence, accepted,
+    source (llm/rule), timestamp, and clip correlation fields. Only apply an
+    edge transition when accepted is true; route rejected actions to a review
+    queue rather than dropping them.
+
+3.3 Feed answer_query a 2-hop subgraph
+    engine.answer_query(question, subgraph) accepts a NetworkX-like graph or a
+    plain mapping. Keep the payload small: the entity, its last-known zone, and
+    facts with real timestamps. GraphRAG rejects any citation whose timestamp
+    does not exist in the payload, so never synthesize times.
+
+3.4 Persistence ownership
+    Zone prototypes are in-memory plus JSON in Role C. If the graph needs a
+    single source of truth, persist Zone.to_dict() / match.as_event() in SQLite
+    from Role B and reload Role C at start with the same prototype JSON.
+
+3.5 Support relation names
+    The template answer has phrasing for these relation families:
+      RESTING_ON / ON / SUPPORTED_BY
+      INSIDE / IN / CONTAINED_IN / INSERT_INTO
+      PUT_DOWN / PLACED
+      PICK_UP / PICKED_UP / HELD / HOLD
+    Anything else is rendered verbatim ("the last recorded event for X was
+    <relation> Y"), which is safe but reads awkwardly. Prefer the known
+    relations when Role B writes edges.
+
+
+4. SUGGESTED NEXT STEPS - ROLE D (UI / DASHBOARD)
+-------------------------------------------------
+4.1 Subscribe to the telemetry sink
+    engine.on_event receives one dict per event with tag, kind, message,
+    timestamp, and payload fields. The sink is already isolated: an exception
+    in the dashboard cannot break ingestion (covered by a test).
+
+4.2 Show the strip preview
+    result.to_dict(include_preview=True) adds a data URL of the 1x3 strip.
+    Use it in the review pane for rejected/low-confidence actions.
+
+4.3 Surface provenance
+    Every GraphRAG answer exposes source (llm/template), grounded, and
+    citations. Show grounded=false distinctly; it means the answer had no
+    verifiable timestamp and fell back to a template.
+
+4.4 Latency
+    Florence-2 and Ollama calls are blocking. Run verify_interaction in a
+    worker thread or queue so the UI event loop stays responsive.
+
+
+5. PRODUCTION RUNTIME CHECKLIST
+-------------------------------
+  pip install -r requirements-semantic-models.txt   # torch, open_clip, transformers
+  ollama pull qwen2.5:3b-instruct                   # optional GraphRAG LLM
+
+  Environment:
+    CHRONICLE_CLIP_MODEL_NAME      ViT-B-32
+    CHRONICLE_CLIP_PRETRAINED      laion2b_s34b_b79k
+    CHRONICLE_DEVICE               cpu | cuda | mps
+    CHRONICLE_FLORENCE_MODEL_ID    microsoft/Florence-2-base
+    CHRONICLE_LLM_BACKEND          auto | ollama | transformers | template | none
+    CHRONICLE_VPR_THRESHOLD        0.85
+    CHRONICLE_ACTION_MIN_CONFIDENCE 0.45
+
+  auto never downloads a multi-GB model during ingestion; it only probes
+  Ollama. Set llm_backend="transformers" explicitly if you want a local HF
+  model instead.
+
+  First run downloads weights. Pre-fetch them before the demo:
+    python scripts/fetch_assets.py     # Role A assets
+    (Florence-2 / OpenCLIP download on first construction of the engine)
+
+
+6. KNOWN LIMITATIONS
+--------------------
+  - Action classification is caption-then-text-classify, not a true VLM
+    call. Swapping in a vision client only requires replacing
+    ActionVerifier.chat_client; the schema and fallbacks stay the same.
+  - The deterministic HSV embedder is for offline demo/tests only. It is not
+    CLIP-quality and will not relocalize real rooms reliably.
+  - GraphRAG grounds timestamps and zones but does not re-rank entities with
+    CLIP text-to-node similarity yet.
+  - Zone deduplication is exact-prototype based on an EMA; heavily occluded
+    revisits may create a second zone. Tune CHRONICLE_VPR_THRESHOLD or
+    CHRONICLE_VPR_MIN_MARGIN for real footage.
+
+
+7. QUICK VERIFICATION COMMANDS
+------------------------------
+  cd repo
+  python -m pytest -q
+  python -m unittest discover -s tests
+  python -m ruff check chronicle/semantic tests/test_actions.py tests/test_engine.py ^
+      tests/test_graphrag.py tests/test_temporal_strip.py tests/test_vpr.py ^
+      tests/test_role_a_integration.py
+  python -m chronicle.semantic.demo
