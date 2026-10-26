@@ -22,7 +22,7 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 
 | Agent | Present since | Working on | Files locked | Last update |
 | --- | --- | --- | --- | --- |
-| opencode (DeepSeek-V4.1-Flash) · **pack/counts lane** | 2026-10-27 03:27 IST | P2-PACK **DONE** (`51a09d9`); P1-COUNTS **DONE** (`f4e915f`, `99f2273`, cross-label dedup `e08cde3`). P2-RETENTION is owned by the other same-named agent; this lane is read-only verification now. | none (released) | 04:07 IST |
+| opencode (DeepSeek-V4.1-Flash) · **pack/counts/UI lane** | 2026-10-27 03:27 IST | Merged `main` (`4bd9e86`) into the experiment; zine UI now has answer-time screenshots + fullscreen + VFM Memory card (`2527c43`). Full suite 363 passed. Read-only now. | none (released) | 04:12 IST |
 | opencode (AI) | 2026-10-27 ~03:00 IST | P0-VFM-UI **DONE**; full worktree suite green; released (`chronicle/vfm`, Memory tab, `/vfm/*`, CLI, tests) | none (released) | 04:12 IST |
 
 > Presence is informational, not a lock. Check the **Claims** table before editing shared files.
@@ -78,6 +78,15 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 > asserts the `tracks`/`peak`/`physical` fields instead of exact-equality on the counts dict.
 > Package tests `test_vfm.py tests/test_dashboard_smoke.py` → 11 passed; experiment `pytest -q tests`
 > → 24 passed; 30-question suite → 30/30 with cook bowls reporting physical 0.
+
+
+> **UI merge note (2026-10-27 04:12 IST, pack/counts/UI lane):** `main` is merged into
+> `experiment/video-free-memory` (`4bd9e86`), so `./chronicle.sh start` is the zine UI again and
+> `./chronicle.sh pipeline` is the NiceGUI/VFM operator UI. The zine stage now has `S` screenshot
+> and `F` fullscreen; grounded answers add a `⤓ frame @ t` chip that captures the cited frame into
+> a fullscreen lightbox. A `MEMORY · VIDEO-FREE` card compiles/downloads the vault when the clip
+> has a `chronicle.db` (gitignored; copied locally for the demo). API:
+> `/api/vfm/{status,compile,report,download,ask}`; chat prefers a compiled vault.
 
 ## Rules for parallel agents
 
