@@ -3,9 +3,11 @@
 An egocentric, episodic memory engine that parses pre-recorded first-person video into a structured, queryable 4D spatio-temporal knowledge graph.
 
 > **Status:** Role A (perception & kinematics), Role B (state machine & dual-graph
-> memory), and Role C (semantic verification) are implemented and tested. Role D
-> (dashboard) is being built by the rest of the team. Integration contracts live
-> in [`docs/PERCEPTION.md`](docs/PERCEPTION.md),
+> memory), Role C (semantic verification) and the integrated Role D dashboard are
+> implemented and tested. `ChronicleRuntime` wires A → B → C → UI; see
+> [`docs/INTEGRATION.md`](docs/INTEGRATION.md) and the live role assignments in
+> [`docs/TEAM_STATUS.md`](docs/TEAM_STATUS.md). Integration contracts live in
+> [`docs/PERCEPTION.md`](docs/PERCEPTION.md),
 > [`docs/ROLE_B.md`](docs/ROLE_B.md) and [`docs/ROLE_C.md`](docs/ROLE_C.md).
 
 ## Overview
@@ -28,7 +30,7 @@ Chronicle avoids running heavyweight vision-language models on every frame. Inst
 | Perception & tracking | OpenCV, Ultralytics YOLO-World, MediaPipe Hands, ByteTrack-style association, OpenCLIP |
 | Spatial reasoning & state engine | Shapely, NetworkX, SQLite |
 | Semantic engine | Florence-2-base, OpenCLIP (ViT-B-32) |
-| UI & telemetry | NiceGUI, Vis.js, `ui.log` |
+| UI & telemetry | NiceGUI, ECharts, `ui.log` |
 
 ### Role A dataflow
 
@@ -94,14 +96,18 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 ├── Chronicle Technical Specification.pdf   # Full architecture and algorithms
 ├── chronicle/
 │   ├── types.py                            # Shared Role A/B/C data contract
-│   ├── config.py                           # lifecycle thresholds
+│   ├── config.py                           # lifecycle thresholds + furniture config
 │   ├── geometry.py                         # IoS, support contact, compensated velocity
 │   ├── state_machine.py                    # nine-state lifecycle engine
 │   ├── telemetry.py                        # Role B event bus
+│   ├── integration.py                      # A -> B -> C runtime facade
+│   ├── sources.py                          # demo/real source registry
+│   ├── cli.py                              # `chronicle sources|run|ask|serve`
 │   ├── graph/
 │   │   ├── adapter.py                      # FrameResult -> FrameContext bridge
 │   │   ├── background.py                   # zones + furniture anchors
 │   │   ├── foreground.py                   # entities + time-intervaled edges
+│   │   ├── furniture.py                    # persistent static-furniture association
 │   │   ├── query.py                        # 2-hop GraphRAG retrieval
 │   │   └── memory.py                       # ChronicleMemory facade
 │   ├── storage/                            # SQLite schema + persistent store
@@ -116,17 +122,21 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   │   ├── stream.py                       # threaded consumer stream
 │   │   ├── telemetry.py                    # perception telemetry bus
 │   │   └── cli.py                          # chronicle-perception
-│   └── semantic/                           # Role C
-│       ├── vpr.py                          # OpenCLIP place recognition
-│       ├── temporal_strip.py               # 30-frame -> 1x3 composite
-│       ├── actions.py                      # strict action JSON boundary
-│       ├── verification.py                 # Florence-2 + classifier
-│       ├── graphrag.py                     # cited answers from 2-hop subgraph
-│       └── engine.py                       # facade + telemetry events
+│   ├── semantic/                           # Role C
+│   │   ├── vpr.py                          # OpenCLIP place recognition
+│   │   ├── temporal_strip.py               # 30-frame -> 1x3 composite
+│   │   ├── actions.py                      # strict action JSON boundary
+│   │   ├── verification.py                 # Florence-2 + classifier
+│   │   ├── graphrag.py                     # cited answers from 2-hop subgraph
+│   │   └── engine.py                       # facade + telemetry events
+│   └── ui/                                 # Role D NiceGUI dashboard
+│       └── app.py                          # graph, timeline, tables, chat, log
 ├── docs/
 │   ├── PERCEPTION.md                       # Role A contract
 │   ├── ROLE_B.md                           # Role B integration contract
-│   └── ROLE_C.md                           # Role C contract
+│   ├── ROLE_C.md                           # Role C contract
+│   ├── INTEGRATION.md                      # runtime/UI contract
+│   └── TEAM_STATUS.md                      # current work + role assignments
 ├── scripts/
 │   ├── fetch_assets.py                     # download model weights
 │   ├── make_demo.py                        # render the offline demo clip
@@ -192,6 +202,29 @@ Role C consumes Role A's `InteractionClip` directly, including its
 [docs/ROLE_C.md](docs/ROLE_C.md) for the Role A/B/D integration contract,
 telemetry payloads, action JSON schema, and configuration.
 
+### Dashboard (Role D)
+
+```bash
+uv sync --extra ui
+chronicle sources                 # list bundled/demo clips
+chronicle serve --source synthetic --auto-run
+# open http://127.0.0.1:8080
+```
+
+The dashboard streams the live dual graph, state timeline, entity/action
+tables, pipeline log and grounded GraphRAG chat from the same
+`ChronicleRuntime` used by the CLI. It degrades to the colour detector,
+deterministic embeddings and template GraphRAG when models are unavailable.
+`chronicle serve --source tabletop` uses the real HoloLens clip.
+
+Headless smoke test:
+
+```bash
+chronicle serve --source synthetic --port 8765 &
+curl -sf http://127.0.0.1:8765/ >/dev/null
+curl -sf http://127.0.0.1:8765/source-video >/dev/null
+```
+
 ### Real footage (production backends)
 
 ```bash
@@ -220,7 +253,8 @@ python -m unittest discover -s tests -v   # Role C suite without pytest
   dual graph, persistence and query.
 - **Role C (implemented):** OpenCLIP place recognition, 1×3 temporal strips,
   Florence-2 action verification with strict JSON, and cited GraphRAG answers.
-- **Role D:** NiceGUI dashboard, graph visualization and live telemetry UI.
+- **Role D (implemented):** NiceGUI dashboard, graph visualization, live
+  telemetry, source switching and grounded chat over `ChronicleRuntime`.
 
 Role A intentionally does not mutate lifecycle state, call a VLM, persist a
 graph, or render a dashboard. Role B consumes `FrameContext` (or a Role A

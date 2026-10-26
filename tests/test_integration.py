@@ -5,6 +5,8 @@ from __future__ import annotations
 from conftest import DT, TABLE_POLY, cup, feed, hand_at, make_frame, run_lift_scene
 
 from chronicle.graph.memory import ChronicleMemory
+from chronicle.graph.query import QueryResult
+from chronicle.integration import ChronicleRuntime
 from chronicle.telemetry import TelemetryTag
 from chronicle.types import CameraMotion, ObjectState, SupportSurface
 
@@ -143,3 +145,79 @@ def test_multi_entity_scene_keeps_independent_lifecycles(memory: ChronicleMemory
     assert memory.store.terminal_anchor("phone").t_end is not None
     assert memory.query("where are my keys?") is not None
     assert memory.query("where is my phone?") is not None
+
+
+def test_runtime_facade_answers_from_the_team_graph() -> None:
+    runtime = ChronicleRuntime(
+        ":memory:",
+        semantic_enabled=False,
+        zone_label="kitchen",
+        reset=True,
+    )
+    try:
+        for index in range(30):
+            runtime.memory.observe(
+                make_frame(index * DT, objects=[cup()], zone_label="kitchen")
+            )
+
+        snapshot = runtime.snapshot()
+        assert snapshot["stats"]["entities"] >= 1
+        assert snapshot["entities"][0]["label"] == "cup"
+        assert snapshot["running"] is False
+
+        answer = runtime.ask("where is my cup?")
+        assert answer.grounded is True
+        assert "cup" in answer.answer.lower()
+        assert answer.method == "graph-template"
+        assert answer.entity == "cup"
+        assert answer.zone == "kitchen"
+    finally:
+        runtime.close()
+
+
+def test_runtime_normalizes_role_b_edges_for_role_c() -> None:
+    runtime = ChronicleRuntime(":memory:", semantic_enabled=False)
+    try:
+        result = QueryResult(
+            query="where are my keys?",
+            entity_id="keys",
+            node_id="entity:keys",
+            label="keys",
+            state="VISIBLE_STATIC",
+            state_since=1.0,
+            last_seen=8.0,
+            match_score=0.95,
+            zone_label="work desk",
+            nodes=[
+                {"node_id": "entity:keys", "label": "keys"},
+                {"node_id": "anchor:work_desk", "label": "work desk"},
+            ],
+            edges=[
+                {
+                    "relation": "ACTION",
+                    "src": "agent:user",
+                    "dst": "entity:keys",
+                    "t_start": 4.2,
+                    "action": "PICK_UP",
+                    "confidence": 0.91,
+                    "source": "florence-2",
+                },
+                {
+                    "relation": "RESTING_ON",
+                    "src": "entity:keys",
+                    "dst": "anchor:work_desk",
+                    "t_start": 7.5,
+                    "confidence": 0.8,
+                },
+            ],
+        )
+
+        context = runtime.graph_context(result)
+        facts = {(fact.subject, fact.relation, fact.object_label) for fact in context.facts}
+        assert ("USER", "PICK_UP", "keys") in facts
+        assert ("keys", "RESTING_ON", "work desk") in facts
+        assert context.entity_label == "keys"
+        assert context.zone == "work desk"
+        assert context.last_seen == 8.0
+    finally:
+        runtime.close()

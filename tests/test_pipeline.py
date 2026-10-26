@@ -151,6 +151,32 @@ def test_pipeline_emits_jsonl_clips_and_telemetry(tmp_path) -> None:
     assert frame_events[0]["label"] == "keys"
 
 
+def test_pipeline_on_clip_callback_is_isolated(caplog) -> None:
+    config = make_config()
+    seen = []
+
+    def callback(clip) -> None:
+        seen.append(clip)
+        raise RuntimeError("semantic worker down")
+
+    pipeline = PerceptionPipeline(
+        config,
+        detector=StaticDetector(),
+        hands=ScriptedHands(),
+        embedder=ColorEmbedder(config.embedder),
+        on_clip=callback,
+    )
+    results = list(pipeline.iter_results(frames(10), fps_override=30.0))
+    pipeline.close()
+
+    assert len(results) == 10
+    assert len(seen) == 1
+    assert seen[0].label == "keys"
+    # The clip is still pending at EOF, so this also covers the flush path.
+    assert pipeline.flushed_clips == seen
+    assert "clip callback failed" in caplog.text
+
+
 def test_pipeline_subtracts_camera_motion_from_track_velocity() -> None:
     config = make_config()
     config.tracker.min_hits = 1

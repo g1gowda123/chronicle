@@ -1,0 +1,890 @@
+"""NiceGUI dashboard for the integrated A -> B -> C runtime.
+
+This is the team-repo port of the prototype dashboard.  It is intentionally
+decoupled from the prototype's ``ChronicleEngine``: all data comes from
+:class:`chronicle.integration.ChronicleRuntime`, which uses the team Role A
+perception pipeline, Role B dual graph and Role C semantic engine.
+"""
+
+from __future__ import annotations
+
+import copy
+import queue
+import threading
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from fastapi import HTTPException
+from fastapi.responses import FileResponse
+from nicegui import app, run, ui
+
+from chronicle.integration import ChronicleRuntime
+from chronicle.perception.config import PerceptionConfig
+from chronicle.semantic.config import SemanticConfig
+from chronicle.sources import (
+    SOURCES,
+    ClipSource,
+    default_source,
+    source_for_key,
+    source_for_video,
+)
+
+STATE_ORDER = [
+    "NEW",
+    "VISIBLE_STATIC",
+    "INTERACTED",
+    "VISIBLE_MOVING",
+    "HELD",
+    "CONTAINED",
+    "OCCLUDED",
+    "OUT_OF_VIEW",
+    "LOST",
+]
+STATE_COLORS = {
+    "NEW": "#94a3b8",
+    "VISIBLE_STATIC": "#22c55e",
+    "INTERACTED": "#f59e0b",
+    "VISIBLE_MOVING": "#38bdf8",
+    "HELD": "#f97316",
+    "CONTAINED": "#a855f7",
+    "OCCLUDED": "#64748b",
+    "OUT_OF_VIEW": "#475569",
+    "LOST": "#ef4444",
+}
+GROUP_COLORS = {
+    "entity": "#38bdf8",
+    "furniture": "#f59e0b",
+    "zone": "#2dd4bf",
+    "agent": "#e879f9",
+}
+
+
+@dataclass
+class RunRequest:
+    source: ClipSource
+    video: Path
+    max_frames: int | None = None
+
+
+class DashboardState:
+    """Own the active runtime and serialise source switches."""
+
+    def __init__(
+        self,
+        data_dir: Path,
+        source: ClipSource,
+        video: Path,
+        *,
+        base_config: PerceptionConfig | None = None,
+        semantic_config: SemanticConfig | None = None,
+        max_frames: int | None = None,
+    ) -> None:
+        self.data_dir = Path(data_dir).expanduser().resolve()
+        self.base_config = base_config or PerceptionConfig()
+        self.semantic_config = semantic_config or SemanticConfig.from_env()
+        self.source = source
+        self.source_key = source.key
+        self.video = Path(video)
+        self.max_frames = max_frames
+        self.lock = threading.RLock()
+        self.running = False
+        self.error: str | None = None
+        self.summary: dict[str, Any] | None = None
+        self.runtime = self._make_runtime(source, reset=False)
+        self._requests: queue.Queue[RunRequest | None] = queue.Queue()
+        self._active: RunRequest | None = None
+        self._thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self._thread.start()
+
+    def _make_runtime(self, source: ClipSource, *, reset: bool) -> ChronicleRuntime:
+        config = copy.deepcopy(self.base_config)
+        config.vocabulary = tuple(source.vocabulary)
+        return ChronicleRuntime(
+            source.db_path(self.data_dir),
+            perception_config=config,
+            semantic_config=self.semantic_config,
+            zone_label=source.zone_label,
+            reset=reset,
+        )
+
+    def request_run(
+        self,
+        source: ClipSource,
+        video: Path | None = None,
+        *,
+        max_frames: int | None = None,
+    ) -> None:
+        request = RunRequest(source, Path(video or source.video_path(self.data_dir)), max_frames)
+        with self.lock:
+            self._active = request
+            self.running = True
+            self.error = None
+            self.summary = None
+            self.source = source
+            self.source_key = source.key
+            self.video = request.video
+        self._requests.put(request)
+        current = self.runtime
+        if current is not None:
+            current.stop()
+
+    def _worker_loop(self) -> None:
+        while True:
+            request = self._requests.get()
+            if request is None:
+                return
+            while True:
+                try:
+                    newer = self._requests.get_nowait()
+                except queue.Empty:
+                    break
+                if newer is None:
+                    return
+                request = newer
+            old: ChronicleRuntime | None = None
+            runtime: ChronicleRuntime | None = None
+            try:
+                with self.lock:
+                    old = self.runtime
+                if old is not None:
+                    old.stop()
+                    old.close()
+                runtime = self._make_runtime(request.source, reset=True)
+                with self.lock:
+                    if self._active is not request:
+                        runtime.close()
+                        continue
+                    self.runtime = runtime
+                summary = runtime.ingest_video(
+                    request.video,
+                    max_frames=request.max_frames or self.max_frames,
+                )
+                with self.lock:
+                    if self._active is request:
+                        self.summary = summary.as_dict()
+            except Exception as exc:  # surfaced in the UI
+                with self.lock:
+                    if self._active is request:
+                        self.error = f"{type(exc).__name__}: {exc}"
+                if runtime is not None:
+                    try:
+                        runtime.close()
+                    except Exception:
+                        pass
+            finally:
+                with self.lock:
+                    if self._active is request:
+                        self.running = False
+
+    def stop(self) -> None:
+        with self.lock:
+            current = self.runtime
+            self._active = None
+            self.running = False
+        while True:
+            try:
+                self._requests.get_nowait()
+            except queue.Empty:
+                break
+        if current is not None:
+            current.stop()
+
+    def close(self) -> None:
+        self.stop()
+        self._requests.put(None)
+        self._thread.join(timeout=5.0)
+        with self.lock:
+            try:
+                self.runtime.close()
+            except Exception:
+                pass
+
+
+def _graph_options(snapshot: dict[str, Any]) -> dict[str, Any]:
+    nodes = snapshot.get("nodes", [])
+    edges = snapshot.get("edges", [])
+    categories = [
+        {"name": "entity"},
+        {"name": "furniture"},
+        {"name": "zone"},
+        {"name": "agent"},
+    ]
+    category_index = {c["name"]: i for i, c in enumerate(categories)}
+    data = []
+    for node in nodes:
+        node_type = str(node.get("group") or "entity")
+        state = str(node.get("state") or "")
+        color = STATE_COLORS.get(state) if node_type == "entity" else GROUP_COLORS.get(node_type)
+        data.append(
+            {
+                "id": node["id"],
+                "name": node.get("label", node["id"]),
+                "category": category_index.get(node_type, 0),
+                "symbolSize": 34 if node_type == "entity" else 22,
+                "itemStyle": {"color": color or "#94a3b8"},
+                "label": {"show": node_type != "furniture"},
+            }
+        )
+    links = [
+        {
+            "source": edge.get("from"),
+            "target": edge.get("to"),
+            "value": edge.get("label", edge.get("kind", "")),
+        }
+        for edge in edges
+        if edge.get("from") and edge.get("to")
+    ]
+    return {
+        "backgroundColor": "transparent",
+        "tooltip": {"formatter": "{b}"},
+        "legend": [
+            {
+                "data": [c["name"] for c in categories],
+                "textStyle": {"color": "#94a3b8"},
+                "top": 0,
+            }
+        ],
+        "series": [
+            {
+                "type": "graph",
+                "layout": "force",
+                "roam": True,
+                "draggable": True,
+                "categories": categories,
+                "data": data,
+                "links": links,
+                "force": {"repulsion": 220, "edgeLength": [70, 170], "gravity": 0.08},
+                "label": {
+                    "show": True,
+                    "position": "right",
+                    "color": "#e2e8f0",
+                    "fontSize": 11,
+                },
+                "lineStyle": {"color": "#475569", "curveness": 0.12, "opacity": 0.8},
+                "edgeLabel": {
+                    "show": True,
+                    "formatter": "{c}",
+                    "fontSize": 9,
+                    "color": "#94a3b8",
+                },
+                "emphasis": {"focus": "adjacency", "lineStyle": {"width": 2}},
+            }
+        ],
+    }
+
+
+def _timeline_options(transitions: list[dict[str, Any]]) -> dict[str, Any]:
+    points: list[dict[str, Any]] = []
+    for row in reversed(transitions):
+        state = str(row.get("to_state") or "NEW")
+        y = STATE_ORDER.index(state) if state in STATE_ORDER else 0
+        points.append(
+            {
+                "value": [
+                    round(float(row.get("timestamp") or 0.0), 2),
+                    y,
+                    row.get("label") or "",
+                ],
+                "itemStyle": {"color": STATE_COLORS.get(state, "#94a3b8")},
+            }
+        )
+    return {
+        "backgroundColor": "transparent",
+        "grid": {"left": 90, "right": 24, "top": 24, "bottom": 40},
+        "tooltip": {"formatter": "t={@[0]}s<br/>{@[2]} -> {b}"},
+        "xAxis": {
+            "type": "value",
+            "name": "seconds",
+            "axisLabel": {"color": "#94a3b8"},
+            "splitLine": {"lineStyle": {"color": "#1e293b"}},
+        },
+        "yAxis": {
+            "type": "category",
+            "data": STATE_ORDER,
+            "axisLabel": {"color": "#94a3b8", "fontSize": 10},
+            "splitLine": {"lineStyle": {"color": "#1e293b"}},
+        },
+        "series": [
+            {
+                "type": "scatter",
+                "symbolSize": 9,
+                "data": points,
+                "emphasis": {"scale": 1.4},
+            }
+        ],
+    }
+
+
+def _video_url(path: Path) -> str:
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:
+        stamp = 0
+    return f"/source-video?v={stamp}"
+
+
+def _custom_source(video: Path, data_dir: Path) -> ClipSource:
+    return ClipSource(
+        key="custom",
+        label=video.stem,
+        badge="CUSTOM",
+        caption=video.name,
+        description="Explicit video passed on the command line.",
+        relative_path=str(video),
+        relative_db=str(Path(data_dir) / "custom" / "chronicle.db"),
+        zone_label="Custom Scene",
+        vocabulary=PerceptionConfig().vocabulary,
+        questions=("what did I see?",),
+    )
+
+
+def create_app(
+    *,
+    data_dir: str | Path = "data",
+    video: str | Path | None = None,
+    source_key: str | None = None,
+    auto_run: bool = False,
+    port: int = 8080,
+    host: str = "127.0.0.1",
+    show: bool = False,
+    max_frames: int | None = None,
+    detector_backend: str = "auto",
+    hands_backend: str = "auto",
+    embedder_backend: str = "auto",
+) -> None:
+    data_root = Path(data_dir).expanduser().resolve()
+    custom: ClipSource | None = None
+    if video is not None:
+        video_path = Path(video).expanduser().resolve()
+        matched = source_for_video(video_path, data_root)
+        if matched is None and video_path.is_file():
+            custom = _custom_source(video_path, data_root)
+            source_key = "custom"
+        elif matched is not None:
+            source_key = matched.key
+    if source_key is None:
+        source_key = (custom or default_source(data_root)).key
+    try:
+        initial = source_for_key(source_key, data_root)
+    except KeyError:
+        initial = custom or default_source(data_root)
+    if custom is not None:
+        initial = custom
+    video_path = (
+        Path(video).expanduser().resolve()
+        if video is not None
+        else initial.video_path(data_root)
+    )
+    sources = ([custom] if custom is not None else []) + list(SOURCES)
+    source_map = {source.key: source for source in sources}
+
+    base_config = PerceptionConfig()
+    base_config.detector.backend = detector_backend
+    base_config.hands.backend = hands_backend
+    base_config.embedder.backend = embedder_backend
+    state = DashboardState(
+        data_root,
+        initial,
+        video_path,
+        base_config=base_config,
+        max_frames=max_frames,
+    )
+
+    @app.get("/source-video")
+    def _source_video() -> FileResponse:
+        path = Path(state.video).expanduser().resolve()
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail=f"video not found: {path}")
+        return FileResponse(
+            path,
+            media_type="video/mp4",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    def _switch_source(source: ClipSource) -> bool:
+        target = source.video_path(data_root)
+        if source.key == "custom":
+            target = Path(state.video)
+        if not target.is_file():
+            ui.notify(
+                f"missing {source.label}: add {source.relative_path} under {data_root}.",
+                type="negative",
+            )
+            return False
+        state.request_run(source, target)
+        ui.notify(f"switching to {source.label}", type="info")
+        return True
+
+    def _run_current() -> None:
+        source = source_map.get(state.source_key)
+        if source is not None:
+            _switch_source(source)
+
+    if auto_run and video_path.is_file():
+        state.request_run(initial, video_path)
+
+    suggestion_state: dict[str, Any] = {"row": None, "signature": None}
+
+    def _tracked_labels() -> set[str]:
+        try:
+            with state.lock:
+                snapshot = state.runtime.snapshot()
+            return {str(row.get("label", "")).lower() for row in snapshot.get("entities", [])}
+        except Exception:
+            return set()
+
+    def _suggestion_prompts(source_key: str) -> list[str]:
+        source = source_map.get(source_key, initial)
+        prompts = list(source.questions)
+        tracked = _tracked_labels()
+        for label in ("cup", "joy-con", "backpack", "keys", "sofa"):
+            if label in tracked:
+                prompt = f"where is the {label}?"
+                if prompt not in prompts:
+                    prompts.append(prompt)
+        if "what did I see?" not in prompts:
+            prompts.append("what did I see?")
+        return prompts[:4]
+
+    def _render_suggestions(source_key: str, ask: Any) -> None:
+        row = suggestion_state["row"]
+        if row is None:
+            return
+        prompts = _suggestion_prompts(source_key)
+        signature = (source_key, tuple(prompts))
+        if signature == suggestion_state["signature"]:
+            return
+        suggestion_state["signature"] = signature
+        row.clear()
+        with row:
+            for prompt in prompts:
+                ui.button(
+                    prompt,
+                    on_click=lambda p=prompt: ask(p),
+                ).props("flat dense size=sm no-caps").classes(
+                    "text-teal-300 text-[10px]"
+                )
+
+    @ui.page("/")
+    def index() -> None:
+        ui.dark_mode().enable()
+        ui.colors(primary="#2dd4bf", secondary="#38bdf8", accent="#f59e0b")
+        ui.add_head_html(
+            "<style>"
+            "body{background-color:#070b11;color:#dbe4ee;}"
+            "body::before{content:'';position:fixed;inset:0;z-index:-1;"
+            "pointer-events:none;background:radial-gradient(900px 480px at 18% -12%,"
+            "rgba(45,212,191,.08),transparent 62%);}"
+            ".chronicle-card{background:rgba(13,20,30,.84);"
+            "border:1px solid rgba(148,163,184,.14);border-radius:14px;overflow:hidden;}"
+            ".chronicle-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}"
+            ".chronicle-title{font-size:11px;text-transform:uppercase;"
+            "letter-spacing:.18em;color:#64748b;}"
+            ".q-field__control{background:rgba(2,6,13,.55)!important;}"
+            ".q-tab{padding:0 14px;min-height:34px;}"
+            "</style>"
+        )
+
+        with ui.header().classes("items-center px-6 py-2").style(
+            "background:rgba(7,11,17,.92);border-bottom:1px solid rgba(148,163,184,.12)"
+        ):
+            with ui.row().classes("items-center gap-2"):
+                ui.icon("hub", size="22px").classes("text-teal-300")
+                ui.label("Chronicle").classes("text-base font-semibold tracking-wide")
+                ui.label("egocentric memory").classes(
+                    "text-[10px] uppercase tracking-[0.18em] text-slate-500"
+                )
+            with ui.row().classes("items-center gap-2").style("margin-left:auto"):
+                status_chip = ui.badge("IDLE").props("outline").classes(
+                    "text-xs chronicle-mono"
+                )
+                fps_chip = ui.badge("0.0 fps").props("outline").classes(
+                    "text-xs chronicle-mono"
+                )
+                camera_chip = ui.badge("CAM · —").props("outline").classes(
+                    "text-xs chronicle-mono"
+                )
+                llm_chip = ui.badge("LLM · CHECKING").props("outline").classes(
+                    "text-xs chronicle-mono"
+                )
+                with llm_chip:
+                    llm_tip = ui.tooltip("Local model status")
+
+        with ui.column().classes("w-full max-w-[1440px] mx-auto px-5 pt-3 gap-3"):
+            with ui.card().props("flat").classes("chronicle-card w-full"):
+                with ui.row().classes("w-full items-center justify-between px-3 py-1"):
+                    stat_cards: dict[str, Any] = {}
+                    for i, (key, label) in enumerate(
+                        (
+                            ("entities", "ENTITIES"),
+                            ("actions", "ACTIONS"),
+                            ("transitions", "TRANSITIONS"),
+                            ("zones", "ZONES"),
+                            ("furniture", "FURNITURE"),
+                        )
+                    ):
+                        if i:
+                            ui.separator().props("vertical").classes("h-6 self-center")
+                        with ui.row().classes("items-baseline gap-1"):
+                            stat_cards[key] = ui.label("0").classes(
+                                "text-lg font-semibold chronicle-mono text-slate-200"
+                            )
+                            ui.label(label).classes(
+                                "text-[9px] tracking-[0.16em] text-slate-500"
+                            )
+
+            with ui.row().classes("w-full items-stretch gap-3 flex-nowrap"):
+                with ui.card().props("flat").classes("chronicle-card p-4").style(
+                    "flex:9 1 0;min-width:0;height:500px;display:flex;flex-direction:column"
+                ):
+                    source_sync = {"active": False}
+
+                    def _on_source_change(event: Any) -> None:
+                        if source_sync["active"]:
+                            return
+                        source = source_map.get(event.value)
+                        if source is None:
+                            return
+                        if not _switch_source(source):
+                            source_sync["active"] = True
+                            source_select.value = state.source_key
+                            source_sync["active"] = False
+
+                    with ui.row().classes("w-full items-center justify-between gap-2"):
+                        with ui.row().classes("items-center gap-2 min-w-0"):
+                            video_badge = ui.badge("PRE-RECORDED").props("outline").classes(
+                                "text-[10px] chronicle-mono text-teal-300"
+                            )
+                            video_name_label = ui.label(Path(state.video).name).classes(
+                                "text-[11px] chronicle-mono text-slate-500 truncate"
+                            )
+                        with ui.row().classes("items-center gap-1"):
+                            source_select = ui.select(
+                                {s.key: s.label for s in sources},
+                                value=initial.key,
+                                on_change=_on_source_change,
+                            ).props("outlined dense dark options-dense").style(
+                                "min-width:180px;max-width:230px"
+                            )
+                            ui.button(icon="play_arrow", on_click=_run_current).props(
+                                "flat round dense"
+                            ).tooltip("Run the selected source")
+                            ui.button(icon="stop", on_click=state.stop).props(
+                                "flat round dense color=negative"
+                            ).tooltip("Stop the current run")
+                    video_player = ui.video(
+                        _video_url(Path(state.video)),
+                        controls=True,
+                        autoplay=True,
+                        muted=True,
+                        loop=True,
+                    ).style(
+                        "flex:1;min-height:0;width:100%;background:#000;"
+                        "object-fit:contain;border-radius:10px"
+                    )
+                    with ui.row().classes("w-full items-center justify-between").style(
+                        "flex-shrink:0"
+                    ):
+                        video_caption_label = ui.label(initial.caption).classes(
+                            "text-[11px] text-teal-300"
+                        )
+                        video_time_label = ui.label("processed t=0.0s").classes(
+                            "text-[10px] chronicle-mono text-slate-500"
+                        )
+
+                with ui.card().props("flat").classes("chronicle-card p-4").style(
+                    "flex:11 1 0;min-width:0;height:500px;display:flex;flex-direction:column"
+                ):
+                    with ui.row().classes("w-full items-center justify-between gap-2"):
+                        ui.label("Memory graph").classes("chronicle-title")
+                        pipeline_label = ui.label("").classes(
+                            "text-[10px] chronicle-mono text-slate-500 truncate"
+                        )
+                    with ui.tabs().props("dense no-caps").classes("w-full").style(
+                        "background:transparent;min-height:34px"
+                    ) as tabs:
+                        graph_tab = ui.tab("Graph", icon="hub")
+                        timeline_tab = ui.tab("Timeline", icon="timeline")
+                        entities_tab = ui.tab("Entities", icon="inventory_2")
+                        actions_tab = ui.tab("Actions", icon="bolt")
+                    with ui.tab_panels(tabs, value=graph_tab).classes("w-full").style(
+                        "background:transparent;flex:1;min-height:0"
+                    ):
+                        with ui.tab_panel(graph_tab).style("padding:4px 0 0 0"):
+                            graph_chart = ui.echart(
+                                _graph_options({"nodes": [], "edges": []})
+                            ).classes("w-full").style("height:396px")
+                        with ui.tab_panel(timeline_tab).style("padding:4px 0 0 0"):
+                            timeline_chart = ui.echart(_timeline_options([])).classes(
+                                "w-full"
+                            ).style("height:396px")
+                        with ui.tab_panel(entities_tab).style("padding:4px 0 0 0"):
+                            entity_table = ui.table(
+                                columns=[
+                                    {"name": "label", "label": "Label", "field": "label", "align": "left"},
+                                    {"name": "state", "label": "State", "field": "state", "align": "left"},
+                                    {"name": "zone", "label": "Zone", "field": "zone", "align": "left"},
+                                    {"name": "anchor", "label": "Anchor", "field": "anchor", "align": "left"},
+                                    {"name": "container", "label": "Container", "field": "container", "align": "left"},
+                                    {"name": "span", "label": "Visible window", "field": "span", "align": "left"},
+                                ],
+                                rows=[],
+                                row_key="id",
+                                pagination=8,
+                            ).props("dark flat dense virtual-scroll").classes(
+                                "w-full"
+                            ).style("height:396px")
+                        with ui.tab_panel(actions_tab).style("padding:4px 0 0 0"):
+                            action_table = ui.table(
+                                columns=[
+                                    {"name": "time", "label": "Time", "field": "time", "align": "left"},
+                                    {"name": "action", "label": "Action", "field": "action", "align": "left"},
+                                    {"name": "entity", "label": "Entity", "field": "entity", "align": "left"},
+                                    {"name": "caption", "label": "Caption", "field": "caption", "align": "left"},
+                                    {"name": "source", "label": "Source", "field": "source", "align": "left"},
+                                ],
+                                rows=[],
+                                row_key="id",
+                                pagination=8,
+                            ).props("dark flat dense virtual-scroll").classes(
+                                "w-full"
+                            ).style("height:396px")
+
+            with ui.card().props("flat").classes("chronicle-card p-4 w-full").style(
+                "height:264px;display:flex;flex-direction:column"
+            ):
+                with ui.grid().classes("w-full").style(
+                    "grid-template-columns:minmax(0,3fr) minmax(0,2fr);"
+                    "gap:0;flex:1;min-height:0"
+                ):
+                    with ui.column().classes("gap-2").style("min-width:0;height:100%"):
+                        with ui.row().classes("w-full items-center justify-between"):
+                            ui.label("Ask the memory").classes("chronicle-title")
+                            ui.label("grounded in SQLite · local model").classes(
+                                "text-[10px] text-slate-600"
+                            )
+                        with ui.row().classes("w-full items-center gap-2"):
+                            query_input = ui.input(
+                                placeholder="what was my friend doing with the cup?"
+                            ).classes("flex-1").props("outlined dense dark")
+                            ask_button = ui.button("Ask", icon="search").props(
+                                "unelevated dense no-caps"
+                            )
+                        answer_label = ui.label(
+                            "Answers are grounded in the graph: location, state, "
+                            "actions, co-presence and last-seen context."
+                        ).classes(
+                            "text-xs text-slate-300 whitespace-pre-line w-full"
+                        ).style("flex:1;min-height:0;overflow-y:auto")
+                        answer_meta = ui.label("").classes(
+                            "text-[9px] chronicle-mono text-slate-500"
+                        )
+                        suggestion_state["row"] = ui.row().classes(
+                            "gap-1 items-center flex-wrap"
+                        ).style("flex-shrink:0")
+                    with ui.column().classes("gap-2 pl-4").style(
+                        "min-width:0;height:100%;border-left:1px solid rgba(148,163,184,.14)"
+                    ):
+                        ui.label("Pipeline log").classes("chronicle-title")
+                        log_view = ui.log(max_lines=400).classes(
+                            "w-full chronicle-mono"
+                        ).style(
+                            "flex:1;min-height:0;background:rgba(2,6,13,.45);"
+                            "border-radius:10px;padding:8px"
+                        )
+
+        async def _ask(query: str | None = None) -> None:
+            text = (query or query_input.value or "").strip()
+            if not text:
+                return
+            answer_label.text = "retrieving…"
+            answer_meta.text = ""
+            try:
+                with state.lock:
+                    runtime = state.runtime
+                result = await run.io_bound(runtime.ask, text)
+                answer_label.text = result.answer
+                citations = " · ".join(
+                    f"graph@{float(cite.get('timestamp') or 0):.1f}s"
+                    for cite in result.citations[:4]
+                )
+                answer_meta.text = (
+                    f"method={result.method} · {result.elapsed * 1000:.0f} ms · "
+                    f"{len(result.citations)} citations"
+                    + (f" · {citations}" if citations else "")
+                )
+            except Exception as exc:
+                answer_label.text = f"{type(exc).__name__}: {exc}"
+                answer_meta.text = "query failed"
+
+        ask_button.on("click", lambda: _ask())
+        query_input.on("keydown.enter", lambda: _ask())
+        _render_suggestions(initial.key, _ask)
+
+        with state.lock:
+            initial_runtime = state.runtime
+        for event in initial_runtime.bus.history(limit=12):
+            log_view.push(event.format())
+
+        cursor = len(initial_runtime.bus.history())
+        last_bus = id(initial_runtime.bus)
+        last_graph_version: tuple[int, int, int] | None = None
+        last_timeline_version: int | None = None
+        last_video_key: tuple[str, int] | None = None
+        last_llm_check = 0.0
+        llm_status: dict[str, Any] = {}
+
+        def refresh() -> None:
+            nonlocal cursor, last_bus, last_graph_version, last_timeline_version
+            nonlocal last_video_key, last_llm_check, llm_status
+            try:
+                with state.lock:
+                    runtime = state.runtime
+                    running = state.running
+                    error = state.error
+                    summary = state.summary
+                    source_key = state.source_key
+                    snapshot = runtime.snapshot()
+                stats = snapshot.get("stats", {})
+                nodes = snapshot.get("nodes", [])
+                edges = snapshot.get("edges", [])
+                entities = snapshot.get("entities", [])
+                actions = snapshot.get("actions", [])
+                transitions = snapshot.get("transitions", [])
+
+                status_chip.text = (
+                    "RUNNING"
+                    if running
+                    else ("ERROR" if error else ("READY" if nodes else "IDLE"))
+                )
+                if error:
+                    status_chip.props("color=negative")
+                fps_chip.text = f"{float(stats.get('fps', 0) or 0):.1f} fps"
+                camera_chip.text = f"CAM · {stats.get('camera_state', 'STATIONARY')}"
+
+                stat_cards["entities"].text = str(len(entities))
+                stat_cards["actions"].text = str(len(actions))
+                stat_cards["transitions"].text = str(len(transitions))
+                stat_cards["zones"].text = str(stats.get("zones", 0))
+                stat_cards["furniture"].text = str(len(snapshot.get("furniture", [])))
+
+                now = __import__("time").monotonic()
+                if now - last_llm_check > 5.0:
+                    last_llm_check = now
+                    llm_status = runtime.llm_status()
+                if llm_status.get("available"):
+                    loaded = llm_status.get("loaded") or []
+                    if loaded:
+                        gpu = int(loaded[0].get("gpu_percent") or 0)
+                        llm_chip.text = f"LLM · {gpu}% GPU"
+                        vram = float(loaded[0].get("size_vram") or 0) / 1e9
+                        llm_tip.text = f"{llm_status.get('model')} · {vram:.1f} GB VRAM"
+                    else:
+                        llm_chip.text = "LLM · READY"
+                        llm_tip.text = f"{llm_status.get('model')} · loads on next question"
+                else:
+                    llm_chip.text = "LLM · FALLBACK"
+                    llm_tip.text = "Ollama offline · template GraphRAG · graph-grounded"
+
+                video_path = Path(state.video)
+                try:
+                    video_stamp = video_path.stat().st_mtime_ns
+                except OSError:
+                    video_stamp = 0
+                video_key = (str(video_path), video_stamp)
+                if video_key != last_video_key:
+                    last_video_key = video_key
+                    video_player.set_source(_video_url(video_path))
+                    video_player.update()
+                    video_name_label.text = video_path.name
+                    source = source_map.get(source_key)
+                    if source is not None:
+                        video_caption_label.text = f"{source.caption} · processed locally"
+                        video_badge.text = f"PRE-RECORDED · {source.badge}"
+                    if source_select.value != source_key:
+                        source_sync["active"] = True
+                        source_select.value = source_key
+                        source_sync["active"] = False
+                _render_suggestions(source_key, _ask)
+
+                pipeline_label.text = (
+                    f"frames {stats.get('frames', 0)} · "
+                    f"stage {stats.get('stage', 'idle')} · "
+                    f"zone {stats.get('current_zone') or '-'} · "
+                    f"elapsed {float(stats.get('elapsed', 0) or 0):.0f}s"
+                )
+                if summary:
+                    pipeline_label.text += f" · db {Path(str(summary.get('db_path', ''))).name}"
+                if error:
+                    pipeline_label.text += f" · {error}"
+
+                version = (len(nodes), len(edges), len(actions))
+                if version != last_graph_version:
+                    last_graph_version = version
+                    graph_chart.options.clear()
+                    graph_chart.options.update(_graph_options(snapshot))
+                    graph_chart.update()
+
+                if len(transitions) != last_timeline_version:
+                    last_timeline_version = len(transitions)
+                    timeline_chart.options.clear()
+                    timeline_chart.options.update(_timeline_options(transitions))
+                    timeline_chart.update()
+
+                entity_table.rows = [
+                    {
+                        "id": row.get("id"),
+                        "label": row.get("label"),
+                        "state": row.get("state"),
+                        "zone": row.get("zone"),
+                        "anchor": row.get("anchor"),
+                        "container": row.get("container"),
+                        "span": row.get("span"),
+                    }
+                    for row in entities
+                ]
+                entity_table.update()
+
+                action_table.rows = [
+                    {
+                        "id": row.get("id"),
+                        "time": f"{float(row.get('timestamp') or 0):.2f}s",
+                        "action": row.get("action"),
+                        "entity": row.get("entity"),
+                        "caption": row.get("caption") or "",
+                        "source": row.get("source") or "",
+                    }
+                    for row in actions
+                ]
+                action_table.update()
+
+                if id(runtime.bus) != last_bus:
+                    last_bus = id(runtime.bus)
+                    cursor = 0
+                history = runtime.bus.history()
+                if cursor > len(history):
+                    cursor = 0
+                for event in history[cursor:]:
+                    log_view.push(event.format())
+                cursor = len(history)
+
+                last_t = float(stats.get("timestamp", 0) or 0)
+                video_time_label.text = f"last observation t={last_t:5.1f}s"
+            except Exception as exc:  # pragma: no cover - defensive UI loop
+                log_view.push(f"dashboard error: {type(exc).__name__}: {exc}")
+
+        ui.timer(1.0, refresh)
+        refresh()
+
+    ui.run(
+        host=host,
+        port=port,
+        show=show,
+        reload=False,
+        title="Chronicle — episodic memory",
+        favicon="🕸️",
+    )
+
+
+__all__ = ["create_app"]

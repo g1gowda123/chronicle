@@ -16,6 +16,10 @@ demo, and tests run on a laptop with no GPU, no model weights, and no Ollama.
 Production runs automatically use OpenCLIP, Florence-2, and Ollama when they are
 available.
 
+> The dashboard/CLI use `ChronicleRuntime` rather than calling
+> `SemanticEngine` directly. See [`INTEGRATION.md`](INTEGRATION.md) for the
+> clip-queue ordering and GraphContext normalization.
+
 ---
 
 ## 1. Install & run

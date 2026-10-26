@@ -177,13 +177,17 @@ matches the specification's console format. Categories are `PERCEPTION`,
 ## Integration for Roles B/C/D
 
 ```python
+from queue import Queue
+
 from chronicle.perception import PerceptionConfig, PerceptionPipeline, TelemetryBus
 from chronicle.perception.telemetry import TelemetryPrinter
 
+vlm_queue: Queue = Queue()
 bus = TelemetryBus()
 pipeline = PerceptionPipeline(
     PerceptionConfig(),
     telemetry_sink=bus.publish,
+    on_clip=vlm_queue.put,  # Role C worker: semantic.verify_interaction(clip)
     output_jsonl="runs/session.jsonl",
     clips_dir="runs/clips",
 )
@@ -194,8 +198,12 @@ for result in pipeline.iter_results("session.mp4"):
         if event.kind == "start":
             ...  # state machine transition (Role B)
     for clip in result.clips:
-        ...  # hand clip frames + metadata to VLM (Role C)
+        ...  # optional synchronous path; on_clip is the queue-friendly hook
 ```
+
+`on_clip` fires for every completed clip, including clips flushed at end of
+stream. It runs in the ingestion thread, so use a queue for slow VLM work; a
+callback exception is logged and does not stop perception.
 
 For a non-blocking UI, wrap the same pipeline in `PerceptionStream`; its
 bounded queue drops the oldest frame when the consumer falls behind. If every

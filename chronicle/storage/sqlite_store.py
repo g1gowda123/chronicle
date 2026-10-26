@@ -191,6 +191,18 @@ class SQLiteStore:
         attrs: dict[str, Any] | None = None,
     ) -> None:
         with self._lock, self._conn:
+            row = self._conn.execute(
+                "SELECT attrs FROM furniture WHERE id = ?", (anchor_id,)
+            ).fetchone()
+            existing: dict[str, Any] = {}
+            if row is not None and row["attrs"]:
+                try:
+                    loaded = json.loads(row["attrs"])
+                except (TypeError, ValueError):
+                    loaded = {}
+                if isinstance(loaded, dict):
+                    existing = loaded
+            merged = {**existing, **dict(attrs or {})}
             self._conn.execute(
                 """
                 INSERT INTO furniture(id, label, zone_id, created_at, attrs)
@@ -200,7 +212,7 @@ class SQLiteStore:
                     zone_id=COALESCE(excluded.zone_id, furniture.zone_id),
                     attrs=excluded.attrs
                 """,
-                (anchor_id, label, zone_id, float(t), json.dumps(attrs or {}, sort_keys=True)),
+                (anchor_id, label, zone_id, float(t), json.dumps(merged, sort_keys=True)),
             )
 
     def load_furniture(self) -> list[FurnitureRecord]:

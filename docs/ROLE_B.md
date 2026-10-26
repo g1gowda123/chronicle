@@ -8,6 +8,10 @@ Role B owns **when** something happened and **where it was last anchored**. It
 does not run detectors or VLMs. Role A produces `FrameContext` objects, Role C
 validates semantic events, and Role D renders the graph and telemetry.
 
+> The dashboard/CLI use `ChronicleRuntime` rather than calling `ChronicleMemory`
+> directly. See [`INTEGRATION.md`](INTEGRATION.md) for the A→B→C seam, snapshot
+> schema and furniture routing.
+
 ## Quick start
 
 ```powershell

@@ -29,6 +29,12 @@ perception = [
     "torchvision>=0.17",
     "pillow>=10.0",
 ]
+# NiceGUI dashboard (`chronicle serve`).
+ui = [
+  "nicegui>=3.0",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+]
 # Florence-2 captioning and the GraphRAG local-LLM path.
 semantic-models = [
   "open-clip-torch>=2.26",
@@ -45,6 +51,7 @@ dev = [
 ]
 
 [project.scripts]
+chronicle = "chronicle.cli:main"
 chronicle-perception = "chronicle.perception.cli:main"
 chronicle-semantic-demo = "chronicle.semantic.demo:main"
 

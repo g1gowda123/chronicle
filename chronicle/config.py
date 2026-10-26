@@ -108,6 +108,84 @@ class Thresholds:
 
 DEFAULT_THRESHOLDS = Thresholds()
 
+
+@dataclass(frozen=True)
+class FurnitureConfig:
+    """Association and confirmation gates for static furniture anchors.
+
+    Furniture is scene structure, not an episodic object.  These gates are
+    deliberately conservative: two sofas in one room must stay two anchors,
+    while a sofa re-entering the frustum after a pan must reuse its anchor.
+    """
+
+    min_hits: int = 2
+    """Consecutive observations before an anchor is exposed as a support."""
+
+    iou_threshold: float = 0.20
+    """IoU above which a motion-compensated box is the same instance."""
+
+    weak_iou_threshold: float = 0.05
+    """Minimum overlap when appearance and centre distance agree."""
+
+    center_distance_ratio: float = 0.10
+    """Centre distance gate as a fraction of the frame diagonal."""
+
+    min_size_ratio: float = 0.35
+    """Reject boxes whose area differs too much (partial/false detection)."""
+
+    embedding_cosine: float = 0.80
+    """Appearance similarity required when geometry is weak."""
+
+    match_threshold: float = 0.42
+    """Combined association score required for a match."""
+
+    max_missed_s: float = 45.0
+    """How long a furniture anchor remains re-bindable without observations."""
+
+    consolidation_interval_s: float = 10.0
+    """Minimum gap between graph-level duplicate consolidation sweeps."""
+
+    consolidation_enabled: bool = True
+    """Run duplicate entity/anchor consolidation during ingestion."""
+
+
+DEFAULT_FURNITURE_CONFIG = FurnitureConfig()
+
+STATIC_FURNITURE_LABELS: frozenset[str] = frozenset(
+    {
+        "armchair",
+        "bed",
+        "bench",
+        "chair",
+        "couch",
+        "counter",
+        "countertop",
+        "desk",
+        "door",
+        "dresser",
+        "floor",
+        "nightstand",
+        "oven",
+        "sideboard",
+        "sink",
+        "sofa",
+        "stool",
+        "stove",
+        "table",
+        "television",
+        "tv",
+        "wall",
+        "wardrobe",
+        "window",
+    }
+)
+"""Detector labels that describe invariant scene structure.
+
+They are routed to the background graph as support anchors instead of becoming
+foreground entities.  The set is intentionally limited to furniture; people,
+containers and manipulable objects keep their lifecycle.
+"""
+
 CONTAINER_LABELS: frozenset[str] = frozenset(
     {
         "backpack",

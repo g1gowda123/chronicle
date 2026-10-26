@@ -20,15 +20,21 @@ from typing import Any
 from chronicle.config import (
     CONTAINER_LABELS,
     DEFAULT_THRESHOLDS,
+    STATIC_FURNITURE_LABELS,
+    FurnitureConfig,
     Thresholds,
 )
+from chronicle.geometry import bbox_to_polygon
 from chronicle.graph.adapter import frame_context_from_result
 from chronicle.graph.background import BackgroundGraph
 from chronicle.graph.foreground import ForegroundGraph
+from chronicle.graph.furniture import FurnitureMatch, FurnitureRegistry
 from chronicle.graph.ids import (
     AGENT_NODE,
     anchor_node,
     entity_node,
+    raw_anchor_id,
+    raw_zone_id,
     zone_node,
 )
 from chronicle.graph.query import GraphQuery, QueryResult
@@ -64,6 +70,8 @@ class ChronicleMemory:
         thresholds: Thresholds | None = None,
         bus: EventBus | None = None,
         container_labels: Iterable[str] = CONTAINER_LABELS,
+        furniture_labels: Iterable[str] = STATIC_FURNITURE_LABELS,
+        furniture_config: FurnitureConfig | None = None,
         strict_support: bool = False,
         lost_from_occluded: bool = False,
         observation_interval_s: float = 0.10,
@@ -72,6 +80,7 @@ class ChronicleMemory:
         self.thresholds = thresholds or DEFAULT_THRESHOLDS
         self.bus = bus or EventBus()
         self.observation_interval_s = float(observation_interval_s)
+        self.furniture = FurnitureRegistry(furniture_config, labels=furniture_labels)
         self.store = SQLiteStore(db_path, bus=self.bus)
         self.background = BackgroundGraph(self.thresholds, bus=self.bus)
         self.foreground = ForegroundGraph(self.thresholds, bus=self.bus)
@@ -92,8 +101,10 @@ class ChronicleMemory:
         self._active_zone: str | None = None
         self._last_observation: dict[str, float] = {}
         self._last_purge: float | None = None
+        self._furniture_persisted: dict[str, float] = {}
         if load:
             self._restore()
+            self._load_furniture_registry()
         self.bus.emit(
             TelemetryTag.SYSTEM,
             "chronicle memory online",
@@ -123,6 +134,7 @@ class ChronicleMemory:
 
         t = frame.t
         self._ensure_frame_context(frame)
+        self._route_furniture(frame)
         self._ensure_entities(frame)
 
         transitions = self.engine.update(frame)
@@ -327,6 +339,114 @@ class ChronicleMemory:
             transitions=len(snapshot.transitions),
             anchors=len(snapshot.anchors),
         )
+
+    def _load_furniture_registry(self) -> None:
+        rows = []
+        for record in self.store.load_furniture():
+            attrs = dict(record.attrs or {})
+            attrs.setdefault("hits", 1)
+            attrs.setdefault("first_seen", record.created_at)
+            attrs.setdefault("last_seen", record.created_at)
+            attrs.setdefault("confirmed", True)
+            rows.append(
+                (
+                    raw_anchor_id(str(record.id)),
+                    str(record.label or "surface"),
+                    raw_zone_id(str(record.zone_id)) if record.zone_id else None,
+                    attrs,
+                )
+            )
+        self.furniture.load_attributes(rows)
+
+    def _route_furniture(self, frame: FrameContext) -> None:
+        """Move static furniture detections out of the foreground graph.
+
+        Role A does not distinguish scene structure from manipulable objects.
+        The registry associates each furniture track with a persistent anchor,
+        then the anchor is offered to the lifecycle engine as a support surface.
+        This is the key defence against duplicate sofa/table nodes.
+        """
+
+        if not frame.objects:
+            return
+        zone_node_id = self._active_zone or self._default_zone(frame.t)
+        zone_id = raw_zone_id(zone_node_id)
+        objects = []
+        supports = list(frame.supports)
+        support_ids = {surface.anchor_id for surface in supports}
+        for obj in frame.objects:
+            if not self.furniture.is_furniture(obj.label):
+                objects.append(obj)
+                continue
+            match = self.furniture.observe(
+                obj.label,
+                obj.bbox,
+                zone_id,
+                frame.t,
+                track_id=obj.track_id,
+                embedding=obj.embedding,
+                camera_dx=frame.camera.dx,
+                camera_dy=frame.camera.dy,
+                frame_size=frame.frame_size,
+            )
+            if match is None:
+                objects.append(obj)
+                continue
+            self._ensure_furniture_match(match, zone_id, frame.t, obj)
+            if match.confirmed and match.anchor_id not in support_ids:
+                surface = SupportSurface(
+                    anchor_id=match.anchor_id,
+                    label=match.label,
+                    polygon=bbox_to_polygon(match.bbox),
+                    zone_id=zone_id,
+                    attributes={
+                        "source": "furniture-track",
+                        "track_id": obj.track_id,
+                        "confidence": obj.confidence,
+                    },
+                )
+                supports.append(surface)
+                support_ids.add(match.anchor_id)
+                self._ensure_support(surface, zone_node_id, frame.t)
+        frame.objects = tuple(objects)
+        frame.supports = tuple(supports)
+
+    def _ensure_furniture_match(
+        self,
+        match: FurnitureMatch,
+        zone_id: str | None,
+        t: float,
+        obj,
+    ) -> str:
+        record = self.furniture.record(match.anchor_id)
+        attrs = record.as_attributes() if record is not None else {}
+        attrs.update(
+            {
+                "source": "role-a-track",
+                "confirmed": bool(match.confirmed),
+                "last_track_id": obj.track_id,
+            }
+        )
+        node_id = self.background.ensure_furniture(
+            match.anchor_id,
+            match.label,
+            zone_id,
+            t,
+            bbox=match.bbox,
+            embedding=record.embedding if record is not None else None,
+            attrs=attrs,
+        )
+        previous = self._furniture_persisted.get(node_id, float("-inf"))
+        if match.is_new or t - previous >= 1.0:
+            self.store.upsert_furniture(
+                node_id,
+                match.label,
+                zone_node(zone_id) if zone_id else None,
+                t,
+                attrs=attrs,
+            )
+            self._furniture_persisted[node_id] = t
+        return node_id
 
     def _ensure_frame_context(self, frame: FrameContext) -> None:
         t = frame.t

@@ -168,14 +168,26 @@ class BackgroundGraph:
         label: str,
         zone_id: str | None,
         t: float,
+        *,
+        bbox: Iterable[float] | None = None,
+        embedding: Iterable[float] | None = None,
+        attrs: dict[str, Any] | None = None,
     ) -> str:
         """Create or refresh a fixed support anchor and link it to its zone."""
 
         node_id = anchor_node(anchor_id)
+        box = tuple(float(v) for v in bbox) if bbox is not None else None
+        vector = tuple(float(v) for v in embedding) if embedding is not None else None
         if self.graph.has_node(node_id):
-            attrs = self.graph.nodes[node_id]
-            attrs["label"] = label or attrs.get("label", "surface")
-            attrs["last_seen"] = t
+            data = self.graph.nodes[node_id]
+            data["label"] = label or data.get("label", "surface")
+            data["last_seen"] = t
+            if box is not None:
+                data["bbox"] = box
+            if vector is not None:
+                data["embedding"] = vector
+            if attrs:
+                data.setdefault("attrs", {}).update(attrs)
             if zone_id:
                 self._link_zone(node_id, zone_id, t)
             return node_id
@@ -185,14 +197,42 @@ class BackgroundGraph:
             kind="furniture",
             label=label or "surface",
             ref_id=anchor_id,
-            zone_id=zone_id,
+            zone_id=zone_node(zone_id) if zone_id else None,
             created_at=t,
             last_seen=t,
+            bbox=box,
+            embedding=vector,
+            attrs=dict(attrs or {}),
         )
         if zone_id:
             self._link_zone(node_id, zone_id, t)
         self.bus.graph("anchor minted", t, anchor=node_id, label=label, zone=zone_id)
         return node_id
+
+    def update_furniture(
+        self,
+        anchor_id: str,
+        *,
+        bbox: Iterable[float] | None = None,
+        embedding: Iterable[float] | None = None,
+        t: float | None = None,
+        attrs: dict[str, Any] | None = None,
+    ) -> bool:
+        """Update a furniture anchor without creating one."""
+
+        node_id = anchor_node(anchor_id)
+        if not self.graph.has_node(node_id):
+            return False
+        data = self.graph.nodes[node_id]
+        if bbox is not None:
+            data["bbox"] = tuple(float(v) for v in bbox)
+        if embedding is not None:
+            data["embedding"] = tuple(float(v) for v in embedding)
+        if t is not None:
+            data["last_seen"] = float(t)
+        if attrs:
+            data.setdefault("attrs", {}).update(attrs)
+        return True
 
     def _link_zone(self, anchor_id: str, zone_id: str, t: float) -> None:
         zone_id = zone_node(zone_id)
@@ -215,7 +255,7 @@ class BackgroundGraph:
             return None
         zone_id = self.graph.nodes[node_id].get("zone_id")
         if zone_id:
-            return zone_id
+            return zone_node(str(zone_id))
         for _, target in self.graph.out_edges(node_id):
             if self.graph.nodes.get(target, {}).get("kind") == "zone":
                 return target
@@ -244,11 +284,81 @@ class BackgroundGraph:
         return self.graph.has_node(node_id)
 
     def furniture_in(self, zone_id: str) -> list[str]:
+        wanted = zone_node(zone_id)
         return [
             node_id
             for node_id, attrs in self.graph.nodes(data=True)
-            if attrs.get("kind") == "furniture" and attrs.get("zone_id") == zone_node(zone_id)
+            if attrs.get("kind") == "furniture"
+            and zone_node(str(attrs.get("zone_id"))) == wanted
         ]
+
+    def furniture(self) -> list[dict[str, Any]]:
+        """Public furniture rows, including persisted geometry and attributes."""
+
+        rows: list[dict[str, Any]] = []
+        for node_id, attrs in self.graph.nodes(data=True):
+            if attrs.get("kind") != "furniture":
+                continue
+            rows.append(
+                {
+                    "anchor_id": node_id,
+                    "label": attrs.get("label", "surface"),
+                    "zone_id": attrs.get("zone_id"),
+                    "bbox": attrs.get("bbox"),
+                    "embedding": attrs.get("embedding"),
+                    "created_at": attrs.get("created_at", 0.0),
+                    "last_seen": attrs.get("last_seen", 0.0),
+                    "attrs": dict(attrs.get("attrs", {})),
+                }
+            )
+        return rows
+
+    def merge_furniture(self, keep: str, remove: str, t: float) -> bool:
+        """Fold one furniture anchor into another, preserving zone topology."""
+
+        keep_id = anchor_node(keep)
+        remove_id = anchor_node(remove)
+        if keep_id == remove_id or not self.graph.has_node(remove_id):
+            return False
+        if not self.graph.has_node(keep_id):
+            self.graph.add_node(keep_id, **dict(self.graph.nodes[remove_id]))
+            self.graph.remove_node(remove_id)
+            return True
+        keep_data = self.graph.nodes[keep_id]
+        remove_data = self.graph.nodes[remove_id]
+        if not keep_data.get("bbox") and remove_data.get("bbox"):
+            keep_data["bbox"] = remove_data["bbox"]
+        if not keep_data.get("embedding") and remove_data.get("embedding"):
+            keep_data["embedding"] = remove_data["embedding"]
+        keep_data["created_at"] = min(
+            float(keep_data.get("created_at", t)), float(remove_data.get("created_at", t))
+        )
+        keep_data["last_seen"] = max(
+            float(keep_data.get("last_seen", t)), float(remove_data.get("last_seen", t))
+        )
+        keep_data.setdefault("attrs", {}).update(
+            {
+                **dict(remove_data.get("attrs", {})),
+                **dict(keep_data.get("attrs", {})),
+                "merged_from": [
+                    *list(keep_data.get("attrs", {}).get("merged_from", [])),
+                    remove_id,
+                ],
+            }
+        )
+        for src, dst, data in list(self.graph.out_edges(remove_id, data=True)):
+            if src == dst:
+                continue
+            if not self.graph.has_edge(keep_id, dst):
+                self.graph.add_edge(keep_id, dst, **dict(data))
+        for src, _, data in list(self.graph.in_edges(remove_id, data=True)):
+            if src == remove_id:
+                continue
+            if not self.graph.has_edge(src, keep_id):
+                self.graph.add_edge(src, keep_id, **dict(data))
+        self.graph.remove_node(remove_id)
+        self.bus.graph("furniture merged", t, keep=keep_id, removed=remove_id)
+        return True
 
     def zone_count(self) -> int:
         return sum(1 for _, a in self.graph.nodes(data=True) if a.get("kind") == "zone")
@@ -269,6 +379,7 @@ class BackgroundGraph:
             )
         for record in furniture:
             node_id = anchor_node(record.id)
+            attrs = dict(record.attrs or {})
             self.graph.add_node(
                 node_id,
                 kind="furniture",
@@ -277,6 +388,9 @@ class BackgroundGraph:
                 zone_id=record.zone_id,
                 created_at=record.created_at,
                 last_seen=record.created_at,
+                bbox=attrs.get("bbox"),
+                embedding=attrs.get("embedding"),
+                attrs=attrs,
             )
             if record.zone_id:
                 zone_id = zone_node(record.zone_id)

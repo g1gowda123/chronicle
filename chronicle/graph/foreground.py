@@ -131,6 +131,59 @@ class ForegroundGraph:
         if self.graph.has_node(node_id) and zone_id:
             self.graph.nodes[node_id]["zone_id"] = zone_id
 
+    def entity_for_track(
+        self,
+        track_id: int,
+        *,
+        label: str | None = None,
+        near_t: float | None = None,
+    ) -> str | None:
+        """Resolve a Role A track id to the durable entity that owns it.
+
+        ByteTrack ids are reused after a track expires, so prefer the most
+        recently observed entity with a matching label when one is available.
+        """
+
+        normalized = label.strip().lower() if label else None
+        best_id: str | None = None
+        best_key: tuple[int, float] = (-1, float("-inf"))
+        for attrs in self.entities():
+            if attrs.get("track_id") is None or int(attrs["track_id"]) != int(track_id):
+                continue
+            entity_label = str(attrs.get("label", "")).lower()
+            label_match = 1 if normalized is None or entity_label == normalized else 0
+            last_seen = float(attrs.get("last_seen", 0.0) or 0.0)
+            proximity = -abs(last_seen - near_t) if near_t is not None else 0.0
+            key = (label_match, proximity if near_t is not None else last_seen)
+            if key > best_key:
+                best_key = key
+                best_id = raw_entity_id(str(attrs["node_id"]))
+        return best_id
+
+    def action_rows(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Recent ``USER -> entity`` action edges for tables and summaries."""
+
+        rows: list[dict[str, Any]] = []
+        for _, dst, key, data in self.graph.edges(keys=True, data=True):
+            if data.get("relation") != Relation.ACTION.value:
+                continue
+            attrs = self.graph.nodes.get(dst, {})
+            rows.append(
+                {
+                    "id": key,
+                    "timestamp": float(data.get("t_start") or 0.0),
+                    "action": data.get("action", "ACTION"),
+                    "entity_id": raw_entity_id(str(dst)),
+                    "entity": attrs.get("label", raw_entity_id(str(dst))),
+                    "confidence": float(data.get("confidence") or 0.0),
+                    "source": data.get("source") or "",
+                    "clip_ref": data.get("clip_ref"),
+                    "caption": (data.get("evidence") or {}).get("caption", ""),
+                }
+            )
+        rows.sort(key=lambda row: (row["timestamp"], row["id"]), reverse=True)
+        return rows[: max(0, int(limit))]
+
     # -------------------------------------------------------------- transitions
     def record_transition(self, transition: StateTransition) -> str:
         node_id = entity_node(transition.entity_id)

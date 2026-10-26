@@ -54,6 +54,7 @@ class PerceptionPipeline:
         motion: AffineMotionEstimator | None = None,
         interactions: InteractionTracker | None = None,
         telemetry_sink: Callable[[TelemetryEvent], None] | None = None,
+        on_clip: Callable[[InteractionClip], None] | None = None,
         output_jsonl: str | Path | None = None,
         clips_dir: str | Path | None = None,
     ) -> None:
@@ -65,6 +66,7 @@ class PerceptionPipeline:
         self._motion_override = motion
         self._interactions_override = interactions
         self.telemetry_sink = telemetry_sink
+        self.on_clip = on_clip
         self.output_jsonl = Path(output_jsonl).expanduser() if output_jsonl else None
         self.clips_dir = Path(clips_dir).expanduser() if clips_dir else None
 
@@ -549,3 +551,8 @@ class PerceptionPipeline:
                 data=clip.as_dict(),
             )
         )
+        if self.on_clip is not None:
+            try:
+                self.on_clip(clip)
+            except Exception:
+                LOGGER.exception("clip callback failed for %s", clip.clip_id)

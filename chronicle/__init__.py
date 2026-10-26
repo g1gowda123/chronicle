@@ -18,6 +18,7 @@ from chronicle.geometry import (
 from chronicle.graph.adapter import frame_context_from_result
 from chronicle.graph.memory import ChronicleMemory
 from chronicle.graph.query import QueryResult
+from chronicle.integration import ChronicleRuntime, RuntimeAnswer
 from chronicle.state_machine import LifecycleEngine
 from chronicle.telemetry import EventBus, TelemetryEvent, TelemetryTag
 from chronicle.types import (
@@ -38,6 +39,7 @@ __all__ = [
     "CameraMotion",
     "CameraState",
     "ChronicleMemory",
+    "ChronicleRuntime",
     "EntitySnapshot",
     "EventBus",
     "FrameContext",
@@ -47,6 +49,7 @@ __all__ = [
     "ObjectState",
     "QueryResult",
     "Relation",
+    "RuntimeAnswer",
     "StateTransition",
     "SupportSurface",
     "TelemetryEvent",
