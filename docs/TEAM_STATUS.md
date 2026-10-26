@@ -72,8 +72,8 @@ embeddings + template GraphRAG). The HoloLens clip is available as
   fix rather than a threshold change.
 - Reproduce from `docs/CALIBRATION.md`; model-free coverage is in
   `tests/test_calibration.py` and `tests/test_actions.py`.
-- Shipped in `5d8b499` on `task/nb-08-real-calibration` (full `pytest` green,
-  142 unittest tests, ruff clean, evaluation 9/9).
+- Shipped on `main` (`9ed6735..d5870b3`; full `pytest` green, 142 unittest
+  tests, ruff clean, evaluation 9/9).
 
 ### TASK-E2 — zone-clustered graph
 

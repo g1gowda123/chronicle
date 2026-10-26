@@ -298,11 +298,11 @@ PR so parallel work does not collide.
 | NB-D03 | Appearance in snapshot, CSV, GraphRAG and UI | orchestrator | `docs/INTEGRATION.md`, `docs/PERCEPTION.md` |
 | NB-D04 | Dashboard video upload + drag-and-drop | orchestrator | `tests/test_uploads.py` |
 | NB-D05 | Snapshot import / export | orchestrator | `tests/test_snapshot_io.py`, `tests/test_dashboard_smoke.py` |
-| NB-08 | Calibrate action thresholds against real labels | opencode (AI) | `5d8b499`; `docs/CALIBRATION.md`; 19 labels, precision 0.93 / recall 1.00 |
+| NB-08 | Calibrate action thresholds against real labels | opencode (AI) | `9ed6735`; `docs/CALIBRATION.md`; 19 labels, precision 0.93 / recall 1.00 |
 
 ### NB-08 details
 
-- **Branch:** `task/nb-08-real-calibration` · **Commit:** `5d8b499`
+- **Branch:** `task/nb-08-real-calibration` · **Merged:** `9ed6735..d5870b3` on `main`
 - **Why:** shipped thresholds came from a 16-caption seed set.
 - **Delivered:** `docs/calibration_labels.holoassist.json` (19 traceable labels
   from the published HoloAssist timeline), `docs/calibration.holoassist.report.json`,
