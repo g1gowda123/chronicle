@@ -55,7 +55,8 @@ PR so parallel work does not collide.
 | NB-19 | P1 | Re-run HoloAssist action timeline with Florence-2 captions | Semantic | READY | unclaimed |
 | NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | DONE | opencode (AI) |
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
-| NB-10 | P1 | Tune consolidation on the living-room clip | Graph | READY | unclaimed |
+| NB-10 | P1 | Tune consolidation on the living-room clip | Graph | IN PROGRESS | opencode (AI) |
+| NB-20 | P1 | Add living-room furniture labels and stop armchair/sofa conflation | Graph / Perception | READY | unclaimed |
 | NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | READY | unclaimed |
 | NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | DONE | opencode (AI) |
 | NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | READY | unclaimed |
@@ -147,15 +148,39 @@ PR so parallel work does not collide.
 - **Spec:** §Quality (verification queue); SUGGESTIONS 5.2.
 
 ### NB-10 · Tune consolidation on the living-room clip
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Graph
+- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Graph
+- **Started:** 2026-10-27 · **Branch:** `task/nb-10-furniture-support-mapping`
 - **Why:** the “done when” bar for Role B is one anchor per physical sofa after
   replaying the living-room clip.
 - **Scope:** run the clip, inspect `memory.stats()["merges"]`, tune association
   and merge gates if duplicates remain; add a regression fixture.
 - **Files:** `chronicle/graph/consolidation.py`,
-  `chronicle/graph/furniture.py`, `tests/test_consolidation.py`
+  `chronicle/graph/furniture.py`, `chronicle/graph/memory.py`,
+  `tests/test_furniture.py`, docs.
 - **Acceptance:** exactly one anchor per real sofa and no merged co-visible
   instances; tests pass.
+- **Progress note:** support-anchor duplicates are fixed. Replaying the clip
+  dropped furniture rows **67 → 18** and removed every `anchor:support-*`
+  duplicate. Six `sofa` anchors remain because YOLO-World labels the armchair
+  as a sofa and a 0.1 s detection survives the two-hit gate; consolidation
+  correctly refuses to merge co-visible boxes. That label/fixture work is
+  **NB-20**; NB-10 is not done until the sofa count is right.
+- **Spec:** §Data model; TEAM_STATUS Role B “Done when”.
+
+### NB-20 · Add living-room furniture labels and stop armchair/sofa conflation
+- **Status:** READY · **Owner:** unclaimed · **Lane:** Graph / Perception
+- **Why:** NB-10 removed support duplicates, but the living-room clip still
+  yields six `sofa` anchors for one sofa + one armchair. YOLO-World sees the
+  armchair as `sofa`, and two-hit confirmation lets a 0.1 s detection through.
+- **Scope:** add `armchair` (and any missing furniture labels) to the `play`
+  vocabulary and furniture config, require a minimum visible duration in
+  addition to `min_hits`, and add a hand-labelled living-room fixture with the
+  expected anchor count. Do not loosen the co-visible merge gate.
+- **Files:** `chronicle/sources.py`, `chronicle/config.py`,
+  `chronicle/graph/furniture.py`, `tests/test_furniture.py`,
+  `tests/test_consolidation.py`, `docs/PERCEPTION.md`
+- **Acceptance:** replaying the living-room clip leaves one anchor per physical
+  sofa and one per armchair; the co-visible two-sofa test still passes.
 - **Spec:** §Data model; TEAM_STATUS Role B “Done when”.
 
 ### NB-11 · Reduce per-frame support / SQLite write cost

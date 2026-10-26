@@ -256,6 +256,21 @@ Thresholds follow the technical specification where it defines them (2.5 px
 stationary, 8 px pan, IoS 0.60, dwell 0.3 s, SC 0.82). The calibration report
 from the prototype is not included; tune per camera.
 
+### Furniture routing on the living-room clip
+
+Role A emits short-lived `support-sofa-N`/`support-table-N` candidates; Role B
+owns the durable `anchor:*` nodes. NB-10 now routes furniture *before* creating
+support anchors and maps a support box onto a confirmed furniture anchor with
+`FurnitureRegistry.match_surface()`. On a fresh full `play` replay this reduced
+snapshot furniture rows from **67 to 18** and removed every `anchor:support-*`
+duplicate (`tests/test_furniture.py`).
+
+The clip still contains six `sofa` anchors. Visually it has one sofa and one
+armchair; YOLO-World labels the armchair as `sofa`, and a 0.1 s detection still
+passes the two-hit confirmation gate. The consolidation gate correctly refuses
+to merge co-visible boxes, so the remaining work is label/vocabulary and fixture
+tuning (NB-20), not a lower merge threshold.
+
 ## Tests
 
 ```bash

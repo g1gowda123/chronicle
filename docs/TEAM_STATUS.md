@@ -40,6 +40,24 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### NB-10 partial — support anchors collapse into durable furniture anchors
+
+- Reordered `ChronicleMemory.observe()` so furniture routing runs before Role A
+  support anchors are created, and added
+  `FurnitureRegistry.match_surface()`. A `support-sofa-N` candidate with the same
+  detection box now reuses `anchor:sofa-N` instead of minting a second
+  background node.
+- Replayed the living-room clip with production backends:
+  **furniture rows dropped from 67 to 18**, and **all `anchor:support-*`
+  duplicates disappeared**. The regression test is
+  `test_role_a_support_anchor_reuses_durable_furniture_anchor`.
+- Remaining gap: the clip still has six `sofa` anchors. The video visibly
+  contains one sofa and one armchair, but YOLO-World labels the armchair as
+  `sofa`, and short detections (`sofa-12`, 0.1 s) still pass the two-hit gate.
+  Consolidation correctly refuses to merge co-visible boxes, so this needs a
+  label/vocabulary + fixture pass (NB-20), not a looser merge threshold.
+- NB-10 stays open until a replay leaves one anchor per physical sofa.
+
 ### NB-12 — appearance attributes in the spec and evaluation
 
 - Added the **Object appearance attributes** subsection to

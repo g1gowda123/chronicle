@@ -165,8 +165,12 @@ class ChronicleMemory:
             t = last_t
             frame.t = t
         self._canonicalize_frame(frame)
-        self._ensure_frame_context(frame)
+        self._ensure_frame_zone(frame)
+        # Route furniture before creating Role A support anchors so a support
+        # candidate can reuse the durable furniture anchor instead of minting
+        # ``support-sofa-N`` duplicates.
         self._route_furniture(frame)
+        self._ensure_frame_supports(frame)
         self._ensure_entities(frame)
 
         transitions = self.engine.update(frame)
@@ -518,7 +522,26 @@ class ChronicleMemory:
                 support_ids.add(match.anchor_id)
                 self._ensure_support(surface, zone_node_id, frame.t)
         frame.objects = tuple(objects)
-        frame.supports = tuple(supports)
+
+        # Role A's support ids are short-lived; Role B's furniture anchors are
+        # durable.  Reuse the durable id when the support box matches a
+        # confirmed anchor, and collapse the duplicate surface created by the
+        # furniture track above.
+        mapped: list[SupportSurface] = []
+        seen_anchors: set[str] = set()
+        for surface in supports:
+            bounds = surface.polygon.bounds if surface.polygon is not None else None
+            if self.furniture.is_furniture(surface.label):
+                match = self.furniture.match_surface(
+                    surface.label, bounds, zone_id
+                )
+                if match is not None:
+                    surface = replace(surface, anchor_id=match.anchor_id)
+            if surface.anchor_id in seen_anchors:
+                continue
+            seen_anchors.add(surface.anchor_id)
+            mapped.append(surface)
+        frame.supports = tuple(mapped)
 
     def _ensure_furniture_match(
         self,
@@ -600,7 +623,7 @@ class ChronicleMemory:
                         self._furniture_aliases, anchor_id, removed_id
                     )
 
-    def _ensure_frame_context(self, frame: FrameContext) -> None:
+    def _ensure_frame_zone(self, frame: FrameContext) -> None:
         t = frame.t
         if frame.zone_id:
             label = str(frame.attributes.get("zone_label", frame.zone_id))
@@ -609,7 +632,11 @@ class ChronicleMemory:
                 attrs = self.background.node(zone_id) or {}
                 self.store.upsert_zone(zone_id, attrs.get("label", label), t)
                 self._active_zone = zone_id
+        else:
+            self._default_zone(t)
 
+    def _ensure_frame_supports(self, frame: FrameContext) -> None:
+        t = frame.t
         zone_id = self._active_zone or self._default_zone(t)
         for surface in frame.supports:
             self._ensure_support(surface, zone_id, t)
