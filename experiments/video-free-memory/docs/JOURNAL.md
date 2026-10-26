@@ -777,7 +777,7 @@ plates and no bowls on the counter.
   absorbed into the person. No false merge.
 - Full 30-question suite after rebuilding the vaults: **30/30 cold, 30/30 warm, 4/4 cache hits**,
   p50 0.051 ms cold / 0.062 ms warm. C3 still contains `4 bowl` and now also says physical `0`.
-- `pytest -q tests` → **22 passed**.
+- `pytest -q tests` → **24 passed**.
 
 ### Decision
 
@@ -799,3 +799,12 @@ plates and no bowls on the counter.
 - Added `POST /vfm/compile/{source_key}` (optional `?force=true`) so automation/another client can
   queue a compile without the NiceGUI button. `tests/test_vfm.py` now has **9 tests**; our subset
   (`test_vfm.py + test_dashboard_smoke.py`) → 10 passed.
+
+### Session 6 addendum — sync-safe service
+
+- `service.py` no longer passes a custom `episode_id` into `compile_vault`. It calls the prototype's
+  public `(source_db, out_db, title=...)` signature and updates `episodes.id` after the compile.
+  This keeps the dashboard working when `chronicle/vfm/compile.py` is re-synced from `prototype/`.
+- Added an opt-in deletion test for an upload path (video removed, zip still present). The old
+  non-upload guard test remains.
+- `tests/test_vfm.py` → **10 passed**; ruff clean.

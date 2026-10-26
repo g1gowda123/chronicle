@@ -71,13 +71,13 @@ python -m pytest -q tests
 cd experiments/video-free-memory && python -m pytest -q tests
 ```
 
-Headless coverage (`tests/test_vfm.py`, 9 tests):
+Headless coverage (`tests/test_vfm.py`, 10 tests):
 
 - compile from a generated graph DB + generated video + fake captioner;
 - vault answers `where is the cup?` with no video and no VLM;
 - zip contains vault, report, pack, CSVs and `evidence/`;
 - background manager status/`job.json`/ask/artifact lookup;
-- delete-video guard refuses non-upload clips;
+- delete-video guard refuses non-upload clips; opt-in deletion removes an upload;
 - count answers expose track/peak bounds (`vault-count-visibility`);
 - dashboard routes: status, report, zip/vault download, evidence image, ask;
 - `POST /vfm/compile/{source}` queues a job and reaches done;
