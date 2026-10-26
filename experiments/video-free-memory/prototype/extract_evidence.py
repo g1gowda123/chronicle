@@ -89,8 +89,20 @@ def extract(
     data_root: Path | None = None,
     delete_video: bool = False,
     max_items: int = 40,
+    width: int = 640,
+    quality: int = 82,
+    image_format: str = "jpg",
+    min_gap: float = 2.0,
 ) -> dict[str, Any]:
     import cv2
+
+    image_format = "webp" if image_format.lower() == "webp" else "jpg"
+    extension = "." + image_format
+    encode_param = (
+        [int(cv2.IMWRITE_WEBP_QUALITY), int(quality)]
+        if image_format == "webp"
+        else [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)]
+    )
 
     con = sqlite3.connect(str(vault))
     con.row_factory = sqlite3.Row
@@ -106,7 +118,7 @@ def extract(
     )
     con.commit()
     store = load_store(con)
-    events = select_events(store, max_items=max_items)
+    events = select_events(store, min_gap=min_gap, max_items=max_items)
     out_dir.mkdir(parents=True, exist_ok=True)
     written = 0
     total_bytes = 0
@@ -114,18 +126,20 @@ def extract(
         frame = _read_frame(video, float(event["t"]))
         if frame is None:
             continue
-        height, width = frame.shape[:2]
-        if width > 640:
-            scale = 640 / width
+        height, width_px = frame.shape[:2]
+        if width_px > width:
+            scale = width / width_px
             frame = cv2.resize(
                 frame,
-                (640, max(1, int(round(height * scale)))),
+                (width, max(1, int(round(height * scale)))),
                 interpolation=cv2.INTER_AREA,
             )
-            height, width = frame.shape[:2]
-        filename = f"ev_{index:04d}_{float(event['t']):08.2f}_{str(event['kind'])}.jpg"
+            height, width_px = frame.shape[:2]
+        filename = (
+            f"ev_{index:04d}_{float(event['t']):08.2f}_{str(event['kind'])}{extension}"
+        )
         path = out_dir / filename
-        ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+        ok, encoded = cv2.imencode(extension, frame, encode_param)
         if not ok:
             continue
         path.write_bytes(encoded.tobytes())
@@ -151,9 +165,15 @@ def extract(
                 filename,
                 rel_path,
                 size,
-                width,
+                width_px,
                 height,
-                json.dumps({"caption": str(event.get("object") or "")}),
+                json.dumps(
+                    {
+                        "caption": str(event.get("object") or ""),
+                        "format": image_format,
+                        "quality": int(quality),
+                    }
+                ),
             ),
         )
         written += 1
@@ -172,6 +192,10 @@ def extract(
         "snapshots": written,
         "snapshot_bytes": total_bytes,
         "avg_bytes": round(total_bytes / written, 1) if written else 0,
+        "width": width,
+        "quality": quality,
+        "format": image_format,
+        "min_gap": min_gap,
         "video_deleted": deleted,
     }
 
@@ -184,6 +208,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--data-root", type=Path, default=None)
     parser.add_argument("--delete-video", action="store_true")
     parser.add_argument("--max-items", type=int, default=40)
+    parser.add_argument("--width", type=int, default=640)
+    parser.add_argument("--quality", type=int, default=82)
+    parser.add_argument("--format", choices=("jpg", "webp"), default="jpg")
+    parser.add_argument("--min-gap", type=float, default=2.0)
     args = parser.parse_args(argv)
     summary = extract(
         args.vault.expanduser().resolve(),
@@ -192,6 +220,10 @@ def main(argv: list[str] | None = None) -> int:
         data_root=args.data_root.expanduser().resolve() if args.data_root else None,
         delete_video=args.delete_video,
         max_items=max(1, args.max_items),
+        width=max(160, args.width),
+        quality=max(30, min(100, args.quality)),
+        image_format=args.format,
+        min_gap=max(0.0, args.min_gap),
     )
     print(json.dumps(summary, indent=2))
     return 0

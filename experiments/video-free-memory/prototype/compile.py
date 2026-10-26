@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Compile a Chronicle SQLite episode into a video-free, compressed VFM vault.
 
-v2 layout:
+v3 layout (backwards-compatible with the v2 reader):
   * dictionary-encoded strings (uint16 ids)
   * events packed as a struct-of-arrays blob (~16 bytes/event)
   * window captions zlib-compressed JSON
+  * salience coalescing driven by the source DB's physical `reason` labels
   * no video reference; `video_retained=0`
 
 Usage:
@@ -25,18 +26,25 @@ from compact import StringTable, compress_json, pack_events
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = ROOT / "schema_v2.sql"
+SCHEMA_V3 = ROOT / "schema_v3.sql"
 WINDOW_S = 30.0
+COMPILER = "vfm-v3"
 
-#: States worth a ledger row. Visibility flicker (OCCLUDED/OUT_OF_VIEW) is not.
-STABLE_STATES = {
-    "NEW",
-    "VISIBLE_STATIC",
-    "VISIBLE_MOVING",
-    "INTERACTED",
-    "HELD",
-    "CONTAINED",
-    "LOST",
+#: Transition reasons that are visibility noise, not memory-worthy events.
+NOISE_REASONS = {
+    "camera_pan",
+    "occluder_overlap",
+    "line_of_sight_lost",
+    "reacquired_without_support_geometry",
+    "resting_no_surface_detector",
+    "independent_motion",
+    "independent_motion_relaxed",
 }
+
+#: Coalesce repeated touches of the same object closer than this.
+INTERACTION_GAP_S = 6.0
+#: Re-placements on the same support inside this window are not new events.
+PLACEMENT_GAP_S = 8.0
 
 
 def _rows(con: sqlite3.Connection, sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
@@ -98,8 +106,16 @@ def _dedupe(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def _transition_evidence(row: sqlite3.Row) -> dict[str, Any]:
+    try:
+        value = json.loads(str(row["evidence"] or "{}"))
+        return value if isinstance(value, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
 def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, Any]]:
-    entities = _rows(source, "select id, label, state, zone_id, last_seen from entities")
+    entities = _rows(source, "select id, label, state, zone_id, first_seen, last_seen from entities")
     zones = _rows(source, "select id, label from zones")
     furniture = _rows(source, "select id, label from furniture")
 
@@ -122,7 +138,28 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
 
     events: list[dict[str, Any]] = []
 
-    # 1. Stable lifecycle changes.
+    # 1. First appearance, one per tracked entity. Track fragmentation means several
+    #    rows can share a label; keep them as distinct tracks and say so in the answer.
+    for row in entities:
+        first_seen = row["first_seen"]
+        if first_seen is None:
+            continue
+        events.append(
+            _event(
+                first_seen,
+                "state",
+                str(row["label"]),
+                "APPEARED",
+                str(row["label"]),
+                entity_zone.get(str(row["id"])),
+                None,
+                "lifecycle",
+                {"track": str(row["id"])},
+            )
+        )
+
+    # 2. Salient lifecycle changes. The source DB tags every transition with a
+    #    physical reason; drop camera/occlusion flicker and keep contact events.
     transition_rows = _rows(
         source,
         """
@@ -137,27 +174,79 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
         rows_for_entity.sort(key=lambda row: float(row["t_event"]))
         label = str(rows_for_entity[0]["label"] or _node_label(entity_id, labels))
         zone = entity_zone.get(entity_id)
-        last_stable: str | None = None
+        last_state: str | None = None
+        last_emit_t: float | None = None
+        last_container = ""
+        last_placement = ""
+        last_placement_t = 0.0
         for row in rows_for_entity:
             to_state = str(row["to_state"])
-            if to_state not in STABLE_STATES or to_state == last_stable:
+            t = float(row["t_event"])
+            evidence = _transition_evidence(row)
+            reason = str(evidence.get("reason") or "")
+
+            if reason in NOISE_REASONS:
                 continue
-            last_stable = to_state
+
+            kind = "state"
+            relation = to_state
+            obj = label
+            if reason == "hand_contact" and to_state == "INTERACTED":
+                if label.lower() in {"person", "agent", "user"}:
+                    continue
+                if (
+                    last_state in {"INTERACTED", "HELD"}
+                    and last_emit_t is not None
+                    and t - last_emit_t < INTERACTION_GAP_S
+                ):
+                    continue
+                kind, relation, obj = "interaction", "TOUCHED", "person"
+            elif reason == "lockstep_hand_motion" and to_state == "HELD":
+                if last_state == "HELD" or label.lower() in {"person", "agent", "user"}:
+                    continue
+                kind, relation, obj = "interaction", "HELD", "person"
+            elif reason == "enclosed_by_container" and to_state == "CONTAINED":
+                container = _node_label(str(evidence.get("container_id") or ""), labels)
+                if last_state == "CONTAINED" and container == last_container:
+                    continue
+                kind, relation, obj = "anchor", "PLACED_IN", container or "container"
+                last_container = container
+            elif reason == "resting_on_support" and to_state == "VISIBLE_STATIC":
+                if last_state not in {"INTERACTED", "HELD", "CONTAINED"}:
+                    continue
+                support = _node_label(str(evidence.get("support_id") or ""), labels)
+                if support == last_placement and t - last_placement_t < PLACEMENT_GAP_S:
+                    continue
+                kind, relation, obj = "anchor", "PLACED_ON", support or "surface"
+                last_placement = support
+                last_placement_t = t
+            elif to_state == "LOST":
+                kind, relation, obj = "state", "LOST", label
+            else:
+                continue
+
             events.append(
                 _event(
-                    row["t_event"],
-                    "state",
+                    t,
+                    kind,
                     label,
-                    f"{row['from_state']}->{to_state}",
-                    label,
+                    relation,
+                    obj,
                     zone,
                     None,
                     "lifecycle",
-                    {"from": row["from_state"], "to": to_state},
+                    {
+                        "from": row["from_state"],
+                        "to": to_state,
+                        "reason": reason,
+                        "track": entity_id,
+                    },
                 )
             )
+            last_state = to_state
+            last_emit_t = t
 
-    # 2. One anchor per (entity, relation, target): terminal/preferred latest.
+    # 3. One anchor per (entity, relation, target): terminal/preferred latest.
     anchor_rows = _rows(
         source,
         """
@@ -188,10 +277,11 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
             )
         )
 
-    # 3. Non-spatial graph relations (IN_ZONE is implied by the entity/zone table).
+    # 4. Non-spatial graph relations (IN_ZONE is implied by the entity/zone table).
+    #    ACTION edges duplicate hand-contact lifecycle events, so they are skipped.
     for row in _rows(source, "select src, dst, relation, t_start from edges"):
         relation = str(row["relation"] or "")
-        if relation.upper() in {"IN_ZONE", "RESTING_ON", "INSIDE", "ON", "CONTAINED_IN"}:
+        if relation.upper() in {"IN_ZONE", "RESTING_ON", "INSIDE", "ON", "CONTAINED_IN", "ACTION"}:
             continue
         t = row["t_start"]
         if t is None:
@@ -209,7 +299,7 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
             )
         )
 
-    # 4. Periodic scene anchors so quiet periods are not invisible.
+    # 5. Periodic scene anchors so quiet periods are not invisible.
     total = max(0.0, float(duration))
     step = WINDOW_S
     tick = 0.0
@@ -257,10 +347,22 @@ def caption_for(event: dict[str, Any]) -> str:
     obj = str(event["object"]).lower()
     zone = str(event["zone"])
     kind = event["kind"]
-    if kind == "state":
-        text = f"At t={t:.1f}s, the {subject} transitioned {relation}"
+    if kind == "interaction":
+        text = f"At t={t:.1f}s, the {subject} was {relation}"
     elif kind == "anchor":
-        text = f"At t={t:.1f}s, the {subject} was {relation} the {obj}"
+        if relation == "placed in":
+            text = f"At t={t:.1f}s, the {subject} was placed in the {obj}"
+        elif relation == "placed on":
+            text = f"At t={t:.1f}s, the {subject} was placed on the {obj}"
+        else:
+            text = f"At t={t:.1f}s, the {subject} was {relation} the {obj}"
+    elif kind == "state":
+        if relation == "appeared":
+            text = f"At t={t:.1f}s, the {subject} appeared"
+        elif relation == "lost":
+            text = f"At t={t:.1f}s, the {subject} was lost from view"
+        else:
+            text = f"At t={t:.1f}s, the {subject} was {relation}"
     elif kind == "relation":
         text = f"At t={t:.1f}s, {subject} {relation} {obj}"
     elif kind == "keyframe":
@@ -320,14 +422,15 @@ def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) ->
     vault.row_factory = sqlite3.Row
     try:
         vault.executescript(SCHEMA.read_text(encoding="utf-8"))
+        vault.executescript(SCHEMA_V3.read_text(encoding="utf-8"))
         now = time.time()
         episode_id = source_db.parent.name or source_db.stem
         zone_id = table.add(zone_labels.get(str(entities[0]["zone_id"]), "")) if entities else 0
         vault.execute(
             """
             insert or replace into episodes
-                (id, title, source_path, zone_id, duration_s, fps, video_retained, compiled_at)
-            values (?, ?, ?, ?, ?, ?, 0, ?)
+                (id, title, source_path, zone_id, duration_s, fps, video_retained, compiled_at, compiler)
+            values (?, ?, ?, ?, ?, ?, 0, ?, ?)
             """,
             (
                 episode_id,
@@ -337,6 +440,7 @@ def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) ->
                 duration,
                 None,
                 now,
+                COMPILER,
             ),
         )
         vault.executemany("insert or replace into strings(id, value) values (?, ?)", table.rows())
@@ -362,7 +466,8 @@ def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) ->
         vault.executemany(
             "insert or replace into meta(key, value) values (?, ?)",
             [
-                ("schema_version", "vfm-v2"),
+                ("schema_version", COMPILER),
+                ("event_policy", "salience-coalesce-v1"),
                 ("compiled_at", str(now)),
                 ("event_count", str(len(events))),
                 ("caption_windows", str(len(captions))),

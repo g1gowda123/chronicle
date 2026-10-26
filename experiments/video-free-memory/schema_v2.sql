@@ -1,8 +1,8 @@
 -- Chronicle VFM vault schema v2 (compressed layout)
 -- No video. Events are a packed struct-of-arrays blob; captions are zlib JSON.
 
+PRAGMA page_size = 1024;
 PRAGMA journal_mode = WAL;
-PRAGMA page_size = 4096;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS meta (

@@ -243,3 +243,113 @@ Generated report: 122 events + 15 embedded snapshots -> **915 KB single HTML fil
 4. 30-question paraphrase/negative set + per-category accuracy.
 5. Semantic answer cache experiment.
 6. 10/30/60-minute concatenated episodes; verify size/latency scaling.
+
+---
+
+## 2026-10-27 — Session 4: v3 retention, dense ledger, baselines
+
+### Goal
+
+Make the vault smaller and more useful at rest, add a real dense caption ledger, replace the
+10-question smoke test with a 30-question per-category set, measure the video-to-LLM baseline,
+and decide the long-term retention policy.
+
+### Read / learned
+
+- Re-read `JOURNAL.md`, `DESIGN.md`, `RESEARCH.md`, all prototype code and the schema.
+- The standardized benchmark landscape: CapMem's caption-only QA is the closest external test;
+  EgoSchema, Ego4D NLQ, EgoLifeQA/EgoR1-bench and EgoMemory/EgoRetriever are the credible second
+  tier. None measure video deletion, evidence JPEG sufficiency, cache hit rate, or bytes/hour.
+- SQLite page size must be set before `journal_mode=WAL`; otherwise it stays at 4096.
+
+### Built
+
+- `compile.py` v3 salience coalescing using the source DB's physical `reason` labels:
+  hand_contact / lockstep_hand_motion / enclosed_by_container / resting_on_support.
+  122 → 51 events on cook, target 40–60.
+- `schema_v3.sql` + `caption_ledger.py` + `attach_ledger.py`:
+  qwen2.5vl:3b per-frame JSON captions, qwen2.5:1.5b synthesis, 30 s windows, zlib blob.
+- Query engine v3: dense ledger retrieval, count/yes-no/before/after, canonical semantic cache,
+  in-memory subject/time indexes.
+- `benchmark.py` multi-episode 30-question scoring: content, timestamps, citations, evidence,
+  cache reuse, per-category and per-episode accuracy.
+- `retention.py`: bytes/hour report, 40/12/4 snapshot sweep, prune/apply, cache drop, vacuum.
+- `concat_vaults.py` + `scale_test.py`: synthetic 10/30/60-minute episodes, 40-snapshot cap.
+- `vlm_baseline.py`: 9-frame timestamped contact sheet + local Qwen2.5-VL, token/cost/size.
+- `online_baseline.py`: OpenAI / Anthropic / Gemini adapter (no key bundled).
+- `report.py`: client-side query box, dense ledger, WebP MIME fix, deduped embedded images.
+- 1 KB SQLite pages before WAL: cook vault 77 KB → 27 KB.
+
+### Measured
+
+**Cook, 45 s, 11 entities**
+
+| Metric | Value |
+|---|---:|
+| Events / event pack | 51 / 879 B (17.2 B/event) |
+| Dense 30 s ledger | 996 B zlib (5.0 KB raw) |
+| Vault | 27 KB |
+| Evidence | 10 WebP, 137.5 KB (480 px/q75) |
+| Total memory | 164.5 KB (5.4% of 2.99 MB video) |
+| 30-question set | 30/30, all six categories 100% |
+| Cold p50 / p95 | 0.045 / 0.113 ms |
+| Cache | 4/4 paraphrases, reused accuracy 100% |
+
+**30 s vs 60 s dense ledger** — 30 s cook 996 B, 19 objects, 26 actions; 60 s 648 B, 13 objects,
+16 actions. Walking 939 B/12/12 vs 671 B/11/7. Hololens 996 B/16/15 vs 665 B/9/6. Structured
+accuracy stays 30/30 because events carry exact times; 30 s wins on recall per byte.
+
+**Video-to-LLM baseline (valid 9-frame run)** — Qwen2.5-VL:3b, one timestamped contact sheet per
+episode, 30 questions: **7/30 (23.3%)**, p50 4,456 ms, p95 7,202 ms, 22,922 tokens total
+(764/question), $0.0036 at illustrative $0.15/$0.60 per Mtok, 19.24 MB video at query, 395 KB
+contact sheets. Vault: 30/30, 0.12 ms p50, 0 tokens, 404 KB at rest, 48.8× smaller than video.
+Per category vault/VLM: location 6/1, temporal 6/0, count 5/0, before-after 4/2, negation 5/4,
+paraphrase 4/0.
+
+**Scaling** — 10/30/60 min: 453/1,257/2,474 events, vault 51/86/139 KB, load 1.1/2.8/5.5 ms,
+p50 0.68/1.86/3.64 ms, p95 1.91/5.30/10.42 ms. Latency is not flat; it grows with event count,
+not frames, but stays well under 50 ms.
+
+**Retention** — 60 min synthetic, 40/12/4 snapshots/hour: 698/282/178 KB per hour;
+20.5/8.3/5.2 MB per 30 days at 1 h/day. At 12/h, actual memory is 257 KB for the hour
+(134 KB vault + 123 KB unique evidence). The 60-minute video projection is ~498 MB/h, so the
+long-horizon ratio is ~1,766× at 12 snapshots/h.
+
+**Video-free proof** — copied clip + DB to `/tmp/vfm/proof`, compiled, extracted evidence, deleted
+the only video, then queried and rendered the report. Zero videos remained; all answers and the
+421 KB HTML worked.
+
+### Failed / surprised by
+
+- Qwen2.5-VL multi-image requests abort with a repeat-limit error in this Ollama build. Per-frame
+  captioning + text synthesis fixed it.
+- The VLM sometimes returns `description` instead of `caption`; the parser now accepts common key
+  variants. `{}` must be treated as empty, not literal text.
+- A 16-frame contact sheet returned zero tokens and 5/30; not a valid baseline. Only the 9-frame
+  result is reported.
+- The Gemini free-tier probe took **234 s for one question**, 1,134 prompt tokens, 3 output
+  tokens, 0/1. Not viable for 30 questions; no online number is claimed.
+- Counts are track counts, not physical counts. Cook has 2 plate tracks and 4 bowl tracks, while
+  the VLM may see 4 plates and 2 bowls. The count category is not a clean physical-count win.
+- The cook 30 s caption said "another person" though only one person was tracked. VLM captions
+  need verification before being treated as ground truth.
+- The synthetic 60-minute vault repeats three short clips; entity/evidence repetition inflates
+  rows. The 40-snapshot cap and conservative per-hour projection are used instead.
+
+### Decision
+
+- Default 30 s windows, three frames, per-frame caption + text synthesis.
+- Default evidence: 480 px WebP q75; 12 snapshots/hour for long-term retention, 40/hour for max
+  visual audit.
+- 1 KB SQLite pages before WAL; cache is volatile and dropped before quoting at-rest size.
+- Keep the 30-question set as a regression suite, not a benchmark.
+- Do not claim online VLM numbers without a full run.
+
+### Next
+
+1. Real Gemini/online 30-question run on a paid or faster key, using `online_baseline.py`.
+2. External benchmark subset: CapMem if usable, else 100-clip EgoSchema; Ego4D NLQ for timing.
+3. Physical-count calibration from dense captions; track fragmentation is still the biggest
+   correctness gap.
+4. Evidence dedup/perceptual hash and a 24-hour/7-day consolidation test.
+5. Int8 embeddings for caption windows only if lexical/dense retrieval misses measurable cases.

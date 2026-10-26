@@ -12,89 +12,266 @@ The current pipeline still depends on the source video for playback, frame extra
 "re-watch" evidence. That makes queries expensive and forces us to keep raw footage. This
 experiment asks a more radical question:
 
-> Can a 45-minute egocentric episode be reduced to a few megabytes of structured memory and
-> event snapshots, such that every useful question is answered **without decoding video and
-> without running a video LLM at query time**?
+> Can a long egocentric episode be reduced to a small, timestamped, queryable memory plus a
+> handful of event snapshots, such that useful questions are answered **without decoding video
+> and without running a video LLM at query time**?
 
-If the answer is yes, the model is used once, heavily, at ingest (the expensive part), and the
-query path becomes a database lookup with optional small-model phrasing. Video becomes a build
-artifact — deleted after compilation. Compute is amortised; privacy is structural.
+The compiler is allowed to be expensive. It runs once, writes a dense ledger and a few WebP
+snapshots, and the source video is deleted. Query time is SQL/graph + cached captions. Pixels
+are an audit/fallback path, never the default.
 
 ## Core hypothesis
 
-1. **Heavy model once, cheap queries forever.** A large VLM/captioner runs offline over selected
-   keyframes/clips and writes a dense, timestamped memory ledger.
-2. **Text + graph beats raw video on long horizons.** Recent work (CapMem, EgoCITE, EgoGraph,
-   MERIT, VL-KnG, R4DSG) shows caption/graph memory is competitive or better for long-horizon
-   episodic questions, while avoiding per-query video tokens.
-3. **Pixels on demand.** Store one JPEG per major event. If a query genuinely needs visual
-   detail, retrieve 1–3 stored keyframes and call a small VLM — never re-decode the episode.
-4. **Materialise the answers.** Cache answers and reasoning traces for repeated/similar
-   questions; a semantic cache is a first-class memory tier, not an optimisation afterthought.
+1. **Heavy model once, cheap queries forever.** A local VLM captions sampled frames offline;
+   the compressed ledger answers at query time with no model.
+2. **Text + graph beats raw video on long horizons.** CapMem, EgoCITE, EgoGraph, MERIT,
+   FocusGraph, VL-KnG and R4DSG all point at compiled, timestamped memory.
+3. **Pixels on demand.** One 480 px WebP per major event; the video is never required.
+4. **Materialise answers.** A canonical answer cache absorbs paraphrases and repeated questions.
+5. **Retention is a first-class design constraint.** The ledger grows with events, evidence with
+   snapshots. A one-hour episode is designed to stay under ~1 MB at rest.
 
 ## Layout
 
 ```
 docs/
   JOURNAL.md      dated research log (append-only)
-  RESEARCH.md     literature review with links and takeaways
-  DESIGN.md       architecture, schema, query flow, radical ideas
-schema.sql        compiled-memory schema
+  RESEARCH.md     literature review + standardized benchmark options
+  DESIGN.md       architecture, schema, query flow, retention policy
+benchmark/
+  questions.json  30-question curated set with per-category scoring
+schema_v2.sql     packed event/caption vault (base)
+schema_v3.sql     dense VLM ledger + answer cache additions
 prototype/
-  compile.py      existing Chronicle SQLite DB -> video-free vault
-  query.py        SQL/graph query engine (no video, no LLM)
-  benchmark.py    size + latency + coverage report
+  compile.py          source Chronicle DB -> compressed vault (salience coalescing)
+  compact.py          dictionary encoding, event packing, zlib, int8 quantization
+  caption_ledger.py   offline VLM -> 30/60 s caption ledger (Ollama + ffmpeg)
+  attach_ledger.py    attach compressed ledger to a vault
+  query.py            where/when/around/before/after/count/inventory/keyword + cache
+  benchmark.py        multi-episode 30-question evaluation + legacy smoke test
+  vlm_baseline.py     measured video-to-LLM baseline (9-frame contact sheet, Ollama)
+  online_baseline.py  same baseline against OpenAI / Anthropic / Gemini (key required)
+  extract_evidence.py one-time video pass -> 480 px WebP snapshots, optional delete
+  retention.py        bytes/hour report, snapshot-budget sweep, prune/apply
+  concat_vaults.py    synthetic long-horizon concatenation
+  scale_test.py       10/30/60 min growth + latency test
+  report.py           single-file offline HTML browser with a client-side query box
+tests/
+  test_compact.py     packing/compression/compile->query
+  test_retention.py   ledger parsing, cache, retention select/apply, baseline scoring
 ```
 
 ## Quick start
 
 ```bash
-# Compile an existing Chronicle episode into a compressed vault
-python prototype/compile.py \
+cd /home/g1/projects/chronicle-vfm/experiments/video-free-memory
+
+# 1. Compile the structured graph into a tiny vault
+python3 prototype/compile.py \
   --source-db /home/g1/projects/chronicle/data/real/cook/chronicle.db \
-  --out /tmp/chronicle-vault.db
+  --out /tmp/vfm/cook.db
 
-# Query it with no video and no model
-python prototype/query.py --db /tmp/chronicle-vault.db "where is the cup?"
-python prototype/query.py --db /tmp/chronicle-vault.db "what happened around 20 seconds?"
+# 2. Build a dense caption ledger once (local Ollama VLM; no cloud)
+python3 prototype/caption_ledger.py \
+  --video /home/g1/projects/chronicle/data/real/cook/aria_cook_45s.mp4 \
+  --out /tmp/vfm/cook_ledger_30.json \
+  --model qwen2.5vl:3b --window-s 30 --frames-per-window 3
+python3 prototype/attach_ledger.py \
+  --vault /tmp/vfm/cook.db --ledger /tmp/vfm/cook_ledger_30.json
 
-# One-time evidence extraction from the video, then delete it
-# (needs OpenCV; use the main Chronicle venv)
+# 3. One-time evidence pass; chooses 480 px WebP q75 and can delete the video
 /home/g1/projects/chronicle/.venv/bin/python prototype/extract_evidence.py \
-  --vault /tmp/chronicle-vault.db \
-  --video /home/g1/projects/chronicle/data/real/aria_cook_45s.mp4 \
-  --out /tmp/chronicle-evidence --data-root /tmp \
-  --delete-video
+  --vault /tmp/vfm/cook.db \
+  --video /home/g1/projects/chronicle/data/real/cook/aria_cook_45s.mp4 \
+  --out /tmp/vfm/evidence-cook --data-root /tmp/vfm \
+  --width 480 --quality 75 --format webp --delete-video
 
-# Offline, single-file memory browser (timeline + embedded snapshots)
-python prototype/report.py --db /tmp/chronicle-vault.db \
-  --out /tmp/chronicle-memory.html --data-root /tmp
+# 4. Query with no video and no model
+python3 prototype/query.py --db /tmp/vfm/cook.db "where is the cup?"
+python3 prototype/query.py --db /tmp/vfm/cook.db "what happened around 20s?"
+python3 prototype/query.py --db /tmp/vfm/cook.db "which room is the mug in?"  # cache hit
 
-# Size/latency/accuracy report
-python prototype/benchmark.py \
-  --source-db /home/g1/projects/chronicle/data/real/cook/chronicle.db \
-  --vault /tmp/chronicle-vault.db
+# 5. 30-question, per-category evaluation
+python3 prototype/benchmark.py \
+  --questions benchmark/questions.json \
+  --vault-dir /tmp/vfm \
+  --source-root /home/g1/projects/chronicle/data/real
+
+# 5b. Measured video-to-LLM baseline (9-frame contact sheet, local Ollama)
+/home/g1/projects/chronicle/.venv/bin/python prototype/vlm_baseline.py \
+  --questions benchmark/questions.json \
+  --source-root /home/g1/projects/chronicle/data/real \
+  --vault-dir /tmp/vfm --model qwen2.5vl:3b --frames 9
+
+# 5c. Optional online baseline (real API key; no key is bundled)
+export GEMINI_API_KEY=...
+/home/g1/projects/chronicle/.venv/bin/python prototype/online_baseline.py \
+  --provider gemini --model gemini-3.8-flash \
+  --questions benchmark/questions.json \
+  --source-root /home/g1/projects/chronicle/data/real \
+  --vault-dir /tmp/vfm --frames 9
+
+# 6. Retention budget and snapshot-policy sweep
+python3 prototype/retention.py --vault /tmp/vfm/cook.db --report --sweep 40,12,4
+
+# 7. Single-file offline memory browser (query box runs client-side)
+python3 prototype/report.py --db /tmp/vfm/cook.db \
+  --out /tmp/vfm/cook.html --data-root /tmp/vfm
+
+# 8. Tests
+/home/g1/projects/chronicle/.venv/bin/python -m pytest -q tests
 ```
 
-## v2 baseline (Aria cook, 45 s, 11 entities)
+## v3 baseline (Aria cook, 45 s, 11 entities)
 
 | Metric | Value |
 |---|---:|
 | Source video | 2.99 MB |
-| Vault | **76 KB (2.48% of video)** |
-| Event pack | **2,086 B (17.1 B/event)** |
-| Caption windows | **429 B (zlib)** |
-| Evidence snapshots | 15 JPEGs, 674 KB |
-| Query latency | **0.04 ms p50** |
-| Single-file HTML report | 915 KB |
+| Source graph DB | 436 KB |
+| Events after salience coalescing | **51** (was 122) |
+| Event pack | **879 B, 17.2 B/event** |
+| Dense VLM ledger (30 s windows) | **996 B zlib** (5.0 KB raw) |
+| Vault (ledger + evidence metadata) | **27 KB** |
+| Evidence | **10 WebP, 137.5 KB** (480 px, q75) |
+| Memory at rest | **164.5 KB (5.4% of video)** |
+| Query cold p50 / p95 | **0.043 / 0.120 ms** |
+| 30-question set | **30/30**, all six categories 100% |
+| Answer cache | **4/4 paraphrases hit**, reused accuracy 100% |
+| HTML report | **421 KB**, no video, no network |
 
-The snapshot selector caps at 40 events, so a one-hour episode targets roughly **2 MB of memory
-per hour**, versus hundreds of MB of raw video.
+The video-free proof was run by copying the clip and DB to a temp directory, compiling,
+extracting evidence, deleting the only video copy, and then querying and rendering the report:
+zero video files remained and every answer still worked.
+
+## 30 s vs 60 s caption windows
+
+Three episodes (cook, walking, HoloAssist desk), qwen2.5vl:3b + qwen2.5:1.5b synthesis,
+three frames per window.
+
+| Episode | Window | Ledger bytes (zlib) | Objects | Actions | 30-question accuracy |
+|---|---:|---:|---:|---:|---:|
+| cook | 30 s | 996 B | 19 | 26 | 30/30 |
+| cook | 60 s | 648 B | 13 | 16 | 30/30 |
+| walking | 30 s | 939 B | 12 | 12 | 30/30 |
+| walking | 60 s | 671 B | 11 | 7 | 30/30 |
+| hololens | 30 s | 996 B | 16 | 15 | 30/30 |
+| hololens | 60 s | 665 B | 9 | 6 | 30/30 |
+
+30 s windows cost roughly 350 B more per episode but carry materially more objects/actions.
+The structured questions do not change because events answer exact times; the dense ledger is
+for recall and paraphrase/object coverage. **Default: 30 s windows, three frames.**
+
+## Video-to-LLM baseline (measured)
+
+The comparison is a local Qwen2.5-VL:3b given one 9-frame contact sheet per episode, with
+timestamps burned into each tile. The sheet is cached per episode; the VLM is called once per
+question. This is a frame-sampling proxy for "send the video to an LLM", not a true video LLM.
+A 16-frame sheet was also tried but the Ollama runner returned zero tokens/calls, so it is not
+reported as a valid result.
+
+| System | 30-question accuracy | p50 / p95 | Tokens / question | API-equivalent cost / 30 q | Video at query | Memory at rest |
+|---|---:|---:|---:|---:|---|---:|
+| **Compiled vault** | **30/30 (100%)** | **0.12 / 0.26 ms** | **0** | **$0** | **No** | **404 KB** |
+| Qwen2.5-VL, 9-frame sheet | 7/30 (23.3%) | 4,456 / 7,202 ms | 764 (22,922 total) | $0.0036* | Yes (19.24 MB) | video + 395 KB sheets |
+
+\* Illustrative $0.15/M input and $0.60/M output tokens. The local run used 2.33 Wh of GPU energy
+(~$0.00035 at $0.15/kWh), but the dominant cost is latency, not electricity. Vault queries are
+~36,000× faster at p50 and use no video or model at query time. Video-to-memory compression is
+**48.8×** (20.17 MB of source clips vs 404 KB of vault + unique evidence).
+
+Per category (vault vs 9-frame VLM):
+
+| Category | Vault | Video-LLM | Total |
+|---|---:|---:|---:|
+| location | 6 | 1 | 6 |
+| temporal | 6 | 0 | 6 |
+| count | 5 | 0 | 5 |
+| before/after | 4 | 2 | 4 |
+| negation | 5 | 4 | 5 |
+| paraphrase | 4 | 0 | 4 |
+
+Caveats:
+- The 9-frame baseline often answers `unknown`, misses exact timestamps, and cannot count objects
+  it does not see. That is the expected failure mode of sparse frame sampling.
+- **Count questions are track counts, not verified physical counts.** The tracker splits objects
+  (cook: 2 plate tracks, 4 bowl tracks), while the VLM may count visible physical objects. Do not
+  read the 5/0 count split as a clean physical-count win.
+- The Gemini free-tier probe (Gemini 3.8 Flash) took **234 s for one question**, used 1,134
+  prompt tokens, returned a truncated answer and scored 0/1. A 30-question online run would take
+  hours on this quota, so it is not reported as a benchmark. The adapter is real and ready for a
+  paid/faster key; no online numbers are claimed here.
+- A 16-frame local contact sheet returned zero tokens (Ollama runner failure), so only the valid
+  9-frame baseline is reported.
+
+## Data retention
+
+The event ledger is cheap; snapshots dominate. Measured on a synthetic 60-minute episode
+(2,474 events, 27 cycles of the three real clips) after capping evidence at 40 rows.
+
+| Snapshot budget | Evidence rows | Vault | Memory/hour | 30 days at 1 h/day | 365 days |
+|---:|---:|---:|---:|---:|---:|
+| 40 / hour | 40 | 138 KB | **698 KB** | **20.5 MB** | 249 MB |
+| 12 / hour | 12 | 134 KB | **282 KB** | **8.3 MB** | 101 MB |
+| 4 / hour | 4 | 132 KB | **178 KB** | **5.2 MB** | 63 MB |
+
+At 12 snapshots/hour a full hour fits in **257 KB actual** (134 KB vault + 123 KB unique
+evidence); the 282 KB/hour figure is the conservative projection that assumes 12 unique images
+per hour. The cache is volatile and can be dropped before quoting at-rest size.
+
+Retention policy:
+- **Ledger:** keep all salient events. 2,474 events/hour is only ~42 KB.
+- **Dense captions:** keep all 30 s windows. ~1 KB per episode; ~2 KB/hour.
+- **Evidence:** 12 snapshots/hour for long-term storage; 40/hour when maximum visual audit is
+  wanted. 480 px WebP q75 is the knee (141 KB for 10 cook snapshots vs 457 KB at 640 px/q82
+  JPEG; PSNR 35.8 vs 38.2 dB, SSIM 0.954 vs 0.967).
+- **Answer cache:** regenerable; drop with `retention.py --drop-cache --vacuum`.
+
+Projection caveat: the 60-minute scaling vault repeats three short clips, so evidence images
+repeat. The table uses the conservative "12 unique images/hour" projection, not the smaller
+synthetic unique-byte count.
+
+## Long-horizon scaling (synthetic concatenation)
+
+| Minutes | Events | Events/min | Vault | Load ms | p50 ms | p95 ms |
+|---:|---:|---:|---:|---:|---:|---:|
+| 10.5 | 453 | 43.0 | 51 KB | 1.1 | 0.68 | 1.91 |
+| 30.2 | 1,257 | 41.7 | 86 KB | 2.8 | 1.86 | 5.30 |
+| 60.4 | 2,474 | 41.0 | 139 KB | 5.5 | 3.64 | 10.42 |
+
+Size grows linearly with events, not frames. Query latency is **not flat**: it grows with event
+count, but in-memory subject/time indexes keep it at 3.6 ms p50 / 10.4 ms p95 for a 60-minute
+episode, far below the 50 ms target. Cold open (loading 2,474 events + ledger) is 5.5 ms.
+
+### Does the advantage grow with video length?
+
+Yes — the ratio grows roughly linearly, because video grows in MB/minute while the compiled
+memory grows only with events (~42 KB/hour of packed ledger) plus a bounded snapshot budget.
+
+| Episode | Source video | Memory at rest | Video / memory | Vault p50 |
+|---|---:|---:|---:|---:|
+| cook, 45 s | 2.99 MB | 164.5 KB | 18.6× | 0.045 ms |
+| walking, 60 s | 13.18 MB | 168.5 KB | 80.1× | 0.045 ms |
+| synthetic 60 min | ~498 MB/h projected | 282 KB/h at 12 snapshots/h | **~1,766×** | 3.6 ms |
+
+At 40 snapshots/hour the 60-minute memory is ~698 KB/hour, still ~713× smaller than the
+projected video. A real video LLM must either process more frames as duration grows (tokens,
+latency and cost scale with duration) or keep a fixed frame budget and lose coverage. The 9-frame
+baseline is already at 23% accuracy on 45–60 s clips; at one hour it would see one frame every
+6–7 minutes. That is why the long-horizon advantage is larger than the short-clip numbers suggest.
+The caveat: query latency grows with event count (0.045 ms → 3.6 ms), not with video length, and
+the 60-minute figures are synthetic projections from real clips, not a new recording.
+
+## Standardized benchmarks
+
+The 30-question set is an internal regression suite, not a public benchmark. The closest
+external test is **CapMem's caption-only Episodic Memory Video Caption QA**; **EgoSchema**,
+**Ego4D NLQ**, **EgoLifeQA/EgoR1-bench** and **EgoMemory/EgoRetriever** are the other credible
+options. See `docs/RESEARCH.md` for fit and caveats. What none of them measure: deleting the
+video, evidence-JPEG sufficiency, semantic cache hit rate, or bytes/hour retention.
 
 ## Non-goals
 
 - This branch does not replace the demo pipeline. It is a research track.
-- It does not require the source video to exist. In fact, the prototype is tested with the video
-  path removed.
+- It does not require the source video to exist. The prototype is tested with the video deleted.
 - It does not claim a new benchmark SOTA. It claims a different **system boundary**: memory at
   rest, not video at query time.

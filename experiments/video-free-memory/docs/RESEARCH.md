@@ -117,6 +117,38 @@ Implication: keep as a stretch experiment. A LoRA/cartridge per episode or a mem
 could answer common questions with zero retrieval, but evaluation and catastrophic forgetting are
 real risks. Do not put this on the demo critical path.
 
+## Standardized benchmarks: what to run, and what they miss
+
+There is no standard benchmark for "delete the video, query the compiled memory, and return a few
+evidence JPEGs." The closest external tests are:
+
+| Benchmark | What it measures | Fit / caveat |
+|---|---|---|
+| **CapMem — Episodic Memory Video Caption QA** | MCQs answered from timestamped 30/60 s captions only; 75 videos / 33.7 h / 1,000 MCQs per the paper | **Closest task match.** Captions are the only input; no video at answer time. Use if the release is usable. |
+| **EgoSchema** | 5,000+ three-minute egocentric clips, long-form multiple-choice QA | Public and standardized. Compile clips to vaults and answer from captions/events; run a 100–200 clip subset first. |
+| **Ego4D Episodic Memory — NLQ** | Natural-language queries grounded to time intervals | Directly tests "when" questions. Compile 5–10 min windows; measure temporal IoU/recall@1. Requires Ego4D access. |
+| **EgoLifeQA / EgoR1-bench** | Long-horizon, multi-day egocentric memory/reasoning | Best fit for the multi-hour claim; check release/licensing. |
+| **EgoMemory / EgoRetriever** | 639 human-curated personal-memory queries over a memory bank | Good retrieval test; less about compiled-ledger structure. |
+| **Video-MME / LongVideoBench / MLVU / LVBench** | General long-video MCQ | Standard and public, but not egocentric and usually assume video/frames. Adaptable, lower relevance. |
+
+None of them measure video deletion, evidence-JPEG sufficiency, semantic-cache hit rate, or
+bytes/hour retention. Those need the internal harness in `benchmark/questions.json` and
+`retention.py`. The honest framing: the 30-question set is a regression suite; CapMem/EgoSchema
+would test questions we did not design.
+
+### Baseline economics
+
+A useful external benchmark needs a **video-to-LLM baseline**, not just vault accuracy. Our
+measured proxy is a 9-frame timestamped contact sheet sent to Qwen2.5-VL once per question:
+7/30 at 4.46 s p50, 764 tokens/question, 19.24 MB of video required at query time. The vault is
+30/30 at 0.12 ms with zero query-time tokens and no video. A free-tier Gemini probe took 234 s for
+one question, so the online comparison needs a faster/paid key; no online numbers are claimed.
+
+The advantage grows with duration: a real video LLM must either scale frames/tokens with length
+or keep a fixed frame budget and lose coverage. The vault grows with events (~42 KB/hour) plus a
+bounded snapshot budget (12–40/hour), so the video-to-memory ratio grows roughly linearly with
+episode length.
+
 ## What Chronicle already has that these papers do not
 
 - A deterministic 9-state lifecycle with wall-clock gates and support/containment reasoning.
