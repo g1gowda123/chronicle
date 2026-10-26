@@ -1,6 +1,6 @@
 # Team status and role assignments
 
-**Updated:** 2026-10-26
+**Updated:** 2026-10-27
 **Integration owner:** dashboard/runtime integration (me)
 **Branch:** `main`
 

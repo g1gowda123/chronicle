@@ -1,6 +1,6 @@
 # Chronicle Notice Board
 
-**Last synced:** 2026-10-26  
+**Last synced:** 2026-10-27
 **Source of truth for scope:** `docs/chronicle-spec-condensed.tex` + current code  
 **Detailed status / history:** [`TEAM_STATUS.md`](TEAM_STATUS.md)
 
@@ -48,7 +48,7 @@ PR so parallel work does not collide.
 | NB-01 | P0 | Clickable citations seek the video | UI | READY | unclaimed |
 | NB-02 | P0 | Show the evidence frame under each answer | UI | READY | unclaimed |
 | NB-03 | P0 | Grounding / rejection provenance in the query panel | UI | READY | unclaimed |
-| NB-04 | P0 | Demo preflight script and checklist | Ops | IN PROGRESS | opencode (AI) |
+| NB-04 | P0 | Demo preflight script and checklist | Ops | DONE | opencode (AI) |
 | NB-05 | P0 | Verify every bundled source end to end | QA | READY | unclaimed |
 | NB-06 | P0 | Real-clip evidence images for demo answers | Perception | READY | unclaimed |
 | NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
@@ -108,25 +108,6 @@ PR so parallel work does not collide.
 - **Acceptance:** a known unknown query shows an ungrounded state; a template
   answer shows `template`; no hallucinated timestamp is presented as grounded.
 - **Spec:** §Query step 4.
-
-### NB-04 · Demo preflight script and checklist
-- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Ops
-- **Started:** 2026-10-26 · **Branch:** `task/nb-04-demo-preflight`
-- **Why:** the spec lists stage pitfalls: Qwen cold load, missing evidence
-  images, un-checkpointed WAL, and claiming unavailable model backends.
-- **Scope:**
-  - Add a script (e.g. `scripts/demo_preflight.py` or `chronicle.sh preflight`)
-    that checks:
-    - selected video files exist and decode,
-    - SQLite opens and WAL can be checkpointed,
-    - configured detector/hands/embedder actually load,
-    - Ollama status and model name,
-    - evidence images or video-frame extraction work,
-    - `pytest` and `chronicle run --max-frames 30` pass.
-  - Print a short PASS/FAIL table with exact next commands.
-- **Files:** `scripts/`, `chronicle.sh`, `docs/`
-- **Acceptance:** one command reports a clear PASS/FAIL list before the demo.
-- **Spec:** §Ten-minute demo script, “Pitfalls to rehearse”.
 
 ### NB-05 · Verify every bundled source end to end
 - **Status:** READY · **Owner:** unclaimed · **Lane:** QA
@@ -300,6 +281,24 @@ PR so parallel work does not collide.
 | NB-D04 | Dashboard video upload + drag-and-drop | orchestrator | `tests/test_uploads.py` |
 | NB-D05 | Snapshot import / export | orchestrator | `tests/test_snapshot_io.py`, `tests/test_dashboard_smoke.py` |
 | NB-08 | Calibrate action thresholds against real labels | opencode (AI) | `9ed6735`; `docs/CALIBRATION.md`; 19 labels, precision 0.93 / recall 1.00 |
+| NB-04 | Demo preflight script and checklist | opencode (AI) | `3b74ef5`; `scripts/demo_preflight.py`; `docs/DEMO_PREFLIGHT.md` |
+
+### NB-04 details
+
+- **Branch:** `task/nb-04-demo-preflight` · **Commit:** `3b74ef5`
+- **Delivered:** `scripts/demo_preflight.py`, `./chronicle.sh preflight`,
+  `docs/DEMO_PREFLIGHT.md`, and `tests/test_demo_preflight.py`.
+- **Checks:** Python/venv, data dir, dashboard deps, every source's first +
+  middle frame, SQLite WAL/`quick_check`/checkpoint, detector/hands/embedder on
+  a real frame, stored evidence or fallback extraction, Ollama/model warm state,
+  `pytest`, and 30-frame synthetic ingestion.
+- **Usability:** silent colour fallbacks become `WARN`; `--strict` promotes
+  warnings; `--json` is CI-friendly; `--warm-llm` loads Qwen; `--skip-*` makes
+  a fast venue check possible.
+- **Acceptance:** one command prints a `PASS`/`WARN`/`FAIL` table with exact
+  next commands. First full run on this machine: 15 PASS, 1 WARN (no stored
+  evidence yet; video-frame fallback works), 0 FAIL.
+- **Result:** `READY` on the current tree.
 
 ### NB-08 details
 
