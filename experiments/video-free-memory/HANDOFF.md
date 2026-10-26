@@ -6,15 +6,16 @@
 **Latest commit at handoff:** see `git log -1` (baseline before this update: `97d8ced`)
 **Main repo:** `/home/g1/projects/chronicle` — do not destabilise it.
 
-> **Main UI integration is not done yet.** The Studio app is a separate uploader in the experiment.
-> The next agent should wire the VFM compile/export/ask backend into the existing main dashboard
-> upload button and player, not build another UI.
+> **Main UI integration is implemented on this branch.** The VFM compile/export/ask backend is
+> wired into the existing dashboard upload/player/Export flow; see
+> [`docs/MAIN_UI_INTEGRATION.md`](docs/MAIN_UI_INTEGRATION.md). Do not build another UI and do not
+> replace the upload button, player or Export menu.
 
 Read first: `README.md`, `docs/DESIGN.md`, `docs/JOURNAL.md`, `docs/RESEARCH.md`.
 
 > **Parallel agents:** claim your task in [`docs/AGENT_BOARD.md`](docs/AGENT_BOARD.md) before
-> editing. The P0 main-UI integration is currently **IN PROGRESS** (opencode/AI); P1, P2 and the
-> caption-window task are unclaimed.
+> editing. P0 main-UI integration is **DONE**; P1 (external benchmark, online baseline, Florence),
+> P2 and the caption-window task remain unclaimed unless the board says otherwise.
 
 ---
 
@@ -43,12 +44,14 @@ compact pack with the verified structured answer, timestamped captions, events a
 
 ### Not done yet
 
-- VFM is **not integrated into the main dashboard UI**; the Studio is a separate app.
+- The main-UI integration lives on `experiment/video-free-memory`; it is **not merged into `main`**
+  yet. See [`docs/MAIN_UI_INTEGRATION.md`](docs/MAIN_UI_INTEGRATION.md).
 - No external benchmark (CapMem/EgoSchema/Ego4D NLQ) has been run.
 - Counts are **bounds** (peak-visible … track count), not verified physical object counts; see
   `docs/COUNTS.md`.
 - No paid/fast online VLM baseline; the free Gemini probe was unusable.
-- Full browser E2E for the Studio (upload → play → seek → ask → download) is not automated.
+- Full browser E2E for the dashboard (upload → play → seek) is not automated; the headless route
+  test covers upload-folder → compile → ask → download zip → report.
 
 ---
 
@@ -176,6 +179,12 @@ cd /home/g1/projects/chronicle-vfm/experiments/video-free-memory
 ./run_studio.sh --no-qwen --port 8093
 ./run_studio.sh --qwen --delete-video
 
+# Main dashboard + VFM (run from the worktree so chronicle/vfm is importable)
+cd /home/g1/projects/chronicle-vfm
+PYTHONPATH=. /home/g1/projects/chronicle/.venv/bin/python -m chronicle.cli serve \
+  --source synthetic --qwen
+# or: --no-vfm, --vfm-window-s 20, --vfm-max-snapshots 40, --vfm-delete-video
+
 # Deterministic vault
 python3 prototype/query.py --db /tmp/vfm/cook.db "where is the cup?"
 
@@ -214,6 +223,19 @@ report, zip and pack downloads returned 200.
 
 ## 4. Code map
 
+### Main dashboard integration (stable package, no experiment `sys.path`)
+
+| File | Purpose |
+|---|---|
+| `chronicle/vfm/service.py` | background job manager; snapshot DB → vault → ledger → evidence → report → pack → zip; deterministic/Qwen ask |
+| `chronicle/vfm/compile.py` etc. | copies of the prototype compiler/query modules, synced with `prototype/` |
+| `chronicle/ui/app.py` | Memory tab, Export-menu items, `/vfm/*` routes, ingest callback |
+| `chronicle/cli.py` | `chronicle serve --qwen --no-vfm --vfm-window-s ...` |
+| `tests/test_vfm.py` | headless compile/ask/download + dashboard route tests |
+| `docs/MAIN_UI_INTEGRATION.md` | run instructions, routes, measurements, guard rails |
+
+### Experiment
+
 | File | Purpose |
 |---|---|
 | `prototype/compile.py` | Chronicle DB → packed vault; salience coalescing |
@@ -236,20 +258,31 @@ report, zip and pack downloads returned 200.
 | `prototype/vlm_baseline.py` | 9-frame video-to-VLM baseline |
 | `prototype/llm_pack_baseline.py` | Qwen from memory pack |
 | `prototype/online_baseline.py` | OpenAI/Anthropic/Gemini adapter (key required) |
-| `tests/` | 15 tests: pack, cache, retention, studio |
+| `tests/` | 19 tests: pack, cache, retention, studio, counts |
 
 ---
 
 ## 5. What still needs doing
 
-### P0 — main UI integration
+### P0 — main UI integration — **DONE on this branch**
 
-1. Wire VFM compile/export into `chronicle/ui/app.py` after the existing upload ingest.
-2. Reuse the existing upload button, player, progress and export menu. No duplicate upload UI.
-3. Add downloads and “Open memory report”.
-4. Add optional Qwen ask (`--qwen`), default off.
-5. Preserve the uploaded video for playback; make deletion optional.
+See [`docs/MAIN_UI_INTEGRATION.md`](docs/MAIN_UI_INTEGRATION.md) for the file map, routes, CLI
+flags and measurements.
+
+1. ~~Wire VFM compile/export into `chronicle/ui/app.py` after the existing upload ingest.~~
+   **DONE** — `DashboardState.on_ingest_done` submits a background `VFMJobManager` job.
+2. ~~Reuse the existing upload button, player, progress and export menu. No duplicate upload UI.~~
+   **DONE** — VFM is a Memory tab plus three Export-menu items; upload/player are untouched.
+3. ~~Add downloads and “Open memory report”.~~ **DONE** — vault, report, pack, CSVs, zip and
+   evidence routes; report opens in a new tab.
+4. ~~Add optional Qwen ask (`--qwen`), default off.~~ **DONE** — `--qwen` and a Memory-tab toggle;
+   deterministic vault queries work with Ollama offline.
+5. ~~Preserve the uploaded video for playback; make deletion optional.~~ **DONE** —
+   `--vfm-delete-video` is opt-in and refuses paths outside `<data-dir>/uploads/`.
 6. Browser E2E: upload → wait → play → seek → ask → download zip → unzip/open report.
+   **Partial** — `tests/test_vfm.py` covers compile → status/report → ask → zip/vault/evidence
+   downloads headlessly. The real browser drag/play/seek step is still manual; Playwright is not
+   installed in this environment.
 
 ### P1 — correctness / evaluation
 

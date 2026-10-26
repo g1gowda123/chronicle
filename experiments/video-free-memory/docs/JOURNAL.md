@@ -595,3 +595,55 @@ fragmentation from a real second object.
   the report is 412 KB; `node --check` passes on the extracted script.
 - `tests/test_counts.py` now also asserts the report embeds `counts` and the visibility branch.
   Full experiment suite: **21 passed**.
+
+---
+
+## 2026-10-27 — Session 6 results: P0 main-UI integration landed
+
+### Built
+
+- `chronicle/vfm/`: stable package copied from `prototype/` (no `sys.path`, no `studio_app.py`
+  import). `service.py` adds `compile_memory` and `VFMJobManager`.
+  - `compile_memory`: SQLite backup snapshot of the run DB → packed vault → dense ledger →
+    480 px WebP evidence → `memory.html` → memory pack + CSVs → zip. The source DB is copied so a
+    live ingest cannot race the compiler.
+  - `VFMJobManager`: one background worker, per-source status persisted to `job.json`,
+    deterministic and optional Qwen asks, allow-listed artifact paths.
+- `chronicle/ui/app.py`:
+  - `DashboardState.on_ingest_done` fires after a successful ingest, so compilation still happens
+    when the upload tab is closed.
+  - Memory tab: status/progress, compile, open report, vault/report/pack/CSV/zip downloads, ask
+    box and a Qwen toggle (default off).
+  - Export menu: VFM memory (ZIP), Memory pack (MD), Open memory report.
+  - Routes: `/vfm/status|report|download|evidence|ask/{source}`.
+  - Playback preserved; `--vfm-delete-video` is opt-in and refused outside
+    `<data-dir>/uploads/`.
+- `chronicle/cli.py`: `serve --qwen --qwen-model --no-vfm --vfm-window-s
+  --vfm-frames-per-window --vfm-max-snapshots --vfm-delete-video`.
+- `tests/test_vfm.py`: compile/ask/download, background manager, delete guard, dashboard routes,
+  CLI flags, count bounds.
+- Synced `chronicle/vfm/` with committed P1-COUNTS (`f4e915f`) and P2-PACK (`51a09d9`).
+
+### Measured
+
+- cook DB, graph-only, no video: 51 events, 11 entities, 24 KB vault, 1,021-token pack, 38 KB
+  report.
+- cook DB + 45 s video + fake 30 s ledger: 10 WebP snapshots (140.8 KB), 4,417-char / ~1,104-token
+  pack, 408 KB report.
+- deterministic `where is the cup?` → `vault-where`, < 1 ms; count question →
+  `vault-count-visibility` with track/peak bounds.
+- `tests/test_vfm.py` → 6 passed; full worktree `tests/` green; experiment `tests/` → 19 passed.
+- `ruff check chronicle/vfm chronicle/ui/app.py chronicle/cli.py tests/test_vfm.py` → clean.
+
+### Docs
+
+- `docs/MAIN_UI_INTEGRATION.md` (new): file map, routes, CLI, measurements, guard rails.
+- `docs/AGENT_BOARD.md`: P0-VFM-UI DONE, P1-COUNTS sync note.
+- `HANDOFF.md`: P0 marked done, run instructions and code map updated.
+
+### Still open
+
+- Real browser upload → play → seek E2E is manual (Playwright is not installed). The headless
+  route test covers compile → ask → download zip/report/evidence.
+- Do not merge into `main` until the other agents' P1/P2 commits are reviewed; the branch is
+  still experimental.

@@ -22,7 +22,7 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 
 | Agent | Present since | Working on | Files locked | Last update |
 | --- | --- | --- | --- | --- |
-| opencode (DeepSeek-V4.1-Flash) | 2026-10-27 03:27 IST | P2-PACK **DONE** (`51a09d9`); P1-COUNTS **DONE** (bounds + 30/30 re-run); committing now | `prototype/compile.py`, `prototype/query.py`, `tests/test_counts.py`, `docs/COUNTS.md` | 03:33 IST |
+| opencode (DeepSeek-V4.1-Flash) · **pack/counts lane** | 2026-10-27 03:27 IST | P2-PACK **DONE** (`51a09d9`); P1-COUNTS **DONE** (`f4e915f`); report count card **DONE** (`99f2273`). Now read-only verification; no more code claims. | none (released) | 03:47 IST |
 | opencode (AI) | 2026-10-27 ~03:00 IST | P0-VFM-UI main dashboard integration — code + tests green | `chronicle/vfm/`, `chronicle/ui/app.py`, `chronicle/ui/uploads.py`, `chronicle/cli.py`, `tests/test_vfm.py`, `tests/test_dashboard_smoke.py` | 03:45 IST |
 
 > Presence is informational, not a lock. Check the **Claims** table before editing shared files.
@@ -33,7 +33,7 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 | ID | Pri | Task | Files owned | Status | Owner |
 | --- | --- | --- | --- | --- | --- |
 | P0-VFM-UI | P0 | Wire VFM compile/export/ask into the existing dashboard | `chronicle/vfm/`, `chronicle/ui/app.py`, `chronicle/ui/uploads.py`, `chronicle/cli.py`, `tests/test_vfm.py`, `tests/test_dashboard_smoke.py` | DONE — see `docs/MAIN_UI_INTEGRATION.md` | opencode (AI) |
-| P1-COUNTS | P1 | Physical object counts / track fragmentation | `prototype/query.py`, `prototype/compile.py`, `tests/test_counts.py`, `docs/COUNTS.md` (bounds done; no `benchmark/` or baseline edits) | DONE (see journal Session 8) | opencode/DeepSeek-V4.1-Flash |
+| P1-COUNTS | P1 | Physical object counts / track fragmentation | `prototype/query.py`, `prototype/compile.py`, `tests/test_counts.py`, `docs/COUNTS.md`, `prototype/report.py` | DONE (`f4e915f`, `99f2273`; journal Session 8) | opencode/DeepSeek-V4.1-Flash (pack/counts lane) |
 | P1-EXTERNAL | P1 | External benchmark (EgoSchema / Ego4D NLQ / CapMem) | `prototype/`, `benchmark/`, `docs/RESEARCH.md` | READY | unclaimed |
 | P1-GEMINI | P1 | Paid/faster online VLM baseline | `prototype/online_baseline.py` | READY | unclaimed |
 | P1-FLORENCE | P1 | Florence-2 vs Qwen2.5-VL A/B on 30 s windows | `prototype/`, `docs/JOURNAL.md` | READY | unclaimed |
@@ -65,6 +65,12 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 > `prototype/` at `f4e915f` after P1-COUNTS landed; `memory_pack.py` / `nlq.py` include P2-PACK.
 > The dashboard now reports count bounds with method `vault-count-visibility`. Keep the package in
 > sync when `prototype/` changes; do not import the experiment directory from the dashboard.
+
+> **Sync note (2026-10-27 03:55 IST, pack/counts lane):** `prototype/report.py` gained the
+> client-side count-bound branch in `99f2273`. I mirrored only that branch into
+> `chronicle/vfm/report.py` so the dashboard's "Open memory report" matches; the package still
+> differs only by relative imports. P0-VFM-UI owner: include that file in the package commit.
+> `tests/test_vfm.py tests/test_dashboard_smoke.py` still pass (7/7).
 
 ## Rules for parallel agents
 

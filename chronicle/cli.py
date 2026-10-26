@@ -188,6 +188,13 @@ def cmd_serve(args: argparse.Namespace) -> int:
         hands_backend=args.hands,
         embedder_backend=args.embedder,
         semantic_config=sem_cfg,
+        qwen=args.qwen,
+        qwen_model=args.qwen_model,
+        vfm_enabled=not args.no_vfm,
+        vfm_window_s=args.vfm_window_s,
+        vfm_frames_per_window=args.vfm_frames_per_window,
+        vfm_max_snapshots=args.vfm_max_snapshots,
+        vfm_delete_video=args.vfm_delete_video,
     )
     return 0
 
@@ -241,6 +248,44 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--show", action="store_true", help="open a browser window")
     serve.add_argument("--auto-run", action="store_true", help="start ingestion immediately")
     serve.add_argument("--max-frames", type=int)
+    serve.add_argument(
+        "--qwen",
+        action="store_true",
+        help="enable Qwen answers over the compiled VFM memory pack (default: off)",
+    )
+    serve.add_argument(
+        "--qwen-model",
+        default=None,
+        help="Ollama model for VFM answers (default: semantic config llm_model)",
+    )
+    serve.add_argument(
+        "--no-vfm",
+        action="store_true",
+        help="disable the VFM memory compile/export panel",
+    )
+    serve.add_argument(
+        "--vfm-window-s",
+        type=float,
+        default=30.0,
+        help="VLM caption window in seconds (default: 30)",
+    )
+    serve.add_argument(
+        "--vfm-frames-per-window",
+        type=int,
+        default=3,
+        help="frames captioned per VLM window (default: 3)",
+    )
+    serve.add_argument(
+        "--vfm-max-snapshots",
+        type=int,
+        default=40,
+        help="maximum WebP evidence snapshots (default: 40)",
+    )
+    serve.add_argument(
+        "--vfm-delete-video",
+        action="store_true",
+        help="delete uploaded source videos after compiling (opt-in; playback is lost)",
+    )
     _add_backend_flags(serve)
     serve.set_defaults(func=cmd_serve)
     return parser

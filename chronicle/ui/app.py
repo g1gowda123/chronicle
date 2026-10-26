@@ -12,6 +12,7 @@ import copy
 import queue
 import shutil
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,8 @@ from chronicle.ui.uploads import (
     probe_video,
     register_upload,
 )
+from chronicle.vfm.service import DOWNLOAD_NAMES as VFM_DOWNLOAD_NAMES
+from chronicle.vfm.service import VFMJobManager
 
 
 @dataclass
@@ -77,6 +80,9 @@ class DashboardState:
         self.error: str | None = None
         self.summary: dict[str, Any] | None = None
         self.runtime = self._make_runtime(source, reset=False)
+        self.vfm: Any = None
+        self.vfm_error: str | None = None
+        self.on_ingest_done: Callable[[ClipSource, Path], None] | None = None
         self._requests: queue.Queue[RunRequest | None] = queue.Queue()
         self._active: RunRequest | None = None
         self._thread = threading.Thread(target=self._worker_loop, daemon=True)
@@ -151,6 +157,18 @@ class DashboardState:
                 with self.lock:
                     if self._active is request:
                         self.summary = summary.as_dict()
+                        active = True
+                    else:
+                        active = False
+                callback = self.on_ingest_done
+                if active and callback is not None:
+                    # Compile the memory server-side so it still happens when
+                    # the browser tab that started the upload is closed.
+                    try:
+                        callback(request.source, request.video)
+                    except Exception as exc:  # keep the ingest worker alive
+                        with self.lock:
+                            self.vfm_error = f"{type(exc).__name__}: {exc}"
             except Exception as exc:  # surfaced in the UI
                 with self.lock:
                     if self._active is request:
@@ -238,6 +256,13 @@ def create_app(
     hands_backend: str = "auto",
     embedder_backend: str = "auto",
     semantic_config: SemanticConfig | None = None,
+    qwen: bool = False,
+    qwen_model: str | None = None,
+    vfm_enabled: bool = True,
+    vfm_window_s: float = 30.0,
+    vfm_frames_per_window: int = 3,
+    vfm_max_snapshots: int = 40,
+    vfm_delete_video: bool = False,
     start_server: bool = True,
 ) -> DashboardState:
     data_root = DEFAULT_DATA_DIR if data_dir is None else Path(data_dir).expanduser().resolve()
@@ -311,6 +336,24 @@ def create_app(
         semantic_config=semantic_config,
         max_frames=max_frames,
     )
+    vfm = (
+        VFMJobManager(
+            data_root,
+            qwen_model=qwen_model or state.semantic_config.llm_model,
+            ollama_url=state.semantic_config.ollama_url,
+            qwen_timeout=state.semantic_config.llm_timeout_s,
+            window_s=vfm_window_s,
+            frames_per_window=vfm_frames_per_window,
+            max_snapshots=vfm_max_snapshots,
+            delete_video=vfm_delete_video,
+        )
+        if vfm_enabled
+        else None
+    )
+    if vfm is not None:
+        app.on_shutdown(vfm.close)
+        state.on_ingest_done = lambda source, video: vfm.submit(source, video)
+    state.vfm = vfm
 
     @app.get("/source-video")
     def _source_video() -> FileResponse:
@@ -356,6 +399,80 @@ def create_app(
             headers={"Content-Disposition": 'attachment; filename="chronicle_actions.csv"'},
         )
 
+    def _vfm_source(source_key: str) -> ClipSource:
+        source = source_map.get(source_key)
+        if source is None:
+            raise HTTPException(status_code=404, detail=f"unknown source: {source_key}")
+        return source
+
+    @app.get("/vfm/status/{source_key}")
+    def _vfm_status_route(source_key: str) -> dict[str, Any]:
+        if vfm is None:
+            return {"enabled": False, "status": None}
+        source = _vfm_source(source_key)
+        return {
+            "enabled": True,
+            "status": vfm.status(source),
+            "files": vfm.files(source),
+        }
+
+    @app.get("/vfm/report/{source_key}")
+    def _vfm_report_route(source_key: str) -> FileResponse:
+        if vfm is None:
+            raise HTTPException(status_code=404, detail="VFM is disabled")
+        source = _vfm_source(source_key)
+        path = vfm.artifact(source, "memory.html")
+        if path is None:
+            raise HTTPException(status_code=404, detail="memory report is not compiled yet")
+        return FileResponse(
+            path,
+            media_type="text/html",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/vfm/download/{source_key}/{name}")
+    def _vfm_download_route(source_key: str, name: str) -> FileResponse:
+        if vfm is None:
+            raise HTTPException(status_code=404, detail="VFM is disabled")
+        source = _vfm_source(source_key)
+        path = vfm.artifact(source, name)
+        if path is None:
+            raise HTTPException(status_code=404, detail=f"VFM artifact not available: {name}")
+        return FileResponse(path, filename=path.name)
+
+    @app.get("/vfm/evidence/{source_key}/{name}")
+    def _vfm_evidence_route(source_key: str, name: str) -> FileResponse:
+        if vfm is None:
+            raise HTTPException(status_code=404, detail="VFM is disabled")
+        source = _vfm_source(source_key)
+        path = vfm.evidence_file(source, name)
+        if path is None:
+            raise HTTPException(status_code=404, detail=f"evidence not found: {name}")
+        return FileResponse(path)
+
+    @app.post("/vfm/ask/{source_key}")
+    async def _vfm_ask_route(source_key: str, request: Request) -> dict[str, Any]:
+        if vfm is None:
+            raise HTTPException(status_code=404, detail="VFM is disabled")
+        source = _vfm_source(source_key)
+        payload = await request.json()
+        question = str((payload or {}).get("question") or "").strip()
+        if not question:
+            raise HTTPException(status_code=400, detail="question is required")
+        try:
+            result = await run.io_bound(
+                vfm.ask,
+                source,
+                question,
+                use_qwen=bool((payload or {}).get("qwen")),
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{type(exc).__name__}: {exc}",
+            ) from exc
+        return result.to_dict()
+
     @app.post("/import/snapshot")
     async def _import_snapshot_route(request: Request) -> dict[str, Any]:
         payload = await request.json()
@@ -385,6 +502,41 @@ def create_app(
         source = source_map.get(state.source_key)
         if source is not None:
             _switch_source(source)
+
+    def _vfm_download(name: str) -> None:
+        source = source_map.get(state.source_key)
+        if vfm is None or source is None:
+            ui.notify("VFM memory is disabled.", type="warning")
+            return
+        path = vfm.artifact(source, name)
+        if path is None:
+            ui.notify("Compile the memory first (Memory tab).", type="warning")
+            return
+        ui.download(f"/vfm/download/{source.key}/{name}", path.name)
+
+    def _vfm_open_report() -> None:
+        source = source_map.get(state.source_key)
+        if vfm is None or source is None:
+            ui.notify("VFM memory is disabled.", type="warning")
+            return
+        if vfm.artifact(source, "memory.html") is None:
+            ui.notify("Compile the memory first (Memory tab).", type="warning")
+            return
+        ui.navigate.to(f"/vfm/report/{source.key}", new_tab=True)
+
+    def _vfm_compile(force: bool = False) -> None:
+        source = source_map.get(state.source_key)
+        if vfm is None or source is None:
+            ui.notify("VFM memory is disabled.", type="warning")
+            return
+        job = vfm.submit(source, state.video, force=force)
+        if job is None:
+            ui.notify("VFM memory is disabled.", type="warning")
+            return
+        ui.notify(
+            f"compiling {source.label} memory…" if force else f"queued {source.label} memory",
+            type="info",
+        )
 
     if auto_run and video_path.is_file():
         state.request_run(initial, video_path)
@@ -569,6 +721,19 @@ def create_app(
                             on_click=lambda: ui.download(
                                 "/export/actions.csv", "chronicle_actions.csv"
                             ),
+                        )
+                        ui.separator()
+                        ui.menu_item(
+                            "VFM memory (ZIP)",
+                            on_click=lambda: _vfm_download("memory.zip"),
+                        )
+                        ui.menu_item(
+                            "Memory pack (MD)",
+                            on_click=lambda: _vfm_download("memory_pack.md"),
+                        )
+                        ui.menu_item(
+                            "Open memory report",
+                            on_click=_vfm_open_report,
                         )
 
         with ui.column().classes("w-full max-w-[1440px] mx-auto px-5 pt-3 gap-3"):
@@ -811,6 +976,7 @@ def create_app(
                         timeline_tab = ui.tab("Timeline", icon="timeline")
                         entities_tab = ui.tab("Entities", icon="inventory_2")
                         actions_tab = ui.tab("Actions", icon="bolt")
+                        memory_tab = ui.tab("Memory", icon="psychology")
                     with ui.tab_panels(tabs, value=graph_tab).classes("w-full").style(
                         "background:transparent;flex:1;min-height:0"
                     ):
@@ -880,6 +1046,73 @@ def create_app(
                             ).props("dark flat dense virtual-scroll").classes(
                                 "w-full"
                             ).style("height:396px")
+                        with ui.tab_panel(memory_tab).style(
+                            "padding:4px 0 0 0;display:flex;flex-direction:column;gap:5px"
+                        ):
+                            with ui.row().classes(
+                                "w-full items-center gap-2 flex-nowrap"
+                            ):
+                                ui.label("VFM").classes("chronicle-title")
+                                vfm_status_badge = ui.badge("NO MEMORY").props(
+                                    "outline"
+                                ).classes("text-[10px] chronicle-mono")
+                                vfm_stage_label = ui.label("not compiled").classes(
+                                    "text-[10px] chronicle-mono text-slate-500 truncate"
+                                )
+                                vfm_qwen_switch = ui.checkbox(
+                                    "Qwen", value=qwen
+                                ).props("dense").classes("text-[10px]").tooltip(
+                                    "Answer from the memory pack with Qwen. Off = "
+                                    "deterministic vault query."
+                                )
+                            vfm_progress = ui.linear_progress(
+                                value=0, show_value=False
+                            ).classes("w-full").style("height:4px")
+                            vfm_stats_label = ui.label(
+                                "Compile the memory from the current run, or upload a video "
+                                "to compile it automatically."
+                            ).classes("text-[10px] chronicle-mono text-slate-500")
+                            with ui.row().classes("w-full items-center gap-1 flex-wrap"):
+                                ui.button(
+                                    "Compile",
+                                    icon="build",
+                                    on_click=lambda: _vfm_compile(True),
+                                ).props("flat dense size=xs no-caps").classes(
+                                    "text-[10px] text-teal-300"
+                                ).tooltip("Rebuild vault, evidence, report and memory pack")
+                                vfm_report_button = ui.button(
+                                    "Open report",
+                                    icon="open_in_new",
+                                    on_click=_vfm_open_report,
+                                ).props("flat dense size=xs no-caps").classes(
+                                    "text-[10px]"
+                                )
+                                for vfm_name in VFM_DOWNLOAD_NAMES:
+                                    ui.button(
+                                        vfm_name,
+                                        icon="download",
+                                        on_click=lambda n=vfm_name: _vfm_download(n),
+                                    ).props("flat dense size=xs no-caps").classes(
+                                        "text-[10px] chronicle-mono"
+                                    )
+                            with ui.row().classes(
+                                "w-full items-center gap-2 flex-nowrap"
+                            ):
+                                vfm_ask_input = ui.input(
+                                    placeholder="where is the cup? / what happened around 20s?"
+                                ).props("outlined dense dark").classes("flex-1")
+                                vfm_ask_button = ui.button(
+                                    "Ask memory", icon="search"
+                                ).props("unelevated dense no-caps").classes("text-xs")
+                            vfm_answer_label = ui.label(
+                                "The memory pack is text-only: captions, events, verified "
+                                "answers and evidence refs. Qwen never receives frames."
+                            ).classes(
+                                "text-xs text-slate-300 whitespace-pre-line w-full"
+                            ).style("flex:1;min-height:0;overflow-y:auto")
+                            vfm_answer_meta = ui.label("").classes(
+                                "text-[9px] chronicle-mono text-slate-500"
+                            )
 
             with ui.card().props("flat").classes("chronicle-card p-4 w-full").style(
                 "height:264px;display:flex;flex-direction:column"
@@ -951,6 +1184,46 @@ def create_app(
         ask_button.on("click", lambda: _ask())
         query_input.on("keydown.enter", lambda: _ask())
 
+        async def _ask_vfm() -> None:
+            source = source_map.get(state.source_key)
+            text = (vfm_ask_input.value or "").strip()
+            if vfm is None or source is None:
+                ui.notify("VFM memory is disabled.", type="warning")
+                return
+            if not text:
+                return
+            vfm_ask_button.disable()
+            vfm_answer_label.text = "retrieving from the memory pack…"
+            vfm_answer_meta.text = ""
+            try:
+                result = await run.io_bound(
+                    vfm.ask,
+                    source,
+                    text,
+                    use_qwen=bool(vfm_qwen_switch.value),
+                )
+                vfm_answer_label.text = result.answer
+                citations = " · ".join(
+                    f"t={float(cite.get('t') or 0):.1f}s"
+                    for cite in result.citations[:4]
+                )
+                vfm_answer_meta.text = (
+                    f"method={result.method} · {result.elapsed_ms:.0f} ms · "
+                    f"confidence {result.confidence:.2f}"
+                    + (f" · {citations}" if citations else "")
+                )
+            except Exception as exc:
+                vfm_answer_label.text = f"{type(exc).__name__}: {exc}"
+                vfm_answer_meta.text = (
+                    "compile the memory first" if vfm.artifact(source, "vault.db") is None
+                    else "query failed"
+                )
+            finally:
+                vfm_ask_button.enable()
+
+        vfm_ask_button.on("click", lambda: _ask_vfm())
+        vfm_ask_input.on("keydown.enter", lambda: _ask_vfm())
+
         async def _ask_from_entity_row(event: Any) -> None:
             """Clicking an Entities row asks where that object was last seen."""
 
@@ -981,10 +1254,13 @@ def create_app(
         last_video_key: tuple[str, int] | None = None
         last_llm_check = 0.0
         llm_status: dict[str, Any] = {}
+        last_vfm_log: str | None = None
+        last_ingest_signature: tuple[Any, ...] | None = None
 
         def refresh() -> None:
             nonlocal cursor, last_bus, last_graph_version, last_timeline_version
             nonlocal last_video_key, last_llm_check, llm_status
+            nonlocal last_vfm_log, last_ingest_signature
             try:
                 with state.lock:
                     runtime = state.runtime
@@ -1076,6 +1352,89 @@ def create_app(
                     source_select.value = source_key
                     source_sync["active"] = False
                 _render_suggestions(source_key, _ask)
+
+                if vfm is not None and source is not None:
+                    # Compile once per finished ingest.  The manager dedupes by
+                    # DB/video signature, so several open tabs cannot fan out.
+                    if summary and not running and not error:
+                        ingest_signature = (
+                            source_key,
+                            summary.get("db_path"),
+                            summary.get("frames"),
+                            summary.get("actions"),
+                        )
+                        if ingest_signature != last_ingest_signature:
+                            last_ingest_signature = ingest_signature
+                            queued = vfm.submit(source, video_path)
+                            if queued is not None and queued.status == "queued":
+                                log_view.push("[VFM] memory compile queued after ingest")
+                    vfm_snapshot = vfm.status(source)
+                    if vfm_snapshot is None:
+                        if vfm.has_memory(source):
+                            vfm_status_badge.text = "COMPILED"
+                            vfm_status_badge.props("color=positive")
+                            vfm_stage_label.text = "ready (no job manifest)"
+                            vfm_progress.set_value(1.0)
+                            vault_path = vfm.artifact(source, "vault.db")
+                            report_path = vfm.artifact(source, "memory.html")
+                            vfm_stats_label.text = (
+                                f"{vault_path.stat().st_size / 1024:.1f} KB vault · "
+                                f"{(report_path.stat().st_size if report_path else 0) / 1024:.1f} KB report"
+                            )
+                            vfm_report_button.enable()
+                        else:
+                            vfm_status_badge.text = "NO MEMORY"
+                            vfm_status_badge.props("color=grey")
+                            vfm_stage_label.text = "not compiled"
+                            vfm_progress.set_value(0.0)
+                            vfm_stats_label.text = (
+                                "Compile the memory from the current run, or upload a video "
+                                "to compile it automatically."
+                            )
+                            vfm_report_button.disable()
+                    else:
+                        job_status = str(vfm_snapshot.get("status") or "idle")
+                        job_stage = str(vfm_snapshot.get("stage") or "")
+                        job_message = str(vfm_snapshot.get("message") or "")
+                        job_progress = float(vfm_snapshot.get("progress") or 0) / 100.0
+                        vfm_status_badge.text = job_status.upper()
+                        colour = {
+                            "done": "positive",
+                            "error": "negative",
+                            "running": "info",
+                            "queued": "warning",
+                        }.get(job_status, "grey")
+                        vfm_status_badge.props(f"color={colour}")
+                        vfm_stage_label.text = (
+                            f"{job_stage} · {job_message}"[:96]
+                            if job_message
+                            else job_stage
+                        )
+                        vfm_progress.set_value(max(0.0, min(1.0, job_progress)))
+                        job_summary = vfm_snapshot.get("summary") or {}
+                        pack_stats = job_summary.get("pack") or {}
+                        files = vfm_snapshot.get("files") or {}
+                        if job_status == "done":
+                            vfm_stats_label.text = (
+                                f"{files.get('vault.db', 0) / 1024:.1f} KB vault · "
+                                f"{files.get('memory.html', 0) / 1024:.1f} KB report · "
+                                f"{pack_stats.get('approx_tokens', 0)} pack tokens · "
+                                f"{pack_stats.get('windows', 0)} caption windows · "
+                                f"{files.get('evidence', 0) / 1024:.1f} KB evidence"
+                            )
+                            vfm_report_button.enable()
+                        elif job_status == "error":
+                            vfm_stats_label.text = str(vfm_snapshot.get("error") or "compile failed")
+                            vfm_report_button.disable()
+                        else:
+                            vfm_stats_label.text = f"{job_message or 'working'}…"
+                            vfm_report_button.disable()
+                        logs = vfm_snapshot.get("logs") or []
+                        if logs:
+                            latest = str(logs[-1])
+                            if latest != last_vfm_log:
+                                last_vfm_log = latest
+                                log_view.push(f"[VFM] {latest}")
 
                 pipeline_label.text = (
                     f"frames {stats.get('frames', 0)} · "

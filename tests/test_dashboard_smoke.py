@@ -24,6 +24,9 @@ def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
 
     from chronicle.ui.app import create_app
 
+    # Keep the test isolated if another dashboard test created the app first.
+    app.router.routes.clear()
+
     state = create_app(
         data_dir=tmp_path,
         source_key="synthetic",

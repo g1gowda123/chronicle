@@ -1,0 +1,60 @@
+questions   : 30
+cold accuracy: 30/30 = 100.0%
+latency      : cold p50 0.048 ms · p95 0.125 ms
+warm latency : p50 0.061 ms · p95 0.106 ms
+cache        : 4/4 paraphrases hit = 100%; reused accuracy = 1.0
+
+| Category | Correct | Total | Accuracy |
+|---|---:|---:|---:|
+| before_after | 4 | 4 | 100% |
+| count | 5 | 5 | 100% |
+| location | 6 | 6 | 100% |
+| negation | 5 | 5 | 100% |
+| paraphrase | 4 | 4 | 100% |
+| temporal | 6 | 6 | 100% |
+
+| Episode | Vault | Evidence | Memory | Video | Memory % | Events | Ledger windows |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| cook | 27.0 KB | 137.5 KB | 164.5 KB | 2.99 MB | 5.377% | 51 | 2 |
+| hololens | 25.0 KB | 46.1 KB | 71.1 KB | 3.07 MB | 2.26% | 5 | 2 |
+| walking | 30.0 KB | 138.5 KB | 168.5 KB | 13.18 MB | 1.248% | 11 | 2 |
+
+| ID | Category | Question | Correct | Method | Answer |
+|---|---|---|---:|---|---|
+| L1 | location | where is the cup? | yes | vault-where | The cup was last seen at t=42.5s in the Kitchen. Last recorded event: At t=25.9s, the cup was touched in the Kitchen. |
+| L2 | location | where is the plate? | yes | vault-where | The plate was last seen at t=44.9s in the Kitchen. Last recorded placement: At t=43.4s, the plate was placed in the bowl in the Kitchen. |
+| L3 | location | where is the knife? | yes | vault-where | The knife was last seen at t=44.9s in the Kitchen. Last recorded placement: At t=32.3s, the knife was placed on the support-countertop-1 in the Kitchen. |
+| L4 | location | where is the backpack? | yes | vault-where | The backpack was last seen at t=52.2s in the Outdoor Path. Last recorded event: At t=49.8s, the backpack appeared in the Outdoor Path. |
+| L5 | location | where is the joy-con? | yes | vault-where | The joy-con was last seen at t=6.0s in the Work Table. Last recorded event: At t=4.9s, the joy-con was touched in the Work Table. |
+| L6 | location | where was the plate last placed? | yes | vault-where | The plate was last seen at t=44.9s in the Kitchen. Last recorded placement: At t=43.4s, the plate was placed in the bowl in the Kitchen. |
+| T1 | temporal | when did I last touch the cup? | yes | vault-when | The cup was last touched or held at t=25.9s in the Kitchen. At t=25.9s, the cup was touched in the Kitchen. |
+| T2 | temporal | when did I first touch the cup? | yes | vault-when | The cup was first touched or held at t=4.5s in the Kitchen. At t=4.5s, the cup was touched in the Kitchen. |
+| T3 | temporal | at what time did I pick up the plate? | yes | vault-when | The plate was last touched or held at t=43.1s in the Kitchen. At t=43.1s, the plate was held in the Kitchen. |
+| T4 | temporal | when did the knife first appear? | yes | vault-when | The knife was first seen at t=7.1s in the Kitchen. At t=7.1s, the knife appeared in the Kitchen. |
+| T5 | temporal | when did I touch the cup? | yes | vault-when | The cup was last touched or held at t=37.8s in the Outdoor Path. At t=37.8s, the cup was touched in the Outdoor Path. |
+| T6 | temporal | when did I touch the joy-con? | yes | vault-when | The joy-con was last touched or held at t=4.9s in the Work Table. At t=4.9s, the joy-con was touched in the Work Table. |
+| C1 | count | how many cups are in the memory? | yes | vault-count-visibility | The memory tracked 2 cup tracks. Up to 2 were visible at the same instant, which is still a track count, not a verified physical count. |
+| C2 | count | how many plates? | yes | vault-count-visibility | The memory tracked 2 plate tracks. Up to 2 were visible at the same instant, which is still a track count, not a verified physical count. |
+| C3 | count | how many bowls? | yes | vault-count-visibility | The memory tracked 4 bowl tracks. At most 2 bowl tracks were visible at the same instant, so the physical count is between 2 and 4: fragmentation or occlusion may inflate the track count. |
+| C4 | count | how many cars? | yes | vault-count-visibility | The memory tracked 2 car tracks. At most 1 car track was visible at the same instant, so the physical count is between 1 and 2: fragmentation or occlusion may inflate the track count. |
+| C5 | count | how many joy-cons? | yes | vault-count-visibility | The memory tracked 2 joy-con tracks. Up to 2 were visible at the same instant, which is still a track count, not a verified physical count. |
+| B1 | before_after | what happened before the plate was placed in the bowl? | yes | vault-before | Before the plate was placed in the bowl in the Kitchen at t=43.4s: |
+| B2 | before_after | what happened after the cup was touched at 25.9 seconds? | yes | vault-after | After t=25.9s: |
+| B3 | before_after | what happened before the joy-con was touched? | yes | vault-before | Before the joy-con was touched in the Work Table at t=4.9s: |
+| B4 | before_after | what did I do before I placed the plate? | yes | vault-before | Before the plate was placed in the bowl in the Kitchen at t=43.4s: |
+| N1 | negation | where are my keys? | yes | no-match | I don't have that in my memory. |
+| N2 | negation | did I see a dog? | yes | no-match | No, I don't have that in my memory. |
+| N3 | negation | what is not in this memory? | yes | no-match | I don't have that in my memory. |
+| N4 | negation | where is the laptop? | yes | no-match | I don't have that in my memory. |
+| N5 | negation | did I see a bicycle? | yes | no-match | No, I don't have that in my memory. |
+| P1 | paraphrase | which room is the mug in? | yes | vault-where | The cup was last seen at t=42.5s in the Kitchen. Last recorded event: At t=25.9s, the cup was touched in the Kitchen. |
+| P2 | paraphrase | where did the cup go? | yes | vault-where | The cup was last seen at t=42.5s in the Kitchen. Last recorded event: At t=25.9s, the cup was touched in the Kitchen. |
+| P3 | paraphrase | how many coffee cups are tracked? | yes | vault-count-visibility | The memory tracked 2 cup tracks. Up to 2 were visible at the same instant, which is still a track count, not a verified physical count. |
+| P4 | paraphrase | where is the rucksack? | yes | vault-where | The backpack was last seen at t=52.2s in the Outdoor Path. Last recorded event: At t=49.8s, the backpack appeared in the Outdoor Path. |
+
+| Paraphrase | Cached | Method | Correct |
+|---|---:|---|---:|
+| P1 which room is the mug in? | yes | cache:vault-where | yes |
+| P2 where did the cup go? | yes | cache:vault-where | yes |
+| P3 how many coffee cups are tracked? | yes | cache:vault-count-visibility | yes |
+| P4 where is the rucksack? | yes | cache:vault-where | yes |
