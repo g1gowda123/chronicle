@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from chronicle.config import FurnitureConfig
 from chronicle.graph.furniture import FurnitureRegistry, bbox_iou
 from chronicle.graph.memory import ChronicleMemory
@@ -67,6 +69,48 @@ def test_camera_compensation_rebinds_a_lost_furniture_track() -> None:
     assert len(registry) == 1
 
 
+def test_multi_frame_pan_accumulates_camera_displacement() -> None:
+    registry = FurnitureRegistry(FurnitureConfig(min_hits=1))
+    first = registry.observe("sofa", (100.0, 100.0, 300.0, 250.0), "living-room", 0.0, track_id=1)
+    assert first is not None
+
+    # The pan runs for four frames without any furniture detections.  Only the
+    # accumulated displacement predicts where the stored box has drifted.
+    for _ in range(4):
+        registry.accumulate_camera_motion(10.0, 0.0)
+    again = registry.observe(
+        "sofa",
+        (140.0, 100.0, 340.0, 250.0),
+        "living-room",
+        2.0,
+        track_id=9,
+    )
+    assert again is not None
+    assert again.anchor_id == first.anchor_id
+    assert not again.is_new
+    assert len(registry) == 1
+
+
+def test_memory_accumulates_camera_motion_between_furniture_frames() -> None:
+    memory = ChronicleMemory(":memory:")
+    try:
+        memory.observe(frame(0.0, (sofa(),)))
+        for index in range(4):
+            memory.observe(frame(0.1 + index * 0.1, (), CameraMotion(dx=10.0, dy=0.0)))
+        memory.observe(
+            frame(
+                0.6,
+                (sofa("sofa-track-2", (140.0, 100.0, 340.0, 250.0), track_id=9),),
+            )
+        )
+
+        furniture = memory.background.furniture()
+        assert len(furniture) == 1
+        assert furniture[0]["attrs"]["track_ids"] == [1, 9]
+    finally:
+        memory.close()
+
+
 def test_memory_routes_sofa_to_background_not_foreground() -> None:
     memory = ChronicleMemory(":memory:")
     try:
@@ -102,5 +146,26 @@ def test_furniture_anchor_survives_reopen_without_duplication(tmp_path: Path) ->
         furniture = reopened.background.furniture()
         assert len(furniture) == 1
         assert furniture[0]["attrs"]["track_ids"] == [1, 7]
+    finally:
+        reopened.close()
+
+
+def test_furniture_last_seen_survives_reopen(tmp_path: Path) -> None:
+    db = tmp_path / "chronicle.db"
+    memory = ChronicleMemory(db)
+    try:
+        for t in (0.0, 0.5, 1.0):
+            memory.observe(frame(t, (sofa(),)))
+        expected = memory.furniture.records[0].last_seen
+        assert expected == pytest.approx(1.0)
+    finally:
+        memory.close()
+
+    reopened = ChronicleMemory(db)
+    try:
+        furniture = reopened.background.furniture()
+        assert len(furniture) == 1
+        assert furniture[0]["last_seen"] == pytest.approx(expected)
+        assert reopened.furniture.records[0].last_seen == pytest.approx(expected)
     finally:
         reopened.close()

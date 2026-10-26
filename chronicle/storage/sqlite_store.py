@@ -118,6 +118,10 @@ class SQLiteStore:
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (SCHEMA_VERSION,),
             )
+            # Repair databases written before terminal-edge normalization was
+            # enforced.  This is idempotent and keeps the one-terminal-placement
+            # invariant true immediately after reopen.
+            self._normalize_all_terminal_rows()
         self.bus.store("schema ready", path=self.path, version=SCHEMA_VERSION)
 
     @property
@@ -304,11 +308,12 @@ class SQLiteStore:
             merged_attrs["merged_from"] = list(dict.fromkeys(merged_from))
 
             if keep_row is None:
-                # Promote the removed row to a canonical raw keeper id.  Child
-                # rows are re-pointed below inside the same transaction.
+                # Promote the removed row to the same namespaced id that normal
+                # persistence writes (``anchor:<id>``).  Child rows are
+                # re-pointed below inside the same transaction.
                 source = remove_row
                 assert source is not None
-                keep_id = _raw_anchor(keep)
+                keep_id = _anchor_node(keep)
                 self._conn.execute(
                     """
                     UPDATE furniture SET id=?, label=?, zone_id=?, attrs=?
@@ -720,6 +725,29 @@ class SQLiteStore:
                 latest["id"],
             ),
         )
+        self._conn.execute(
+            "UPDATE edges SET is_terminal=1, t_end=NULL WHERE id=?",
+            (latest["id"],),
+        )
+
+    def _normalize_all_terminal_rows(self) -> None:
+        """Repair every entity's terminal anchors and placement edges in place."""
+
+        entity_ids = {
+            str(row["entity_id"])
+            for row in self._conn.execute(
+                "SELECT DISTINCT entity_id FROM anchors"
+            ).fetchall()
+        }
+        entity_ids.update(
+            _raw_entity(str(row["src"]))
+            for row in self._conn.execute(
+                "SELECT DISTINCT src FROM edges WHERE relation IN ('RESTING_ON', 'INSIDE')"
+            ).fetchall()
+        )
+        for entity_id in sorted(entity_ids):
+            self._normalize_anchors(entity_id)
+            self._normalize_placements(entity_id)
 
     # -------------------------------------------------------------- transitions
     def add_transition(
@@ -804,7 +832,14 @@ class SQLiteStore:
                     json.dumps(props or {}, sort_keys=True, default=str),
                 ),
             )
-            return int(cursor.lastrowid or 0)
+            edge_id = int(cursor.lastrowid or 0)
+            if is_terminal and relation in {"RESTING_ON", "INSIDE"}:
+                # Placement persistence is ordered by ``t_start``, not insertion
+                # order (merges and restores can replay older rows). Normalize
+                # here so exactly one placement per entity stays terminal and
+                # the previous open interval is closed in the same transaction.
+                self._normalize_placements(_raw_entity(src))
+            return edge_id
 
     def close_open_edges(self, src: str, relation: str, t_end: float) -> int:
         with self._lock, self._conn:

@@ -106,6 +106,11 @@ class FurnitureRecord:
     misses: int = 0
     first_seen: float = 0.0
     last_seen: float = 0.0
+    # Accumulated camera position when ``bbox`` was last updated.  The
+    # difference from the registry's live position predicts where an unseen
+    # anchor has drifted, even after a pan lasting many frames.
+    camera_x: float = 0.0
+    camera_y: float = 0.0
     track_ids: set[int] = field(default_factory=set)
     confirmed: bool = False
     attributes: dict[str, Any] = field(default_factory=dict)
@@ -196,6 +201,8 @@ class FurnitureRegistry:
         self.labels = frozenset(normalize(label) for label in labels if normalize(label))
         self._records: dict[str, FurnitureRecord] = {}
         self._seq = 0
+        self._camera_x = 0.0
+        self._camera_y = 0.0
 
     # ------------------------------------------------------------------ setup
     def __len__(self) -> int:
@@ -219,8 +226,21 @@ class FurnitureRegistry:
         if normalized:
             self.labels = frozenset({*self.labels, normalized})
 
+    def accumulate_camera_motion(self, dx: float, dy: float) -> None:
+        """Advance the virtual camera position once per frame.
+
+        Per-record baselines convert the accumulated motion into the
+        displacement since that anchor was last observed, so a multi-frame pan
+        does not require the caller to remember every intermediate delta.
+        """
+
+        self._camera_x += float(dx)
+        self._camera_y += float(dy)
+
     def load(self, records: Iterable[FurnitureRecord]) -> None:
         for record in records:
+            record.camera_x = self._camera_x
+            record.camera_y = self._camera_y
             self._records[record.anchor_id] = record
             self._seq = max(self._seq, _numeric_suffix(record.anchor_id))
 
@@ -236,6 +256,8 @@ class FurnitureRegistry:
                 attrs,
             )
             if record is not None:
+                record.camera_x = self._camera_x
+                record.camera_y = self._camera_y
                 self._records[anchor_id] = record
                 self._seq = max(self._seq, _numeric_suffix(anchor_id))
 
@@ -284,7 +306,11 @@ class FurnitureRegistry:
             ):
                 continue
 
-            predicted = _shift(record.bbox, camera_dx, camera_dy)
+            predicted = _shift(
+                record.bbox,
+                self._camera_x - record.camera_x + camera_dx,
+                self._camera_y - record.camera_y + camera_dy,
+            )
             score = self._association_score(
                 predicted,
                 box,
@@ -400,6 +426,8 @@ class FurnitureRegistry:
             hits=1,
             first_seen=t,
             last_seen=t,
+            camera_x=self._camera_x,
+            camera_y=self._camera_y,
             track_ids={int(track_id)} if track_id is not None else set(),
             confirmed=self.config.min_hits <= 1,
         )
@@ -426,6 +454,8 @@ class FurnitureRegistry:
                     for old, new in zip(record.embedding, embedding, strict=True)
                 )
         record.bbox = bbox
+        record.camera_x = self._camera_x
+        record.camera_y = self._camera_y
         record.last_seen = max(record.last_seen, t)
         record.hits += 1
         record.misses = 0
@@ -483,6 +513,8 @@ class FurnitureRegistry:
         remove_is_newer = remove_record.last_seen > keep_record.last_seen
         if remove_is_newer:
             keep_record.bbox = remove_record.bbox
+            keep_record.camera_x = remove_record.camera_x
+            keep_record.camera_y = remove_record.camera_y
             if remove_record.embedding is not None:
                 keep_record.embedding = remove_record.embedding
         elif keep_record.embedding is None:

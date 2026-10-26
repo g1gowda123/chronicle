@@ -321,7 +321,16 @@ class ForegroundGraph:
         node_id = entity_node(entity_id)
         if not self.graph.has_node(node_id):
             raise KeyError(f"unknown entity {entity_id!r}")
-        self.close_relation(entity_id, relation, t, clear_terminal=True)
+        # Placements of either relation are mutually exclusive: an object that
+        # moves from RESTING_ON to INSIDE (or back) has exactly one terminal
+        # spatial edge.  Older closed rows stay in the audit trail.
+        for previous_relation in (Relation.RESTING_ON, Relation.INSIDE):
+            self.close_relation(
+                entity_id,
+                previous_relation,
+                t,
+                clear_terminal=True,
+            )
         key = self._next_key(relation.value.lower())
         self.graph.add_edge(
             node_id,

@@ -422,7 +422,7 @@ class BackgroundGraph:
                 ref_id=record.id,
                 zone_id=record.zone_id,
                 created_at=record.created_at,
-                last_seen=record.created_at,
+                last_seen=float(attrs.get("last_seen", record.created_at)),
                 bbox=attrs.get("bbox"),
                 embedding=attrs.get("embedding"),
                 attrs=attrs,

@@ -151,6 +151,18 @@ class ChronicleMemory:
         """Advance the whole stack by one presentation timestamp."""
 
         t = frame.t
+        last_t = self.engine.last_timestamp
+        if last_t is not None and t < last_t:
+            # Keep every subsystem (zones, furniture, SQLite) on the same
+            # monotonic clock.  The engine would clamp the same frame later,
+            # but furniture routing runs first and must not see a rewound time.
+            self.bus.geom(
+                "non-monotonic presentation timestamp clamped",
+                t,
+                previous_t=last_t,
+            )
+            t = last_t
+            frame.t = t
         self._canonicalize_frame(frame)
         self._ensure_frame_context(frame)
         self._route_furniture(frame)
@@ -402,6 +414,11 @@ class ChronicleMemory:
         for edge in snapshot.edges:
             self.foreground.add_edge_record(edge)
         for record in snapshot.entities:
+            # Repair placement flags written by older builds (or a merge that
+            # happened before shutdown) so the restored graph has exactly one
+            # terminal placement per entity.
+            self.foreground.normalize_intervals(record.id)
+        for record in snapshot.entities:
             self.engine.seed(
                 record.id,
                 record.label,
@@ -452,6 +469,10 @@ class ChronicleMemory:
         This is the key defence against duplicate sofa/table nodes.
         """
 
+        # Advance the registry's virtual camera even while no furniture is
+        # detected: a pan can run for many frames before an anchor re-enters
+        # the frustum, and only the accumulated displacement predicts it.
+        self.furniture.accumulate_camera_motion(frame.camera.dx, frame.camera.dy)
         if not frame.objects:
             return
         zone_node_id = self._active_zone or self._default_zone(frame.t)
@@ -470,8 +491,10 @@ class ChronicleMemory:
                 frame.t,
                 track_id=obj.track_id,
                 embedding=obj.embedding,
-                camera_dx=frame.camera.dx,
-                camera_dy=frame.camera.dy,
+                # Camera motion is accumulated once per frame above; the
+                # registry applies the per-record displacement itself.
+                camera_dx=0.0,
+                camera_dy=0.0,
                 frame_size=frame.frame_size,
             )
             if match is None:

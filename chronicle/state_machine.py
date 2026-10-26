@@ -174,6 +174,17 @@ class LifecycleEngine:
         """Advance the machine to ``frame.t`` and return fired transitions."""
 
         t = frame.t
+        if self._last_t is not None and t < self._last_t:
+            # Presentation timestamps are required to be monotonic.  Clamp a
+            # rewind instead of letting out-of-order history samples poison the
+            # camera and velocity windows; the next real frame resumes cleanly.
+            self.bus.geom(
+                "non-monotonic presentation timestamp clamped",
+                t,
+                previous_t=self._last_t,
+            )
+            t = self._last_t
+            frame.t = t
         dt = self._advance_clock(t)
         self._update_camera(frame.camera, t, dt)
 
@@ -429,6 +440,18 @@ class LifecycleEngine:
         rt.container_id = measurements.container_id
 
         target, reason = self._target_state(rt, measurements)
+        if was_missing and target is None:
+            # A re-acquired track must not remain invisible just because its
+            # first frame back is geometrically ambiguous (for example strict
+            # support is enabled and the surface detector missed that frame).
+            # Force a best-effort visible state; the next measurable frame can
+            # refine it normally.
+            if measurements.rel_speed > self.thresholds.tau_move_px_s:
+                target = ObjectState.VISIBLE_MOVING
+                reason = "reacquired_independent_motion"
+            else:
+                target = ObjectState.VISIBLE_STATIC
+                reason = "reacquired_without_support_geometry"
         first_transition = (
             rt.state is ObjectState.NEW and abs(rt.state_since - rt.first_seen) <= _EPS
         )
@@ -472,6 +495,8 @@ class LifecycleEngine:
 
         if rt.missing_since is None:
             rt.missing_since = t
+        if rt.state is ObjectState.OUT_OF_VIEW and rt.out_of_view_since is None:
+            rt.out_of_view_since = rt.missing_since
 
         # LOST is reached from OUT_OF_VIEW after the ten-minute archival window.
         if (
@@ -480,6 +505,11 @@ class LifecycleEngine:
             and t - rt.out_of_view_since >= self.thresholds.lost_after_s
         ):
             return [self._force_state(rt, ObjectState.LOST, t, {"reason": "archival_timeout"})]
+        if rt.state is ObjectState.OUT_OF_VIEW:
+            # Once an object has left the frustum during a pan, a later still
+            # camera does not turn it into an occluded object.  Keeping the
+            # OUT_OF_VIEW state is what makes the 600 s LOST timeout reachable.
+            return []
         if (
             self.lost_from_occluded
             and rt.state is ObjectState.OCCLUDED
@@ -574,6 +604,10 @@ class LifecycleEngine:
             if other.label not in self.container_labels:
                 continue
             container_poly = other.hull()
+            # IoS is symmetric, so without this size guard a small cup would
+            # also make its larger backpack "contained" inside the cup.
+            if container_poly.area <= poly.area + _EPS:
+                continue
             contained_ios = ios(poly, container_poly)
             if contained_ios >= th.ios_contained and contained_ios > m.container_ios:
                 m.container_ios = contained_ios
@@ -653,8 +687,13 @@ class LifecycleEngine:
         return None, "ambiguous"
 
     # ------------------------------------------------------------- transitions
-    def _dwell(self, state: ObjectState) -> float:
+    def _dwell(self, state: ObjectState, previous: ObjectState | None = None) -> float:
         th = self.thresholds
+        if previous is ObjectState.CONTAINED and state in {
+            ObjectState.VISIBLE_STATIC,
+            ObjectState.VISIBLE_MOVING,
+        }:
+            return th.exit_dwell_s
         return {
             ObjectState.VISIBLE_STATIC: th.static_dwell_s,
             ObjectState.INTERACTED: th.interaction_dwell_s,
@@ -690,7 +729,7 @@ class LifecycleEngine:
             rt.candidate_since = t
             rt.candidate_reason = reason
 
-        dwell = 0.0 if force else self._dwell(target)
+        dwell = 0.0 if force else self._dwell(target, rt.state)
         sustained = t - rt.candidate_since
         if sustained + _EPS < dwell:
             return None

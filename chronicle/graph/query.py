@@ -457,6 +457,15 @@ class GraphQuery:
         if record is not None:
             anchor_id = record.anchor_id
             zone_id = self.background.zone_of(anchor_id)
+            if not zone_id:
+                # INSIDE anchors point at a foreground entity.  Its zone is the
+                # only durable room context for that placement.
+                container_attrs = self.foreground.get_entity(raw_entity_id(anchor_id)) or {}
+                zone_id = container_attrs.get("zone_id")
+            if zone_id:
+                zone_id = str(zone_id)
+                if not zone_id.startswith(ZONE_PREFIX):
+                    zone_id = f"{ZONE_PREFIX}{zone_id}"
             return {
                 "id": record.id,
                 "entity_id": entity_id,
@@ -597,6 +606,38 @@ class GraphQuery:
                         "is_terminal": False,
                     }
                 )
+            elif kind == "entity":
+                # The entity's parent zone is one hop beyond the foreground
+                # subgraph, so hydrate it explicitly.  This keeps CONTAINED
+                # objects (whose terminal anchor is the container entity, not a
+                # furniture anchor) from losing their room context.
+                zone_id = node.get("zone_id")
+                if not zone_id:
+                    continue
+                zone_id = str(zone_id)
+                if not zone_id.startswith(ZONE_PREFIX):
+                    zone_id = f"{ZONE_PREFIX}{zone_id}"
+                zone_attrs = self.background.node(zone_id)
+                if zone_attrs is None:
+                    continue
+                if zone_id not in by_id:
+                    by_id[zone_id] = {
+                        "node_id": zone_id,
+                        "distance": int(node.get("distance", 0)) + 1,
+                        "kind": "zone",
+                        **zone_attrs,
+                    }
+                extra_edges.append(
+                    {
+                        "src": node_id,
+                        "dst": zone_id,
+                        "key": f"zone:{node_id}",
+                        "relation": Relation.IN_ZONE.value,
+                        "t_start": node.get("first_seen"),
+                        "t_end": None,
+                        "is_terminal": False,
+                    }
+                )
         edges = edges + extra_edges
         nodes = sorted(
             by_id.values(),
@@ -612,6 +653,8 @@ class GraphQuery:
         for attrs in self.foreground.entities():
             entity_id = raw_entity_id(str(attrs["node_id"]))
             anchor = self._anchor_payload(self._terminal_anchor(entity_id), entity_id)
+            zone_id = (anchor or {}).get("zone_id") or attrs.get("zone_id")
+            zone_label = (anchor or {}).get("zone_label") or self.background.zone_label(zone_id)
             rows.append(
                 {
                     "entity_id": entity_id,
@@ -620,7 +663,7 @@ class GraphQuery:
                     "state_since": attrs.get("state_since"),
                     "last_seen": attrs.get("last_seen"),
                     "anchor": (anchor or {}).get("label"),
-                    "zone": (anchor or {}).get("zone_label"),
+                    "zone": zone_label or zone_id,
                     "anchor_t": (anchor or {}).get("t_start"),
                 }
             )

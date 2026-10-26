@@ -100,6 +100,37 @@ def test_contained_answer_names_container_and_zone(memory: ChronicleMemory) -> N
     assert "kitchen" in answer
 
 
+def test_contained_query_keeps_parent_zone_in_context_and_summary(
+    memory: ChronicleMemory,
+) -> None:
+    backpack = ObjectObservation("backpack", "backpack", (80.0, 280.0, 220.0, 420.0))
+    inside = cup(bbox=(100.0, 300.0, 140.0, 340.0))
+    feed(memory, 0.0, 0.5, DT, lambda t: [inside, backpack])
+    assert memory.engine.state_of("cup") is ObjectState.CONTAINED
+
+    result = memory.query("where is the cup?")
+    assert result is not None
+    assert result.zone_id == "zone:kitchen"
+    assert result.zone_label == "kitchen"
+    assert result.terminal_anchor is not None
+    assert result.terminal_anchor["zone_id"] == "zone:kitchen"
+    assert result.terminal_anchor["zone_label"] == "kitchen"
+
+    node_ids = {node["node_id"] for node in result.nodes}
+    assert "zone:kitchen" in node_ids
+    assert any(
+        edge.get("relation") == "IN_ZONE"
+        and edge.get("src") == "entity:backpack"
+        and edge.get("dst") == "zone:kitchen"
+        for edge in result.edges
+    )
+
+    rows = memory.state_table()
+    cup_row = next(row for row in rows if row["entity_id"] == "cup")
+    assert cup_row["zone"] == "kitchen"
+    assert cup_row["anchor"] == "backpack"
+
+
 def test_held_answer(memory: ChronicleMemory) -> None:
     feed(memory, 0.0, 1.0, DT, lambda t: [cup()])
     feed(
@@ -156,6 +187,24 @@ def test_summary_table(memory: ChronicleMemory) -> None:
     assert len(rows) == 1
     assert rows[0]["entity_id"] == "cup"
     assert rows[0]["anchor"] == "dining table"
+    assert rows[0]["zone"] == "kitchen"
+
+
+def test_summary_uses_entity_zone_when_anchor_is_missing(memory: ChronicleMemory) -> None:
+    memory.enter_zone("kitchen", 0.0, zone_id="kitchen")
+    memory.foreground.upsert_entity(
+        "gadget",
+        "gadget",
+        state=ObjectState.VISIBLE_MOVING,
+        state_since=0.0,
+        first_seen=0.0,
+        last_seen=1.0,
+        zone_id="zone:kitchen",
+    )
+    rows = memory.state_table()
+    assert len(rows) == 1
+    assert rows[0]["entity_id"] == "gadget"
+    assert rows[0]["anchor"] is None
     assert rows[0]["zone"] == "kitchen"
 
 

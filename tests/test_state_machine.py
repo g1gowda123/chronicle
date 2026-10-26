@@ -7,6 +7,7 @@ from conftest import (
     CUP_BBOX,
     DT,
     cup,
+    feed,
     feed_engine,
     hand_at,
     lift_scenario,
@@ -120,6 +121,10 @@ def test_containment_outranks_support_and_persists_while_container_visible() -> 
     backpack = ObjectObservation("backpack", "backpack", (80.0, 280.0, 220.0, 420.0))
     feed_engine(engine, 0.0, 0.35, DT, lambda t: [cup(), backpack])
     assert engine.state_of("cup") is ObjectState.CONTAINED
+    # Containment is not symmetric: the larger backpack encloses the cup, but
+    # the cup must not mark the backpack as contained.
+    assert engine.state_of("backpack") is not ObjectState.CONTAINED
+    assert engine.get("backpack").container_id is None
 
     silent = feed_engine(engine, 0.35, 1.0, DT, lambda t: [backpack])
     assert [tr for tr in silent if tr.entity_id == "cup"] == []
@@ -128,6 +133,31 @@ def test_containment_outranks_support_and_persists_while_container_visible() -> 
     transitions = feed_engine(engine, 1.0, 1.5, DT, lambda t: [])
     assert engine.state_of("cup") is ObjectState.OCCLUDED
     assert transitions[-1].to_state is ObjectState.OCCLUDED
+
+
+def test_contained_exit_uses_the_short_exit_dwell() -> None:
+    engine = LifecycleEngine()
+    backpack = ObjectObservation("backpack", "backpack", (80.0, 280.0, 220.0, 420.0))
+    # The cup's bottom edge also touches the table, so once the backpack is
+    # gone the only viable target is VISIBLE_STATIC.
+    inside = cup(bbox=(100.0, 340.0, 180.0, 420.0))
+    feed_engine(engine, 0.0, 0.5, DT, lambda t: [inside, backpack])
+    assert engine.state_of("cup") is ObjectState.CONTAINED
+
+    transitions = feed_engine(
+        engine,
+        0.5,
+        0.8,
+        DT,
+        lambda t: [inside],
+    )
+    exit_transition = next(
+        tr
+        for tr in transitions
+        if tr.entity_id == "cup" and tr.to_state is ObjectState.VISIBLE_STATIC
+    )
+    assert exit_transition.evidence["dwell_s"] == pytest.approx(0.15)
+    assert exit_transition.t_event == pytest.approx(0.65, abs=0.04)
 
 
 def test_occlusion_versus_out_of_view_versus_lost() -> None:
@@ -156,6 +186,32 @@ def test_occlusion_versus_out_of_view_versus_lost() -> None:
     assert transitions[-1].evidence["reason"] == "archival_timeout"
 
 
+def test_out_of_view_survives_a_still_camera_and_still_reaches_lost() -> None:
+    engine = LifecycleEngine()
+    feed_engine(engine, 0.0, 1.0, DT, lambda t: [cup()])
+    feed_engine(
+        engine,
+        1.0,
+        1.5,
+        DT,
+        lambda t: [],
+        camera_fn=lambda t: CameraMotion(dx=30.0, dy=0.0),
+    )
+    assert engine.state_of("cup") is ObjectState.OUT_OF_VIEW
+
+    # A stationary camera after the pan must not demote the object to
+    # OCCLUDED; otherwise the 600 s archival timeout below is unreachable.
+    transitions = feed_engine(engine, 1.5, 2.5, DT, lambda t: [])
+    assert [tr for tr in transitions if tr.entity_id == "cup"] == []
+    assert engine.state_of("cup") is ObjectState.OUT_OF_VIEW
+
+    transitions = engine.update(
+        make_frame(602.0, objects=[], camera=CameraMotion(), supports=())
+    )
+    assert transitions[-1].to_state is ObjectState.LOST
+    assert transitions[-1].evidence["reason"] == "archival_timeout"
+
+
 def test_reacquisition_is_immediate_and_keeps_identity() -> None:
     engine = LifecycleEngine()
     feed_engine(engine, 0.0, 1.0, DT, lambda t: [cup()])
@@ -168,6 +224,65 @@ def test_reacquisition_is_immediate_and_keeps_identity() -> None:
     reacquired = next(tr for tr in transitions if tr.entity_id == "cup")
     assert reacquired.evidence["reacquired"] is True
     assert len([s for s in engine.snapshot() if s.entity_id == "cup"]) == 1
+
+
+def test_strict_support_reacquisition_does_not_stay_occluded() -> None:
+    engine = LifecycleEngine(strict_support=True)
+    feed_engine(engine, 0.0, 1.0, DT, lambda t: [cup()])
+    assert engine.state_of("cup") is ObjectState.VISIBLE_STATIC
+
+    occluder = ObjectObservation("occluder", "box", (80.0, 280.0, 200.0, 400.0))
+    feed_engine(engine, 1.0, 1.5, DT, lambda t: [occluder])
+    assert engine.state_of("cup") is ObjectState.OCCLUDED
+
+    # The first frame back has no support-surface detection.  A strict engine
+    # must still resolve the re-acquisition instead of leaving the track in the
+    # invisible OCCLUDED state forever.
+    transitions = feed_engine(
+        engine,
+        1.5,
+        1.7,
+        DT,
+        lambda t: [cup()],
+        supports_fn=lambda t: (),
+    )
+    assert engine.state_of("cup") is ObjectState.VISIBLE_STATIC
+    reacquired = next(tr for tr in transitions if tr.entity_id == "cup")
+    assert reacquired.evidence["reason"] == "reacquired_without_support_geometry"
+
+
+def test_non_monotonic_timestamp_is_clamped() -> None:
+    engine = LifecycleEngine()
+    feed_engine(engine, 0.0, 1.0, DT, lambda t: [cup()])
+    last = engine.last_timestamp
+    assert last is not None
+    assert engine.state_of("cup") is ObjectState.VISIBLE_STATIC
+
+    rewound = make_frame(0.1, objects=[cup()])
+    transitions = engine.update(rewound)
+    assert transitions == []
+    assert engine.last_timestamp == pytest.approx(last)
+    assert rewound.t == pytest.approx(last)
+
+
+def test_memory_clamps_rewound_time_before_routing() -> None:
+    memory = ChronicleMemory(":memory:")
+    try:
+        feed(memory, 0.0, 1.0, DT, lambda t: [cup()])
+        last = memory.engine.last_timestamp
+        assert last is not None
+        zone_before = memory.background.node("zone:kitchen")["last_seen"]
+
+        rewound = make_frame(0.1, objects=[cup()])
+        memory.observe(rewound)
+        assert rewound.t == pytest.approx(last)
+        assert memory.engine.last_timestamp == pytest.approx(last)
+        # Furniture/zone routing sees the clamped timestamp, not the rewind.
+        assert memory.background.node("zone:kitchen")["last_seen"] == pytest.approx(
+            zone_before
+        )
+    finally:
+        memory.close()
 
 
 def test_snapshot_reports_live_measurements() -> None:

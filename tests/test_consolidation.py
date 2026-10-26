@@ -313,6 +313,33 @@ def test_merge_furniture_preserves_registry_and_aliases() -> None:
         memory.close()
 
 
+def test_merge_furniture_promotes_graph_only_keeper_with_namespaced_id() -> None:
+    memory = offline_memory()
+    try:
+        zone = memory.enter_zone("living-room", 1.0)
+        # Legacy graph-only keeper: present in the background graph but never
+        # mirrored into SQLite.
+        memory.background.ensure_furniture(
+            "sofa-1",
+            "sofa",
+            zone,
+            1.0,
+            bbox=SOFA_BBOX,
+            attrs={"first_seen": 1.0, "last_seen": 2.0},
+        )
+        seed_sofa(memory, "sofa-2", 10.0, 11.0)
+
+        report = memory.merge_furniture("sofa-1", "sofa-2", t=11.5)
+        assert report.merged is True
+
+        rows = memory.store.load_furniture()
+        assert len(rows) == 1
+        assert rows[0].id == "anchor:sofa-1"
+        assert memory.store.get_furniture("sofa-1") is not None
+    finally:
+        memory.close()
+
+
 def test_auto_sweep_merges_pan_reentry_furniture_duplicate() -> None:
     memory = ChronicleMemory(
         ":memory:",
