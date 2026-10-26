@@ -49,7 +49,7 @@ prototype/
 ## Quick start
 
 ```bash
-# Compile an existing Chronicle episode into a vault
+# Compile an existing Chronicle episode into a compressed vault
 python prototype/compile.py \
   --source-db /home/g1/projects/chronicle/data/real/cook/chronicle.db \
   --out /tmp/chronicle-vault.db
@@ -58,11 +58,38 @@ python prototype/compile.py \
 python prototype/query.py --db /tmp/chronicle-vault.db "where is the cup?"
 python prototype/query.py --db /tmp/chronicle-vault.db "what happened around 20 seconds?"
 
-# Size/latency report
+# One-time evidence extraction from the video, then delete it
+# (needs OpenCV; use the main Chronicle venv)
+/home/g1/projects/chronicle/.venv/bin/python prototype/extract_evidence.py \
+  --vault /tmp/chronicle-vault.db \
+  --video /home/g1/projects/chronicle/data/real/aria_cook_45s.mp4 \
+  --out /tmp/chronicle-evidence --data-root /tmp \
+  --delete-video
+
+# Offline, single-file memory browser (timeline + embedded snapshots)
+python prototype/report.py --db /tmp/chronicle-vault.db \
+  --out /tmp/chronicle-memory.html --data-root /tmp
+
+# Size/latency/accuracy report
 python prototype/benchmark.py \
   --source-db /home/g1/projects/chronicle/data/real/cook/chronicle.db \
   --vault /tmp/chronicle-vault.db
 ```
+
+## v2 baseline (Aria cook, 45 s, 11 entities)
+
+| Metric | Value |
+|---|---:|
+| Source video | 2.99 MB |
+| Vault | **76 KB (2.48% of video)** |
+| Event pack | **2,086 B (17.1 B/event)** |
+| Caption windows | **429 B (zlib)** |
+| Evidence snapshots | 15 JPEGs, 674 KB |
+| Query latency | **0.04 ms p50** |
+| Single-file HTML report | 915 KB |
+
+The snapshot selector caps at 40 events, so a one-hour episode targets roughly **2 MB of memory
+per hour**, versus hundreds of MB of raw video.
 
 ## Non-goals
 

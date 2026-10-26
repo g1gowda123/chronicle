@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Vault size / latency / coverage report.
+"""Vault size / latency / accuracy report for the compressed VFM vault.
 
 Usage:
     python prototype/benchmark.py \
@@ -16,7 +16,7 @@ import statistics
 import time
 from pathlib import Path
 
-from query import answer
+from query import answer, load_store, stats
 
 QUESTIONS = [
     ("where is the cup?", "answer"),
@@ -47,16 +47,10 @@ def _video_bytes(source_db: Path) -> int:
     return sum(path.stat().st_size for path in candidates if path.is_file())
 
 
-def _count(con: sqlite3.Connection, table: str) -> int:
-    try:
-        return int(con.execute(f"select count(*) from {table}").fetchone()[0])
-    except sqlite3.Error:
-        return 0
-
-
 def run(source_db: Path, vault: Path, repeats: int = 5) -> dict:
     con = sqlite3.connect(str(vault))
     con.row_factory = sqlite3.Row
+    store = load_store(con)
     rows = []
     latencies: list[float] = []
     correct = 0
@@ -66,7 +60,7 @@ def run(source_db: Path, vault: Path, repeats: int = 5) -> dict:
             result = None
             for _ in range(repeats):
                 started = time.perf_counter()
-                result = answer(con, question)
+                result = answer(store, question)
                 times.append((time.perf_counter() - started) * 1000.0)
             assert result is not None
             latencies.extend(times)
@@ -85,6 +79,7 @@ def run(source_db: Path, vault: Path, repeats: int = 5) -> dict:
                     "answer": result.answer.splitlines()[0][:160],
                 }
             )
+        vault_stats = stats(store, vault)
     finally:
         con.close()
 
@@ -98,9 +93,12 @@ def run(source_db: Path, vault: Path, repeats: int = 5) -> dict:
         "video_bytes": video_bytes,
         "vault_bytes": vault_bytes,
         "vault_as_pct_of_video": round(100.0 * vault_bytes / video_bytes, 3) if video_bytes else None,
-        "events": _count(sqlite3.connect(str(vault)), "events"),
-        "captions": _count(sqlite3.connect(str(vault)), "captions"),
-        "entities": _count(sqlite3.connect(str(vault)), "entities"),
+        "entities": vault_stats.get("entities", 0),
+        "events": vault_stats.get("events", 0),
+        "captions": vault_stats.get("captions", 0),
+        "event_blob_bytes": vault_stats.get("event_blob_bytes", 0),
+        "caption_blob_bytes": vault_stats.get("caption_blob_bytes", 0),
+        "bytes_per_event": round(vault_stats.get("event_blob_bytes", 0) / max(1, vault_stats.get("events", 1)), 2),
         "questions": len(QUESTIONS),
         "correct": correct,
         "accuracy": round(correct / len(QUESTIONS), 3),
@@ -125,14 +123,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(report, indent=2))
         return 0
-    print(f"source DB : {report['source_db_bytes']/1024:.1f} KB")
+    print(f"source DB   : {report['source_db_bytes']/1024:.1f} KB")
     print(f"source video: {report['video_bytes']/1048576:.2f} MB")
-    print(f"vault      : {report['vault_bytes']/1024:.1f} KB "
+    print(f"vault       : {report['vault_bytes']/1024:.1f} KB "
           f"({report['vault_as_pct_of_video']}% of video)")
     print(f"entities / events / captions: "
           f"{report['entities']} / {report['events']} / {report['captions']}")
-    print(f"accuracy: {report['correct']}/{report['questions']} = {report['accuracy']:.0%}")
-    print(f"latency: p50 {report['p50_ms']} ms · p95 {report['p95_ms']} ms")
+    print(f"event blob  : {report['event_blob_bytes']} B "
+          f"({report['bytes_per_event']} B/event)")
+    print(f"caption blob: {report['caption_blob_bytes']} B (zlib)")
+    print(f"accuracy    : {report['correct']}/{report['questions']} = {report['accuracy']:.0%}")
+    print(f"latency     : p50 {report['p50_ms']} ms · p95 {report['p95_ms']} ms")
     print()
     print("| Question | Expected | Method | Correct | p50 ms | Answer |")
     print("|---|---|---|---:|---:|---|")

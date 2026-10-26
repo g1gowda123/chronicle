@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Compile a Chronicle SQLite episode into a video-free VFM vault.
+"""Compile a Chronicle SQLite episode into a video-free, compressed VFM vault.
 
-Input:  the graph database produced by the main Chronicle pipeline.
-Output: one SQLite vault with entities, events, captions and optional evidence
-        metadata. No video is read or referenced.
+v2 layout:
+  * dictionary-encoded strings (uint16 ids)
+  * events packed as a struct-of-arrays blob (~16 bytes/event)
+  * window captions zlib-compressed JSON
+  * no video reference; `video_retained=0`
 
 Usage:
     python prototype/compile.py --source-db path/to/chronicle.db --out vault.db
@@ -19,16 +21,22 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from compact import StringTable, compress_json, pack_events
+
 ROOT = Path(__file__).resolve().parent.parent
-SCHEMA = ROOT / "schema.sql"
+SCHEMA = ROOT / "schema_v2.sql"
 WINDOW_S = 30.0
 
-
-def _table_exists(con: sqlite3.Connection, name: str) -> bool:
-    row = con.execute(
-        "select 1 from sqlite_master where type='table' and name=?", (name,)
-    ).fetchone()
-    return row is not None
+#: States worth a ledger row. Visibility flicker (OCCLUDED/OUT_OF_VIEW) is not.
+STABLE_STATES = {
+    "NEW",
+    "VISIBLE_STATIC",
+    "VISIBLE_MOVING",
+    "INTERACTED",
+    "HELD",
+    "CONTAINED",
+    "LOST",
+}
 
 
 def _rows(con: sqlite3.Connection, sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
@@ -57,7 +65,6 @@ def _event(
     zone: str | None,
     confidence: float | None,
     source: str | None,
-    caption: str,
     meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
@@ -69,12 +76,29 @@ def _event(
         "zone": zone or "",
         "confidence": confidence,
         "source": source or "",
-        "caption": caption,
         "meta": meta or {},
     }
 
 
-def build_events(source: sqlite3.Connection) -> list[dict[str, Any]]:
+def _dedupe(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    events.sort(key=lambda item: (item["t"], item["kind"], item["subject"]))
+    seen: set[tuple[float, str, str, str]] = set()
+    out: list[dict[str, Any]] = []
+    for event in events:
+        key = (
+            round(float(event["t"]), 1),
+            str(event["subject"]).lower(),
+            str(event["relation"]).upper(),
+            str(event["object"]).lower(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(event)
+    return out
+
+
+def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, Any]]:
     entities = _rows(source, "select id, label, state, zone_id, last_seen from entities")
     zones = _rows(source, "select id, label from zones")
     furniture = _rows(source, "select id, label from furniture")
@@ -91,61 +115,65 @@ def build_events(source: sqlite3.Connection) -> list[dict[str, Any]]:
         labels[f"anchor:{row['id']}"] = str(row["label"])
 
     zone_labels = {str(row["id"]): str(row["label"]) for row in zones}
+    entity_zone = {
+        str(row["id"]): zone_labels.get(str(row["zone_id"]), "")
+        for row in entities
+    }
+
     events: list[dict[str, Any]] = []
 
-    # 1. State transitions.
-    for row in _rows(
+    # 1. Stable lifecycle changes.
+    transition_rows = _rows(
         source,
         """
         select s.entity_id, e.label, s.from_state, s.to_state, s.t_event, s.evidence
         from state_transitions s left join entities e on e.id = s.entity_id
         """,
-    ):
-        label = str(row["label"] or _node_label(row["entity_id"], labels))
-        zone = _zone_for_entity(source, str(row["entity_id"]), zone_labels)
-        caption = (
-            f"At t={float(row['t_event']):.1f}s, the {label.lower()} transitioned "
-            f"from {row['from_state']} to {row['to_state']}"
-            + (f" in the {zone}" if zone else "")
-            + "."
-        )
-        try:
-            evidence = json.loads(row["evidence"] or "{}")
-        except (TypeError, json.JSONDecodeError):
-            evidence = {}
-        events.append(
-            _event(
-                row["t_event"],
-                "state",
-                label,
-                f"{row['from_state']}->{row['to_state']}",
-                label,
-                zone,
-                evidence.get("confidence") if isinstance(evidence, dict) else None,
-                "lifecycle",
-                caption,
-                {"evidence": evidence},
+    )
+    by_entity: dict[str, list[sqlite3.Row]] = defaultdict(list)
+    for row in transition_rows:
+        by_entity[str(row["entity_id"])].append(row)
+    for entity_id, rows_for_entity in by_entity.items():
+        rows_for_entity.sort(key=lambda row: float(row["t_event"]))
+        label = str(rows_for_entity[0]["label"] or _node_label(entity_id, labels))
+        zone = entity_zone.get(entity_id)
+        last_stable: str | None = None
+        for row in rows_for_entity:
+            to_state = str(row["to_state"])
+            if to_state not in STABLE_STATES or to_state == last_stable:
+                continue
+            last_stable = to_state
+            events.append(
+                _event(
+                    row["t_event"],
+                    "state",
+                    label,
+                    f"{row['from_state']}->{to_state}",
+                    label,
+                    zone,
+                    None,
+                    "lifecycle",
+                    {"from": row["from_state"], "to": to_state},
+                )
             )
-        )
 
-    # 2. Terminal and historical spatial anchors.
-    for row in _rows(
+    # 2. One anchor per (entity, relation, target): terminal/preferred latest.
+    anchor_rows = _rows(
         source,
         """
-        select a.entity_id, e.label, a.anchor_id, a.relation, a.t_start, a.t_end,
-               a.is_terminal, a.confidence
+        select a.entity_id, e.label, a.anchor_id, a.relation, a.t_start, a.is_terminal, a.confidence
         from anchors a left join entities e on e.id = a.entity_id
+        order by a.is_terminal desc, a.t_start desc
         """,
-    ):
+    )
+    seen_anchor: set[tuple[str, str, str]] = set()
+    for row in anchor_rows:
         label = str(row["label"] or _node_label(row["entity_id"], labels))
         target = _node_label(row["anchor_id"], labels)
-        zone = _zone_for_entity(source, str(row["entity_id"]), zone_labels)
-        caption = (
-            f"At t={float(row['t_start']):.1f}s, the {label.lower()} was "
-            f"{str(row['relation']).replace('_', ' ').lower()} the {target}"
-            + (f" in the {zone}" if zone else "")
-            + "."
-        )
+        key = (label.lower(), str(row["relation"]).upper(), target.lower())
+        if key in seen_anchor:
+            continue
+        seen_anchor.add(key)
         events.append(
             _event(
                 row["t_start"],
@@ -153,122 +181,95 @@ def build_events(source: sqlite3.Connection) -> list[dict[str, Any]]:
                 label,
                 str(row["relation"]),
                 target,
-                zone,
+                entity_zone.get(str(row["entity_id"])),
                 row["confidence"],
                 "anchor",
-                caption,
-                {"is_terminal": bool(row["is_terminal"]), "t_end": row["t_end"]},
+                {"terminal": bool(row["is_terminal"])},
             )
         )
 
-    # 3. Relational edges (skip IN_ZONE duplicates; keep meaningful relations).
-    for row in _rows(
-        source,
-        """
-        select src, dst, relation, t_start, t_end, props from edges
-        """,
-    ):
+    # 3. Non-spatial graph relations (IN_ZONE is implied by the entity/zone table).
+    for row in _rows(source, "select src, dst, relation, t_start from edges"):
         relation = str(row["relation"] or "")
-        if relation.upper() in {"IN_ZONE"}:
+        if relation.upper() in {"IN_ZONE", "RESTING_ON", "INSIDE", "ON", "CONTAINED_IN"}:
             continue
-        subject = _node_label(row["src"], labels)
-        obj = _node_label(row["dst"], labels)
         t = row["t_start"]
         if t is None:
             continue
-        caption = (
-            f"At t={float(t):.1f}s, {subject.lower()} {relation.replace('_', ' ').lower()} "
-            f"{obj.lower()}."
-        )
         events.append(
             _event(
                 t,
                 "relation",
-                subject,
+                _node_label(row["src"], labels),
                 relation,
-                obj,
+                _node_label(row["dst"], labels),
                 None,
                 None,
                 "graph",
-                caption,
-                {"t_end": row["t_end"]},
             )
         )
 
-    events.sort(key=lambda item: (item["t"], item["kind"], item["subject"]))
-    # Anchors and relation edges describe the same placement; keep one row.
-    deduped: list[dict[str, Any]] = []
-    seen: set[tuple[float, str, str, str]] = set()
-    for event in events:
-        key = (
-            round(float(event["t"]), 1),
-            str(event["subject"]).lower(),
-            str(event["relation"]).upper(),
-            str(event["object"]).lower(),
-        )
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(event)
-    return deduped
+    # 4. Periodic scene anchors so quiet periods are not invisible.
+    total = max(0.0, float(duration))
+    step = WINDOW_S
+    tick = 0.0
+    while tick < total:
+        events.append(_event(tick, "keyframe", "", "ANCHOR", "", "", None, "periodic"))
+        tick += step
 
-
-def _zone_for_entity(
-    source: sqlite3.Connection, entity_id: str, zone_labels: dict[str, str]
-) -> str | None:
-    row = source.execute("select zone_id from entities where id=?", (entity_id,)).fetchone()
-    if row is None or not row["zone_id"]:
-        return None
-    return zone_labels.get(str(row["zone_id"]), str(row["zone_id"]))
+    return _dedupe(events)
 
 
 def build_captions(events: list[dict[str, Any]], window_s: float = WINDOW_S) -> list[dict[str, Any]]:
-    captions: list[dict[str, Any]] = []
     buckets: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for event in events:
+        if event["kind"] == "keyframe":
+            continue
         buckets[int(float(event["t"]) // window_s)].append(event)
 
+    captions: list[dict[str, Any]] = []
     for bucket in sorted(buckets):
         rows = buckets[bucket]
         start = bucket * window_s
         end = start + window_s
-        lines = [event["caption"] for event in rows[:12]]
+        lines = [caption_for(event) for event in rows[:12]]
         if len(rows) > 12:
             lines.append(f"... {len(rows) - 12} more events.")
-        text = f"From {start:.1f}s to {end:.1f}s:\n" + "\n".join(lines)
         tags = sorted(
-            {
-                str(event["subject"]).lower()
-                for event in rows
-                if event["subject"]
-            }
+            {str(event["subject"]).lower() for event in rows if event["subject"]}
             | {str(event["object"]).lower() for event in rows if event["object"]}
         )
         captions.append(
             {
                 "t_start": start,
                 "t_end": end,
-                "kind": "window",
-                "text": text,
-                "tags": json.dumps(tags[:20]),
-                "evidence_id": None,
-            }
-        )
-
-    for event in events:
-        captions.append(
-            {
-                "t_start": float(event["t"]),
-                "t_end": float(event["t"]),
-                "kind": "event",
-                "text": event["caption"],
-                "tags": json.dumps(
-                    [event["subject"], event["relation"], event["object"]]
-                ),
-                "evidence_id": event.get("evidence_id"),
+                "text": f"From {start:.1f}s to {end:.1f}s:\n" + "\n".join(lines),
+                "tags": tags[:20],
             }
         )
     return captions
+
+
+def caption_for(event: dict[str, Any]) -> str:
+    t = float(event["t"])
+    subject = str(event["subject"]).lower()
+    relation = str(event["relation"]).replace("_", " ").lower()
+    obj = str(event["object"]).lower()
+    zone = str(event["zone"])
+    kind = event["kind"]
+    if kind == "state":
+        text = f"At t={t:.1f}s, the {subject} transitioned {relation}"
+    elif kind == "anchor":
+        text = f"At t={t:.1f}s, the {subject} was {relation} the {obj}"
+    elif kind == "relation":
+        text = f"At t={t:.1f}s, {subject} {relation} {obj}"
+    elif kind == "keyframe":
+        text = f"Scene anchor at t={t:.1f}s"
+    else:
+        text = f"At t={t:.1f}s, {subject} {obj}"
+    if zone and zone.lower() not in {"", subject, obj}:
+        text += f" in the {zone}"
+    return text.rstrip(".") + "."
 
 
 def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) -> dict[str, Any]:
@@ -287,13 +288,33 @@ def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) ->
         )
         zones = _rows(source, "select id, label from zones")
         zone_labels = {str(row["id"]): str(row["label"]) for row in zones}
-        events = build_events(source)
-        captions = build_captions(events)
-        observations = _rows(source, "select max(t) as last_t from observations")
-        last_t = float(observations[0]["last_t"] or 0.0) if observations else 0.0
-        duration = max(last_t, max((event["t"] for event in events), default=0.0))
+        last_t = _rows(source, "select max(t) as last_t from observations")
+        duration = float(last_t[0]["last_t"] or 0.0) if last_t else 0.0
     finally:
         source.close()
+
+    # Re-open for event building (keeps the function readable).
+    source = sqlite3.connect(str(source_db))
+    source.row_factory = sqlite3.Row
+    try:
+        events = build_events(source, duration)
+    finally:
+        source.close()
+
+    table = StringTable()
+    for row in entities:
+        table.add(str(row["label"]))
+        table.add(str(row["state"]))
+        table.add(zone_labels.get(str(row["zone_id"]), ""))
+    for event in events:
+        table.add(event["subject"])
+        table.add(event["relation"])
+        table.add(event["object"])
+        table.add(event["zone"])
+    blob = pack_events(events, table)
+
+    captions = build_captions(events)
+    captions_blob = compress_json(captions)
 
     vault = sqlite3.connect(str(out_db))
     vault.row_factory = sqlite3.Row
@@ -301,83 +322,53 @@ def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) ->
         vault.executescript(SCHEMA.read_text(encoding="utf-8"))
         now = time.time()
         episode_id = source_db.parent.name or source_db.stem
+        zone_id = table.add(zone_labels.get(str(entities[0]["zone_id"]), "")) if entities else 0
         vault.execute(
             """
             insert or replace into episodes
-                (id, title, source_path, zone, duration_s, fps, video_retained, compiled_at)
+                (id, title, source_path, zone_id, duration_s, fps, video_retained, compiled_at)
             values (?, ?, ?, ?, ?, ?, 0, ?)
             """,
             (
                 episode_id,
                 title or episode_id,
                 str(source_db),
-                zone_labels.get(str(entities[0]["zone_id"]), "") if entities else "",
+                zone_id,
                 duration,
                 None,
                 now,
             ),
         )
+        vault.executemany("insert or replace into strings(id, value) values (?, ?)", table.rows())
+        vault.execute("insert or replace into event_pack(id, blob, n) values (1, ?, ?)", (blob, len(events)))
+        vault.execute("insert or replace into captions_blob(id, blob) values (1, ?)", (captions_blob,))
         for row in entities:
             vault.execute(
                 """
                 insert or replace into entities
-                    (id, label, state, zone, first_seen, last_seen, attributes)
+                    (id, label_id, state_id, zone_id, first_seen, last_seen, attrs)
                 values (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(row["id"]),
-                    str(row["label"]),
-                    str(row["state"] or ""),
-                    zone_labels.get(str(row["zone_id"]), str(row["zone_id"] or "")),
+                    table.add(str(row["label"])),
+                    table.add(str(row["state"])),
+                    table.add(zone_labels.get(str(row["zone_id"]), "")),
                     row["first_seen"],
                     row["last_seen"],
                     str(row["attrs"] or "{}"),
                 ),
             )
-        for event in events:
-            vault.execute(
-                """
-                insert into events
-                    (t, kind, subject, relation, object, zone, confidence, source,
-                     caption, evidence_id, meta)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event["t"],
-                    event["kind"],
-                    event["subject"],
-                    event["relation"],
-                    event["object"],
-                    event["zone"],
-                    event["confidence"],
-                    event["source"],
-                    event["caption"],
-                    event.get("evidence_id"),
-                    json.dumps(event["meta"], separators=(",", ":")),
-                ),
-            )
-        for caption in captions:
-            vault.execute(
-                """
-                insert into captions (t_start, t_end, kind, text, tags, evidence_id)
-                values (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    caption["t_start"],
-                    caption["t_end"],
-                    caption["kind"],
-                    caption["text"],
-                    caption["tags"],
-                    caption["evidence_id"],
-                ),
-            )
         vault.executemany(
             "insert or replace into meta(key, value) values (?, ?)",
             [
-                ("schema_version", "vfm-0"),
+                ("schema_version", "vfm-v2"),
                 ("compiled_at", str(now)),
                 ("event_count", str(len(events))),
-                ("caption_count", str(len(captions))),
+                ("caption_windows", str(len(captions))),
+                ("event_blob_bytes", str(len(blob))),
+                ("caption_blob_bytes", str(len(captions_blob))),
+                ("video_retained", "0"),
             ],
         )
         vault.commit()
@@ -386,10 +377,13 @@ def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) ->
             "vault": str(out_db),
             "episode": episode_id,
             "events": len(events),
-            "captions": len(captions),
+            "caption_windows": len(captions),
             "entities": len(entities),
+            "event_blob_bytes": len(blob),
+            "caption_blob_bytes": len(captions_blob),
+            "vault_bytes": out_db.stat().st_size,
             "duration_s": round(duration, 3),
-            "bytes": out_db.stat().st_size,
+            "bytes_per_event": round(len(blob) / len(events), 2) if events else 0,
         }
     finally:
         vault.close()

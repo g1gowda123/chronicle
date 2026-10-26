@@ -169,3 +169,77 @@ All questions answered with the video path never touched. The vault is a single 
 4. Build a 30-question paraphrase/negative set; report per-category accuracy.
 5. Add a semantic answer cache and measure hit rate on paraphrases.
 6. Run the long-horizon test by concatenating cook/walking/desk episodes.
+
+---
+
+## 2026-10-27 — Session 3: compressed vault v2 + evidence snapshots
+
+### Built
+
+- `prototype/compact.py`:
+  - dictionary-encoded strings (uint16)
+  - struct-of-arrays event pack (`<IBHHHHBBH`, 17 B/event)
+  - zlib-compressed caption windows
+  - symmetric int8 vector quantization (float32 -> 1 scale + int8, 4x smaller)
+- `schema_v2.sql`: strings, event_pack, captions_blob, entities, evidence, embeddings, qa_cache.
+- v2 compiler: stable-state coalescing (occlusion flicker is dropped), one anchor per
+  (entity, relation, target), periodic 30 s scene anchors.
+- v2 query engine loads the packed blob into memory and answers with the same intents.
+- `prototype/extract_evidence.py`: seeks salient events in the video once, writes 640 px JPEGs,
+  records them in `evidence`, optionally deletes the video.
+- `prototype/report.py`: one-file offline HTML memory browser (timeline + entity filter + embedded
+  evidence gallery). No video, no external JS, no network.
+- Tests for dictionary/pack/compression/quantization and the compile→query path.
+
+### Measured (Aria cook, 45 s, 11 entities)
+
+| Metric | v0 | v2 |
+|---|---:|---:|
+| Vault | 300 KB | **76 KB** |
+| Events | 259 | **122** |
+| Event storage | SQLite rows | **2,086 B blob (17.1 B/event)** |
+| Caption storage | text rows | **429 B zlib** |
+| Vault / video | 9.8% | **2.48%** |
+| Query p50 | 0.05 ms | **0.04 ms** |
+| Accuracy (10-question set) | 10/10 | 10/10 |
+
+Evidence pass: **15 snapshots, 674 KB** (avg 45 KB), video deleted. Combined memory ~750 KB
+for a 2.99 MB clip. The snapshot cap is 40, so a one-hour episode does not grow linearly:
+~40 × 45 KB ≈ 1.8 MB + ~0.3 MB vault, i.e. roughly **2 MB/hour vs ~240 MB/hour of video (<1%)**.
+
+Generated report: 122 events + 15 embedded snapshots -> **915 KB single HTML file**.
+
+### What worked
+
+- Packed arrays are the big win: 17 B/event vs SQLite row overhead. The event blob is now
+  smaller than the string dictionary for short episodes.
+- Dropping OCCLUDED/OUT_OF_VIEW flicker cut events from 259 to 122 without losing the state
+  history that queries need (entity table still carries the current state).
+- The query engine can load the whole event pack in memory; latency is effectively zero.
+- The HTML report makes the memory tangible without a video player.
+
+### What is still weak
+
+- 122 events for 45 s is still high. The snapshot selector already filters, but the *ledger*
+  could coalesce VISIBLE_STATIC/VISIBLE_MOVING runs too. Target 40–60 events/45 s.
+- Snapshots dominate bytes (674 KB vs 76 KB vault). Options: 480 px / q75, WebP, or one
+  snapshot per 2 events. Measure quality vs size.
+- Vault 76 KB includes ~70 KB of SQLite fixed overhead; per-hour scaling is what matters.
+- The 10-question set is self-defined. Need a paraphrase/negative set and per-category reporting.
+- Evidence extraction needs OpenCV (main venv), while query/compile/report are stdlib-only.
+
+### Decisions
+
+- Keep the packed v2 layout. It is simple, deterministic and already 4x smaller.
+- The video is deleted after evidence extraction in the recommended flow; queries never touch it.
+- Do not add embeddings yet. Int8 quantization is implemented and tested, but there is no
+  caption embedder in the prototype. Add it only after the caption ledger exists.
+
+### Next
+
+1. Caption ledger from a strong offline VLM (30 s/60 s windows), zlib-compressed.
+2. Snapshot quality/size sweep: 480/640 px, q70/82, WebP; pick the knee.
+3. Coalesce state runs; target 40–60 events/45 s.
+4. 30-question paraphrase/negative set + per-category accuracy.
+5. Semantic answer cache experiment.
+6. 10/30/60-minute concatenated episodes; verify size/latency scaling.

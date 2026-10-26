@@ -108,9 +108,9 @@ how often pixels are actually needed.
 - The same episode is queried many times; recomputing is waste.
 - Storing only captions/graph/JPEGs is privacy-preserving and portable.
 
-## 6. Vault schema (v0)
+## 6. Vault schema
 
-See `schema.sql`. Key tables:
+See `schema_v2.sql` for the packed layout and `schema.sql` for the legacy row layout. Key tables:
 
 - `episodes` — one row per compiled episode, source metadata, `video_retained=0`.
 - `entities` — current and first/last seen state.
@@ -123,7 +123,26 @@ See `schema.sql`. Key tables:
 Indexes: `events(t)`, `events(subject, t)`, `events(kind, t)`, `captions(t_start, t_end)`,
 `qa_cache(question_hash)`.
 
-## 7. Query API (v0 prototype)
+## 7. Storage engineering (v2, implemented)
+
+The v2 prototype replaces one SQLite row per event with four compression layers:
+
+| Layer | Technique | Result |
+|---|---|---|
+| Strings | dictionary-encoded to uint16 | labels/zones/relations stored once |
+| Events | struct-of-arrays pack `<IBHHHHBBH>` | **17 B/event** |
+| Captions | zlib JSON, 30 s windows | **429 B for the cook episode** |
+| Vectors (future) | float32 scale + int8 values | **512-d: 2,048 B -> 516 B** |
+
+The current v2 numbers (Aria cook, 45 s, 11 entities): 122 events, 2,086 B event blob,
+76 KB total vault, 0.04 ms p50 query latency. The walking episode (60 s) compiles to
+76 KB, **0.56% of the 13.18 MB video**.
+
+Evidence is the dominant cost, not the ledger: 15 JPEGs at 640 px/q82 = 674 KB. The selector
+caps at 40 snapshots, so a one-hour episode targets ~2 MB of memory per hour, independent of
+video length.
+
+## 8. Query API (v0 prototype)
 
 `query.py` supports:
 
@@ -137,7 +156,7 @@ No LLM. Output is JSON: `answer`, `citations`, `evidence`, `confidence`, `method
 This is deliberately unambitious: if SQL/regex cannot answer the demo questions, the vault is
 missing structure, not intelligence.
 
-## 8. Radical ideas (ranked)
+## 9. Radical ideas (ranked)
 
 | # | Idea | Impact | Feasibility | Notes |
 |---|------|--------|-------------|-------|
@@ -152,7 +171,7 @@ missing structure, not intelligence.
 | R9 | **Audio + speech ledger** | Medium | Medium | EgoCITE-style transcripts; cheap and high-value |
 | R10 | **Query-budget router** | Medium | High | Spend 0 ms / 100 ms / 2 s depending on confidence and question type |
 
-## 9. Experiments
+## 10. Experiments
 
 ### E1 — Size accounting
 
@@ -196,7 +215,7 @@ dependency. Target: 0 failures.
 Show that the vault contains no raw video; inspect the bytes. Export a vault and query it on a
 machine with no video and no model.
 
-## 10. Risks
+## 11. Risks
 
 - **Caption loss** — if the compiler misses an event, the vault cannot answer. Mitigation:
   over-caption, periodic anchors, and a frames-on-demand fallback.
@@ -209,7 +228,7 @@ machine with no video and no model.
 - **Benchmark cherry-picking** — 30 questions is not a paper. Report per-category accuracy and
   failures, not just the mean.
 
-## 11. What "done" looks like
+## 12. What "done" looks like
 
 - A 45–60 s episode compiles to a vault <5 MB with no video.
 - 90% of a 30-question set answers without any vision model at query time.

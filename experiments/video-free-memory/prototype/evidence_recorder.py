@@ -19,9 +19,10 @@ from __future__ import annotations
 
 import json
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 MAX_WIDTH = 640
 JPEG_QUALITY = 82
