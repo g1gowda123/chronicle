@@ -95,9 +95,11 @@ bounded ingestion) to write `evidence/` beside the episode database.
 1. **30 minutes before:** `./chronicle.sh preflight --warm-llm`
 2. **Fix every `FAIL`.** A `WARN` is acceptable only if you know which fallback
    will show on screen.
-3. **Start the dashboard:** `./chronicle.sh start tabletop`
+3. **Start the canonical operator dashboard:** `./chronicle.sh start tabletop`
 4. **Open** <http://127.0.0.1:8080> and confirm the source dropdown lists
-   `synthetic`, `tabletop`, `cook`, `play`, `walking`.
+   `synthetic`, `tabletop`, `cook`, `play`, `walking`. The zine mission control
+   (`./chronicle.sh mission`, port 8081) is optional and separate; it is not
+   part of the operator-dashboard preflight.
 5. **Switch to each clip** you plan to show and confirm the video plays.
 6. **Ask one grounded question per clip**; confirm the answer has a citation
    and a supporting frame.

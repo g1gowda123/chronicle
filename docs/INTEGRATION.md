@@ -45,6 +45,23 @@ chronicle serve --source synthetic
 `docs/DEMO_PREFLIGHT.md` explains each preflight check and the stage-day
 checklist; `--json` gives the same result to CI.
 
+## Two dashboards, one canonical entry point
+
+The repository ships two deliberately separate surfaces. They share the event
+contract but not a process, port, or purpose:
+
+| Entry point | Default port | Purpose | Use for the demo? |
+| --- | ---: | --- | --- |
+| `./chronicle.sh start [source]` / `chronicle serve` | 8080 | **Operator dashboard.** Live A→B→C ingestion, source dropdown, graph/timeline/tables, GraphRAG chat, export/import. | **Yes — canonical.** |
+| `./chronicle.sh mission` / `python run_dashboard.py` | 8081 | **Zine mission control.** Standalone Role D demo/replay surface (`dashboard/`) with demo replay, JSONL replay, SQLite producer or live `POST /api/ingest`. | Optional second screen; never required for the operator walkthrough. |
+
+`chronicle serve` is the single entry point for the spec’s ten-minute script. It
+is the only dashboard backed directly by `ChronicleRuntime` and the only one
+whose `./chronicle.sh preflight` checks cover. `run_dashboard.py` is a
+standalone mission-control view for the bundled demo and for producers that
+speak the event contract; use it when you specifically want the zine layout or
+live-ingest endpoint, not as a replacement for the operator dashboard.
+
 ## Responsibilities
 
 | Concern | Owner | Runtime behaviour |

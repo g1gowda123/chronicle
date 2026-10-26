@@ -59,7 +59,7 @@ PR so parallel work does not collide.
 | NB-20 | P1 | Add living-room furniture labels and stop armchair/sofa conflation | Graph / Perception | READY | unclaimed |
 | NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | DONE | opencode (AI) |
 | NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | DONE | opencode (AI) |
-| NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | READY | unclaimed |
+| NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | IN PROGRESS | opencode (AI) |
 | NB-14 | P2 | Search and filter actions / transitions | UI | READY | unclaimed |
 | NB-15 | P2 | Colour filter dropdown for entities | UI | READY | unclaimed |
 | NB-16 | P2 | Export evidence frames with the snapshot | UI / Integration | READY | unclaimed |
@@ -188,7 +188,8 @@ PR so parallel work does not collide.
 ## P2 — polish
 
 ### NB-13 · Retire or clearly separate the duplicate dashboard
-- **Status:** READY · **Owner:** unclaimed · **Lane:** UI / Docs
+- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** UI / Docs
+- **Started:** 2026-10-27 · **Branch:** `task/nb-13-dashboard-docs`
 - **Why:** the spec lists both `chronicle serve` (operator dashboard) and
   `run_dashboard.py` (mission-control dashboard). Keeping both without labels
   confuses teammates and judges.

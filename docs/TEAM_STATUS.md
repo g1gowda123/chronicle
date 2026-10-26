@@ -40,6 +40,18 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### NB-13 — dashboard entry points documented
+
+- Added a “Two dashboards, one canonical entry point” table to
+  `docs/INTEGRATION.md`:
+  - `./chronicle.sh start` / `chronicle serve` on `:8080` is the **canonical
+    operator dashboard** used by the ten-minute script and preflight.
+  - `./chronicle.sh mission` / `python run_dashboard.py` on `:8081` is the
+    standalone zine mission control for demo replay, JSONL/SQLite producers or
+    live `POST /api/ingest`; it is optional and not a replacement.
+- Updated `README.md` and `docs/DEMO_PREFLIGHT.md` to name the canonical entry
+  point explicitly and mark mission control as the optional second screen.
+
 ### NB-11 — SQLite write throttling
 
 - Added `persistence_interval_s = 0.5` to `ChronicleMemory`. Entity and support
