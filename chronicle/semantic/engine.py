@@ -23,6 +23,7 @@ from .embedders import ImageEmbedder, build_embedder
 from .florence import build_captioner
 from .graphrag import GraphContext, GraphRAG, QueryAnswer
 from .llm import ChatClient, build_chat_client
+from .queue import VerificationService
 from .temporal_strip import TemporalStrip, TemporalStripCompositor
 from .verification import ActionVerifier
 from .vpr import PlaceMatch, VisualPlaceRecognizer
@@ -76,6 +77,9 @@ class SemanticEngine:
     graphrag: GraphRAG = field(init=False)
     verifier: ActionVerifier = field(init=False)
     compositor: TemporalStripCompositor = field(init=False)
+    _verification_service: VerificationService | None = field(
+        init=False, default=None, repr=False
+    )
 
     def __post_init__(self) -> None:
         self.config.validate()
@@ -249,6 +253,49 @@ class SemanticEngine:
             hand=getattr(clip, "hand", None),
             max_ios=getattr(clip, "max_ios", None),
         )
+
+    # ------------------------------------------------------------------
+    # Stage 2b: bounded verification queue
+    # ------------------------------------------------------------------
+    def verification_service(
+        self,
+        *,
+        max_pending: int | None = None,
+        policy: str | None = None,
+        dedup_window: int | None = None,
+    ) -> VerificationService:
+        """Lazily build the Role C verification queue for this engine."""
+        if self._verification_service is None:
+            self._verification_service = VerificationService(
+                engine_provider=lambda: self,
+                max_pending=(
+                    self.config.verification_queue_size
+                    if max_pending is None
+                    else max_pending
+                ),
+                policy=(
+                    self.config.verification_queue_policy
+                    if policy is None
+                    else policy
+                ),
+                dedup_window=(
+                    self.config.verification_dedup_window
+                    if dedup_window is None
+                    else dedup_window
+                ),
+            )
+        return self._verification_service
+
+    def submit_clip(self, clip: Any) -> bool:
+        """Queue an ``InteractionClip``; returns False if duplicate/rejected."""
+        return self.verification_service().submit(clip)
+
+    def drain_verifications(self) -> int:
+        """Verify every pending clip inline; returns the number processed."""
+        return self.verification_service().drain()
+
+    def queue_stats(self) -> dict[str, Any]:
+        return self.verification_service().stats().to_dict()
 
     # ------------------------------------------------------------------
     # Stage 3: GraphRAG answer generation

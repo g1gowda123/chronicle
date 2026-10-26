@@ -54,6 +54,7 @@ dev = [
 chronicle = "chronicle.cli:main"
 chronicle-perception = "chronicle.perception.cli:main"
 chronicle-semantic-demo = "chronicle.semantic.demo:main"
+chronicle-semantic-eval = "chronicle.semantic.evaluation:main"
 
 [tool.setuptools.packages.find]
 include = ["chronicle*"]

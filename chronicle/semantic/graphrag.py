@@ -638,7 +638,10 @@ def template_answer(query: str, context: GraphContext) -> QueryAnswer:
                 _score_fact(fact, label, tokens),
             ),
         )
-    elif any(phrase in query_lower for phrase in ("what did", "happen", "action", "do with")):
+    elif any(
+        phrase in query_lower
+        for phrase in ("what did", "happen", "action", "do with", "when")
+    ):
         best = max(
             entity_facts,
             key=lambda fact: (

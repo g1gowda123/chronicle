@@ -103,21 +103,32 @@ anchor per physical sofa, and `memory.stats()` reports the merges.
 **Goal:** fewer VLM calls, higher action precision, answers that never invent a
 location.
 
-- [ ] Add a bounded verification queue with backpressure and clip de-duplication
-  (same `clip_id` must not be verified twice).
-- [ ] Calibrate action confidence on labelled clips; reject low-confidence
+- [x] Add a bounded verification queue with backpressure and clip de-duplication
+  (same `clip_id` must not be verified twice). `chronicle/semantic/queue.py`.
+- [x] Calibrate action confidence on labelled clips; reject low-confidence
   `OTHER`/ambiguous captions instead of writing weak actions.
-- [ ] Extract `container` from the strip/caption reliably; add tests for
-  `INSERT_INTO` / `REMOVE_FROM`.
-- [ ] Add a GraphRAG evaluation set: exact location, last-seen time, action,
-  and “I don’t know” cases. Track citation precision.
-- [ ] Keep the offline template path as the reference answer; any LLM answer
+  `calibration.py` + `DEFAULT_ACTION_THRESHOLDS`.
+- [x] Extract `container` from the strip/caption reliably; add tests for
+  `INSERT_INTO` / `REMOVE_FROM`. `extract_container()` / `resolve_container()`.
+- [x] Add a GraphRAG evaluation set: exact location, last-seen time, action,
+  and “I don’t know” cases. Track citation precision. `evaluation.py`
+  (7 cases, currently 100 % pass / 100 % citation precision).
+- [x] Keep the offline template path as the reference answer; any LLM answer
   without a verifiable citation must fall back.
-- [ ] Emit queue depth / verification latency on the telemetry bus so the
-  dashboard can show it.
+- [x] Emit queue depth / verification latency on the telemetry bus so the
+  dashboard can show it. `QUEUE_DEPTH`, `QUEUE_BACKPRESSURE`,
+  `VERIFICATION_LATENCY`, plus `runtime.verification_stats`.
 
 **Done when:** the HoloLens clip’s verified actions match the labelled timeline
 within tolerance, and a hallucinated timestamp is always rejected.
+
+**Role C note (this push):** all six items landed with model-free tests
+(`tests/test_verification_queue.py`, `tests/test_calibration.py`,
+`tests/test_evaluation.py`). The only cross-role edit is the internal
+`_clip_queue` / `_drain_clips` seam in `chronicle/integration.py` (bounded queue
++ latency marks); `ChronicleRuntime`'s public API and snapshot schema are
+unchanged. Ambient caption phrasing still needs a labelled HoloLens pass before
+the “done when” line can be ticked.
 
 ### Role D — dashboard and product surface
 

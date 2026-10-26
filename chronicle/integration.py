@@ -25,7 +25,6 @@ from __future__ import annotations
 import copy
 import json
 import logging
-import queue
 import threading
 import time
 import urllib.request
@@ -48,6 +47,7 @@ from chronicle.perception.pipeline import PerceptionPipeline
 from chronicle.semantic.config import SemanticConfig
 from chronicle.semantic.engine import SemanticEngine
 from chronicle.semantic.graphrag import Fact, GraphContext, QueryAnswer
+from chronicle.semantic.queue import VerificationQueue
 from chronicle.telemetry import EventBus, TelemetryTag
 from chronicle.types import (
     FrameResult,
@@ -177,7 +177,24 @@ class ChronicleRuntime:
             load=load,
         )
 
-        self._clip_queue: queue.Queue[InteractionClip] = queue.Queue()
+        self._clip_queue = VerificationQueue(
+            max_pending=(
+                self._semantic_config.verification_queue_size
+                if self._semantic_config is not None
+                else 8
+            ),
+            policy=(
+                self._semantic_config.verification_queue_policy
+                if self._semantic_config is not None
+                else "drop_oldest"
+            ),
+            dedup_window=(
+                self._semantic_config.verification_dedup_window
+                if self._semantic_config is not None
+                else 1024
+            ),
+            on_event=self._on_verification_event,
+        )
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
         self._pipeline: PerceptionPipeline | None = None
@@ -349,20 +366,29 @@ class ChronicleRuntime:
             self._detections += len(result.detections)
 
     def _queue_clip(self, clip: InteractionClip) -> None:
-        self._clip_queue.put(clip)
+        self._clip_queue.submit(clip)
 
     def _drain_clips(self) -> None:
         while True:
-            try:
-                clip = self._clip_queue.get_nowait()
-            except queue.Empty:
+            item = self._clip_queue.get_nowait()
+            if item is None:
                 return
-            self._verify_clip(clip)
+            clip, submitted_at = item
+            try:
+                ok = self._verify_clip(clip)
+            except Exception:  # defensive: _verify_clip should catch its own errors
+                logger.exception("clip verification crashed for %s", clip.clip_id)
+                ok = False
+            latency = max(0.0, time.monotonic() - submitted_at)
+            if ok:
+                self._clip_queue.mark_verified(latency)
+            else:
+                self._clip_queue.mark_failed(latency)
 
-    def _verify_clip(self, clip: InteractionClip) -> None:
+    def _verify_clip(self, clip: InteractionClip) -> bool:
         engine = self._ensure_semantic()
         if engine is None:
-            return
+            return False
         try:
             context_hint = str(
                 clip.metadata.get("context_hint")
@@ -381,7 +407,7 @@ class ChronicleRuntime:
                     action=action.action.value,
                     confidence=round(action.confidence, 3),
                 )
-                return
+                return True
             entity_id = self.memory.foreground.entity_for_track(
                 clip.track_id,
                 label=clip.label,
@@ -395,7 +421,7 @@ class ChronicleRuntime:
                     track=clip.track_id,
                     label=clip.label,
                 )
-                return
+                return True
             evidence = action.to_dict()
             evidence.update(
                 {
@@ -417,6 +443,7 @@ class ChronicleRuntime:
             )
             with self._lock:
                 self._actions += 1
+            return True
         except Exception as exc:  # a semantic failure must never stop ingestion
             self.bus.vlm(
                 "clip verification failed",
@@ -425,6 +452,7 @@ class ChronicleRuntime:
                 error=repr(exc),
             )
             logger.exception("clip verification failed for %s", clip.clip_id)
+            return False
 
     # ------------------------------------------------------------------ queries
     def ask(self, query: str) -> RuntimeAnswer:
@@ -765,6 +793,16 @@ class ChronicleRuntime:
                 on_event=self._on_semantic_event,
             )
             return self._semantic
+
+    def _on_verification_event(
+        self, tag: str, event: str, message: str, data: dict[str, Any]
+    ) -> None:
+        """Forward Role C queue metrics to the same bus the dashboard reads."""
+        self.bus.emit(tag, message, None, **data)
+
+    @property
+    def verification_stats(self) -> dict[str, Any]:
+        return self._clip_queue.stats().to_dict()
 
     def _on_semantic_event(self, payload: dict[str, Any]) -> None:
         tag = str(payload.get("tag") or "VLM")

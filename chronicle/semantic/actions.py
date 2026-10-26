@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any
 
@@ -62,6 +62,248 @@ class ActionVerification:
 
 def _normalise_action_key(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
+
+
+# Calibrated acceptance cutoffs.  The rule classifier's confidences sit at or
+# above these values; the LLM path is held to the same bar per action so a
+# high-scoring ``HOLD`` is not accepted at the same confidence as ``OPEN``.
+# ``OTHER`` is never accepted (``accepted`` also excludes it explicitly).
+DEFAULT_ACTION_THRESHOLDS: tuple[tuple[str, float], ...] = (
+    ("PICK_UP", 0.55),
+    ("PUT_DOWN", 0.60),
+    ("INSERT_INTO", 0.60),
+    ("REMOVE_FROM", 0.60),
+    ("OPEN", 0.60),
+    ("CLOSE", 0.60),
+    ("PUSH", 0.55),
+    ("PULL", 0.55),
+    ("HAND_OFF", 0.60),
+    ("HOLD", 0.55),
+    ("OTHER", 1.0),
+)
+
+# Captions with hedging language are treated as evidence-poor.  The VLM bases
+# its answer on three small panels, so "appears to..." is not a verified action.
+_AMBIGUOUS_RE = re.compile(
+    r"\b(?:maybe|possibly|perhaps|might|unclear|unsure|uncertain|cannot tell|"
+    r"can't tell|hard to tell|difficult to tell|appears?|seems?|probably|"
+    r"presumably|looks like|looks as if)\b|\?",
+    re.IGNORECASE,
+)
+
+_CONTAINER_CONNECTORS = (
+    "out of",
+    "out from",
+    "from inside",
+    "from within",
+    "into",
+    "inside",
+    "within",
+    "from",
+    "onto",
+    "off",
+    "in",
+    "on",
+)
+_CONTAINER_ATTRS = r"(?:(?:the|a|an|his|her|their|my|our|its)\s+)?"
+_CONTAINER_PATTERN = re.compile(
+    r"\b(?P<connector>"
+    + "|".join(re.escape(item) for item in _CONTAINER_CONNECTORS)
+    + r")\s+"
+    + _CONTAINER_ATTRS
+    + r"(?P<phrase>[a-z][a-z0-9_'-]*(?:\s+[a-z][a-z0-9_'-]*){0,3})",
+    re.IGNORECASE,
+)
+_CONTAINER_TRIM = frozenset(
+    {
+        "and",
+        "then",
+        "before",
+        "after",
+        "while",
+        "with",
+        "to",
+        "into",
+        "onto",
+        "inside",
+        "within",
+        "from",
+        "out",
+        "off",
+        "on",
+        "at",
+        "by",
+        "for",
+        "of",
+        "the",
+        "a",
+        "an",
+        "as",
+        "that",
+        "which",
+        "when",
+    }
+)
+# "in the view", "into frame", "from the hand" are not containers.
+_CONTAINER_BLOCKLIST = frozenset(
+    {
+        "view",
+        "frame",
+        "shot",
+        "scene",
+        "air",
+        "hand",
+        "hands",
+        "place",
+        "area",
+        "background",
+        "foreground",
+        "front",
+        "back",
+        "top",
+        "bottom",
+        "it",
+        "them",
+        "this",
+        "that",
+        "here",
+        "there",
+        "mind",
+        "memory",
+        "question",
+        "video",
+        "image",
+        "camera",
+        "person",
+        "user",
+        "way",
+    }
+)
+_INSERT_CONNECTORS = {"in", "into", "inside", "within", "on", "onto"}
+_REMOVE_CONNECTORS = {"out of", "out from", "from inside", "from within", "from", "off"}
+
+
+def is_ambiguous_caption(text: str) -> bool:
+    """True when a caption hedges instead of asserting what happened."""
+    return bool(_AMBIGUOUS_RE.search(text or ""))
+
+
+def _clean_container(phrase: str) -> str | None:
+    tokens: list[str] = []
+    for raw in re.split(r"\s+", phrase.strip(" .,;:!?\"'()[]")):
+        token = raw.strip(".,;:!?\"'").lower()
+        if not token or token in _CONTAINER_TRIM:
+            break
+        tokens.append(token)
+        if len(tokens) == 3:
+            break
+    if not tokens or tokens[0] in _CONTAINER_BLOCKLIST:
+        return None
+    joined = " ".join(tokens)
+    return None if joined in _CONTAINER_BLOCKLIST else joined
+
+
+def extract_container(
+    text: str,
+    *,
+    action: ActionPrimitive | None = None,
+) -> str | None:
+    """Extract the receptacle/place from a caption such as
+    "puts the keys into the open drawer".
+
+    When ``action`` is known the connector family is preferred (``from`` for
+    ``REMOVE_FROM``, ``into`` for ``INSERT_INTO``); otherwise the first
+    plausible phrase wins.  Returns a lowercase noun phrase or ``None``.
+    """
+    if not text:
+        return None
+    matches = list(_CONTAINER_PATTERN.finditer(text))
+    if not matches:
+        return None
+
+    preferred: set[str] | None = None
+    if action is ActionPrimitive.INSERT_INTO:
+        preferred = _INSERT_CONNECTORS
+    elif action is ActionPrimitive.REMOVE_FROM:
+        preferred = _REMOVE_CONNECTORS
+
+    ordered = matches
+    if preferred is not None:
+        ordered = sorted(
+            matches,
+            key=lambda match: 0
+            if match.group("connector").lower() in preferred
+            else 1,
+        )
+    for match in ordered:
+        cleaned = _clean_container(match.group("phrase"))
+        if cleaned:
+            return cleaned
+    return None
+
+
+def resolve_container(
+    *,
+    explicit: str | None = None,
+    caption: str = "",
+    context_hint: str = "",
+    action: ActionPrimitive | None = None,
+) -> str | None:
+    """Priority: caller-provided container > caption > pipeline hint."""
+    if explicit and str(explicit).strip():
+        return str(explicit).strip()
+    for text in (caption, context_hint):
+        found = extract_container(text, action=action)
+        if found:
+            return found
+    return None
+
+
+@dataclass(frozen=True)
+class ActionCalibrator:
+    """Apply per-action thresholds and reject evidence-poor captions.
+
+    ``thresholds`` are the calibrated cutoffs; ``floor`` is the global
+    ``action_min_confidence`` and always wins when it is higher.  Ambiguous
+    captions keep their (penalised) confidence for the review queue but are
+    never accepted as graph facts.
+    """
+
+    thresholds: tuple[tuple[str, float], ...] = DEFAULT_ACTION_THRESHOLDS
+    floor: float = 0.45
+    ambiguous_penalty: float = 0.6
+    reject_ambiguous: bool = True
+
+    def threshold(self, action: ActionPrimitive | str) -> float:
+        key = action.value if isinstance(action, ActionPrimitive) else str(action).upper()
+        configured: float | None = None
+        items = (
+            self.thresholds.items()
+            if isinstance(self.thresholds, Mapping)
+            else self.thresholds
+        )
+        for name, value in items:
+            if str(name).upper() == key:
+                configured = float(value)
+                break
+        return max(float(self.floor), configured) if configured is not None else float(self.floor)
+
+    def apply(
+        self,
+        result: ActionVerification,
+        *,
+        ambiguous: bool = False,
+    ) -> ActionVerification:
+        confidence = float(result.confidence)
+        if ambiguous and self.reject_ambiguous:
+            confidence *= float(self.ambiguous_penalty)
+        confidence = min(1.0, max(0.0, confidence))
+        accepted = (
+            result.action is not ActionPrimitive.OTHER
+            and confidence >= self.threshold(result.action)
+            and not (ambiguous and self.reject_ambiguous)
+        )
+        return replace(result, confidence=confidence, accepted=accepted)
 
 
 _ACTION_ALIASES: dict[str, ActionPrimitive] = {}
@@ -440,6 +682,7 @@ class RuleBasedActionClassifier:
         context_hint: str = "",
         timestamp: float | None = None,
         min_confidence: float = 0.45,
+        calibrator: ActionCalibrator | None = None,
     ) -> ActionVerification:
         payload = self.classify(
             caption,
@@ -455,22 +698,17 @@ class RuleBasedActionClassifier:
             caption=caption,
             timestamp=timestamp,
         )
-        accepted = (
-            result.action is not ActionPrimitive.OTHER
-            and result.confidence >= float(min_confidence)
-        )
-        return ActionVerification(
+        resolved = resolve_container(
+            explicit=container,
+            caption=caption,
+            context_hint=context_hint,
             action=result.action,
-            object_label=result.object_label,
-            container=result.container,
-            confidence=result.confidence,
-            evidence=result.evidence,
-            source=result.source,
-            caption=result.caption,
-            raw_response=raw,
-            timestamp=result.timestamp,
-            accepted=accepted,
         )
+        if resolved and not result.container:
+            result = replace(result, container=resolved)
+        active = calibrator or ActionCalibrator(floor=min_confidence)
+        ambiguous = is_ambiguous_caption(f"{caption} {context_hint}")
+        return active.apply(result, ambiguous=ambiguous)
 
 
 def action_schema_example() -> dict[str, Any]:

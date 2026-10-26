@@ -9,6 +9,7 @@ specification:
 | 1×3 temporal strip compositor for 30-frame interaction buffers | `chronicle/semantic/temporal_strip.py` |
 | Florence-2 `<MORE_DETAILED_CAPTION>` + strict JSON action classification | `chronicle/semantic/florence.py`, `actions.py`, `verification.py` |
 | GraphRAG interface between serialized subgraphs and a local LLM | `chronicle/semantic/graphrag.py`, `llm.py` |
+| Bounded verification queue, calibration and eval set | `chronicle/semantic/queue.py`, `calibration.py`, `evaluation.py` |
 | One facade + telemetry events | `chronicle/semantic/engine.py` |
 
 The code has **offline fallbacks** for every heavy dependency, so the pipeline,
@@ -71,7 +72,17 @@ engine = SemanticEngine(
 * `identify_zone()` triggers OpenCLIP (or the deterministic fallback) and
   Florence only when a **new** zone is created.
 * `verify_interaction()` triggers Florence once for the strip.
+* `submit_clip()` / `drain_verifications()` run the same verification through
+  the bounded queue (dedup + backpressure); `queue_stats()` is dashboard-safe.
 * `answer_query()` calls Ollama if reachable, otherwise a grounded template.
+
+```python
+service = engine.verification_service()      # bounded, dedup, telemetry
+service.queue.max_pending                    # 8 by default
+service.submit(clip)                         # False if duplicate / rejected
+service.drain()                              # or service.start() / stop()
+```
+
 
 ---
 
@@ -299,9 +310,27 @@ result.to_dict(include_preview=True)
 
 ### Actions needing review
 
-`action.accepted` is false when the action is `OTHER` or confidence is below
-`CHRONICLE_ACTION_MIN_CONFIDENCE` (default `0.45`). Use it to flag nodes in the
+`action.accepted` is false when the action is `OTHER`, the caption is
+ambiguous/hedged, or confidence is below the per-action threshold (never below
+`CHRONICLE_ACTION_MIN_CONFIDENCE`, default `0.45`). Use it to flag nodes in the
 drawer instead of writing low-quality action edges.
+
+### Queue depth and verification latency
+
+`VerificationQueue` emits one event per state change through the same
+`on_event` sink Role D already consumes:
+
+| Event | Payload |
+| --- | --- |
+| `QUEUE_DEPTH` | `depth`, `max_pending`, `clip` |
+| `QUEUE_BACKPRESSURE` | `clip`, `depth`, `dropped`, `policy` |
+| `CLIP_DEDUPLICATED` | `clip`, `duplicates` |
+| `VERIFICATION_LATENCY` | `latency_ms`, `avg_latency_ms`, `verified` |
+| `VERIFICATION_FAILED` | `latency_ms`, `failed` |
+
+The runtime also exposes `runtime.verification_stats` (a JSON-safe snapshot) if
+the dashboard prefers polling to events. Latency is measured from submission to
+graph update, so it includes queue wait, not just model time.
 
 ---
 
@@ -348,6 +377,47 @@ except ActionParseError as exc:
     ...
 ```
 
+### Container extraction
+
+When the caller does not supply a container, Role C extracts it from the
+caption (and then the pipeline hint):
+
+```python
+from chronicle.semantic import extract_container
+
+extract_container("puts the keys into the open drawer")      # "open drawer"
+extract_container("takes the charger out of the drawer",
+                  action=ActionPrimitive.REMOVE_FROM)        # "drawer"
+extract_container("within the bag")                          # "bag"
+extract_container("moves into the frame")                    # None
+```
+
+Priority is explicit argument > LLM JSON > caption > `context_hint`. The
+extractor is action-aware, so "out of the drawer ... into the pocket" resolves
+to `drawer` for `REMOVE_FROM` and `pocket` for `INSERT_INTO`.
+
+### Confidence calibration
+
+`DEFAULT_ACTION_THRESHOLDS` is a per-action acceptance cutoff (for example
+`HOLD` 0.55, `INSERT_INTO` 0.60, `OTHER` never). `ActionCalibrator` applies the
+cutoff, the global floor, and the ambiguity penalty. Captions containing
+"appears", "maybe", "unclear", "hard to tell" or a question mark are never
+accepted as graph facts, even at 0.95 confidence.
+
+To calibrate on labelled clips:
+
+```python
+from chronicle.semantic import calibrate_rule_classifier
+
+result = calibrate_rule_classifier()        # 16-caption offline seed set
+print(result.report.precision, result.report.recall)
+config = SemanticConfig(action_thresholds=result.thresholds)
+```
+
+`calibrate_rule_classifier(labels=[(caption, ActionPrimitive.PICK_UP), ...])`
+accepts your own labelled captions; `suggest_thresholds()` works on raw
+`CalibrationSample(action, confidence, correct)` values.
+
 ---
 
 ## 7. Configuration
@@ -364,7 +434,12 @@ Every field of `SemanticConfig` can be set with
 | `CHRONICLE_CLIP_PRETRAINED` | `laion2b_s34b_b79k` | OpenCLIP weights |
 | `CHRONICLE_DEVICE` | `auto` | `cpu`, `cuda`, `mps` |
 | `CHRONICLE_FLORENCE_MODEL_ID` | `microsoft/Florence-2-base` | captioner |
-| `CHRONICLE_ACTION_MIN_CONFIDENCE` | `0.45` | accept/review cutoff |
+| `CHRONICLE_ACTION_MIN_CONFIDENCE` | `0.45` | global accept/review floor |
+| `CHRONICLE_ACTION_REJECT_AMBIGUOUS` | `true` | reject hedged captions |
+| `CHRONICLE_ACTION_THRESHOLDS` | calibrated defaults | `HOLD=0.7,PICK_UP=0.8` |
+| `CHRONICLE_VERIFICATION_QUEUE_SIZE` | `8` | max clips waiting for the VLM |
+| `CHRONICLE_VERIFICATION_QUEUE_POLICY` | `drop_oldest` | `drop_oldest`, `reject` |
+| `CHRONICLE_VERIFICATION_DEDUP_WINDOW` | `1024` | clip ids remembered |
 | `CHRONICLE_LLM_BACKEND` | `auto` | `auto`, `ollama`, `transformers`, `template`, `none` |
 | `CHRONICLE_LLM_MODEL` | `qwen2.5:3b-instruct` | Ollama / HF model id |
 | `CHRONICLE_OLLAMA_URL` | `http://127.0.0.1:11434` | daemon URL |
@@ -394,13 +469,16 @@ to load `CHRONICLE_LLM_MODEL` with Hugging Face `pipeline("text-generation")`.
 
 ---
 
-## 9. Tests
+## 9. Tests and evaluation
 
 ```powershell
-python -m unittest discover -s tests -v
+python -m unittest discover -s tests -v   # 100 model-free tests
+python -m pytest                          # 192 collected across the repo
+python -m chronicle.semantic.demo         # offline end-to-end demo
+python -m chronicle.semantic.evaluation   # GraphRAG eval set (or -m chronicle-semantic-eval)
 ```
 
-58 tests cover:
+The Role C suite covers:
 
 * VPR create/relocalize/threshold/dedup/persistence;
 * temporal strip selection, sizing, dict/PIL inputs, edge cases;
@@ -409,7 +487,13 @@ python -m unittest discover -s tests -v
   template/LLM/fallback paths;
 * the end-to-end facade and telemetry contract;
 * Role A integration: `InteractionClip`/`ClipFrame` ingestion and the embedder
-  adapter.
+  adapter;
+* bounded queue: de-duplication, both backpressure policies, FIFO order,
+  latency stats, background worker, runtime seam;
+* container extraction for `INSERT_INTO` / `REMOVE_FROM`, ambiguity rejection,
+  per-action thresholds and threshold suggestion;
+* GraphRAG evaluation: 7 cases (location, time, action, remove, lost, zone-only,
+  unknown), 100 % citation precision, hallucinated-timestamp fallback.
 
 The suite has **no model downloads and no network access**.
 
@@ -421,6 +505,9 @@ The suite has **no model downloads and no network access**.
   followed by a text-only JSON classifier. Swapping in a vision-language model
   is a matter of replacing `ActionVerifier.chat_client` with a vision client;
   the schema and fallbacks stay unchanged.
+* Confidence calibration ships with a 16-caption seed set. Add labelled
+  HoloLens clips via `calibrate_rule_classifier(labels=...)` and commit the
+  resulting thresholds once the real timeline is labelled.
 * The deterministic embedder is intentionally not CLIP-quality. It exists for
   offline demos/tests; production must install `requirements-semantic-models.txt`.
 * Zone prototypes are in-memory + JSON by default. Role B can persist

@@ -13,14 +13,17 @@ from __future__ import annotations
 
 import json
 import math
+from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image, ImageDraw
 
 from .actions import ActionParseError, parse_action_json
+from .calibration import calibrate_rule_classifier
 from .config import SemanticConfig
 from .embedders import DeterministicImageEmbedder
 from .engine import SemanticEngine
+from .evaluation import evaluate_graphrag
 from .florence import StubCaptioner
 from .temporal_strip import FrameSample
 
@@ -176,6 +179,48 @@ def main() -> None:
     _banner("5. Zone deduplication pass")
     merged = engine.merge_duplicate_zones()
     print(f"merged={merged or 'none'} zones={len(engine.vpr)}")
+
+    _banner("6. Bounded verification queue (dedup + backpressure)")
+    service = engine.verification_service(max_pending=2)
+    clip_frames = buffer
+
+    def make_clip(clip_id: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            clip_id=clip_id,
+            track_id=3,
+            label="mug",
+            hand="Right",
+            frames=clip_frames,
+            contact_index=14,
+            contact_ts=12.0 + 14 / 30.0,
+            trigger="ios+dwell",
+            max_ios=0.74,
+            metadata={"container": "drawer"},
+        )
+
+    print(f"submit clip-a -> {service.submit(make_clip('clip-a'))}")
+    print(f"submit clip-b -> {service.submit(make_clip('clip-b'))}")
+    print(f"duplicate clip-a -> {service.submit(make_clip('clip-a'))}")
+    print(f"overflow clip-c -> {service.submit(make_clip('clip-c'))}")
+    print(f"pending={service.queue.pending_ids()}")
+    print(f"verified inline={service.drain()}")
+    stats = service.stats().to_dict()
+    print(
+        "stats: "
+        f"verified={stats['verified']} dropped={stats['dropped']} "
+        f"duplicates={stats['duplicates']} avg_latency_ms={stats['avg_latency_ms']}"
+    )
+
+    _banner("7. Calibrated action confidence + GraphRAG evaluation")
+    calibration = calibrate_rule_classifier()
+    report = calibration.report
+    print(
+        f"calibration: precision={report.precision:.2f} recall={report.recall:.2f} "
+        f"accepted={report.accepted}/{report.samples}"
+    )
+    eval_report = evaluate_graphrag(engine)
+    for line in eval_report.summary_lines():
+        print(line)
 
     _banner("Telemetry events emitted for Role D")
     for event in events:

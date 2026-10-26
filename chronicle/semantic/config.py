@@ -13,9 +13,24 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from .actions import DEFAULT_ACTION_THRESHOLDS
+
 
 def _as_bool(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _as_pairs(value: str) -> tuple[tuple[str, float], ...]:
+    pairs: list[tuple[str, float]] = []
+    for item in value.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        name, _, raw = item.partition("=")
+        if not raw:
+            raise ValueError(f"expected NAME=VALUE in {item!r}")
+        pairs.append((name.strip().upper(), float(raw)))
+    return tuple(pairs)
 
 
 @dataclass(frozen=True)
@@ -42,6 +57,13 @@ class SemanticConfig:
     florence_num_beams: int = 3
     action_min_confidence: float = 0.45
     action_task: str = "<MORE_DETAILED_CAPTION>"
+    action_reject_ambiguous: bool = True
+    action_thresholds: tuple[tuple[str, float], ...] = DEFAULT_ACTION_THRESHOLDS
+
+    # --- Bounded verification queue ---------------------------------------
+    verification_queue_size: int = 8
+    verification_queue_policy: str = "drop_oldest"  # drop_oldest | reject
+    verification_dedup_window: int = 1024
 
     # --- Local LLM (Ollama by default, transformers optional) -------------
     llm_backend: str = "auto"  # auto | ollama | transformers | template | none
@@ -67,6 +89,8 @@ class SemanticConfig:
                 values[field.name] = int(raw)
             elif isinstance(default, float):
                 values[field.name] = float(raw)
+            elif isinstance(default, tuple):
+                values[field.name] = _as_pairs(raw)
             else:
                 values[field.name] = raw
         return cls(**values)
@@ -83,6 +107,17 @@ class SemanticConfig:
             raise ValueError("vpr_prototype_ema must be in [0, 1]")
         if not 0.0 <= self.action_min_confidence <= 1.0:
             raise ValueError("action_min_confidence must be in [0, 1]")
+        for name, value in self.action_thresholds:
+            if not 0.0 <= float(value) <= 1.0:
+                raise ValueError(f"action threshold for {name!r} must be in [0, 1]")
+        if self.verification_queue_size < 1:
+            raise ValueError("verification_queue_size must be >= 1")
+        if self.verification_queue_policy not in {"drop_oldest", "reject"}:
+            raise ValueError(
+                f"unknown verification_queue_policy {self.verification_queue_policy!r}"
+            )
+        if self.verification_dedup_window < 0:
+            raise ValueError("verification_dedup_window must be >= 0")
         if self.strip_height <= 0 or self.strip_panel_width <= 0:
             raise ValueError("strip dimensions must be positive")
         if self.llm_backend not in {"auto", "ollama", "transformers", "template", "none"}:

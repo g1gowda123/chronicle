@@ -125,9 +125,12 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   ├── semantic/                           # Role C
 │   │   ├── vpr.py                          # OpenCLIP place recognition
 │   │   ├── temporal_strip.py               # 30-frame -> 1x3 composite
-│   │   ├── actions.py                      # strict action JSON boundary
+│   │   ├── actions.py                      # strict action JSON + containers
 │   │   ├── verification.py                 # Florence-2 + classifier
+│   │   ├── calibration.py                  # per-action thresholds + metrics
+│   │   ├── queue.py                        # bounded verification queue
 │   │   ├── graphrag.py                     # cited answers from 2-hop subgraph
+│   │   ├── evaluation.py                   # GraphRAG eval set + citation score
 │   │   └── engine.py                       # facade + telemetry events
 │   └── ui/                                 # Role D NiceGUI dashboard
 │       └── app.py                          # graph, timeline, tables, chat, log
@@ -188,7 +191,14 @@ with `PRE | CONTACT | POST` composites.
 ```bash
 pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
 python -m chronicle.semantic.demo
+python -m chronicle.semantic.evaluation    # GraphRAG eval: 7 cases, citation precision
 ```
+
+The demo exercises VPR, temporal strips, action verification, the bounded
+verification queue (dedup + backpressure + latency), confidence calibration and
+the GraphRAG evaluation set, then prints the telemetry the dashboard consumes.
+The suite is model-free: `python -m unittest discover -s tests` runs 100 tests
+and `python -m pytest` collects 192 across the repo.
 
 For the real OpenCLIP + Florence-2 stack and optional Ollama GraphRAG:
 

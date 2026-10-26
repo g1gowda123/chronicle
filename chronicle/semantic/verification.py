@@ -9,17 +9,19 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from ._utils import warn_once
 from .actions import (
+    ActionCalibrator,
     ActionParseError,
-    ActionPrimitive,
     ActionVerification,
     RuleBasedActionClassifier,
     action_schema_example,
+    is_ambiguous_caption,
     parse_action_json,
+    resolve_container,
 )
 from .config import SemanticConfig
 from .llm import ChatClient, LLMUnavailableError
@@ -77,23 +79,11 @@ def _with_acceptance(
     result: ActionVerification,
     *,
     min_confidence: float,
+    calibrator: ActionCalibrator | None = None,
+    ambiguous: bool = False,
 ) -> ActionVerification:
-    accepted = (
-        result.action is not ActionPrimitive.OTHER
-        and result.confidence >= float(min_confidence)
-    )
-    return ActionVerification(
-        action=result.action,
-        object_label=result.object_label,
-        container=result.container,
-        confidence=result.confidence,
-        evidence=result.evidence,
-        source=result.source,
-        caption=result.caption,
-        raw_response=result.raw_response,
-        timestamp=result.timestamp,
-        accepted=accepted,
-    )
+    active = calibrator or ActionCalibrator(floor=min_confidence)
+    return active.apply(result, ambiguous=ambiguous)
 
 
 @dataclass
@@ -105,7 +95,16 @@ class ActionVerifier:
     rule_classifier: RuleBasedActionClassifier = field(
         default_factory=RuleBasedActionClassifier
     )
+    calibrator: ActionCalibrator | None = None
     last_parse_error: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.calibrator is None:
+            self.calibrator = ActionCalibrator(
+                thresholds=self.config.action_thresholds,
+                floor=self.config.action_min_confidence,
+                reject_ambiguous=self.config.action_reject_ambiguous,
+            )
 
     def verify(
         self,
@@ -143,12 +142,21 @@ class ActionVerifier:
         """Classify an existing caption (handy for tests and batch re-runs)."""
         self.last_parse_error = None
         caption = (caption or "").strip()
+        explicit_container = (
+            str(container).strip() if container and str(container).strip() else None
+        )
+        prompt_container = resolve_container(
+            explicit=explicit_container,
+            caption=caption,
+            context_hint=context_hint,
+        )
+        ambiguous = is_ambiguous_caption(f"{caption} {context_hint}")
 
         if self.chat_client is not None:
             prompt = build_action_prompt(
                 entity_label=entity_label,
                 caption=caption,
-                container=container,
+                container=prompt_container,
                 context_hint=context_hint,
                 timestamp=timestamp,
             )
@@ -180,8 +188,12 @@ class ActionVerifier:
                         caption=caption,
                         timestamp=timestamp,
                     )
-                return _with_acceptance(
-                    parsed, min_confidence=self.config.action_min_confidence
+                return self._finalize(
+                    parsed,
+                    explicit=explicit_container,
+                    caption=caption,
+                    context_hint=context_hint,
+                    ambiguous=ambiguous,
                 )
             except (ActionParseError, LLMUnavailableError) as exc:
                 self.last_parse_error = str(exc)
@@ -194,10 +206,36 @@ class ActionVerifier:
         return self.rule_classifier.verification(
             caption,
             entity_label,
-            container=container,
+            container=explicit_container,
             context_hint=context_hint,
             timestamp=timestamp,
             min_confidence=self.config.action_min_confidence,
+            calibrator=self.calibrator,
+        )
+
+    def _finalize(
+        self,
+        result: ActionVerification,
+        *,
+        explicit: str | None,
+        caption: str,
+        context_hint: str,
+        ambiguous: bool,
+    ) -> ActionVerification:
+        container = explicit or result.container
+        if not container:
+            container = resolve_container(
+                caption=caption,
+                context_hint=context_hint,
+                action=result.action,
+            )
+        if container and container != result.container:
+            result = replace(result, container=container)
+        return _with_acceptance(
+            result,
+            min_confidence=self.config.action_min_confidence,
+            calibrator=self.calibrator,
+            ambiguous=ambiguous,
         )
 
     def _caption(self, image: Any, context_hint: str) -> tuple[str, str]:

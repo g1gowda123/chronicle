@@ -10,13 +10,28 @@ Public surface used by the rest of Chronicle:
 """
 
 from .actions import (
+    DEFAULT_ACTION_THRESHOLDS,
+    ActionCalibrator,
     ActionParseError,
     ActionPrimitive,
     ActionVerification,
     RuleBasedActionClassifier,
+    extract_container,
+    is_ambiguous_caption,
     parse_action_json,
+    resolve_container,
 )
 from .adapters import PerceptionEmbedderAdapter, adapt_embedder
+from .calibration import (
+    CALIBRATION_CAPTIONS,
+    CalibrationReport,
+    CalibrationResult,
+    CalibrationSample,
+    calibrate_rule_classifier,
+    calibrator_from_samples,
+    evaluate_calibration,
+    suggest_thresholds,
+)
 from .config import SemanticConfig
 from .embedders import (
     DeterministicImageEmbedder,
@@ -50,6 +65,7 @@ from .llm import (
     TransformersChatClient,
     build_chat_client,
 )
+from .queue import QueueStats, VerificationQueue, VerificationService
 from .temporal_strip import (
     FrameSample,
     TemporalStrip,
@@ -59,19 +75,52 @@ from .temporal_strip import (
 from .verification import ActionVerifier
 from .vpr import PlaceMatch, VisualPlaceRecognizer, Zone, build_vpr
 
+# Imported lazily so `python -m chronicle.semantic.evaluation` does not trip
+# runpy's "found in sys.modules" warning.  `from chronicle.semantic import
+# evaluate_graphrag` and `import chronicle.semantic.evaluation` both still work.
+_LAZY_EVALUATION = frozenset(
+    {
+        "DEFAULT_GRAPHRAG_CASES",
+        "CaseOutcome",
+        "EvaluationReport",
+        "GraphRAGCase",
+        "evaluate_graphrag",
+    }
+)
+
+
+def __getattr__(name: str):
+    if name in _LAZY_EVALUATION:
+        from . import evaluation
+
+        value = getattr(evaluation, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 __all__ = [
+    "CALIBRATION_CAPTIONS",
+    "DEFAULT_ACTION_THRESHOLDS",
+    "DEFAULT_GRAPHRAG_CASES",
+    "ActionCalibrator",
     "ActionParseError",
     "ActionPrimitive",
     "ActionVerification",
     "ActionVerifier",
+    "CalibrationReport",
+    "CalibrationResult",
+    "CalibrationSample",
+    "CaseOutcome",
     "ChatClient",
     "Citation",
     "DeterministicImageEmbedder",
+    "EvaluationReport",
     "Fact",
     "FlorenceCaptioner",
     "FrameSample",
     "GraphContext",
     "GraphRAG",
+    "GraphRAGCase",
     "ImageEmbedder",
     "InteractionVerification",
     "LLMUnavailableError",
@@ -82,6 +131,7 @@ __all__ = [
     "PerceptionEmbedderAdapter",
     "PlaceMatch",
     "QueryAnswer",
+    "QueueStats",
     "RuleBasedActionClassifier",
     "SemanticConfig",
     "SemanticEngine",
@@ -89,6 +139,8 @@ __all__ = [
     "TemporalStrip",
     "TemporalStripCompositor",
     "TransformersChatClient",
+    "VerificationQueue",
+    "VerificationService",
     "VisualPlaceRecognizer",
     "Zone",
     "adapt_embedder",
@@ -97,9 +149,17 @@ __all__ = [
     "build_embedder",
     "build_temporal_strip",
     "build_vpr",
+    "calibrate_rule_classifier",
+    "calibrator_from_samples",
+    "evaluate_calibration",
+    "evaluate_graphrag",
     "extract_citations",
+    "extract_container",
     "format_context",
+    "is_ambiguous_caption",
     "parse_action_json",
+    "resolve_container",
     "serialize_subgraph",
+    "suggest_thresholds",
     "template_answer",
 ]
