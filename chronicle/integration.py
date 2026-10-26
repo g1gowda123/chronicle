@@ -32,7 +32,7 @@ import re
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +41,11 @@ from chronicle.config import (
     STATIC_FURNITURE_LABELS,
     FurnitureConfig,
     Thresholds,
+)
+from chronicle.frames import (
+    FrameCandidate,
+    extract_video_frame_data_url,
+    latest_citation_time,
 )
 from chronicle.graph.ids import raw_entity_id
 from chronicle.graph.memory import ChronicleMemory
@@ -114,6 +119,7 @@ class RuntimeAnswer:
     state: str | None = None
     zone: str | None = None
     last_seen: float | None = None
+    frame: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -128,6 +134,7 @@ class RuntimeAnswer:
             "state": self.state,
             "zone": self.zone,
             "last_seen": self.last_seen,
+            "frame": self.frame,
         }
 
 
@@ -486,6 +493,16 @@ class ChronicleRuntime:
 
     # ------------------------------------------------------------------ queries
     def ask(self, query: str) -> RuntimeAnswer:
+        """Answer a question and attach the evidence frame that supports it."""
+
+        answer = self._ask_impl(query)
+        if answer.frame is None:
+            frame = self._answer_frame(answer)
+            if frame is not None:
+                answer = replace(answer, frame=frame)
+        return answer
+
+    def _ask_impl(self, query: str) -> RuntimeAnswer:
         started = time.monotonic()
         result = self.memory.query(query)
         if result is None:
@@ -601,6 +618,38 @@ class ChronicleRuntime:
                 zone=result.zone_label,
                 last_seen=result.last_seen,
             )
+
+    def _answer_frame(self, answer: RuntimeAnswer) -> dict[str, Any] | None:
+        """Extract the video frame at the newest grounded citation."""
+
+        if not answer.answer or not answer.grounded:
+            return None
+        with self._lock:
+            video = self._video
+            playhead = float(self._last_timestamp or 0.0)
+        if not video:
+            return None
+
+        anchor = latest_citation_time(answer.citations, playhead if playhead > 0 else 1e9)
+        if anchor is None:
+            anchor = answer.last_seen
+        if anchor is None:
+            return None
+        target = max(0.0, float(anchor))
+        if playhead > 0:
+            target = min(target, playhead)
+
+        extracted = extract_video_frame_data_url(video, target)
+        if extracted is None:
+            return None
+        data_url, actual_t = extracted
+        return FrameCandidate(
+            url=data_url,
+            t=actual_t,
+            kind="video_frame",
+            zone_id=answer.zone,
+            label=answer.entity or "",
+        ).to_dict()
 
     def graph_context(self, result: QueryResult) -> GraphContext:
         """Normalize Role B's serialized 2-hop graph into Role C's contract."""
