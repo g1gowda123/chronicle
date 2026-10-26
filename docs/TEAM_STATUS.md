@@ -103,6 +103,20 @@ embeddings + template GraphRAG). The HoloLens clip is available as
   mean |Δt| 0.28 s, FAIL. Documented as fallback-only in
   `docs/PERCEPTION.md`; re-run with the production backends for the real number.
 
+### TASK-F3 — live stream source
+
+- `chronicle run --source live` resolves a live input instead of requiring
+  `data/live/stream.mp4`. `--live-stream` accepts a camera index (default `0`),
+  an RTSP/HTTP URL, or a local video path; `CHRONICLE_LIVE_STREAM` sets the
+  default when the flag is omitted.
+- `ClipSource.live` marks the entry, so `chronicle sources` and
+  `available_sources()` list the feed without a file; `resolve_live_stream()`
+  normalises numeric indices and passes URLs/paths through.
+- Frames reuse the existing `VideoSource`/`PerceptionPipeline` loop with
+  monotonic capture timestamps, the usual backends, and an optional
+  `--max-frames` cap. Model-free tests replay the demo clip through the live
+  path and cover flag/environment/default resolution (`tests/test_sources.py`).
+
 ## Dynamic Task Notice Board (Priority Queue)
 
 > **Team Notice Board:** Anyone finishing early can claim the next highest-priority `[READY]` ticket or post a new task below.

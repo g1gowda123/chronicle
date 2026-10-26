@@ -282,6 +282,26 @@ python -m chronicle.perception data/real/holoassist_switch_34s.mp4 \
 Run `python -m chronicle.perception --help` for flags. The installed
 `chronicle-perception` entry point is equivalent.
 
+### Live stream (webcam / RTSP)
+
+```bash
+# camera 0; stop with Ctrl+C, or cap frames for a smoke run
+chronicle run --source live --max-frames 300 --db runs/live.db
+
+# RTSP/HTTP feed, or replay a file through the live path
+chronicle run --source live --live-stream rtsp://192.168.1.20:8554/feed
+chronicle run --source live --live-stream data/demo/chronicle_demo.mp4 --max-frames 60
+
+# set the default input once (camera index, URL, or path)
+export CHRONICLE_LIVE_STREAM=1
+```
+
+`--live-stream` accepts a camera index, an RTSP/HTTP URL, or a local video path.
+The live source writes into `data/live/chronicle.db` unless `--db` overrides it;
+without `--max-frames` it runs until interrupted. Frames use monotonic capture
+timestamps, so action verification and timeline scoring behave the same as for
+recorded clips.
+
 ### Tests
 
 ```bash

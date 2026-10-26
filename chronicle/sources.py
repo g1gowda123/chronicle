@@ -8,10 +8,13 @@ switching clips never mixes two episodes.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from chronicle.perception.config import DEFAULT_VOCABULARY
+
+DEFAULT_LIVE_STREAM = "0"
 
 
 @dataclass(frozen=True)
@@ -27,6 +30,7 @@ class ClipSource:
     vocabulary: tuple[str, ...]
     questions: tuple[str, ...]
     real: bool = True
+    live: bool = False
 
     def video_path(self, data_dir: Path | str) -> Path:
         base = Path(data_dir).expanduser().resolve()
@@ -42,7 +46,23 @@ class ClipSource:
         return Path(data_dir).expanduser().resolve() / self.relative_db
 
     def available(self, data_dir: Path | str) -> bool:
+        if self.live:
+            return True
         return self.video_path(data_dir).is_file()
+
+
+def resolve_live_stream(value: str | None = None) -> str | int:
+    """Resolve the live source: camera index, RTSP/HTTP URL, or video path.
+
+    Precedence is ``value`` -> ``CHRONICLE_LIVE_STREAM`` -> camera ``0``.
+    Numeric strings become OpenCV camera indices; everything else is passed
+    through so ``rtsp://``, ``http://`` and local file sources all work.
+    """
+    text = value if value is not None else os.environ.get("CHRONICLE_LIVE_STREAM")
+    text = (text or DEFAULT_LIVE_STREAM).strip()
+    if not text:
+        return 0
+    return int(text) if text.isdigit() else text
 
 
 SOURCES: tuple[ClipSource, ...] = (
@@ -65,15 +85,19 @@ SOURCES: tuple[ClipSource, ...] = (
     ),
     ClipSource(
         key="live",
-        label="Live stream (placeholder)",
+        label="Live camera stream",
         badge="LIVE",
         caption="Live camera stream · egocentric capture",
-        description="Live video capture placeholder (device 0 / RTSP stream).",
+        description=(
+            "Live webcam / RTSP / HTTP capture. Use --live-stream INDEX|URL|PATH "
+            "to pick the device (default: camera 0), or set CHRONICLE_LIVE_STREAM."
+        ),
         relative_path="live/stream.mp4",
         relative_db="live/chronicle.db",
         zone_label="Live Workspace",
         vocabulary=DEFAULT_VOCABULARY,
         questions=("what is on the table?", "what did I see?"),
+        live=True,
         real=True,
     ),
     ClipSource(
@@ -181,19 +205,27 @@ def available_sources(data_dir: Path | str) -> list[ClipSource]:
 
 
 def default_source(data_dir: Path | str) -> ClipSource:
-    """Prefer a real clip when one exists, otherwise the synthetic fixture."""
+    """Prefer a recorded real clip when one exists, otherwise the synthetic fixture.
+
+    The live feed is opt-in (``--source live`` / ``CHRONICLE_LIVE_STREAM``);
+    opening a camera by default would surprise the dashboard and smoke tests.
+    """
 
     for source in SOURCES:
-        if source.key != "synthetic" and source.available(data_dir):
+        if source.key in {"synthetic", "live"}:
+            continue
+        if source.available(data_dir):
             return source
     return source_for_key("synthetic", data_dir)
 
 
 __all__ = [
     "ClipSource",
+    "DEFAULT_LIVE_STREAM",
     "SOURCES",
     "available_sources",
     "default_source",
+    "resolve_live_stream",
     "source_for_key",
     "source_for_video",
 ]
