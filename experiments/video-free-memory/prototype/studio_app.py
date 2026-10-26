@@ -442,9 +442,10 @@ def build_ui() -> None:
                                 f"/jobs/{job['id']}/download/{name}"
                             ),
                         ).props("outline dense no-caps").classes("text-xs chronicle-mono")
-                ui.label(f"{job.get('duration_s', 0):.1f}s · source kept for playback").classes(
-                    "text-[11px] chronicle-mono text-slate-500"
-                )
+                ui.label(
+                    f"{job.get('duration_s', 0):.1f}s · source kept for playback · "
+                    f"LLM context {job.get('ledger', {}).get('bytes', 0)/1024:.1f} KB text · 0 frames"
+                ).classes("text-[11px] chronicle-mono text-slate-500")
             if not state.get("timeline_loaded"):
                 render_timeline(job)
                 state["timeline_loaded"] = True
