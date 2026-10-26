@@ -37,6 +37,21 @@ def make_clip(clip_id: str, label: str = "keys") -> SimpleNamespace:
     )
 
 
+def make_visual_clip(clip_id: str, label: str = "keys") -> SimpleNamespace:
+    """Clip with real pixels so the offline semantic pipeline can verify it."""
+
+    clip = make_clip(clip_id, label)
+    clip.frames = [
+        FrameSample(
+            image=Image.new("RGB", (24, 24), (40 + index, 80, 120)),
+            timestamp=float(index),
+            index=index,
+        )
+        for index in range(6)
+    ]
+    return clip
+
+
 class FakeEngine:
     """Minimal engine used by the service tests (no models, no frames)."""
 
@@ -222,6 +237,42 @@ class RuntimeQueueSeamTest(unittest.TestCase):
             stats = runtime.verification_stats
             self.assertEqual(stats["verified"], 1)
             self.assertEqual(stats["duplicates"], 1)
+        finally:
+            runtime.close()
+
+    def test_snapshot_exposes_verification_queue_stats(self) -> None:
+        config = SemanticConfig(llm_backend="template", verification_queue_size=1)
+        engine = SemanticEngine(
+            config=config,
+            captioner=StubCaptioner("the hand picks up the keys"),
+            chat_client=None,
+            embedder_backend="deterministic",
+            captioner_backend="stub",
+        )
+        runtime = ChronicleRuntime(
+            ":memory:",
+            semantic=engine,
+            semantic_config=config,
+            reset=True,
+            load=False,
+        )
+        try:
+            runtime._queue_clip(make_visual_clip("queue-a"))
+            runtime._queue_clip(make_visual_clip("queue-b"))
+
+            snapshot = runtime.snapshot()
+            verification = snapshot["verification_stats"]
+            self.assertEqual(verification["depth"], 1)
+            self.assertEqual(verification["dropped"], 1)
+            self.assertEqual(verification["max_pending"], 1)
+            self.assertIn("avg_latency_ms", verification)
+            self.assertEqual(snapshot["stats"]["verification_stats"], verification)
+
+            runtime._drain_clips()
+            after = runtime.snapshot()["stats"]["verification_stats"]
+            self.assertEqual(after["depth"], 0)
+            self.assertEqual(after["verified"], 1)
+            self.assertGreaterEqual(after["avg_latency_ms"], 0.0)
         finally:
             runtime.close()
 

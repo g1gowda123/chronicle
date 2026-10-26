@@ -629,6 +629,7 @@ class ChronicleRuntime:
         transitions = self._transition_rows(limit=500)
         furniture = self.memory.background.furniture()
         stats = self.memory.stats()
+        verification_stats = self.verification_stats
         with self._lock:
             summary = self._summary.as_dict() if self._summary else None
             video = self._video
@@ -640,6 +641,7 @@ class ChronicleRuntime:
             "actions": actions,
             "transitions": transitions,
             "furniture": furniture,
+            "verification_stats": verification_stats,
             "stats": {
                 **stats,
                 "frames": progress["frames"],
@@ -652,6 +654,7 @@ class ChronicleRuntime:
                 "detections": progress["detections"],
                 "camera_state": self.memory.engine.camera_state.value,
                 "current_zone": self.memory.background.zone_label(self.memory.active_zone),
+                "verification_stats": verification_stats,
                 "stage": "running" if running else ("error" if error else "complete"),
             },
             "summary": summary,

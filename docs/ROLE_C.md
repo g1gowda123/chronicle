@@ -329,8 +329,11 @@ drawer instead of writing low-quality action edges.
 | `VERIFICATION_FAILED` | `latency_ms`, `failed` |
 
 The runtime also exposes `runtime.verification_stats` (a JSON-safe snapshot) if
-the dashboard prefers polling to events. Latency is measured from submission to
-graph update, so it includes queue wait, not just model time.
+the dashboard prefers polling to events. `ChronicleRuntime.snapshot()` embeds
+the same payload at `snapshot()["verification_stats"]` and
+`snapshot()["stats"]["verification_stats"]`, including `depth`, `dropped` and
+`avg_latency_ms`. Latency is measured from submission to graph update, so it
+includes queue wait, not just model time.
 
 ---
 
