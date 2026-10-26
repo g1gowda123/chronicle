@@ -90,6 +90,8 @@ is unchanged; the route test covers the compile/ask/download half.
 | deterministic query | `where is the cup?` → `vault-where`, < 1 ms |
 | headless full suite | `tests/` green (all tests) |
 | experiment suite | 19 passed |
+| **live server, synthetic auto-run** | ingest → auto-compile in ~13 s; 11.9 s clip, 1 caption window (3.2 KB ledger), 26 KB vault, 8 WebP (134 KB), 589-token pack, 377 KB report, 327 KB zip; `where are the keys?` → `vault-where` in 0.38 ms |
+| live routes | `/vfm/status` done/100 %, `/vfm/report` 200 (377 KB), `/vfm/download/memory.zip` 200 (327 KB); page contains Memory tab + all Export items |
 
 The numbers are regression evidence, not a new benchmark.
 

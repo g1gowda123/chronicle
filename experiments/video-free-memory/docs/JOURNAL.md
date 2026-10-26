@@ -696,3 +696,18 @@ fragmentation from a real second object.
   route test covers compile → ask → download zip/report/evidence.
 - Do not merge into `main` until the other agents' P1/P2 commits are reviewed; the branch is
   still experimental.
+
+### Session 6 addendum — live server smoke
+
+Ran the real dashboard from the worktree with the synthetic fixture and `--auto-run` (port 8123,
+no Qwen). This exercises the server-side ingest callback, not a hand-submitted job.
+
+- Auto-ingest → auto-VFM compile: **done** in ~13 s, status `done` / 100 %.
+- 11.9 s clip: 26 KB vault, 1 caption window (3.2 KB ledger), 8 WebP snapshots (134 KB),
+  589-token pack, 377 KB report, 327 KB zip.
+- `POST /vfm/ask/synthetic` → `vault-where` in **0.38 ms**, citation at t=2.8 s, evidence
+  `ev_0007` returned.
+- `GET /vfm/report/synthetic` 200 (377 KB); `GET /vfm/download/synthetic/memory.zip` 200
+  (327 KB, contains vault/report/pack/CSVs/evidence/README).
+- Rendered page contains the Memory tab, `Ask memory`, Qwen toggle and all Export items.
+- Server stopped afterward; temp data under `/tmp/vfm-serve`.

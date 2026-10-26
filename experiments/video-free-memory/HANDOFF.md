@@ -219,6 +219,19 @@ Studio upload has been tested end-to-end through the NiceGUI upload endpoint: 8.
 24 KB vault, 321 KB HTML, 8 WebP snapshots, 3.2 KB memory pack (~804 tokens) in ~6 s; video,
 report, zip and pack downloads returned 200.
 
+Main dashboard live smoke (2026-10-27, from this worktree):
+
+```bash
+PYTHONPATH=. /home/g1/projects/chronicle/.venv/bin/python -m chronicle.cli \
+  --data-dir /tmp/vfm-serve serve --source synthetic --auto-run --port 8123
+```
+
+Auto-ingest → auto-VFM compile finished in ~13 s. Status reached `done`/100 %; the 11.9 s clip
+produced a 26 KB vault, 1 caption window (3.2 KB ledger), 8 WebP snapshots (134 KB), a 589-token
+pack, a 377 KB report and a 327 KB zip. `where are the keys?` answered via `vault-where` in
+0.38 ms. `/vfm/report` and `/vfm/download/memory.zip` returned 200, and the page contained the
+Memory tab plus all three Export-menu items.
+
 ---
 
 ## 4. Code map
