@@ -104,6 +104,7 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   ├── telemetry.py                        # Role B event bus
 │   ├── text.py                             # normalization, plurals, label aliases
 │   ├── integration.py                      # A -> B -> C runtime facade
+│   ├── benchmark.py                        # reproducible source benchmark + JSON report
 │   ├── sources.py                          # demo/real source registry
 │   ├── cli.py                              # `chronicle sources|run|ask|serve`
 │   ├── graph/
@@ -191,6 +192,20 @@ python -m chronicle.perception data/demo/chronicle_demo.mp4 \
 
 You get per-frame JSONL, console telemetry, and hand/keys interaction clips
 with `PRE | CONTACT | POST` composites.
+
+### Source benchmark (throughput + snapshot checks)
+
+```bash
+python -m chronicle.benchmark --sources cook,play,walking \
+  --detector color --hands color --embedder color
+```
+
+`chronicle/benchmark.py` ingests each tracked clip through the full
+`ChronicleRuntime`, records the backends that actually loaded, prints a Markdown
+table and writes `runs/benchmark/sources.json`. It validates entity/state/
+transition invariants rather than claiming accuracy on unlabelled clips; pass
+`--max-frames` for a bounded production-backend run. See
+[`docs/PERCEPTION.md`](docs/PERCEPTION.md#aria-clip-pipeline-benchmark).
 
 ### Offline semantic demo (Role C)
 

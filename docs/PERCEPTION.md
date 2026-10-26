@@ -314,6 +314,70 @@ production backends (`uv sync --extra models`, detector prompt
 `joy-con, switch console, table, comfort grip`) and without
 `--ignore-entity` for the real benchmark.
 
+### Aria clip pipeline benchmark
+
+`chronicle/benchmark.py` runs the integrated A → B → C runtime over the tracked
+Aria clips, records the backends that actually loaded, and checks the exported
+snapshot for structural invariants (unique entity IDs, known lifecycle states,
+monotonic transition times, action/transition references, and summary/snapshot
+frame agreement). It prints the Markdown table reproduced here and writes a
+JSON report under `runs/benchmark/`.
+
+```bash
+# Full tracked clips with the offline fallbacks
+python -m chronicle.benchmark --sources cook,play,walking \
+  --detector color --hands color --embedder color \
+  --out runs/benchmark/aria_fallback.json
+
+# Production detector on a bounded CPU run
+python -m chronicle.benchmark --sources cook,play,walking \
+  --max-frames 30 --detector yolo-world --hands color --embedder color \
+  --out runs/benchmark/aria_yolo_30f.json
+```
+
+`--max-frames` caps decoded frames; without it each clip runs to the end.
+`--stride` skips frames before detection. YOLO-World loads its weights on the
+first clip, so that clip's wall time includes a one-time model load.
+
+| Source | Backends | Frames | Wall time | Throughput | Detections | Entities | Transitions | Actions | Clips | Grounded queries | Checks |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| cook | colour / colour / colour | 450 | 19.54 s | 23.0 fps | 0 | 0 | 0 | 0 | 0 | 0/2 | 9/9 |
+| play | colour / colour / colour | 450 | 20.24 s | 22.2 fps | 0 | 0 | 0 | 0 | 0 | 0/3 | 9/9 |
+| walking | colour / colour / colour | 600 | 23.68 s | 25.3 fps | 0 | 0 | 0 | 0 | 0 | 0/2 | 9/9 |
+| cook | YOLO-World / colour / colour | 30 | 71.58 s | 0.4 fps | 74 | 3 | 4 | 0 | 0 | 1/2 | 9/9 |
+| play | YOLO-World / colour / colour | 30 | 48.01 s | 0.6 fps | 167 | 2 | 4 | 2 | 2 | 0/3 | 9/9 |
+| walking | YOLO-World / colour / colour | 30 | 28.58 s | 1.0 fps | 60 | 3 | 7 | 0 | 0 | 1/2 | 9/9 |
+
+What the production run actually tracked in the first 3 s:
+
+| Source | Entities | Observed lifecycle | Notes |
+| --- | --- | --- | --- |
+| cook | `bowl` ×2, `cup` | `NEW → VISIBLE_MOVING → OCCLUDED` | Counters give way to occlusion; no interaction clip within 30 frames |
+| play | `person` ×2 | `NEW → INTERACTED ↔ VISIBLE_MOVING` | Two rule-based `PICK_UP` edges are hand contact on a person, not object use |
+| walking | `person` ×2, `cup` | `NEW → VISIBLE_MOVING → OUT_OF_VIEW → VISIBLE_STATIC` reacquisition; `cup → OUT_OF_VIEW` | Outdoor panning exercises the occlusion/out-of-view branch |
+
+The colour backends produce **zero detections on real Aria footage**, so their
+runs exercise the plumbing but not perception. The YOLO-World runs are the
+meaningful path; the low throughput is CPU-only inference, not a pipeline
+regression. The two `play` actions illustrate why action accuracy needs
+ground truth: the rule classifier sees hand/person overlap and emits
+`PICK_UP`, which is structurally valid but semantically wrong.
+
+**Ground-truth limitation.** The repository bundles no action annotations for
+the Aria clips, so this benchmark cannot score state/action alignment against
+Aria labels. Its acceptance bar is therefore end-to-end completion plus 9/9
+snapshot invariants for every clip. Action-level accuracy is measured on the
+HoloLens/HoloAssist clip, which ships `holoassist_switch_34s.json` and is
+covered by the action-timeline benchmark above. Re-run the Aria clips with
+longer `--max-frames` and MediaPipe/OpenCLIP installed for a full production
+number, and add an annotation file before treating the transition counts as an
+accuracy metric.
+
+The YOLO-World run exposed a telemetry sink bug: clip payloads can contain
+their own `frame_index`, which the runtime also passed as a keyword. The sink
+now merges the payload explicitly and a model-free regression test covers it
+(`tests/test_integration.py`).
+
 
 ## Known limitations
 

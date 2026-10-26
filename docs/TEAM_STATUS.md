@@ -117,6 +117,29 @@ embeddings + template GraphRAG). The HoloLens clip is available as
   `--max-frames` cap. Model-free tests replay the demo clip through the live
   path and cover flag/environment/default resolution (`tests/test_sources.py`).
 
+### TASK-E1 - Aria clip pipeline benchmark
+
+- `chronicle/benchmark.py` runs any registered source through
+  `ChronicleRuntime`, records the backends that actually loaded, checks
+  snapshot invariants (unique IDs, known states, ordered transitions, action
+  and transition references, summary/snapshot frame agreement), prints a
+  Markdown table and writes a JSON report.
+- Full-clip offline fallback (colour detector/hands/embedder): `cook` 450
+  frames at 23.0 fps, `play` 450 at 22.2 fps, `walking` 600 at 25.3 fps; all
+  nine checks pass, but real Aria footage yields zero detections from the
+  colour backends.
+- Bounded production run (YOLO-World, 30 frames, colour hands/embedder):
+  `cook` 74 detections / 3 entities / 4 transitions at 0.4 fps, `play` 167 /
+  2 / 4 at 0.6 fps, `walking` 60 / 3 / 7 at 1.0 fps; all 9/9 checks pass.
+  YOLO-World tracks bowls, cup, people and a reacquired person across pans.
+- No Aria action annotations are bundled, so E1 gates on end-to-end completion
+  plus structural invariants rather than claiming action accuracy. The
+  HoloLens/HoloAssist clip remains the labelled action benchmark (TASK-F1);
+  Aria labels are tracked in `docs/TASK_REAL_FOOTAGE.md`.
+- The production run also exposed a duplicate `frame_index` telemetry keyword;
+  the sink now merges payload keys explicitly and a model-free regression test
+  covers it (`tests/test_integration.py`).
+
 ## Dynamic Task Notice Board (Priority Queue)
 
 > **Team Notice Board:** Anyone finishing early can claim the next highest-priority `[READY]` ticket or post a new task below.
@@ -135,7 +158,7 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-D2** | **P1** | **Distinct furniture anchor styling in graph**<br>Render background furniture anchors with distinct shape (rounded rectangle) and golden border (`#f59e0b`) so they are immediately visually distinct from episodic entities with lifecycles. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D3** | **P1** | **Queue depth badge & UI error/empty states**<br>Add verification queue depth chip in dashboard header; show friendly empty/stopped/error states when video is missing or query fails. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D4** | **P2** | **Headless dashboard smoke tests**<br>Add Starlette/FastAPI `TestClient` tests for NiceGUI endpoints (`/`, `/source-video`, `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv`) verifying zero-GPU, zero-browser CI operation plus attachment headers/media types. | `tests/test_dashboard_smoke.py` | `[DONE (f52482b, 5e51c20)]` | Orchestrator / karthiknk7019 |
-| **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source cook` / `play` / `walking` offline evaluation using the tracked video assets in `data/real/`; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[READY]` | Open / Any Teammate |
+| **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source cook` / `play` / `walking` offline evaluation using the tracked video assets in `data/real/`; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[DONE (cc250a0)]` | Orchestrator / Likhithvu |
 | **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py`<br>`chronicle/ui/graph_view.py` | `[DONE (371f216)]` | Orchestrator |
 | **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget and `/import/snapshot` route in the NiceGUI dashboard so an exported `chronicle_snapshot.json` restores graph state without re-ingesting; validate it with `chronicle/ui/snapshot_io.py`. | `chronicle/ui/app.py`<br>`chronicle/integration.py`<br>`chronicle/ui/snapshot_io.py` | `[DONE (a31d417, 973798a)]` | Orchestrator |
 | **TASK-F1** | **P1** | **HoloLens tabletop action verification benchmark**<br>Benchmark `chronicle run --source tabletop` and evaluate action extraction against HoloLens ground truth (`docs/PERCEPTION.md`). | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[DONE (feba585)]` | karthiknk7019 |
