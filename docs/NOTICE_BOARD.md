@@ -50,7 +50,7 @@ PR so parallel work does not collide.
 | NB-03 | P0 | Grounding / rejection provenance in the query panel | UI | READY | unclaimed |
 | NB-04 | P0 | Demo preflight script and checklist | Ops | DONE | opencode (AI) |
 | NB-05 | P0 | Verify every bundled source end to end | QA | DONE | opencode (AI) |
-| NB-06 | P0 | Real-clip evidence images for demo answers | Perception | IN PROGRESS | opencode (AI) |
+| NB-06 | P0 | Real-clip evidence images for demo answers | Perception | DONE | opencode (AI) |
 | NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
 | NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | DONE | opencode (AI) |
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
@@ -108,22 +108,6 @@ PR so parallel work does not collide.
 - **Acceptance:** a known unknown query shows an ungrounded state; a template
   answer shows `template`; no hallucinated timestamp is presented as grounded.
 - **Spec:** §Query step 4.
-
-### NB-06 · Real-clip evidence images for demo answers
-- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Perception
-- **Started:** 2026-10-27 · **Branch:** `task/nb-06-evidence-fixtures`
-- **Why:** evidence frames fall back to video extraction when no stored image
-  exists. That can fail on stage or return a blank frame.
-- **Scope:** ensure interaction strips, object crops or zone keyframes exist for
-  the HoloLens/Aria clips used in the demo; verify `_answer_frame()` selects them.
-- **Files:** `chronicle/frames.py`, `chronicle/integration.py`,
-  `scripts/build_evidence_fixtures.py`, `data/*/evidence/`, docs/tests.
-- **Acceptance:** each demo question returns a frame candidate; fallback video
-  extraction is only used when expected.
-- **Progress note:** stored evidence is discovered from
-  `<episode>/evidence/index.jsonl`, ranked against the answer citation/label,
-  and encoded as a data URL. Bundled fixtures now cover all five sources.
-- **Spec:** §Query evidence frame; §Demo pitfalls (iv).
 
 ---
 
@@ -277,6 +261,26 @@ PR so parallel work does not collide.
 | NB-08 | Calibrate action thresholds against real labels | opencode (AI) | `9ed6735`; `docs/CALIBRATION.md`; 19 labels, precision 0.93 / recall 1.00 |
 | NB-04 | Demo preflight script and checklist | opencode (AI) | `3b74ef5`; `scripts/demo_preflight.py`; `docs/DEMO_PREFLIGHT.md` |
 | NB-05 | Verify every bundled source end to end | opencode (AI) | `f8fcd0e`; `docs/PERCEPTION.md` NB-05 tables; 5/5 sources 9/9 checks |
+| NB-06 | Real-clip evidence images for demo answers | opencode (AI) | `f967a71`; `data/*/evidence/`; `scripts/build_evidence_fixtures.py` |
+
+### NB-06 details
+
+- **Branch:** `task/nb-06-evidence-fixtures` · **Commit:** `f967a71`
+- **Delivered:** `scripts/build_evidence_fixtures.py`, stored
+  `evidence/index.jsonl` + images for all five sources, stored-evidence
+  selection in `chronicle/frames.py`, and `_answer_frame()` wiring in
+  `chronicle/integration.py`.
+- **Selection order:** stored strip/crop/zone image first, ranked by kind,
+  entity/label, citation time and playhead; video-frame extraction only when no
+  stored image fits (uploaded clips still use the fallback).
+- **Encoding:** the chosen stored image is returned as a
+  `data:image/...;base64,...` URL, so the CLI and future UI need no media route.
+- **Verified:** `where are my keys?` → keys `PICK_UP` strip at 11.15 s;
+  `where is the joy-con?` → Joy-Con strip at 6.55 s; `what did I see?` → newest
+  Joy-Con strip. Preflight now reports **5/5 sources have stored evidence**.
+- **Coverage:** `tests/test_query_frames.py` (index loading, missing files,
+  label ranking, data URLs, runtime preference, bundled indexes).
+- **Spec:** §Query evidence frame; §Demo pitfalls (iv).
 
 ### NB-05 details
 
