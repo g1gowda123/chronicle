@@ -156,6 +156,7 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 ├── scripts/
 │   ├── fetch_assets.py                     # download model weights
 │   ├── make_demo.py                        # render the offline demo clip
+│   ├── build_evidence_fixtures.py          # stored answer-frame index + images
 │   ├── demo_preflight.py                   # PASS/WARN/FAIL demo readiness check
 │   └── demo_role_b.py                      # synthetic lifecycle + retrieval demo
 ├── tests/                                  # model-free unit/integration suite

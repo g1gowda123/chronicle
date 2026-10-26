@@ -58,22 +58,21 @@ PASS  SQLite                  5 database(s) · WAL ok · checkpoint ok
 PASS  Detector                yolo-world · 0 detection(s) · 3.1s
 PASS  Hands                   hybrid · 0 hand(s) · 0.0s
 PASS  Embedder                openclip · shape (512,) · 1.6s
-WARN  Evidence                0/5 with stored frames; video-frame fallback ok for synthetic, tabletop, ...
-        -> python -m chronicle.cli run --source tabletop --max-frames 120
+PASS  Evidence                5/5 sources have stored evidence frames
 PASS  LLM                     qwen2.5:7b-instruct loaded and warm · Ollama 0.40.10
 PASS  Tests                   pytest exit 0 · 3.0s
 PASS  Smoke run               synthetic · 30 frames · 117.6 fps · 4 entities · 4 transitions · 0.7s
 
-Summary: 15 PASS · 1 WARN · 0 FAIL · 0 SKIP
+Summary: 16 PASS · 0 WARN · 0 FAIL · 0 SKIP
 Result: READY
 Next:
-  python -m chronicle.cli run --source tabletop --max-frames 120
+  ./chronicle.sh start tabletop
 ```
 
-The `Evidence` warning means the answers will use on-demand video-frame
-extraction instead of pre-stored evidence images. That works, but it is slower
-and can fail if the clip is moved. Run the suggested bounded ingestion once to
-write `evidence/` beside the episode database.
+If `Evidence` warns, the answers will use on-demand video-frame extraction
+instead of pre-stored images. That works, but it is slower and can fail if the
+clip is moved. Run `python scripts/build_evidence_fixtures.py` (or the suggested
+bounded ingestion) to write `evidence/` beside the episode database.
 
 ## Flags
 

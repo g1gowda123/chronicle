@@ -40,6 +40,29 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### NB-06 — real-clip evidence images
+
+- Added `scripts/build_evidence_fixtures.py`: it writes a portable
+  `evidence/index.jsonl` beside each episode database. The synthetic clip
+  reuses its interaction strips/crops, HoloAssist reuses the seven real
+  interaction strips, and each Aria clip gets three zone keyframes.
+- `ChronicleRuntime._answer_frame()` now prefers stored evidence and falls
+  back to video-frame extraction only when no stored image fits. Stored images
+  are ranked by kind, entity/label match, citation time and playhead
+  (`chronicle/frames.py`).
+- Stored evidence is returned as a self-contained
+  `data:image/...;base64,...` URL, so CLI and UI need no extra media route.
+- Preflight now reports **5/5 sources have stored evidence frames**; the
+  previous `Evidence` warning is gone for bundled clips.
+- Verified demo questions return stored strips:
+  `where are my keys?` → keys `PICK_UP` strip at 11.15 s,
+  `where is the joy-con?` → Joy-Con strip at 6.55 s,
+  `what did I see?` → newest Joy-Con strip. The video fallback remains for
+  uploaded clips without an evidence folder.
+- Coverage: `tests/test_query_frames.py` (index loading, label ranking,
+  data-URL encoding, runtime preference) and `tests/test_demo_preflight.py`
+  indirectly through the evidence check.
+
 ### NB-05 — every bundled source verified end to end
 
 - Ran all five registered sources (`synthetic`, `tabletop`, `walking`, `cook`,

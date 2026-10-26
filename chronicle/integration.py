@@ -52,6 +52,8 @@ from chronicle.frames import (
     FrameCandidate,
     extract_video_frame_data_url,
     latest_citation_time,
+    load_stored_evidence,
+    pick_stored_evidence,
 )
 from chronicle.graph.ids import raw_entity_id
 from chronicle.graph.memory import ChronicleMemory
@@ -726,25 +728,67 @@ class ChronicleRuntime:
             )
 
     def _answer_frame(self, answer: RuntimeAnswer) -> dict[str, Any] | None:
-        """Extract the video frame at the newest grounded citation."""
+        """Prefer stored evidence images, then extract the video frame."""
 
         if not answer.answer or not answer.grounded:
             return None
         with self._lock:
             video = self._video
             playhead = float(self._last_timestamp or 0.0)
-        if not video:
-            return None
+
+        # The evidence folder sits beside the episode SQLite file.  A hit here
+        # is cheaper than decoding the video and keeps working without it.
+        stored = load_stored_evidence(Path(self.db_path).expanduser().parent)
 
         anchor = latest_citation_time(answer.citations, playhead if playhead > 0 else 1e9)
         if anchor is None:
             anchor = answer.last_seen
+        if anchor is None and stored:
+            # Inventory answers ("what did I see?") have no citation; show the
+            # newest stored evidence instead of returning no frame at all.
+            anchor = max(row.t for row in stored)
         if anchor is None:
             return None
         target = max(0.0, float(anchor))
         if playhead > 0:
             target = min(target, playhead)
+        # A loaded DB has no live playhead; rank against all stored evidence and
+        # let the citation anchor + label decide.  A live run still protects the
+        # "never show future evidence" rule.
+        selection_playhead = playhead if playhead > 0 else float("inf")
 
+        citation_entities = {
+            str(citation["entity_id"])
+            for citation in answer.citations
+            if isinstance(citation, dict) and citation.get("entity_id")
+        }
+        citation_labels = {
+            str(citation[key])
+            for citation in answer.citations
+            if isinstance(citation, dict)
+            for key in ("entity", "label", "action")
+            if citation.get(key)
+        }
+        if answer.entity:
+            citation_labels.add(str(answer.entity))
+        route = "entity" if answer.entity else ("zone" if answer.zone else "timeline")
+
+        if stored:
+            picked = pick_stored_evidence(
+                stored,
+                playhead=selection_playhead,
+                anchor_t=target,
+                matched_label=answer.entity,
+                citation_entities=citation_entities,
+                citation_labels=citation_labels,
+                route=route,
+                matched_zone=answer.zone,
+            )
+            if picked is not None:
+                return picked.to_dict()
+
+        if not video:
+            return None
         extracted = extract_video_frame_data_url(video, target)
         if extracted is None:
             return None

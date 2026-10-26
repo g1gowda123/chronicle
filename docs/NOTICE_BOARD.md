@@ -50,7 +50,7 @@ PR so parallel work does not collide.
 | NB-03 | P0 | Grounding / rejection provenance in the query panel | UI | READY | unclaimed |
 | NB-04 | P0 | Demo preflight script and checklist | Ops | DONE | opencode (AI) |
 | NB-05 | P0 | Verify every bundled source end to end | QA | DONE | opencode (AI) |
-| NB-06 | P0 | Real-clip evidence images for demo answers | Perception | READY | unclaimed |
+| NB-06 | P0 | Real-clip evidence images for demo answers | Perception | IN PROGRESS | opencode (AI) |
 | NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
 | NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | DONE | opencode (AI) |
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
@@ -110,14 +110,19 @@ PR so parallel work does not collide.
 - **Spec:** §Query step 4.
 
 ### NB-06 · Real-clip evidence images for demo answers
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Perception
+- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Perception
+- **Started:** 2026-10-27 · **Branch:** `task/nb-06-evidence-fixtures`
 - **Why:** evidence frames fall back to video extraction when no stored image
   exists. That can fail on stage or return a blank frame.
 - **Scope:** ensure interaction strips, object crops or zone keyframes exist for
   the HoloLens/Aria clips used in the demo; verify `_answer_frame()` selects them.
-- **Files:** `chronicle/frames.py`, `chronicle/integration.py`, `runs/` fixtures
+- **Files:** `chronicle/frames.py`, `chronicle/integration.py`,
+  `scripts/build_evidence_fixtures.py`, `data/*/evidence/`, docs/tests.
 - **Acceptance:** each demo question returns a frame candidate; fallback video
   extraction is only used when expected.
+- **Progress note:** stored evidence is discovered from
+  `<episode>/evidence/index.jsonl`, ranked against the answer citation/label,
+  and encoded as a data URL. Bundled fixtures now cover all five sources.
 - **Spec:** §Query evidence frame; §Demo pitfalls (iv).
 
 ---

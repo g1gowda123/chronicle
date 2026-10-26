@@ -158,6 +158,37 @@ Known gap: **legacy** duplicate nodes created before this routing (or by a
 detector that changed labels) are not merged yet. Role B owns the graph-level
 consolidation sweep; see `docs/TEAM_STATUS.md`.
 
+## Answer evidence frames
+
+A grounded answer can carry a supporting still image. `ChronicleRuntime._answer_frame()`
+now resolves it in this order:
+
+1. **Stored evidence** beside the episode database:
+   ```
+   data/real/hololens/chronicle.db
+   data/real/hololens/evidence/index.jsonl
+   data/real/hololens/evidence/ev_0001_interaction_strip.jpg
+   ```
+   Each JSONL row carries `file`, `t`, `kind`, and optional `label`,
+   `entity_id`, `zone_id`, `action`, `caption`, `clip_sim` and `bbox`.
+   Stored images are ranked by kind, entity/label match, citation time and
+   playhead (`chronicle/frames.py: pick_stored_evidence`).
+2. **Video-frame extraction** at the newest citation when no stored image fits.
+   This keeps working for uploaded clips with no evidence folder.
+
+Stored images are returned as self-contained `data:image/...;base64,...` URLs,
+so the CLI and UI need no extra media route. The bundled fixtures cover all five
+sources (`5/5` in `./chronicle.sh preflight`) and are regenerated with:
+
+```bash
+.venv/bin/python scripts/build_evidence_fixtures.py
+```
+
+The synthetic clip reuses the interaction strips/crops in `data/`, HoloAssist
+reuses the real interaction strips, and the Aria clips get three zone keyframes
+each. The builder is idempotent and only replaces `ev_*.jpg` files; other files
+in an evidence folder are left alone.
+
 ## Adding a source
 
 Add a `ClipSource` to `chronicle/sources.py` with a unique key, video path,

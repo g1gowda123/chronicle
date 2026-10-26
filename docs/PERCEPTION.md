@@ -448,6 +448,23 @@ Notes:
 - No source has a blocking failure. The only gap is the unlabelled Aria action
   accuracy noted above; structural completion is green for all five.
 
+### Stored evidence fixtures
+
+`scripts/build_evidence_fixtures.py` writes the images used by grounded answer
+cards. The synthetic source reuses its interaction strips/crops, HoloAssist
+reuses the seven real interaction strips, and each Aria clip gets three sampled
+zone keyframes. The preflight now reports `5/5 sources have stored evidence
+frames`; the video-frame fallback remains for uploaded clips.
+
+```bash
+.venv/bin/python scripts/build_evidence_fixtures.py
+.venv/bin/python scripts/build_evidence_fixtures.py --source tabletop
+```
+
+Each episode keeps `evidence/index.jsonl` beside its SQLite database. See
+[`INTEGRATION.md`](INTEGRATION.md#answer-evidence-frames) for the row schema and
+selection order.
+
 
 ## Known limitations
 
