@@ -52,6 +52,7 @@ from chronicle.telemetry import EventBus, TelemetryTag
 from chronicle.types import (
     FrameResult,
     InteractionClip,
+    ObjectState,
 )
 from chronicle.types import (
     TelemetryEvent as PerceptionTelemetryEvent,
@@ -656,7 +657,11 @@ class ChronicleRuntime:
                 "current_zone": self.memory.background.zone_label(self.memory.active_zone),
                 "verification_stats": verification_stats,
                 "stage": "running" if running else ("error" if error else "complete"),
+                "verification_queue_depth": self._clip_queue.pending,
+                "verification_dropped": self._clip_queue.stats().dropped,
+                "verification_verified": self._clip_queue.stats().verified,
             },
+            "verification": self.verification_stats,
             "summary": summary,
             "running": running,
             "error": error,
@@ -664,6 +669,81 @@ class ChronicleRuntime:
             "zone": self.memory.background.zone_label(self.memory.active_zone),
             "backends": self.backends(),
         }
+
+    def export_snapshot_json(self, indent: int = 2) -> str:
+        """Serialize current runtime snapshot to formatted JSON string."""
+        import json
+
+        return json.dumps(self.snapshot(), indent=indent, default=str)
+
+    def export_entities_csv(self) -> str:
+        """Export current entity table as CSV formatted text."""
+        import csv
+        import io
+
+        output = io.StringIO()
+        rows = self._entity_rows()
+        fieldnames = ["id", "label", "state", "zone", "anchor", "container", "span"]
+        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+        return output.getvalue()
+
+    def export_actions_csv(self) -> str:
+        """Export current action table as CSV formatted text."""
+        import csv
+        import io
+
+        output = io.StringIO()
+        rows = self.memory.foreground.action_rows(limit=1000)
+        fieldnames = ["id", "timestamp", "action", "entity", "caption", "source"]
+        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+        return output.getvalue()
+
+    def load_snapshot_json(self, data: str | dict[str, Any]) -> None:
+        """Reload snapshot state directly into memory without re-ingesting."""
+        import json
+
+        payload = json.loads(data) if isinstance(data, str) else dict(data)
+        for f in payload.get("furniture", []):
+            anchor_id = str(f.get("anchor_id") or f.get("id", "")).removeprefix("anchor:")
+            label = str(f.get("label", "furniture"))
+            zone_id = f.get("zone_id") or "unmapped"
+            t = float(f.get("created_at") or 0.0)
+            self.memory.background.ensure_furniture(anchor_id, label, zone_id, t, attrs=f)
+            self.memory.store.upsert_furniture(anchor_id, label, zone_id, t, attrs=f)
+        for e in payload.get("entities", []):
+            entity_id = str(e.get("id") or e.get("entity_id", "")).removeprefix("entity:")
+            label = str(e.get("label", "object"))
+            state = str(e.get("state", "VISIBLE_STATIC"))
+            zone = e.get("zone")
+            state_val = (
+                ObjectState(state)
+                if state in ObjectState._value2member_map_
+                else ObjectState.VISIBLE_STATIC
+            )
+            self.memory.foreground.upsert_entity(
+                entity_id,
+                label,
+                state=state_val,
+                state_since=0.0,
+                first_seen=0.0,
+                last_seen=0.0,
+                zone_id=zone,
+            )
+            self.memory.store.upsert_entity(
+                entity_id,
+                label,
+                state,
+                0.0,
+                0.0,
+                0.0,
+                zone_id=zone,
+            )
 
     def _entity_rows(self) -> list[dict[str, Any]]:
         zone_names = {

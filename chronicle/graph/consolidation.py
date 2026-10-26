@@ -392,6 +392,16 @@ class GraphConsolidator:
                     "zone": keep_view.zone_id or remove_view.zone_id,
                 },
             )
+        if self.foreground.graph.has_node(bg_remove):
+            if not self.foreground.graph.has_node(bg_keep):
+                self.foreground.graph.add_node(
+                    bg_keep, **dict(self.foreground.graph.nodes[bg_remove])
+                )
+            for u, _, k, data in list(self.foreground.graph.in_edges(bg_remove, keys=True, data=True)):
+                self.foreground.graph.add_edge(u, bg_keep, key=k, **data)
+            for _, v, k, data in list(self.foreground.graph.out_edges(bg_remove, keys=True, data=True)):
+                self.foreground.graph.add_edge(bg_keep, v, key=k, **data)
+            self.foreground.graph.remove_node(bg_remove)
         self.furniture.merge(keep_id, remove_id)
         self.register_alias(self.furniture_aliases, keep_id, remove_id)
         self.furniture_merged += 1

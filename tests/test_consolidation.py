@@ -486,3 +486,92 @@ def test_query_aliases_and_confidence_disambiguate_duplicates() -> None:
         assert result.candidates[1]["entity_id"] == "wallet-a"
     finally:
         memory.close()
+
+
+def test_dual_furniture_consolidation_sweep_and_sqlite_persistence(tmp_path: Path) -> None:
+    db_path = tmp_path / "chronicle.db"
+    config = FurnitureConfig(
+        consolidation_enabled=True,
+        consolidation_interval_s=10.0,
+        min_hits=1,
+    )
+    memory = ChronicleMemory(db_path, furniture_config=config)
+    try:
+        # 1. Two distinct co-visible sofas in living-room: sofa-left and sofa-right
+        seed_sofa(memory, "sofa-left", 1.0, 5.0, bbox=(50.0, 100.0, 250.0, 300.0))
+        seed_sofa(memory, "sofa-right", 1.0, 5.0, bbox=(550.0, 100.0, 750.0, 300.0))
+
+        # 2. Add an object resting on sofa-left
+        from chronicle.types import ObjectState
+        memory.foreground.upsert_entity(
+            "cushion-1",
+            "cushion",
+            state=ObjectState.VISIBLE_STATIC,
+            state_since=5.0,
+            first_seen=5.0,
+            last_seen=5.0,
+            zone_id="living-room",
+        )
+        memory.store.upsert_entity(
+            "cushion-1",
+            "cushion",
+            "VISIBLE_STATIC",
+            5.0,
+            5.0,
+            5.0,
+            zone_id="living-room",
+        )
+        memory.foreground.open_resting("cushion-1", "anchor:sofa-left", 5.0)
+        memory.store.add_anchor(
+            "cushion-1",
+            "anchor:sofa-left",
+            Relation.RESTING_ON.value,
+            5.0,
+        )
+
+        # 3. Later observation: re-entry after pan mints duplicate anchor for sofa-left
+        seed_sofa(memory, "sofa-left-reentry", 50.0, 55.0, bbox=(52.0, 101.0, 248.0, 299.0))
+
+        # Run periodic consolidation sweep at t=60
+        reports = memory.maybe_consolidate(60.0)
+        merged = [r for r in reports if r.merged and r.kind == "furniture"]
+
+        assert len(merged) == 1
+        assert merged[0].keep == "sofa-left"
+        assert merged[0].remove == "sofa-left-reentry"
+        # sofa-left and sofa-right must remain separate
+        assert memory.background.has_node("anchor:sofa-left")
+        assert memory.background.has_node("anchor:sofa-right")
+        assert not memory.background.has_node("anchor:sofa-left-reentry")
+        assert memory.resolve_furniture_alias("sofa-left-reentry") == "sofa-left"
+        assert memory.stats()["furniture_merged"] == 1
+    finally:
+        memory.close()
+
+    # 4. Reopen SQLite database and verify persistence & alias retention
+    reopened = ChronicleMemory(db_path, furniture_config=config)
+    try:
+        assert reopened.resolve_furniture_alias("sofa-left-reentry") == "sofa-left"
+        assert reopened.background.has_node("anchor:sofa-left")
+        assert reopened.background.has_node("anchor:sofa-right")
+        assert not reopened.background.has_node("anchor:sofa-left-reentry")
+        assert {r.anchor_id for r in reopened.furniture.records} == {"sofa-left", "sofa-right"}
+
+        # Observe frame with support referencing merged alias: must canonicalize to sofa-left
+        from shapely.geometry import Polygon
+
+        from chronicle.types import SupportSurface
+        surf = SupportSurface(
+            anchor_id="sofa-left-reentry",
+            label="sofa",
+            polygon=Polygon([(50.0, 100.0), (250.0, 100.0), (250.0, 300.0), (50.0, 300.0)]),
+        )
+        reopened.observe(make_frame(70.0, supports=(surf,)))
+        # No new anchor created; both sofas still intact
+        assert not reopened.background.has_node("anchor:sofa-left-reentry")
+        assert reopened.background.has_node("anchor:sofa-left")
+        assert reopened.background.has_node("anchor:sofa-right")
+        assert len(reopened.furniture.records) == 2
+    finally:
+        reopened.close()
+

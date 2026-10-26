@@ -336,6 +336,14 @@ merges emit `[GRAPH] entity merged` (with keep/remove ids and preserved row
 counts), and each automatic pass that changes something emits
 `[GRAPH] consolidation sweep`.
 
+### Dual furniture fixtures and persistence validation
+
+Dual furniture fixtures (e.g. `sofa-left` and `sofa-right` in the same room) are validated under
+full SQLite disk persistence (`tests/test_consolidation.py::test_dual_furniture_consolidation_sweep_and_sqlite_persistence`):
+- Co-visible instances of static furniture remain distinct background anchors during periodic consolidation sweeps.
+- Sequential re-detections (e.g., re-entry after camera pan) merge cleanly into the keeper.
+- Reopening the database from SQLite disk file restores `merged_from` aliases into the `FurnitureRegistry` and blocks re-minting of retired track anchors.
+
 ## Configuration
 
 All tunables live in `chronicle/config.py` as frozen dataclasses. Override
