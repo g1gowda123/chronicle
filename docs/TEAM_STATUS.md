@@ -142,16 +142,19 @@ within tolerance, and a hallucinated timestamp is always rejected.
 **Role C note (this push):** all six items landed with model-free tests
 (`tests/test_verification_queue.py`, `tests/test_calibration.py`,
 `tests/test_evaluation.py`). Pushed as `9ae1e5e`; current verification on the
-merged tree is `pytest` 205 passed, `unittest discover -s tests` 101 passed,
+merged tree is `pytest` 212 passed, `unittest discover -s tests` 108 passed,
 `ruff check chronicle tests` clean, and `chronicle.semantic.demo` /
 `chronicle.semantic.evaluation` both exit 0 (7/7 cases, 100 % citation
 precision), plus a full `chronicle run --source synthetic --ask ...` smoke.
 `snapshot()` now embeds `verification_stats` (TASK-C1, `ee9fed7`), so the
-dashboard can poll queue depth/dropped/latency without a second call. The only
-cross-role edit is the internal `_clip_queue` / `_drain_clips` seam in
-`chronicle/integration.py` (bounded queue + latency marks); the rest of
-`ChronicleRuntime`'s public API is unchanged. Ambient caption phrasing still
-needs a labelled HoloLens pass before the “done when” line can be ticked.
+dashboard can poll queue depth/dropped/latency without a second call. Labelled
+captions can be calibrated from a JSON/JSONL file with
+`python -m chronicle.semantic.calibration --labels <file>` (see
+`docs/calibration_labels.example.json`), which unblocks calibrating on the
+HoloLens timeline without code changes. The only cross-role edit is the
+internal `_clip_queue` / `_drain_clips` seam in `chronicle/integration.py`
+(bounded queue + latency marks). Ambient caption phrasing still needs a
+labelled HoloLens pass before the “done when” line can be ticked.
 
 ### Role D — dashboard and product surface
 

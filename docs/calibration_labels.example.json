@@ -1,0 +1,26 @@
+[
+  {
+    "caption": "The hand picks up the red mug from the desk.",
+    "action": "PICK_UP"
+  },
+  {
+    "caption": "The person places the mug down on the counter.",
+    "action": "PUT_DOWN"
+  },
+  {
+    "caption": "The hand puts the keys into the open drawer.",
+    "action": "INSERT_INTO"
+  },
+  {
+    "caption": "The hand takes the charger out of the drawer.",
+    "action": "REMOVE_FROM"
+  },
+  {
+    "caption": "The hand opens the lid of the box.",
+    "action": "OPEN"
+  },
+  {
+    "caption": "A first-person view of a room.",
+    "action": "OTHER"
+  }
+]

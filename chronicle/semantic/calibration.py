@@ -16,8 +16,11 @@ Usage (offline, no models)::
 
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from .actions import (
@@ -320,3 +323,211 @@ def calibrator_from_samples(
         floor=floor,
         reject_ambiguous=reject_ambiguous,
     )
+
+
+# ---------------------------------------------------------------------------
+# Labelled-clip files
+# ---------------------------------------------------------------------------
+_CAPTION_KEYS = ("caption", "text", "description")
+_ACTION_KEYS = ("action", "label", "expected", "expected_action")
+
+
+def _coerce_action(value: Any) -> ActionPrimitive:
+    key = re.sub(r"[^A-Z0-9]+", "_", str(value).strip().upper()).strip("_")
+    try:
+        return ActionPrimitive(key)
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in ActionPrimitive)
+        raise ValueError(
+            f"unknown action {value!r}; expected one of {allowed}"
+        ) from exc
+
+
+def _entry_from_mapping(
+    item: Mapping[str, Any], *, index: int | str
+) -> tuple[str, ActionPrimitive]:
+    caption = next((item[key] for key in _CAPTION_KEYS if key in item), None)
+    action = next((item[key] for key in _ACTION_KEYS if key in item), None)
+    if caption is None or action is None:
+        raise ValueError(
+            f"label entry {index} needs a caption and one of "
+            f"{'/'.join(_ACTION_KEYS)}"
+        )
+    return str(caption), _coerce_action(action)
+
+
+def _entries_from_sequence(items: Sequence[Any]) -> list[tuple[str, ActionPrimitive]]:
+    entries: list[tuple[str, ActionPrimitive]] = []
+    for index, item in enumerate(items):
+        if isinstance(item, Mapping):
+            entries.append(_entry_from_mapping(item, index=index))
+        elif (
+            isinstance(item, Sequence)
+            and not isinstance(item, (str, bytes))
+            and len(item) == 2
+        ):
+            caption, action = item
+            entries.append((str(caption), _coerce_action(action)))
+        else:
+            raise ValueError(
+                f"label entry {index} must be an object or a (caption, action) pair"
+            )
+    return entries
+
+
+def load_calibration_labels(
+    source: str | Path | Mapping[str, Any] | Sequence[Any],
+) -> tuple[tuple[str, ActionPrimitive], ...]:
+    """Load labelled captions from JSON, JSONL or an in-memory object.
+
+    Accepted shapes::
+
+        [{"caption": "puts the keys into the drawer", "action": "INSERT_INTO"}]
+        [["puts the keys into the drawer", "INSERT_INTO"]]
+        {"labels": [...]}
+        {"INSERT_INTO": ["puts the keys into the drawer"]}
+
+    A path ending in ``.jsonl``/``.ndjson`` is read line by line.  Actions may
+    be written as ``REMOVE_FROM``, ``remove from`` or ``remove-from``.
+    """
+    data: Any = source
+    if isinstance(source, (str, Path)):
+        path = Path(source).expanduser()
+        text = path.read_text(encoding="utf-8")
+        if path.suffix.lower() in {".jsonl", ".ndjson"}:
+            rows: list[Any] = []
+            for line_number, line in enumerate(text.splitlines(), start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except ValueError as exc:
+                    raise ValueError(
+                        f"{path}:{line_number}: invalid JSON ({exc})"
+                    ) from exc
+            data = rows
+        else:
+            try:
+                data = json.loads(text)
+            except ValueError as exc:
+                raise ValueError(f"{path}: invalid JSON ({exc})") from exc
+
+    if isinstance(data, Mapping):
+        if "labels" in data:
+            data = data["labels"]
+        else:
+            entries: list[tuple[str, ActionPrimitive]] = []
+            for action_name, captions in data.items():
+                if isinstance(captions, (str, bytes)) or not isinstance(
+                    captions, Sequence
+                ):
+                    raise ValueError(
+                        f"action {action_name!r} must map to a list of captions"
+                    )
+                for index, caption in enumerate(captions):
+                    if isinstance(caption, Mapping):
+                        text = next(
+                            (caption[key] for key in _CAPTION_KEYS if key in caption),
+                            None,
+                        )
+                        if text is None:
+                            raise ValueError(
+                                f"{action_name}[{index}] needs a caption"
+                            )
+                        overridden = next(
+                            (
+                                caption[key]
+                                for key in _ACTION_KEYS
+                                if key in caption
+                            ),
+                            action_name,
+                        )
+                        entries.append((str(text), _coerce_action(overridden)))
+                    else:
+                        entries.append((str(caption), _coerce_action(action_name)))
+            data = entries
+
+    if not isinstance(data, Sequence) or isinstance(data, (str, bytes)):
+        raise ValueError("labels must be a list or an action -> captions mapping")
+
+    labels = tuple(_entries_from_sequence(data))
+    if not labels:
+        raise ValueError("no calibration labels found")
+    return labels
+
+
+def calibrate_from_file(
+    path: str | Path,
+    *,
+    classifier: RuleBasedActionClassifier | None = None,
+    floor: float = 0.45,
+    target_precision: float = 0.9,
+) -> CalibrationResult:
+    """Calibrate on a JSON/JSONL file of labelled captions."""
+    return calibrate_rule_classifier(
+        classifier=classifier,
+        labels=load_calibration_labels(path),
+        floor=floor,
+        target_precision=target_precision,
+    )
+
+
+def _format_env(thresholds: Iterable[tuple[str, float]]) -> str:
+    return ",".join(f"{name}={float(value):g}" for name, value in thresholds)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI: ``python -m chronicle.semantic.calibration --labels labels.json``."""
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(
+        description="Calibrate per-action acceptance thresholds from labelled captions"
+    )
+    parser.add_argument(
+        "--labels",
+        default=None,
+        help="JSON/JSONL label file; defaults to the built-in seed captions",
+    )
+    parser.add_argument("--floor", type=float, default=0.45)
+    parser.add_argument("--target-precision", type=float, default=0.9)
+    parser.add_argument("--json", action="store_true", help="print the full report")
+    parser.add_argument(
+        "--write", default=None, help="write the thresholds/report JSON here"
+    )
+    args = parser.parse_args(argv)
+
+    labels = load_calibration_labels(args.labels) if args.labels else None
+    result = calibrate_rule_classifier(
+        labels=labels,
+        floor=args.floor,
+        target_precision=args.target_precision,
+    )
+    payload = result.to_dict()
+    env = _format_env(result.thresholds)
+    payload["env"] = {"CHRONICLE_ACTION_THRESHOLDS": env}
+    if args.write:
+        Path(args.write).expanduser().write_text(
+            json.dumps(payload, indent=2), encoding="utf-8"
+        )
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        report = result.report
+        print(
+            f"labels={len(result.samples)} accepted={report.accepted} "
+            f"precision={report.precision:.2f} recall={report.recall:.2f}"
+        )
+        print(f"CHRONICLE_ACTION_THRESHOLDS={env}")
+        for name, value in result.thresholds:
+            print(f"  {name:<12} {float(value):.2f}")
+    reached = (
+        result.report.accepted > 0
+        and result.report.precision + 1e-9 >= args.target_precision
+    )
+    return 0 if reached else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

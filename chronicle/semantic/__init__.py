@@ -22,16 +22,6 @@ from .actions import (
     resolve_container,
 )
 from .adapters import PerceptionEmbedderAdapter, adapt_embedder
-from .calibration import (
-    CALIBRATION_CAPTIONS,
-    CalibrationReport,
-    CalibrationResult,
-    CalibrationSample,
-    calibrate_rule_classifier,
-    calibrator_from_samples,
-    evaluate_calibration,
-    suggest_thresholds,
-)
 from .config import SemanticConfig
 from .embedders import (
     DeterministicImageEmbedder,
@@ -75,28 +65,39 @@ from .temporal_strip import (
 from .verification import ActionVerifier
 from .vpr import PlaceMatch, VisualPlaceRecognizer, Zone, build_vpr
 
-# Imported lazily so `python -m chronicle.semantic.evaluation` does not trip
-# runpy's "found in sys.modules" warning.  `from chronicle.semantic import
-# evaluate_graphrag` and `import chronicle.semantic.evaluation` both still work.
-_LAZY_EVALUATION = frozenset(
-    {
-        "DEFAULT_GRAPHRAG_CASES",
-        "CaseOutcome",
-        "EvaluationReport",
-        "GraphRAGCase",
-        "evaluate_graphrag",
-    }
-)
+# Imported lazily so `python -m chronicle.semantic.{calibration,evaluation}`
+# does not trip runpy's "found in sys.modules" warning.  `from
+# chronicle.semantic import evaluate_graphrag` and `import
+# chronicle.semantic.evaluation` both still work.
+_LAZY_EXPORTS: dict[str, str] = {
+    "CALIBRATION_CAPTIONS": "calibration",
+    "CalibrationReport": "calibration",
+    "CalibrationResult": "calibration",
+    "CalibrationSample": "calibration",
+    "calibrate_from_file": "calibration",
+    "calibrate_rule_classifier": "calibration",
+    "calibrator_from_samples": "calibration",
+    "evaluate_calibration": "calibration",
+    "load_calibration_labels": "calibration",
+    "suggest_thresholds": "calibration",
+    "DEFAULT_GRAPHRAG_CASES": "evaluation",
+    "CaseOutcome": "evaluation",
+    "EvaluationReport": "evaluation",
+    "GraphRAGCase": "evaluation",
+    "evaluate_graphrag": "evaluation",
+}
 
 
 def __getattr__(name: str):
-    if name in _LAZY_EVALUATION:
-        from . import evaluation
+    module_name = _LAZY_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from importlib import import_module
 
-        value = getattr(evaluation, name)
-        globals()[name] = value
-        return value
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = import_module(f".{module_name}", __name__)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
 
 __all__ = [
     "CALIBRATION_CAPTIONS",
@@ -149,6 +150,7 @@ __all__ = [
     "build_embedder",
     "build_temporal_strip",
     "build_vpr",
+    "calibrate_from_file",
     "calibrate_rule_classifier",
     "calibrator_from_samples",
     "evaluate_calibration",
@@ -157,6 +159,7 @@ __all__ = [
     "extract_container",
     "format_context",
     "is_ambiguous_caption",
+    "load_calibration_labels",
     "parse_action_json",
     "resolve_container",
     "serialize_subgraph",

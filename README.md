@@ -196,13 +196,14 @@ with `PRE | CONTACT | POST` composites.
 pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
 python -m chronicle.semantic.demo
 python -m chronicle.semantic.evaluation    # GraphRAG eval: 7 cases, citation precision
+python -m chronicle.semantic.calibration   # per-action thresholds from labelled captions
 ```
 
 The demo exercises VPR, temporal strips, action verification, the bounded
 verification queue (dedup + backpressure + latency), confidence calibration and
 the GraphRAG evaluation set, then prints the telemetry the dashboard consumes.
-The suite is model-free: `python -m unittest discover -s tests` runs 101 tests
-and `python -m pytest` collects 205 across the repo.
+The suite is model-free: `python -m unittest discover -s tests` runs 108 tests
+and `python -m pytest` collects 212 across the repo.
 
 For the real OpenCLIP + Florence-2 stack and optional Ollama GraphRAG:
 

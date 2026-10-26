@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import io
+import json
+import tempfile
 import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
 
 from chronicle.semantic import (
     ActionCalibrator,
@@ -10,10 +15,13 @@ from chronicle.semantic import (
     ActionVerifier,
     CalibrationSample,
     SemanticConfig,
+    calibrate_from_file,
     calibrate_rule_classifier,
+    calibration,
     evaluate_calibration,
     extract_container,
     is_ambiguous_caption,
+    load_calibration_labels,
     parse_action_json,
     resolve_container,
     suggest_thresholds,
@@ -258,6 +266,113 @@ class ConfigTest(unittest.TestCase):
             SemanticConfig(verification_queue_policy="block").validate()
         with self.assertRaises(ValueError):
             SemanticConfig(action_thresholds=(("HOLD", 1.5),)).validate()
+
+
+class CalibrationLabelFileTest(unittest.TestCase):
+    """Labelled HoloLens captions should be consumable without editing Python."""
+
+    LABELS = [
+        {"caption": "The hand picks up the keys.", "action": "PICK_UP"},
+        {
+            "caption": "The hand puts the keys into the drawer.",
+            "action": "INSERT_INTO",
+        },
+        {
+            "caption": "The hand takes the charger out of the drawer.",
+            "action": "REMOVE_FROM",
+        },
+        {"caption": "A first-person view of a room.", "action": "OTHER"},
+    ]
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def write(self, name: str, payload) -> Path:
+        path = self.root / name
+        if isinstance(payload, str):
+            path.write_text(payload, encoding="utf-8")
+        else:
+            path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def test_loads_list_of_objects(self) -> None:
+        labels = load_calibration_labels(self.write("labels.json", self.LABELS))
+        self.assertEqual(len(labels), 4)
+        self.assertEqual(labels[1][1], ActionPrimitive.INSERT_INTO)
+        self.assertEqual(labels[1][0], "The hand puts the keys into the drawer.")
+
+    def test_loads_action_mapping_and_aliases(self) -> None:
+        path = self.write(
+            "mapping.json",
+            {
+                "pick up": ["The hand picks up the keys."],
+                "REMOVE-FROM": [
+                    {"text": "The hand takes the charger out of the drawer."}
+                ],
+            },
+        )
+        labels = dict(
+            (action, caption) for caption, action in load_calibration_labels(path)
+        )
+        self.assertEqual(labels[ActionPrimitive.REMOVE_FROM],
+                         "The hand takes the charger out of the drawer.")
+        self.assertIn(ActionPrimitive.PICK_UP, labels)
+
+    def test_loads_labels_wrapper_and_pairs(self) -> None:
+        path = self.write(
+            "wrapper.json",
+            {"labels": [["The hand picks up the keys.", "pick_up"]]},
+        )
+        labels = load_calibration_labels(path)
+        self.assertEqual(labels, (("The hand picks up the keys.", ActionPrimitive.PICK_UP),))
+
+    def test_loads_jsonl(self) -> None:
+        text = "\n".join(json.dumps(item) for item in self.LABELS) + "\n"
+        labels = load_calibration_labels(self.write("labels.jsonl", text))
+        self.assertEqual(len(labels), 4)
+
+    def test_invalid_labels_are_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            load_calibration_labels(self.write("bad_action.json", [
+                {"caption": "x", "action": "FLY"}
+            ]))
+        with self.assertRaises(ValueError):
+            load_calibration_labels(self.write("missing.json", [{"caption": "x"}]))
+        with self.assertRaises(ValueError):
+            load_calibration_labels(self.write("empty.json", []))
+        bad_json = self.write("broken.json", "{not json")
+        with self.assertRaises(ValueError):
+            load_calibration_labels(bad_json)
+
+    def test_calibrate_from_file_and_cli(self) -> None:
+        path = self.write("labels.json", self.LABELS)
+        result = calibrate_from_file(path, target_precision=1.0)
+        self.assertEqual(len(result.samples), 4)
+        self.assertEqual(result.report.precision, 1.0)
+        self.assertGreater(result.report.accepted, 0)
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = calibration.main(["--labels", str(path), "--json"])
+        self.assertEqual(code, 0)
+        payload = json.loads(buffer.getvalue())
+        self.assertIn("INSERT_INTO", payload["thresholds"])
+        self.assertIn("CHRONICLE_ACTION_THRESHOLDS", payload["env"])
+        self.assertIn("INSERT_INTO=", payload["env"]["CHRONICLE_ACTION_THRESHOLDS"])
+
+    def test_cli_writes_threshold_file(self) -> None:
+        labels = self.write("labels.json", self.LABELS)
+        out = self.root / "thresholds.json"
+        with redirect_stdout(io.StringIO()):
+            code = calibration.main(
+                ["--labels", str(labels), "--write", str(out)]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(payload["report"]["samples"], 4)
+        self.assertIn("thresholds", payload)
 
 
 if __name__ == "__main__":

@@ -421,6 +421,28 @@ config = SemanticConfig(action_thresholds=result.thresholds)
 accepts your own labelled captions; `suggest_thresholds()` works on raw
 `CalibrationSample(action, confidence, correct)` values.
 
+For real HoloLens clips, keep the labels outside the code and point the CLI at
+them (see [`docs/calibration_labels.example.json`](calibration_labels.example.json)):
+
+```bash
+python -m chronicle.semantic.calibration \
+  --labels docs/calibration_labels.example.json
+# labels=6 accepted=5 precision=1.00 recall=0.83
+# CHRONICLE_ACTION_THRESHOLDS=CLOSE=0.72,HAND_OFF=0.6,...
+
+python -m chronicle.semantic.calibration \
+  --labels runs/hololens_labels.jsonl --target-precision 0.95 \
+  --write runs/calibration.json --json
+```
+
+Accepted label shapes are a list of `{"caption", "action"}` objects,
+`(caption, action)` pairs, `{"labels": [...]}`, or
+`{"INSERT_INTO": ["caption", ...]}`; `.jsonl`/`.ndjson` files are read line by
+line. Actions accept `REMOVE_FROM`, `remove from` or `remove-from`. The command
+prints the `CHRONICLE_ACTION_THRESHOLDS=...` value to copy into the environment,
+and exits non-zero if the requested precision cannot be reached on those labels
+(so CI can gate a regression).
+
 ---
 
 ## 7. Configuration
@@ -475,8 +497,8 @@ to load `CHRONICLE_LLM_MODEL` with Hugging Face `pipeline("text-generation")`.
 ## 9. Tests and evaluation
 
 ```powershell
-python -m unittest discover -s tests -v   # 101 model-free tests
-python -m pytest                          # 205 collected across the repo
+python -m unittest discover -s tests -v   # 108 model-free tests
+python -m pytest                          # 212 collected across the repo
 python -m chronicle.semantic.demo         # offline end-to-end demo
 python -m chronicle.semantic.evaluation   # GraphRAG eval set (or -m chronicle-semantic-eval)
 ```
@@ -495,6 +517,8 @@ The Role C suite covers:
   latency stats, background worker, runtime seam;
 * container extraction for `INSERT_INTO` / `REMOVE_FROM`, ambiguity rejection,
   per-action thresholds and threshold suggestion;
+* labelled-caption files: JSON list/mapping/`labels` wrapper, JSONL, alias
+  action names, invalid-label rejection, CLI `--json`/`--write` output;
 * GraphRAG evaluation: 7 cases (location, time, action, remove, lost, zone-only,
   unknown), 100 % citation precision, hallucinated-timestamp fallback.
 
@@ -508,9 +532,10 @@ The suite has **no model downloads and no network access**.
   followed by a text-only JSON classifier. Swapping in a vision-language model
   is a matter of replacing `ActionVerifier.chat_client` with a vision client;
   the schema and fallbacks stay unchanged.
-* Confidence calibration ships with a 16-caption seed set. Add labelled
-  HoloLens clips via `calibrate_rule_classifier(labels=...)` and commit the
-  resulting thresholds once the real timeline is labelled.
+* Calibration ships with a 16-caption seed set and now accepts labelled files
+  (`python -m chronicle.semantic.calibration --labels labels.jsonl`). Add
+  labelled HoloLens clips and commit the resulting thresholds once the real
+  timeline is labelled.
 * The deterministic embedder is intentionally not CLIP-quality. It exists for
   offline demos/tests; production must install `requirements-semantic-models.txt`.
 * Zone prototypes are in-memory + JSON by default. Role B can persist
