@@ -253,6 +253,7 @@ def process_job(job: dict[str, Any]) -> None:
                 }
                 for event in sorted(store.events, key=lambda row: float(row["t"]))[:120]
             ]
+            job["pack_chars"] = len(memory_pack.build_pack(store, max_chars=14000))
             pack_md = memory_pack.build_pack(store)
             pack_json = memory_pack.build_pack_data(store)
             (job_dir / "memory_pack.md").write_text(pack_md, encoding="utf-8")
@@ -444,7 +445,7 @@ def build_ui() -> None:
                         ).props("outline dense no-caps").classes("text-xs chronicle-mono")
                 ui.label(
                     f"{job.get('duration_s', 0):.1f}s · source kept for playback · "
-                    f"LLM context {job.get('ledger', {}).get('bytes', 0)/1024:.1f} KB text · 0 frames"
+                    f"LLM pack {job.get('pack_chars', 0)/1024:.1f} KB text · 0 frames"
                 ).classes("text-[11px] chronicle-mono text-slate-500")
             if not state.get("timeline_loaded"):
                 render_timeline(job)
