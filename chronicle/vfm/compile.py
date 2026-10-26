@@ -114,16 +114,49 @@ def _transition_evidence(row: sqlite3.Row) -> dict[str, Any]:
         return {}
 
 
+def _bbox(value: Any) -> tuple[float, float, float, float] | None:
+    try:
+        box = json.loads(str(value)) if isinstance(value, str) else value
+        if not isinstance(box, (list, tuple)) or len(box) != 4:
+            return None
+        return tuple(float(item) for item in box)  # type: ignore[return-value]
+    except (TypeError, ValueError):
+        return None
+
+
+def _iou(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
+    x1, y1 = max(a[0], b[0]), max(a[1], b[1])
+    x2, y2 = min(a[2], b[2]), min(a[3], b[3])
+    intersection = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+    area_a = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
+    area_b = max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+    union = area_a + area_b - intersection
+    return intersection / union if union > 0 else 0.0
+
+
+def _center_distance(
+    a: tuple[float, float, float, float], b: tuple[float, float, float, float]
+) -> float:
+    ax, ay = (a[0] + a[2]) / 2.0, (a[1] + a[3]) / 2.0
+    bx, by = (b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0
+    return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
+
+
 def visibility_counts(
     source: sqlite3.Connection, entities: list[sqlite3.Row]
-) -> dict[str, dict[str, int]]:
-    """Per-label track count plus peak simultaneous visibility.
+) -> dict[str, dict[str, Any]]:
+    """Per-label track count, peak visibility and cross-label duplicates.
 
     A tracker can split one physical object into several tracks; the track count
     alone is therefore an upper bound. The peak number of same-label tracks seen
-    in a single observation frame is a lower bound on the number of physical
-    objects. Reporting both is honest and still cheap to compute at compile
-    time, so the query engine never has to touch raw observations.
+    in a single observation frame is a lower bound when the tracker is clean.
+
+    Some episodes also contain the *same* box emitted under two labels (cook:
+    the two plates appear as both ``bowl`` and ``plate`` with IoU 0.91–0.99).
+    Those tracks are counted once under the label with more observations; the
+    losing label reports ``physical`` (before transient filtering) and how many
+    of its tracks were merged. All of this is computed at compile time, so the
+    query engine still never touches raw observations or video.
     """
 
     labels = {str(row["id"]): str(row["label"]) for row in entities}
@@ -135,19 +168,110 @@ def visibility_counts(
 
     # Round to the observation cadence (10 fps) so rows from the same frame
     # collapse even when float timestamps differ in the last decimals.
-    frames: dict[str, dict[float, set[str]]] = defaultdict(lambda: defaultdict(set))
-    for row in _rows(source, "select entity_id, t from observations"):
+    frames: dict[float, dict[str, tuple[float, float, float, float] | None]] = defaultdict(dict)
+    samples: dict[str, list[tuple[float, tuple[float, float, float, float] | None]]] = defaultdict(list)
+    for row in _rows(source, "select entity_id, t, bbox from observations"):
         entity_id = str(row["entity_id"])
-        label = labels.get(entity_id)
-        if label is None:
+        if entity_id not in labels:
             continue
-        frames[label][round(float(row["t"]), 2)].add(entity_id)
+        timestamp = round(float(row["t"]), 2)
+        box = _bbox(row["bbox"])
+        frames[timestamp][entity_id] = box
+        samples[entity_id].append((timestamp, box))
 
-    counts: dict[str, dict[str, int]] = {}
-    for label, per_time in frames.items():
+    # A "strong" duplicate is the same pixels under two labels: IoU >= 0.90
+    # and centres within 5 px. This is deliberately tighter than the merge
+    # gate for same-label tracking, because a real second object can overlap.
+    strong: dict[tuple[str, str], int] = defaultdict(int)
+    for boxes in frames.values():
+        ids = list(boxes)
+        for index, left in enumerate(ids):
+            for right in ids[index + 1 :]:
+                if labels[left] == labels[right]:
+                    continue
+                left_box, right_box = boxes[left], boxes[right]
+                if left_box is None or right_box is None:
+                    continue
+                if _iou(left_box, right_box) >= 0.90 and _center_distance(left_box, right_box) <= 5.0:
+                    strong[tuple(sorted((left, right)))] += 1
+
+    observations = {entity_id: len(rows) for entity_id, rows in samples.items()}
+    # Decide which label is canonical at the label level, not the track level.
+    # A single long bowl track can outlive one plate track; comparing total
+    # observations per label avoids a chain where that plate yields to the bowl.
+    totals: dict[str, int] = defaultdict(int)
+    for entity_id, count in observations.items():
+        totals[labels[entity_id]] += count
+    loser_to_winners: dict[str, set[str]] = defaultdict(set)
+    for left, right in strong:
+        left_label, right_label = labels[left], labels[right]
+        if totals[left_label] == totals[right_label]:
+            continue
+        winner, loser = (
+            (left_label, right_label)
+            if totals[left_label] > totals[right_label]
+            else (right_label, left_label)
+        )
+        loser_to_winners[loser].add(winner)
+
+    duplicate_of: dict[str, str] = {}
+    for entity_id in labels:
+        winners = loser_to_winners.get(labels[entity_id])
+        if not winners:
+            continue
+        best: str | None = None
+        best_score: tuple[int, int] | None = None
+        for (left, right), hits in strong.items():
+            if left != entity_id and right != entity_id:
+                continue
+            other = right if left == entity_id else left
+            if labels[other] not in winners:
+                continue
+            score = (hits, observations.get(other, 0))
+            if best_score is None or score > best_score:
+                best, best_score = other, score
+        if best is not None:
+            duplicate_of[entity_id] = labels[best]
+
+    # Peak visibility is per label: count distinct same-label ids per frame.
+    per_label: dict[str, dict[float, set[str]]] = defaultdict(lambda: defaultdict(set))
+    for timestamp, boxes in frames.items():
+        for entity_id in boxes:
+            per_label[labels[entity_id]][timestamp].add(entity_id)
+
+    # On a tiny fixture a single observation may be the only evidence; only
+    # treat one-frame tracks as transient when the episode has enough data.
+    total_observations = sum(observations.values())
+    last_timestamp = max((t for rows in samples.values() for t, _ in rows), default=0.0)
+    transient_min = 2 if total_observations >= 10 and last_timestamp >= 5.0 else 1
+
+    counts: dict[str, dict[str, Any]] = {}
+    for label, per_time in per_label.items():
+        track_ids = [entity_id for entity_id in labels if labels[entity_id] == label]
+        peak = max((len(ids) for ids in per_time.values()), default=0)
+        duplicates = sum(1 for entity_id in track_ids if entity_id in duplicate_of)
+        transient = sum(
+            1
+            for entity_id in track_ids
+            if observations.get(entity_id, 0) < transient_min and entity_id not in duplicate_of
+        )
+        physical = sum(
+            1
+            for entity_id in track_ids
+            if entity_id not in duplicate_of and observations.get(entity_id, 0) >= transient_min
+        )
+        merged_into: dict[str, int] = defaultdict(int)
+        for entity_id in track_ids:
+            target = duplicate_of.get(entity_id)
+            if target is not None:
+                merged_into[target] += 1
         counts[label] = {
             "tracks": track_totals[label],
-            "peak": max((len(ids) for ids in per_time.values()), default=0),
+            "peak": peak,
+            "physical": physical,
+            "duplicates": duplicates,
+            "transient": transient,
+            "merged_into": dict(sorted(merged_into.items())),
         }
     return counts
 

@@ -45,10 +45,16 @@ def _make_graph_db(path: Path) -> Path:
         )
         con.execute(
             "insert into entities values ('e3', 'cup', 'VISIBLE_STATIC', 2.5, 2.5, 3.0,"
-            " '[0,0,1,1]', null, 3, 'z1', '{}')"
+            " '[200,0,300,100]', null, 3, 'z1', '{}')"
         )
         con.execute("insert into observations values (1, 'e1', 4.0, '[0,0,1,1]', 'VISIBLE_STATIC')")
-        con.execute("insert into observations values (2, 'e3', 4.0, '[0,0,1,1]', 'VISIBLE_STATIC')")
+        con.execute("insert into observations values (2, 'e1', 3.9, '[0,0,1,1]', 'VISIBLE_STATIC')")
+        con.execute(
+            "insert into observations values (3, 'e3', 4.0, '[200,0,300,100]', 'VISIBLE_STATIC')"
+        )
+        con.execute(
+            "insert into observations values (4, 'e3', 3.9, '[200,0,300,100]', 'VISIBLE_STATIC')"
+        )
         con.execute(
             "insert into state_transitions values (1, 'e1', 'VISIBLE_STATIC', 'INTERACTED',"
             " 1.0, '{\"reason\": \"hand_contact\"}', null)"
@@ -349,7 +355,10 @@ def test_count_answers_expose_track_and_visibility_bounds(tmp_path: Path) -> Non
     db = _make_graph_db(tmp_path / "chronicle.db")
     job_dir = tmp_path / "job"
     result = compile_memory(None, db, job_dir, title="fixture", episode_id="fixture")
-    assert result["vault_stats"]["counts"] == {"cup": {"tracks": 2, "peak": 2}}
+    cup = result["vault_stats"]["counts"]["cup"]
+    assert cup["tracks"] == 2
+    assert cup["peak"] == 2
+    assert cup["physical"] == 2
 
     con = sqlite3.connect(str(job_dir / "vault.db"))
     con.row_factory = sqlite3.Row

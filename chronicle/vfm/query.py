@@ -111,10 +111,11 @@ class EventStore:
     captions: list[dict[str, Any]]
     con: sqlite3.Connection
     evidence: list[dict[str, Any]] = field(default_factory=list)
-    #: Per-label ``{"tracks": n, "peak": m}`` from compile-time observations.
-    #: ``peak`` is the most same-label tracks visible in one frame, i.e. a lower
-    #: bound on the physical object count; ``tracks`` is the upper bound.
-    counts: dict[str, dict[str, int]] = field(default_factory=dict)
+    #: Per-label counts from compile-time observations. ``tracks`` is the raw
+    #: tracker count (upper bound), ``peak`` is the most same-label tracks
+    #: visible in one frame, and ``physical`` removes cross-label duplicate
+    #: detections and one-frame transients (a conservative lower estimate).
+    counts: dict[str, dict[str, Any]] = field(default_factory=dict)
     ledger: dict[str, Any] = field(default_factory=dict)
     by_subject: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     times: list[float] = field(default_factory=list)
@@ -260,7 +261,7 @@ def load_store(con: sqlite3.Connection) -> EventStore:
     except sqlite3.Error:
         pass
 
-    counts: dict[str, dict[str, int]] = {}
+    counts: dict[str, dict[str, Any]] = {}
     try:
         row = con.execute("select value from meta where key='counts'").fetchone()
         if row is not None:
@@ -269,10 +270,20 @@ def load_store(con: sqlite3.Connection) -> EventStore:
                 for label, value in raw.items():
                     if not isinstance(value, dict):
                         continue
-                    clean = {
+                    clean: dict[str, Any] = {
                         "tracks": int(value.get("tracks") or 0),
                         "peak": int(value.get("peak") or 0),
                     }
+                    for key in ("physical", "duplicates", "transient"):
+                        if key in value:
+                            clean[key] = int(value.get(key) or 0)
+                    merged = value.get("merged_into")
+                    if isinstance(merged, dict):
+                        clean["merged_into"] = {
+                            str(name): int(number)
+                            for name, number in merged.items()
+                            if int(number or 0)
+                        }
                     if clean["tracks"]:
                         counts[str(label)] = clean
     except (sqlite3.Error, TypeError, ValueError):
@@ -735,6 +746,43 @@ def answer_count(store: EventStore, query: str, entity: dict[str, Any] | None) -
     plural = "" if count == 1 else "s"
     summary = store.counts.get(label.lower()) or {}
     peak = int(summary.get("peak") or 0)
+    physical = summary.get("physical")
+    duplicates = int(summary.get("duplicates") or 0)
+    transient = int(summary.get("transient") or 0)
+    merged = summary.get("merged_into") or {}
+    if physical is not None and int(physical) < count:
+        merged_text = ", ".join(
+            f"{int(number)} {name} track{'' if int(number) == 1 else 's'}"
+            for name, number in merged.items()
+        )
+        parts = [f"The memory tracked {count} {label.lower()} track{plural}."]
+        if duplicates:
+            detail = (
+                f"{duplicates} of them are near-identical duplicate detections of "
+                f"{merged_text or 'another label'}"
+            )
+            if transient:
+                detail += (
+                    f" and {transient} one-frame track{'s' if transient != 1 else ''} "
+                    f"{'are' if transient != 1 else 'is'} transient"
+                )
+            parts.append(
+                f"{detail}, so the physical {label.lower()} count is {int(physical)}."
+            )
+        else:
+            parts.append(
+                f"{transient} one-frame track{'s' if transient != 1 else ''} "
+                f"{'are' if transient != 1 else 'is'} transient, so the physical "
+                f"{label.lower()} count is {int(physical)}."
+            )
+        return Answer(
+            query,
+            " ".join(parts),
+            citations=[_citation(latest)] if latest else [],
+            evidence=_evidence_list(store, float(latest["t"])) if latest else [],
+            confidence=0.8,
+            method="vault-count-dedup",
+        )
     if peak and peak < count:
         answer_text = (
             f"The memory tracked {count} {label.lower()} track{plural}. "

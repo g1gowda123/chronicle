@@ -1,7 +1,7 @@
 questions   : 30
 cold accuracy: 30/30 = 100.0%
-latency      : cold p50 0.048 ms · p95 0.125 ms
-warm latency : p50 0.061 ms · p95 0.106 ms
+latency      : cold p50 0.061 ms · p95 0.155 ms
+warm latency : p50 0.067 ms · p95 0.119 ms
 cache        : 4/4 paraphrases hit = 100%; reused accuracy = 1.0
 
 | Category | Correct | Total | Accuracy |
@@ -35,7 +35,7 @@ cache        : 4/4 paraphrases hit = 100%; reused accuracy = 1.0
 | T6 | temporal | when did I touch the joy-con? | yes | vault-when | The joy-con was last touched or held at t=4.9s in the Work Table. At t=4.9s, the joy-con was touched in the Work Table. |
 | C1 | count | how many cups are in the memory? | yes | vault-count-visibility | The memory tracked 2 cup tracks. Up to 2 were visible at the same instant, which is still a track count, not a verified physical count. |
 | C2 | count | how many plates? | yes | vault-count-visibility | The memory tracked 2 plate tracks. Up to 2 were visible at the same instant, which is still a track count, not a verified physical count. |
-| C3 | count | how many bowls? | yes | vault-count-visibility | The memory tracked 4 bowl tracks. At most 2 bowl tracks were visible at the same instant, so the physical count is between 2 and 4: fragmentation or occlusion may inflate the track count. |
+| C3 | count | how many bowls? | yes | vault-count-dedup | The memory tracked 4 bowl tracks. 3 of them are near-identical duplicate detections of 3 plate tracks and 1 one-frame track is transient, so the physical bowl count is 0. |
 | C4 | count | how many cars? | yes | vault-count-visibility | The memory tracked 2 car tracks. At most 1 car track was visible at the same instant, so the physical count is between 1 and 2: fragmentation or occlusion may inflate the track count. |
 | C5 | count | how many joy-cons? | yes | vault-count-visibility | The memory tracked 2 joy-con tracks. Up to 2 were visible at the same instant, which is still a track count, not a verified physical count. |
 | B1 | before_after | what happened before the plate was placed in the bowl? | yes | vault-before | Before the plate was placed in the bowl in the Kitchen at t=43.4s: |

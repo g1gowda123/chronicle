@@ -9,6 +9,7 @@ works.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import sys
 from pathlib import Path
@@ -59,6 +60,7 @@ def _make_source(path: Path) -> None:
             ("bowl_c", 10.0),
             ("bowl_c", 10.1),
             ("bowl_d", 20.0),
+            ("bowl_d", 20.1),
             ("cup_a", 0.0),
             ("cup_a", 5.0),
         ]
@@ -81,11 +83,12 @@ def test_compile_stores_track_and_peak_counts(tmp_path: Path) -> None:
     bowl = report["counts"]["bowl"]
     assert bowl["tracks"] == 4
     assert bowl["peak"] == 2
-    # The compiler may also emit an experimental duplicate-merged estimate.
-    assert 0 < bowl.get("estimate", 4) <= 4
+    assert bowl["physical"] == 4
+    assert bowl["duplicates"] == 0
     cup = report["counts"]["cup"]
     assert cup["tracks"] == 1
     assert cup["peak"] == 1
+    assert cup["physical"] == 1
 
     con = sqlite3.connect(str(vault))
     try:
@@ -137,6 +140,7 @@ def test_report_embeds_counts_and_uses_bounds(tmp_path: Path) -> None:
     assert '"counts"' in html
     assert '"peak": 2' in html
     assert "vault-count-visibility" in html
+    assert "vault-count-dedup" in html
 
 
 def test_legacy_vault_without_counts_keeps_old_wording(tmp_path: Path) -> None:
@@ -154,5 +158,67 @@ def test_legacy_vault_without_counts_keeps_old_wording(tmp_path: Path) -> None:
         result = query.answer(store, "how many bowls?", use_cache=False)
         assert result.method == "vault-count"
         assert "not a verified object count" in result.answer
+    finally:
+        con.close()
+
+
+def test_cross_label_duplicate_tracks_are_counted_once(tmp_path: Path) -> None:
+    source = tmp_path / "chronicle.db"
+    con = sqlite3.connect(str(source))
+    try:
+        con.executescript(
+            """
+            create table zones (id text primary key, label text);
+            create table entities (
+                id text primary key, label text, state text, zone_id text,
+                first_seen real, last_seen real, attrs text default '{}'
+            );
+            create table observations (
+                id integer primary key autoincrement, entity_id text, t real,
+                bbox text, state text
+            );
+            """
+        )
+        con.execute("insert into zones values ('z1', 'Kitchen')")
+        con.executemany(
+            "insert into entities values (?, ?, 'VISIBLE', 'z1', 0.0, 9.0, '{}')",
+            [("plate_a", "plate"), ("bowl_a", "bowl")],
+        )
+        # Same pixels, two labels: three strong duplicate frames. The plate
+        # track lives longer, so it is the canonical label.
+        for index, t in enumerate((1.0, 2.0, 3.0)):
+            box = json.dumps([10.0, 10.0, 60.0, 60.0])
+            con.execute(
+                "insert into observations (entity_id, t, bbox, state) values (?, ?, ?, 'VISIBLE')",
+                ("plate_a", t, box),
+            )
+            con.execute(
+                "insert into observations (entity_id, t, bbox, state) values (?, ?, ?, 'VISIBLE')",
+                ("bowl_a", t, box),
+            )
+        con.execute(
+            "insert into observations (entity_id, t, bbox, state) values ('plate_a', 4.0, ?, 'VISIBLE')",
+            (json.dumps([10.0, 10.0, 60.0, 60.0]),),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+    vault = tmp_path / "vault.db"
+    report = vfm_compile.compile_vault(source, vault)
+    assert report["counts"]["bowl"]["tracks"] == 1
+    assert report["counts"]["bowl"]["duplicates"] == 1
+    assert report["counts"]["bowl"]["physical"] == 0
+    assert report["counts"]["plate"]["physical"] == 1
+    assert report["counts"]["bowl"]["merged_into"] == {"plate": 1}
+
+    con = sqlite3.connect(str(vault))
+    try:
+        store = query.load_store(con)
+        result = query.answer(store, "how many bowls?", use_cache=False)
+        assert result.method == "vault-count-dedup"
+        assert "1 bowl track" in result.answer
+        assert "duplicate detections of 1 plate track" in result.answer
+        assert "physical bowl count is 0" in result.answer
     finally:
         con.close()

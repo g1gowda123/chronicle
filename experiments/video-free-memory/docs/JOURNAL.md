@@ -776,7 +776,7 @@ plates and no bowls on the counter.
 - Walking backpack/person max cross-label IoU is 0.63, below the 0.90 gate, so the backpack is not
   absorbed into the person. No false merge.
 - Full 30-question suite after rebuilding the vaults: **30/30 cold, 30/30 warm, 4/4 cache hits**,
-  p50 0.051 ms cold / 0.062 ms warm. C3 still contains `4 bowl` and now also says physical `0`.
+  p50 0.061 ms cold / 0.067 ms warm. C3 still contains `4 bowl` and now also says physical `0`.
 - `pytest -q tests` → **24 passed**.
 
 ### Decision

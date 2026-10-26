@@ -362,9 +362,10 @@ appearance is 19.0 s instead of 7.1 s. The vault keeps the full event ledger and
 Honest caveat on **count** questions: the original says "one cup", "one plate", "at least three
 bowls"; the vault says "2 cup tracks", "2 plate tracks", "4 bowl tracks". The tracker splits
 physical objects, so the vault's count is a **track count**, not necessarily the physical count.
-The vault now also reports the peak number of same-label tracks visible at one instant, so bowls
-read as "4 tracks, physical count between 2 and 4" instead of implying four bowls. The count
-category is still not a clean win without visual ground truth. The original also answers
+The vault now reconciles counts at compile time: bowls read as "4 bowl tracks, 3 near-identical
+duplicate detections of plates and 1 transient, physical bowl count 0", while cars stay a
+fragmentation range (2 tracks, 1–2 physical). See `docs/COUNTS.md`. The count category is still not
+a clean win without visual ground truth. The original also answers
 `where is the mug?` with "I don't have that in my memory" while the vault maps mug → cup, and it
 only tracks terminal states rather than the full history.
 
@@ -405,9 +406,9 @@ Caveats:
   it does not see. That is the expected failure mode of sparse frame sampling.
 - **Count questions are track counts plus a visibility bound, not verified physical counts.**
   The tracker splits objects (cook: 2 plate tracks, 4 bowl tracks), while the VLM may count visible
-  physical objects. Count answers now say "at most N visible at once, so the physical count is
-  between N and M" (`docs/COUNTS.md`); do not read the 5/0 count split as a clean physical-count
-  win.
+  physical objects. Count answers now report the raw track count plus a physical estimate: peak
+  visible at once, cross-label duplicate merges and one-frame transients (`docs/COUNTS.md`). Do not
+  read the 5/0 count split as a clean physical-count win.
 - The Gemini free-tier probe (Gemini 3.8 Flash) took **234 s for one question**, used 1,134
   prompt tokens, returned a truncated answer and scored 0/1. A 30-question online run would take
   hours on this quota, so it is not reported as a benchmark. The adapter is real and ready for a

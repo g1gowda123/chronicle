@@ -300,11 +300,12 @@ flags and measurements.
 
 ### P1 — correctness / evaluation
 
-7. ~~Physical object counts.~~ **DONE (bounds).** Count answers now report the track count (upper
-   bound) and the peak simultaneous visibility (lower bound), computed at compile time from
-   observations (`prototype/compile.py::visibility_counts`, `docs/COUNTS.md`). Cook bowls:
-   4 tracks, physical bound 2–4; walking cars: 2 tracks, bound 1–2. Still open: visual ground
-   truth/labelled counts, which this cannot replace.
+7. ~~Physical object counts.~~ **DONE (dedup + bounds).** Count answers report the raw track count,
+   the peak simultaneous visibility, and a physical estimate that removes cross-label duplicate
+   detections and one-frame transients (`prototype/compile.py::visibility_counts`,
+   `docs/COUNTS.md`). Cook bowls: 4 tracks → **0 physical** (3 near-identical plate duplicates +
+   1 transient; two plates confirmed visually); walking cars: 2 tracks → 1–2. Still open:
+   hand-labelled counts for the other episodes, which this cannot replace.
 8. External benchmark: CapMem caption-only QA if released; otherwise 100-clip EgoSchema subset;
    Ego4D NLQ for temporal grounding.
 9. Improve the ungrounded pack (18/30) only if you want the LLM to reason beyond the verified
