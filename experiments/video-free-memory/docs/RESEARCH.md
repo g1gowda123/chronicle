@@ -144,11 +144,13 @@ just vault accuracy. Measured on the same 30 questions:
 - original Chronicle graph + Qwen2.5 7B: 14/30, 847 ms p50, 4.6 s p95, requires the DB/video;
 - 9-frame timestamped contact sheet + Qwen2.5-VL: 7/30, 4.46 s p50, 764 tokens/question,
   19.24 MB of video at query;
-- VFM vault: 30/30, 0.045 ms p50, 0 tokens, no video, 404 KB at rest.
+- **Qwen 7B from the compiled memory pack: 30/30, 1.07 s p50, ~1,055 tokens/question, no video;**
+- VFM vault deterministic: 30/30, 0.045 ms p50, 0 tokens, no video, 404 KB at rest.
 
-The original is more fluent but reads terminal anchors, so it gives stale locations/timestamps.
-The vault wins on exact temporal lookup at the cost of natural-language richness. Counts remain
-track counts, not verified physical counts.
+The pack result is the important usability point: the LLM is not prompted over a plain video. It
+gets a verified structured answer plus timestamped captions/events/evidence references. The
+original is more fluent but reads terminal anchors, so it gives stale locations/timestamps. Counts
+remain track counts, not verified physical counts.
 
 The advantage grows with duration: a real video LLM must either scale frames/tokens with length
 or keep a fixed frame budget and lose coverage. The vault grows with events (~42 KB/hour) plus a

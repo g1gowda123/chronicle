@@ -277,8 +277,11 @@ and decide the long-term retention policy.
 - `concat_vaults.py` + `scale_test.py`: synthetic 10/30/60-minute episodes, 40-snapshot cap.
 - `vlm_baseline.py`: 9-frame timestamped contact sheet + local Qwen2.5-VL, token/cost/size.
 - `online_baseline.py`: OpenAI / Anthropic / Gemini adapter (no key bundled).
-- `report.py`: client-side query box, dense ledger, WebP MIME fix, deduped embedded images.
+- `report.py`: client-side query box, dense ledger, WebM MIME fix, deduped embedded images.
 - 1 KB SQLite pages before WAL: cook vault 77 KB → 27 KB.
+- `video_vault.py` + `memory_pack.py` + `nlq.py` + `studio_app.py` + `run_studio.sh`:
+  upload a raw video, build a caption-first vault, export a video-free pack/report/zip, and
+  optionally answer with Qwen from the pack. Source video stays for playback by default.
 
 ### Measured
 
@@ -312,6 +315,17 @@ temporal 2/6, count 0/5, before-after 2/4, negation 5/5, paraphrase 2/4. The ori
 fluent but reads terminal anchors: plate "resting on the countertop at 38.1s" after it was placed
 in the bowl at 43.4s; knife first appeared at 19.0s instead of 7.1s. Counts are a track-count
 comparison, not a verified physical count; the original may be more physically correct.
+
+**Qwen 7B from the memory pack** — grounded pack with the verified structured answer, timestamped
+windows, events and evidence refs: **30/30 (100%)**, p50 1,074 ms, p95 2,660 ms, 43,239 prompt +
+996 output tokens (~1,055 pack tokens/question), no video. This is the usability result: the LLM
+does not prompt over plain video; it phrases a verified compiled answer. Two earlier ungrounded
+pack runs were 18/30 and 28/30, showing the verified-answer section is what closes the gap.
+
+**Studio upload test** — uploaded an 8.2s clip through the NiceGUI endpoint; compiled in ~6s to a
+24 KB vault, 321 KB HTML report, 8 WebP snapshots (108 KB), 3.2 KB memory pack (~804 tokens).
+`/jobs/<id>/video`, `memory.html`, `memory.zip` and `memory_pack.md` all returned HTTP 200. Source
+video retained for playback; downloads video-free.
 
 **Scaling** — 10/30/60 min: 453/1,257/2,474 events, vault 51/86/139 KB, load 1.1/2.8/5.5 ms,
 p50 0.68/1.86/3.64 ms, p95 1.91/5.30/10.42 ms. Latency is not flat; it grows with event count,
@@ -352,6 +366,9 @@ the only video, then queried and rendered the report. Zero videos remained; all 
 - Default evidence: 480 px WebP q75; 12 snapshots/hour for long-term retention, 40/hour for max
   visual audit.
 - 1 KB SQLite pages before WAL; cache is volatile and dropped before quoting at-rest size.
+- Keep the Studio source video for playback; the vault, memory pack, report and zip stay
+  video-free. `--delete-video` is optional.
+- LLM answers use the grounded memory pack, not raw video or raw captions alone.
 - Keep the 30-question set as a regression suite, not a benchmark.
 - Do not claim online VLM numbers without a full run.
 
@@ -363,3 +380,48 @@ the only video, then queried and rendered the report. Zero videos remained; all 
    correctness gap.
 4. Evidence dedup/perceptual hash and a 24-hour/7-day consolidation test.
 5. Int8 embeddings for caption windows only if lexical/dense retrieval misses measurable cases.
+
+---
+
+## 2026-10-27 — Session 5: upload Studio + Qwen memory-only NLQ
+
+### Goal
+
+Turn the compiled-memory backend into a user-testable upload flow without changing the human
+UX: upload a video, watch it play, compile it once, ask questions, download the database/report.
+Clarification from the user: "no video" means **reduce LLM dependence on video**, not remove
+playback. The LLM must consume the compiled output.
+
+### Built
+
+- `video_vault.py`: raw video + dense ledger → SQLite vault. Per-frame object events and
+  coarse entities; caption-mode count/inventory answers.
+- `nlq.py`: optional Qwen answers over caption windows + events + deterministic answer. No
+  frames are sent to the model.
+- `studio_app.py`: NiceGUI upload → compile → playback → downloads. Keeps the source for HTML5
+  playback; the downloaded vault/report/zip stay video-free.
+- `run_studio.sh`: launch script with `--qwen`, model/window/port options and `--delete-video`.
+- Video stage has an event timeline; clicking a timestamp seeks the player.
+- UI labels make the contract explicit: "Qwen · memory only"; playback is human-only.
+
+### Measured (8.2 s cook excerpt)
+
+- one 30 s caption window; 13 events, 12 caption entities, vault 24 KB
+- 8 WebP snapshots, 106.5 KB; report 314 KB; zip includes vault, HTML, ledger, CSVs, evidence
+- Qwen answer from compiled text: "A person is cutting tomatoes ... [t=0.0s]" in ~5.6 s
+- source video retained for playback; downloaded memory contains no video
+- full store/pipeline test passed; direct `nlq` test passed
+
+### Decision
+
+- Keep playback. Do not conflate "LLM does not see video" with "the user cannot watch video".
+- Qwen is optional (`--qwen`), and its context is the ledger/events only.
+- Caption-first vault is the default for arbitrary uploads; graph ingestion remains the
+  higher-quality path when a Chronicle DB exists.
+
+### Next
+
+1. Test the NiceGUI upload handler in a real browser (direct pipeline is verified).
+2. Add optional graph ingest for uploads when the main perception stack is available.
+3. Perceptual-hash dedup for evidence; timeline thumbnails.
+4. External benchmark subset and physical-count calibration.

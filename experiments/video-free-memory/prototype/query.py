@@ -60,6 +60,8 @@ _QUERY_SYNONYMS = {
     "knifes": "knife",
     "people": "person",
     "persons": "person",
+    "tomatoes": "tomato",
+    "potatoes": "potato",
     "friend": "person",
     "user": "person",
     "someone": "person",
@@ -113,10 +115,12 @@ class EventStore:
     by_subject: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     times: list[float] = field(default_factory=list)
     ledger_text: str = ""
+    duration_override: float = 0.0
 
     @property
     def duration(self) -> float:
-        return max((float(event["t"]) for event in self.events), default=0.0)
+        events = max((float(event["t"]) for event in self.events), default=0.0)
+        return max(events, float(self.duration_override or 0.0))
 
     @property
     def ledger_windows(self) -> list[dict[str, Any]]:
@@ -244,6 +248,14 @@ def load_store(con: sqlite3.Connection) -> EventStore:
     except sqlite3.Error:
         evidence = []
 
+    duration_override = 0.0
+    try:
+        row = con.execute("select duration_s from episodes limit 1").fetchone()
+        if row is not None and row[0] is not None:
+            duration_override = float(row[0])
+    except sqlite3.Error:
+        pass
+
     events.sort(key=lambda event: float(event["t"]))
     by_subject: dict[str, list[dict[str, Any]]] = {}
     for event in events:
@@ -270,6 +282,7 @@ def load_store(con: sqlite3.Connection) -> EventStore:
         by_subject=by_subject,
         times=times,
         ledger_text=" ".join(ledger_text_parts).lower(),
+        duration_override=duration_override,
     )
 
 
@@ -573,10 +586,12 @@ def answer_before(
     lines = [head]
     lines.extend(f"- {caption_for(event)}" for event in rows)
     evidence = _nearest_evidence(store, float(rows[-1]["t"]))
+    citations = ([_citation(anchor_event)] if anchor_event is not None else [])
+    citations.extend(_citation(event) for event in rows)
     return Answer(
         query,
         "\n".join(lines),
-        citations=[_citation(event) for event in rows],
+        citations=citations,
         evidence=[evidence] if evidence else [],
         confidence=0.72,
         method="vault-before",
@@ -607,10 +622,12 @@ def answer_after(
     lines = [head]
     lines.extend(f"- {caption_for(event)}" for event in rows)
     evidence = _nearest_evidence(store, float(rows[0]["t"]))
+    citations = ([_citation(anchor_event)] if anchor_event is not None else [])
+    citations.extend(_citation(event) for event in rows)
     return Answer(
         query,
         "\n".join(lines),
-        citations=[_citation(event) for event in rows],
+        citations=citations,
         evidence=[evidence] if evidence else [],
         confidence=0.72,
         method="vault-after",
@@ -664,6 +681,34 @@ def answer_count(store: EventStore, query: str, entity: dict[str, Any] | None) -
         return Answer(query, f"No {label.lower()} is in the memory.", method="no-match")
     history = _events_for(store, label)
     latest = _latest(history)
+    if isinstance(store.ledger, dict) and store.ledger.get("mode") == "caption-vault":
+        mentions = [
+            window
+            for window in store.ledger_windows
+            if label.lower()
+            in {str(value).lower() for value in (window.get("objects") or [])}
+        ]
+        windows = len(mentions)
+        answer_text = (
+            f"The captions mention the {label.lower()} in {windows} window"
+            f"{'s' if windows != 1 else ''}. This is caption coverage, not a physical "
+            "object count."
+        )
+        return Answer(
+            query,
+            answer_text,
+            citations=[
+                {
+                    "t": round(float(window.get("t_start") or 0.0), 3),
+                    "kind": "caption",
+                    "caption": str(window.get("caption") or "")[:500],
+                }
+                for window in mentions[:4]
+            ],
+            evidence=_evidence_list(store, float(latest["t"])) if latest else [],
+            confidence=0.6,
+            method="vault-count-captions",
+        )
     plural = "" if count == 1 else "s"
     answer_text = (
         f"The memory tracked {count} {label.lower()} track{plural}. "
@@ -688,11 +733,30 @@ def answer_inventory(store: EventStore, query: str) -> Answer:
     if not counts:
         return Answer(query, "The memory has no entities yet.", method="no-match")
     total = sum(counts.values())
+    latest = _latest(store.events)
+    if isinstance(store.ledger, dict) and store.ledger.get("mode") == "caption-vault":
+        parts = [
+            f"{count} {label}" for label, count in sorted(counts.items())
+        ]
+        text = (
+            f"The captions mention {len(counts)} object labels across "
+            f"{len(store.ledger_windows)} window"
+            f"{'s' if len(store.ledger_windows) != 1 else ''}: "
+            + ", ".join(parts)
+            + "."
+        )
+        return Answer(
+            query,
+            text,
+            citations=[_citation(latest)] if latest else [],
+            evidence=_evidence_list(store, float(latest["t"])) if latest else [],
+            confidence=0.75,
+            method="vault-inventory-captions",
+        )
     parts = [
         f"{count} {label} track{'s' if count > 1 else ''}"
         for label, count in sorted(counts.items())
     ]
-    latest = _latest(store.events)
     text = (
         f"The memory tracked {total} object tracks across {len(counts)} labels: "
         + ", ".join(parts)

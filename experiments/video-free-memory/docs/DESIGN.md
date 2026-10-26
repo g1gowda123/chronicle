@@ -12,20 +12,25 @@ video -> perception -> graph -> query -> answer
 VFM:
 
 ```
-video -> COMPILER (heavy models, once) -> VAULT -> query -> answer
+video -> COMPILER (heavy models, once) -> VAULT + MEMORY PACK -> query -> answer
                                            |
-                                           +-> event JPEGs (audit only)
-          ^ video deleted after compilation
+                                           +-> event WebP (audit only)
+          ^ source video optional for playback; never in the answer context
 ```
 
 The compiler is allowed to be expensive. The query path must be cheap, deterministic where
 possible, and independent of video and of any video LLM.
 
+**Important distinction:** "video-free" means the LLM/query context contains no video frames.
+A human-facing app may keep the source for playback, scrubbing and audit; that does not change
+the compiled memory the model reads. The Studio keeps playback by default and can delete the
+source with `--delete-video`.
+
 ## 2. Memory tiers
 
 | Tier | What | Size target | Query role | Retention policy |
 |---|---|---|---|---|
-| T0 Source | raw video | transient | never queried; deleted after compile | **delete after evidence pass** |
+| T0 Source | raw video | transient or retained for UX | never in query/LLM context | keep for playback or delete |
 | T1 Evidence | 1 WebP per major event, 480 px, q75 | ~12–18 KB/event | audit, UI, visual fallback | **12/h long-term; 40/h max recall** |
 | T2 Caption ledger | 30 s window captions + frame captions + tags | ~1–3 KB/min | primary text retrieval | keep all; ~1 KB/episode |
 | T3 Temporal graph | entities, states, anchors, relations, events | ~40–60 KB/h | identity/temporal reasoning | keep all salient events |
@@ -183,6 +188,26 @@ The original is more fluent but reads terminal anchors, so its locations/timesta
 (plate "on countertop at 38.1s" after it was placed in the bowl at 43.4s; knife first seen at
 19.0s instead of 7.1s). The vault keeps the full ledger. Counts are track counts, not verified
 physical counts.
+
+### 7.3 LLM-facing memory pack (usability result)
+
+The LLM does not get raw video or a wall of captions. `memory_pack.py` builds a compact,
+timestamped pack containing:
+
+- the verified structured answer (when one exists), marked authoritative;
+- ranked 30 s caption windows with objects/actions/zone and per-frame captions;
+- salient events with `[t=..s]` citations;
+- evidence references;
+- counts and explicit rules (digits, citations, unknown).
+
+Qwen2.5 7B answering from this pack scores **30/30** on the same questions at **1,074 ms p50**
+(p95 2,660 ms), using ~1,055 pack tokens/question (~4,000 chars). It never sees video. The
+deterministic vault remains the 0.045 ms path; Qwen is the natural-language layer. This is the
+usability contract: compile once, retrieve a verified answer, let the LLM phrase it from the
+memory pack.
+
+Studio keeps the uploaded video for playback; the vault, pack, report and zip do not reference it.
+`--delete-video` is only for a strictly video-free session.
 
 ## 8. Query API (v0 prototype)
 

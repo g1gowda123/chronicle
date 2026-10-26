@@ -16,9 +16,15 @@ experiment asks a more radical question:
 > handful of event snapshots, such that useful questions are answered **without decoding video
 > and without running a video LLM at query time**?
 
-The compiler is allowed to be expensive. It runs once, writes a dense ledger and a few WebP
-snapshots, and the source video is deleted. Query time is SQL/graph + cached captions. Pixels
-are an audit/fallback path, never the default.
+The compiler is allowed to be expensive. It runs once, writes a dense ledger, a compact LLM-ready
+memory pack and a few WebP snapshots. The video can be kept for playback or deleted; either way,
+the answer path and the LLM context never require it. Pixels are an audit/fallback path, never the
+default. The product boundary is **memory at rest + a pack an LLM can answer from**, not "video
+must be destroyed".
+
+**What "video-free" means here:** the *LLM/query context* never contains video frames. The
+Studio may keep the uploaded source for human playback; that is a UX feature, not an LLM
+dependency. Qwen receives only the compiled captions/events.
 
 ## Core hypothesis
 
@@ -42,15 +48,25 @@ benchmark/
   questions.json  30-question curated set with per-category scoring
 schema_v2.sql     packed event/caption vault (base)
 schema_v3.sql     dense VLM ledger + answer cache additions
+run_studio.sh     launch VFM Studio (upload + optional Qwen NLQ)
 prototype/
   compile.py          source Chronicle DB -> compressed vault (salience coalescing)
   compact.py          dictionary encoding, event packing, zlib, int8 quantization
   caption_ledger.py   offline VLM -> 30/60 s caption ledger (Ollama + ffmpeg)
   attach_ledger.py    attach compressed ledger to a vault
   query.py            where/when/around/before/after/count/inventory/keyword + cache
+  nlq.py              optional Qwen answers from compiled captions/events (no video)
+  video_vault.py      raw video + caption ledger -> SQLite vault (upload path)
+  studio_app.py       NiceGUI upload → compile → playback/download UI
   benchmark.py        multi-episode 30-question evaluation + legacy smoke test
   original_baseline.py original Chronicle graph + Qwen 7B, same 30 questions
+  llm_pack_baseline.py Qwen 7B answering from the compiled memory pack
   vlm_baseline.py     measured video-to-LLM baseline (9-frame contact sheet, Ollama)
+  memory_pack.py      LLM-ready pack: captions + events + verified answer + evidence refs
+  video_vault.py      caption-first vault builder for arbitrary uploads
+  nlq.py              optional Qwen phrasing over the memory pack
+  studio_app.py       upload → compile → playback/download NiceGUI app
+  run_studio.sh       launcher (`--qwen`, model, port)
   online_baseline.py  same baseline against OpenAI / Anthropic / Gemini (key required)
   extract_evidence.py one-time video pass -> 480 px WebP snapshots, optional delete
   retention.py        bytes/hour report, snapshot-budget sweep, prune/apply
@@ -129,6 +145,98 @@ python3 prototype/report.py --db /tmp/vfm/cook.db \
 /home/g1/projects/chronicle/.venv/bin/python -m pytest -q tests
 ```
 
+## VFM Studio: upload → compiled memory
+
+This is the user-facing converter. The human keeps video playback; the **LLM never receives
+frames**. Qwen answers from the caption ledger/events only.
+
+```bash
+cd /home/g1/projects/chronicle-vfm/experiments/video-free-memory
+./run_studio.sh --qwen --port 8093
+# open http://127.0.0.1:8093/
+```
+
+Options:
+
+| Flag | Meaning |
+|---|---|
+| `--qwen` | enable Qwen natural-language answers over the compiled text |
+| `--qwen-model` | text model, default `qwen2.5:7b-instruct` |
+| `--vlm-model` | compile-time captioner, default `qwen2.5vl:3b` |
+| `--window-s` / `--frames-per-window` | caption window policy (default 30 s / 3 frames) |
+| `--delete-video` | remove the uploaded source after compile (no playback) |
+| `--data-dir` | job workspace (default `/tmp/vfm/studio`) |
+| `--port` / `--host` | server bind |
+
+The Studio:
+
+1. saves the upload and shows it in a normal HTML5 player;
+2. captions 30 s windows once with the local VLM;
+3. builds a SQLite vault + WebP evidence + offline HTML report + CSV exports;
+4. lets you download `memory.zip`, `vault.db`, `memory.html`, `ledger.json`, `events.csv`,
+   `windows.csv`;
+5. if `--qwen` is on, answers questions from the **compiled ledger/events**, not video.
+
+The downloaded memory is video-free. Keeping the source for playback does not change the LLM
+context; `nlq.py` sends only captions/events to Qwen. Use `--delete-video` if playback is not
+wanted.
+
+## Studio: upload → compile → download
+
+The user-facing app keeps video playback; the compiled vault and downloaded files are video-free.
+
+```bash
+cd /home/g1/projects/chronicle-vfm/experiments/video-free-memory
+./run_studio.sh --qwen --port 8093
+# open http://127.0.0.1:8093/
+```
+
+Upload MP4/MOV/WebM/MKV. The Studio:
+
+1. previews the source video with native playback;
+2. captions 30 s windows with the local VLM;
+3. builds a queryable SQLite vault and LLM-ready memory pack;
+4. extracts 480 px WebP evidence and a single-file HTML report;
+5. offers downloads: `vault.db`, `memory.html`, `memory_pack.md`,
+   `memory_pack.json`, `ledger.json`, `events.csv`, `windows.csv`, `memory.zip`;
+6. answers questions from the memory pack with Qwen when `--qwen` is on.
+
+Useful launch options:
+
+```bash
+./run_studio.sh --qwen --qwen-model qwen2.5:7b-instruct --vlm-model qwen2.5vl:3b
+./run_studio.sh --no-qwen --port 8093          # deterministic answers only
+./run_studio.sh --qwen --delete-video          # no playback after compile
+./run_studio.sh --help
+```
+
+The source video is **kept for playback by default**. The vault, memory pack, report and zip
+never reference it. `--delete-video` removes playback and makes the session strictly video-free.
+
+### Why the memory pack is easier for an LLM
+
+Prompting over a plain video forces the model to re-watch/re-sample and still miss exact times.
+The compiler now produces `memory_pack.md` / `memory_pack.json` with:
+
+- the **verified structured answer** (authoritative when present),
+- ranked timestamped caption windows, objects/actions/zones,
+- salient events with `[t=..s]` citations,
+- evidence references,
+- explicit counts and “say unknown” rules.
+
+Measured on the same 30 questions:
+
+| Input to the LLM | Accuracy | p50 | Tokens/question | Video at answer time |
+|---|---:|---:|---:|---|
+| 9-frame video contact sheet + Qwen2.5-VL | 7/30 | 4,456 ms | 764 | yes, 19.24 MB |
+| Original graph + Qwen 7B | 14/30 | 847 ms | — | yes, DB/video |
+| **Compiled memory pack + Qwen 7B (text)** | **30/30** | **1,074 ms** | **~1,055** | **no** |
+| Deterministic vault query | 30/30 | 0.045 ms | 0 | no |
+
+The pack is small (~4,000 chars / ~1,000 tokens per question), fits a normal context window, and
+Qwen only has to phrase the verified answer. This is the intended usability change: the hard work
+moves into compilation, not into prompting a video model.
+
 ## Test the two UIs side by side
 
 Original Chronicle dashboard (video + graph + Qwen):
@@ -199,18 +307,25 @@ three source DBs, then the vault against the same questions. Same scoring code.
 |---|---:|---:|---|---|---:|
 | **Original Chronicle** | **14/30 (46.7%)** | **847 / 4,610 ms** | Qwen2.5 7B (4.7 GB) | yes, for playback/evidence | 436 KB DB + 2.99 MB video (cook) |
 | **VFM vault** | **30/30 (100%)** | **0.045 / 0.113 ms** | none | **no** | 164.5 KB (cook) |
+| **Qwen 7B from memory pack** | **30/30 (100%)** | **1,074 / 2,660 ms** | Qwen2.5 7B (text only) | **no** | 404 KB + ~1,055 tokens/question |
 | Qwen2.5-VL 9-frame sheet | 7/30 (23.3%) | 4,456 / 7,202 ms | Qwen2.5-VL 3B | yes, 19.24 MB | video + 395 KB sheets |
 
-Per category (original / vault):
+The Qwen pack row is the usability result: a text LLM answers **30/30** from the compiled memory
+pack, with no video and no re-captioning. The pack includes the verified structured answer,
+timestamped captions, events and evidence references; Qwen phrases it. It uses 43,239 prompt +
+996 output tokens for 30 questions (~1,055 pack tokens/question). The deterministic vault remains
+the 0.045 ms path; Qwen is the natural-language layer.
 
-| Category | Original | Vault | Total |
-|---|---:|---:|---:|
-| location | 3 | 6 | 6 |
-| temporal | 2 | 6 | 6 |
-| count | 0 | 5 | 5 |
-| before/after | 2 | 4 | 4 |
-| negation | 5 | 5 | 5 |
-| paraphrase | 2 | 4 | 4 |
+Per category (original / vault / Qwen pack):
+
+| Category | Original | Vault | Qwen pack | Total |
+|---|---:|---:|---:|---:|
+| location | 3 | 6 | 6 | 6 |
+| temporal | 2 | 6 | 6 | 6 |
+| count | 0 | 5 | 5 | 5 |
+| before/after | 2 | 4 | 4 | 4 |
+| negation | 5 | 5 | 5 | 5 |
+| paraphrase | 2 | 4 | 4 | 4 |
 
 The original is **more fluent** and often explains the scene naturally, but it reads the current
 graph/terminal anchors, so it reports stale locations and misses early history: e.g. the plate is
