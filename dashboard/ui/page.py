@@ -467,6 +467,16 @@ def build_dashboard() -> None:
                     "confidence": result.confidence,
                     "matched_entity": None,
                 }
+                # The live graph is the fallback for questions the compiled
+                # memory cannot answer (no caption/event match), so it still has
+                # a query-time job rather than being UI-only.
+                if result.method == "no-match":
+                    graph_answer = await runtime.query.answer_async(text, runtime.playhead)
+                    if graph_answer.get("route") not in {None, "none"}:
+                        answer = graph_answer
+                        answer["provider"] = "graph-fallback"
+                        answer["model"] = "chronicle-local"
+                        answer["route"] = "graph"
             else:
                 answer = await runtime.query.answer_async(text, runtime.playhead)
         except Exception as error:  # a query must never take down the dashboard
