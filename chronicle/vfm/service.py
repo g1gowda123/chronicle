@@ -317,12 +317,17 @@ def compile_memory(
 
     _stage("vault", 40, "building the packed SQLite vault")
     vault = job_dir / "vault.db"
-    vault_summary = compile_vault(
-        source_copy,
-        vault,
-        title=title,
-        episode_id=episode_id,
-    )
+    # ``compile_vault`` is a synced copy of the experiment module; keep our
+    # call surface to its public ``(source_db, out_db, title=...)`` signature.
+    vault_summary = compile_vault(source_copy, vault, title=title)
+    if episode_id:
+        con = sqlite3.connect(str(vault))
+        try:
+            con.execute("update episodes set id=?", (str(episode_id),))
+            con.commit()
+            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            con.close()
     duration = float(vault_summary.get("duration_s") or 0.0)
     _stage(
         "vault",

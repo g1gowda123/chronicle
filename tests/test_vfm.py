@@ -459,3 +459,36 @@ def test_compile_route_queues_a_job(tmp_path: Path) -> None:
         if state.vfm is not None:
             state.vfm.close()
         state.close()
+
+
+def test_delete_video_removes_an_upload_when_opted_in(tmp_path: Path) -> None:
+    run_dir = tmp_path / "uploads" / "run-test"
+    run_dir.mkdir(parents=True)
+    _make_graph_db(run_dir / "chronicle.db")
+    video = _make_video(run_dir / "source.mp4")
+    source = ClipSource(
+        key="upload-run-test",
+        label="Upload test",
+        badge="UPLOAD",
+        caption="generated upload",
+        description="delete-opt-in test",
+        relative_path="uploads/run-test/source.mp4",
+        relative_db="uploads/run-test/chronicle.db",
+        zone_label="Kitchen",
+        vocabulary=("cup",),
+        questions=("where is the cup?",),
+    )
+    manager = VFMJobManager(
+        tmp_path,
+        captioner=_fake_captioner,
+        delete_video=True,
+    )
+    try:
+        manager.submit(source, video)
+        status = manager.wait(source, timeout=60.0)
+        assert status is not None and status["status"] == "done", status
+        assert not video.exists()
+        assert status["summary"]["video_retained"] is False
+        assert manager.artifact(source, "memory.zip") is not None
+    finally:
+        manager.close()
