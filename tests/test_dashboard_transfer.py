@@ -1,0 +1,79 @@
+"""Graph ZIP export/import for the zine dashboard."""
+
+from __future__ import annotations
+
+import io
+import zipfile
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from dashboard import app as app_module
+from dashboard import transfer
+from dashboard.runtime import load_demo_events
+from dashboard.store import MemoryStore
+from dashboard.ui import theme
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class _FakeRuntime:
+    def __init__(self) -> None:
+        self.store = MemoryStore()
+        self.demo_events, _, _ = load_demo_events(ROOT / "data" / "replays" / "walking.events.jsonl")
+        for event in self.demo_events:
+            self.store.apply(event)
+
+
+def test_export_zip_contains_graphs_and_all_replays(tmp_path: Path) -> None:
+    runtime = _FakeRuntime()
+    payload = transfer.build_export_zip(runtime, ROOT / "data")
+    archive = zipfile.ZipFile(io.BytesIO(payload))
+    names = set(archive.namelist())
+    assert "manifest.json" in names
+    assert "current/events.jsonl" in names
+    assert "current/snapshot.json" in names
+    assert "current/entities.csv" in names
+    assert any(name.startswith("clips/") and name.endswith(".events.jsonl") for name in names)
+    snapshot = archive.read("current/snapshot.json").decode("utf-8")
+    assert '"entities"' in snapshot and '"edges"' in snapshot
+
+
+def test_import_zip_writes_timeline_and_counts_events(tmp_path: Path) -> None:
+    runtime = _FakeRuntime()
+    payload = transfer.build_export_zip(runtime, ROOT / "data")
+    result = transfer.import_zip(payload, tmp_path)
+    assert result["status"] == "imported"
+    assert result["events"] > 0
+    target = Path(result["path"])
+    assert target.is_file() and target.parent.name == "imports"
+    events, _, _ = load_demo_events(target)
+    assert len(events) == result["events"]
+
+
+def test_import_rejects_non_zip() -> None:
+    try:
+        transfer.import_zip(b"not a zip", "/tmp")
+    except ValueError as error:
+        assert "ZIP" in str(error)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_toolbar_has_export_import_controls() -> None:
+    html = theme.video_html({"video_url": "/media/demo.mp4", "title": "Demo"})
+    assert "Chronicle.exportGraphs()" in html
+    assert "Chronicle.importGraphs(this)" in html
+    js = (ROOT / "dashboard" / "static" / "chronicle.js").read_text(encoding="utf-8")
+    assert "exportGraphs()" in js
+    assert "importGraphs(input)" in js
+    assert "/api/export/graphs.zip" in js
+    assert "/api/import/graphs" in js
+
+
+def test_export_endpoint_returns_zip() -> None:
+    client = TestClient(app_module.app)
+    response = client.get("/api/export/graphs.zip")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/zip")
+    assert zipfile.is_zipfile(io.BytesIO(response.content))

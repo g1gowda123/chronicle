@@ -78,6 +78,16 @@ def _clip_options() -> list[dict[str, str]]:
     options: list[dict[str, str]] = []
     seen: set[str] = set()
 
+    # Imported graph ZIPs win the default slot so a reload lands on them.
+    imports = base / "imports"
+    if imports.is_dir():
+        for events in sorted(imports.glob("*.events.jsonl"), reverse=True):
+            rel = events.relative_to(base).as_posix()
+            options.append(
+                {"value": "events:" + rel, "title": _session_title(events) or "Imported graph"}
+            )
+            seen.add(rel)
+
     demo = base / "demo_events.jsonl"
     if demo.is_file():
         options.append(

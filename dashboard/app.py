@@ -22,10 +22,10 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from nicegui import app, ui
 
-from . import memory
+from . import memory, transfer
 from .runtime import clip_title, default_data_dir, probe_duration, runtime
 from .ui.page import build_dashboard
 
@@ -223,6 +223,41 @@ async def vfm_ask(request: Request) -> JSONResponse:
     except RuntimeError as error:
         return _vfm_error(str(error), 409)
     return JSONResponse(answer.to_dict())
+
+
+# --------------------------------------------------------------------------- #
+# Graph export / import (ZIP)
+# --------------------------------------------------------------------------- #
+
+
+@app.get("/api/export/graphs.zip")
+async def export_graphs() -> Response:
+    payload = transfer.build_export_zip(runtime, DATA_DIR)
+    return Response(
+        payload,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="chronicle_graphs.zip"'},
+    )
+
+
+@app.post("/api/import/graphs")
+async def import_graphs(request: Request) -> JSONResponse:
+    payload = await request.body()
+    try:
+        result = transfer.import_zip(payload, DATA_DIR)
+    except ValueError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    loaded = runtime.load_replay(Path(result["path"]))
+    if not loaded:
+        return JSONResponse({"error": "timeline could not be loaded"}, status_code=400)
+    return JSONResponse(
+        {
+            "status": "imported",
+            "events": result["events"],
+            "clip": "events:" + result["relative_path"],
+            "title": runtime.store.session.get("title") or "Imported graph",
+        }
+    )
 
 
 # --------------------------------------------------------------------------- #

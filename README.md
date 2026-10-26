@@ -342,6 +342,14 @@ captures that exact frame (stamped with clip and timestamp), and opens it in a
 lightbox with **save PNG** and **fullscreen**. The lightbox itself can go
 fullscreen, so judges can blow up an evidence frame without leaving the page.
 
+**Export / import graphs.** The stage toolbar has `⤓ export` and `⤒ import`.
+Export downloads `chronicle_graphs.zip` with a manifest, the current full event
+timeline (`current/events.jsonl`), a readable `snapshot.json`, entity/edge/zone
+CSVs, every replay timeline under `clips/`, and the active VFM vault/report/pack/
+evidence when compiled. Import accepts that ZIP and reloads the timeline into the
+dashboard without re-ingesting video; the imported graph appears first in the clip
+switcher. Endpoints: `GET /api/export/graphs.zip`, `POST /api/import/graphs`.
+
 **Memory card / VLM answers.** When the active clip has a graph DB, the zine
 chat uses the compiled VFM vault: dense VLM caption windows + event ledger +
 evidence, answered deterministically in **~0.05 ms** without touching the video.

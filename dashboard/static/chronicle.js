@@ -985,6 +985,38 @@
         });
     },
 
+    exportGraphs() {
+      this.flash("packing graphs…");
+      window.location.href = "/api/export/graphs.zip";
+    },
+
+    importGraphs(input) {
+      const file = input && input.files && input.files[0];
+      if (!file) return;
+      const status = byId("chat-status");
+      if (status) status.textContent = "importing " + file.name + "…";
+      fetch("/api/import/graphs", {
+        method: "POST",
+        headers: { "Content-Type": "application/zip" },
+        body: file,
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (!data || data.status !== "imported") {
+            throw new Error((data && data.error) || "import failed");
+          }
+          this.flash("imported " + data.events + " events · reloading…");
+          setTimeout(() => window.location.reload(), 700);
+        })
+        .catch((error) => {
+          this.flash("import failed: " + error.message);
+          console.error(error);
+        })
+        .finally(() => {
+          input.value = "";
+        });
+    },
+
     clipChanged() {
       /* server loaded another replay clip: drop stale client caches */
       this.selected = null;

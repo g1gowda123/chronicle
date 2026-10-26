@@ -980,3 +980,21 @@ That was true but useless, and it hid the VFM architecture that answers in micro
 
 This is the old architecture's advantage, now inside main's UI: **compile once with VLM, answer
 from text/events at memory speed**. The graph-only fallback remains for clips with no DB/memory.
+
+---
+
+## 2026-10-27 — Session 13: graph ZIP export/import in the zine UI
+
+- Added `dashboard/transfer.py` and `GET /api/export/graphs.zip` /
+  `POST /api/import/graphs`.
+- Export ZIP contains: `manifest.json`, `current/events.jsonl` (full event timeline),
+  `current/snapshot.json` (session/entities/edges/zones), `entities.csv`, `edges.csv`,
+  `zones.csv`, every `data/replays/*.events.jsonl` under `clips/`, and the active VFM vault /
+  report / pack / evidence when present.
+- Import validates the ZIP and every event line, writes it under `data/imports/`, and reloads it
+  through `runtime.load_replay()` — no perception, no video, no re-ingest. The imported timeline
+  is inserted first in the clip switcher so a reload lands on it.
+- Transport buttons: `⤓ export`, `⤒ import`; `Chronicle.exportGraphs()` and
+  `Chronicle.importGraphs(input)`.
+- Verified on :8082: export = 29 KB ZIP with 9 entries; import = 456 events, title preserved,
+  HTTP 200.

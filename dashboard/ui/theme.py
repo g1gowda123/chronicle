@@ -209,6 +209,13 @@ def video_html(snapshot: dict[str, Any], replays: list[dict[str, str]] | None = 
       <input type="file" id="chron-upload" accept="video/*" hidden
              onchange="Chronicle.uploadClip(this)">
     </label>
+    <button class="btnz btnz-ghost" onclick="Chronicle.exportGraphs()"
+            title="Download every graph/timeline on this machine as one ZIP">⤓ export</button>
+    <label class="btnz btnz-ghost" title="Import a Chronicle graph ZIP (no re-ingest)">
+      ⤒ import
+      <input type="file" id="chron-import" accept=".zip,application/zip" hidden
+             onchange="Chronicle.importGraphs(this)">
+    </label>
   </div>
   <div class="chron-timeline">
     <div class="tl-track">
