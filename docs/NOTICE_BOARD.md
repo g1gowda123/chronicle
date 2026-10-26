@@ -59,7 +59,7 @@ PR so parallel work does not collide.
 | NB-20 | P1 | Add living-room furniture labels and stop armchair/sofa conflation | Graph / Perception | READY | unclaimed |
 | NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | DONE | opencode (AI) |
 | NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | DONE | opencode (AI) |
-| NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | IN PROGRESS | opencode (AI) |
+| NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | DONE | opencode (AI) |
 | NB-14 | P2 | Search and filter actions / transitions | UI | READY | unclaimed |
 | NB-15 | P2 | Colour filter dropdown for entities | UI | READY | unclaimed |
 | NB-16 | P2 | Export evidence frames with the snapshot | UI / Integration | READY | unclaimed |
@@ -187,18 +187,6 @@ PR so parallel work does not collide.
 
 ## P2 — polish
 
-### NB-13 · Retire or clearly separate the duplicate dashboard
-- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** UI / Docs
-- **Started:** 2026-10-27 · **Branch:** `task/nb-13-dashboard-docs`
-- **Why:** the spec lists both `chronicle serve` (operator dashboard) and
-  `run_dashboard.py` (mission-control dashboard). Keeping both without labels
-  confuses teammates and judges.
-- **Scope:** document which is canonical for the demo; either retire the other
-  or label it clearly and document its unique features.
-- **Files:** `README.md`, `docs/INTEGRATION.md`, `run_dashboard.py`
-- **Acceptance:** one obvious entry point in the README and demo docs.
-- **Spec:** §Interfaces and operations.
-
 ### NB-14 · Search and filter actions / transitions
 - **Status:** READY · **Owner:** unclaimed · **Lane:** UI
 - **Why:** tables only paginate; real episodes can have hundreds of rows.
@@ -260,6 +248,18 @@ PR so parallel work does not collide.
 | NB-18 | Reduce the pre-grasp PICK_UP false positive | opencode (AI) | `dfcd4d7`; negation-aware rule matching; precision 1.00 / recall 1.00 |
 | NB-12 | Add appearance attributes to the spec + evaluation | opencode (AI) | `5518a91`; spec PDF + 4 appearance cases; evaluation 13/13 |
 | NB-11 | Reduce per-frame support/SQLite write cost | opencode (AI) | `ac067df`; walking 180f entity upserts 172 → 59 |
+| NB-13 | Retire or clearly separate the duplicate dashboard | opencode (AI) | `40f2700`; canonical `chronicle serve` vs optional mission control |
+
+### NB-13 details
+
+- **Branch:** `task/nb-13-dashboard-docs` · **Commit:** `40f2700`
+- **Canonical:** `./chronicle.sh start` / `chronicle serve` on `:8080`
+  (operator dashboard, live A→B→C, preflight, spec demo).
+- **Optional:** `./chronicle.sh mission` / `python run_dashboard.py` on `:8081`
+  (standalone zine mission control; demo replay, JSONL/SQLite producers, live
+  `POST /api/ingest`). Never required for the operator walkthrough.
+- **Docs:** `README.md`, `docs/INTEGRATION.md#two-dashboards-one-canonical-entry-point`,
+  `docs/DEMO_PREFLIGHT.md`, `docs/TEAM_STATUS.md`.
 
 ### NB-11 details
 
