@@ -139,6 +139,69 @@ The two inputs are compiled in parallel and joined in the vault. Query time read
 and the pack. The source video is retained for playback and screenshot capture, but is never
 required to answer a question.
 
+
+\section{Glossary: what the terms mean}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+\textbf{Term} & \textbf{Meaning in Chronicle} \\
+\midrule
+VFM & \textbf{Video-Free Memory}. The compiled artefact that answers questions without the source video: packed events, captions, evidence references and metadata. \\
+VLM & Vision-language model. Used \emph{once at compile time} to caption frames/windows (default \code{qwen2.5vl:3b}); not used for deterministic answers. \\
+Graph DB & The live per-episode SQLite graph: entities, states, edges, zones, anchors and observations. Source of truth for identity, state and counts. \\
+Vault & The compact SQLite file written by the compiler: struct-of-arrays events, string dictionary, captions, evidence index and metadata. \\
+Caption ledger & zlib-compressed JSON of 30\,s (or 20\,s) windows. Each window has a caption, objects, actions, zone, tags and 3 timestamped frame captions. \\
+Event ledger & Salience-coalesced state/edge/interaction events from the graph. Packed at about 17 bytes/event. \\
+Salience coalescing & Filtering visibility noise (camera pan, occlusion, reacquisition) and merging repeated touches/placements into memory-worthy events. \\
+Evidence still & A 480\,px WebP snapshot selected at an interaction, crop, zone keyframe or anchor. Stored with a timestamp and relative path. \\
+Memory pack & LLM-ready Markdown/JSON: verified answer + ranked captions/events + evidence references + answering rules. Budgeted at 2k/4k/8k tokens. \\
+Deterministic query & Intent + time + entity lookup over the vault. No LLM, no video, no frame sampling; answers carry citations. \\
+Track / peak / physical & Track = raw tracker id count (upper bound); peak = most same-label tracks visible in one frame (lower bound); physical = tracks after cross-label duplicate and transient removal (estimate). \\
+Auto-compile & Building the vault once on first view of a clip, in the background. Query stays on the graph fallback until it is ready. \\
+Frame chip & The per-answer \code{frame @ t} control: seek to the cited time, capture that frame, open it in a save/fullscreen lightbox. \\
+Graph fallback & If VFM has no answer, the same chat asks the live graph engine and labels the answer \code{graph-fallback}. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{End-to-end workflow}
+
+\subsection*{A. Graph-backed clip (bundled / ingested run)}
+
+\begin{enumerate}[leftmargin=1.35em,itemsep=1pt]
+  \item \textbf{Ingest.} Perception writes entities, state transitions, edges, anchors, zones and observations into an episode DB. The graph state machine emits a transition per meaningful change.
+  \item \textbf{Verify important actions.} Interaction clips are queued; a temporal strip (pre/contact/post) is built and the action verifier (Florence-2 path) returns an action, confidence and rejection reason. Low-confidence/rejected clips stay in the review queue.
+  \item \textbf{Compile (on first view or via the button).} The service snapshots the DB, captions the video once, builds the salience event ledger, writes the vault, extracts evidence stills, renders \code{memory.html}, writes the memory pack and zips the downloads.
+  \item \textbf{Answer.} The zine chat routes to the vault. A question resolves an intent (where / when / around / before / after / count / holding / inventory / yes-no), looks up captions/events/time and returns an answer with citations and an evidence reference.
+  \item \textbf{Inspect.} The answer shows citation chips, a \code{frame @ t} button, an evidence thumbnail only when the still is within 8\,s of the question, and the graph fallback if the vault has no match.
+  \item \textbf{Export / import.} Export writes one ZIP with the full current timeline, snapshot, CSVs, all replay timelines and the VFM artefacts; import reloads a timeline without re-ingesting video.
+\end{enumerate}
+
+\subsection*{B. Caption-first clip (fresh upload / long street walk, no DB)}
+
+\begin{enumerate}[leftmargin=1.35em,itemsep=1pt]
+  \item \textbf{Upload / select} the video. No perception DB is required.
+  \item \textbf{Caption once:} 30\,s windows (20\,s for short clips), 3 frames each. A window caption and per-frame captions become the ledger; objects/actions become coarse entities and \code{SEEN} events.
+  \item \textbf{Build the caption vault, evidence and pack} with the same compiler stages.
+  \item \textbf{Answer} from the caption/event ledger. Counts are caption coverage, not physical counts; the UI says so.
+  \item \textbf{Inspect / export} exactly as in the graph-backed path.
+\end{enumerate}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l r r r@{}}
+\toprule
+Episode & Duration & Compile (once) & Deterministic query p50 \\
+\midrule
+Synthetic demo & 12\,s & $\sim$12\,s & 0.05--0.06\,ms \\
+Aria walk & 60\,s & $\sim$20\,s & 0.05--0.06\,ms \\
+London walk & 15\,min & $\sim$5\,min & 0.89\,ms (cold), 3\,ms cache \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
 \section{What is saved now (more than the graph)}
 
 The graph is still saved. VFM adds four new artefacts. All of them are derived once, compressed,
@@ -302,6 +365,101 @@ The zine mission control from \code{main} is the default UI (\code{./chronicle.s
         screenshot lightbox has its own fullscreen button.
   \item \textbf{Downloads.} \code{vault.db}, \code{memory.html}, \code{memory\_pack.md},
         \code{memory\_pack.json}, \code{memory.zip}.
+\end{itemize}
+
+
+\section{Event-driven evidence and verification}
+
+The trigger for “something important happened” is the \textbf{graph state machine}, not the captioner. It emits transitions such as \code{NEW}, \code{INTERACTED}, \code{HELD}, \code{CONTAINED}, \code{PLACED\_ON}, \code{LOST}. Those transitions drive two bounded systems:
+
+\begin{itemize}[leftmargin=1.25em,itemsep=1pt]
+  \item \textbf{Verification queue.} Interaction clips are de-duplicated, bounded and queued. A temporal strip gives the verifier pre/contact/post frames; the Florence-2 path returns an action primitive, confidence and a rejection reason. Rejected or ambiguous actions are inspectable in the review queue/telemetry.
+  \item \textbf{Evidence selection.} At compile time, \code{extract\_evidence.select\_events} picks major markers (\code{INTERACTED}, \code{HELD}, \code{CONTAINED}, \code{LOST}, \code{NEW}, \code{PICK}, \code{PLACE}, \code{INSERT}, anchors/keyframes), enforces a 2\,s minimum gap and a 40-still cap, then writes 480\,px WebP stills with an append-only index.
+\end{itemize}
+
+\noindent
+The standalone \code{evidence\_recorder.py} prototype can write 640\,px JPEGs plus a JSONL index, but it is not wired into the live zine pipeline. There is \textbf{no live anomaly/surprise score} and no automatic pre/post video clip recording. That is a deliberate scope choice: the current demo records \emph{stills at meaningful transitions} and verifies \emph{actions}, not every strange moment.
+
+\noindent
+If a live “important/strange” recorder is added, the bounded shape should be: transition / low confidence / label conflict $\rightarrow$ salience score $\rightarrow$ 3\,s pre + 3\,s post clip $\rightarrow$ Florence/Qwen on that clip only $\rightarrow$ evidence index + review queue. This keeps the cost bounded and makes the trigger auditable.
+
+\section{Is this a good system?}
+
+\subsection*{Strengths}
+
+\begin{itemize}[leftmargin=1.25em,itemsep=1pt]
+  \item \textbf{Speed and cost}: answers come from a 95\,KB vault, not a 249\,MB video; cold p50 is sub-millisecond to a few milliseconds and repeat answers are cached.
+  \item \textbf{Coverage}: captions cover the whole episode, including segments where the tracker emitted no interaction row.
+  \item \textbf{Video-free}: after compile, query, report, pack and evidence do not need the video. The source is kept only for playback/screenshots.
+  \item \textbf{Evidence and audit}: timestamped citations, stored stills, frame chips, fullscreen and ZIP export.
+  \item \textbf{Deterministic}: no model in the default answer path, so it is reproducible and cheap on stage.
+  \item \textbf{Composable}: the graph is still the source of identity/state/counts and the fallback when captions have no answer.
+\end{itemize}
+
+\subsection*{Where it is weaker}
+
+\begin{itemize}[leftmargin=1.25em,itemsep=1pt]
+  \item \textbf{Lossy compression}: captions are a summary; fine-grained motion, small text, audio and subtle social cues are lost.
+  \item \textbf{Caption hallucination}: the VLM can misdescribe an object. Evidence and citations make it auditable, not infallible.
+  \item \textbf{Counts}: track/peak/physical are estimates, not hand-labelled ground truth for every episode.
+  \item \textbf{Long video without a DB}: no graph, so no state/edge fallback and counts are caption coverage only.
+  \item \textbf{Internal evaluation}: the 30-question suite is a regression test, not a public benchmark.
+\end{itemize}
+
+\noindent
+Verdict: it is a \emph{good retrieval-and-recall system}, not a replacement for a full video-reasoning model. It is strongest when the question is “what happened / where / when / how many / what is X holding”, and weakest on “why / exactly how / what did the tiny object do”.
+
+\section{How this compares with common industry approaches}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}p{2.25cm} X X X@{}}
+\toprule
+\textbf{Approach} & \textbf{Answer path} & \textbf{Strength} & \textbf{Weakness} \\
+\midrule
+Frame-sampling video LLM & Sample N frames per question and send them to a VLM & Open-ended reasoning, no compile step & Re-samples every question; cost/latency scale with length; coverage depends on sampling; video must be available \\
+Long-video RAG / frame retrieval & Embed frames/clips, retrieve top-$k$ per question, then VLM & Better coverage than fixed sampling; standard tooling & Retrieval misses; still pays a VLM per query; frames remain the substrate \\
+Hierarchical memory / caption QA & Compile captions/events once, retrieve text, optionally verify & Cheap reuse, long-horizon coverage, no video at query & Lossy captions; retrieval/segmentation design; less fine-grained than pixels \\
+\textbf{Chronicle VFM (this work)} & Compile captions + event ledger + evidence once; deterministic lookup; optional text LLM & \textbf{Sub-ms to ms answers; 249\,MB $\rightarrow$ 95\,KB; evidence-backed; offline; graph fallback} & Caption loss; internal benchmark; no audio; not a general video-reasoning model \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent
+So: \textbf{not categorically “better than industry”}, but a better \emph{cost/latency/coverage trade-off for egocentric recall and demo QA}. Industry systems optimise open-world reasoning; this optimises repeated, evidence-backed questions over a long episode. The right claim is “complementary”, not “replaces a video LLM”.
+
+\section{Pitch: what to say and show}
+
+\subsection*{One line}
+
+“We turn a 15-minute, 249\,MB video into a 95\,KB searchable memory; questions are answered in under a millisecond, with no video and with evidence.”
+
+\subsection*{30 seconds}
+
+\begin{enumerate}[leftmargin=1.25em,itemsep=1pt]
+  \item Everyone else re-watches or re-samples the video for every question. That is slow and expensive.
+  \item We compile once: VLM captions, a salience event ledger, a few evidence stills and a small memory pack.
+  \item After that, the vault answers deterministically in under a millisecond; an LLM is optional for phrasing only.
+  \item The same UI keeps the graph, playhead and evidence, and exports/imports the whole memory as a ZIP.
+\end{enumerate}
+
+\subsection*{Demo beats}
+
+\begin{enumerate}[leftmargin=1.25em,itemsep=1pt]
+  \item Play the 15-minute walk; show the video size and the 95\,KB vault.
+  \item Ask “what happened at 10 minutes?” and “what is the person holding?”; show citations and the frame chip.
+  \item Ask a count question; show the track/peak/physical estimate and the deduped cook bowls example.
+  \item Screenshot the cited frame, open fullscreen, export the graph ZIP, import it back.
+  \item Switch to the graph fallback and show an exact state/entity query.
+\end{enumerate}
+
+\subsection*{Answers to judge questions}
+
+\begin{itemize}[leftmargin=1.25em,itemsep=1pt]
+  \item \textbf{“Isn’t this just captions?”} No: captions + a salience event ledger + evidence + count reconciliation + a deterministic intent engine. Captions alone cannot answer “when”, “how many” or “where” as cleanly.
+  \item \textbf{“Why not just use a video LLM?”} We do, at compile time. Query time is where the cost/latency wins; a per-question video model is the baseline we measured against (14/30 graph+Qwen, 7/30 9-frame VLM).
+  \item \textbf{“What is lost?”} Fine motion, audio, tiny text and some rare objects. We state that plainly and keep evidence for audit.
+  \item \textbf{“Is 30/30 a benchmark?”} No, it is an internal regression suite. CapMem/EgoSchema/Ego4D would be the external next step.
 \end{itemize}
 
 \section{Honest limits}
