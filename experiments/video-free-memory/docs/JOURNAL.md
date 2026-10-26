@@ -808,3 +808,16 @@ plates and no bowls on the counter.
 - Added an opt-in deletion test for an upload path (video removed, zip still present). The old
   non-upload guard test remains.
 - `tests/test_vfm.py` → **10 passed**; ruff clean.
+
+### Session 6 final verification (after P1-COUNTS dedup sync `e08cde3`)
+
+- `chronicle/vfm/` now includes the cross-label count dedup and `physical` estimates.
+- Full worktree suite (`cd /home/g1/projects/chronicle-vfm && pytest -q tests`): **all green**
+  (412 collected, 100 %).
+- Experiment suite (`cd experiments/video-free-memory && pytest -q tests`): **24 passed**.
+- `ruff check chronicle/vfm chronicle/ui/app.py chronicle/cli.py tests/test_vfm.py`: clean.
+- `git diff --check`: clean.
+- `tests/test_vfm.py` → 10 tests; combined with the dashboard smoke test → 11 passed.
+- P0-VFM-UI released. Only the real-browser drag/play/seek step remains manual (Playwright not
+  installed); citation chips call `video_player.seek()` and the headless route test covers the
+  compile → ask → download chain.

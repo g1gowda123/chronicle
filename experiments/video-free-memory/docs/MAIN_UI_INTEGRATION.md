@@ -103,15 +103,19 @@ The numbers are regression evidence, not a new benchmark.
 
 ## P1-COUNTS sync
 
-`chronicle/vfm/` is synced with `prototype/` at commit `f4e915f` (P1-COUNTS bounds) and
-includes P2-PACK. The dashboard reports count **bounds**: track count (upper bound) plus peak
-simultaneous visibility (lower bound), with method `vault-count-visibility`.
-`tests/test_vfm.py` covers this.
+`chronicle/vfm/` is synced with `prototype/` at commit `e08cde3` (cross-label dedup + visibility
+bounds) and includes P2-PACK. Count answers now report:
 
-A later cross-label dedup refinement in `prototype/compile.py` / `query.py` / `report.py` is
-being synced by the P1-COUNTS owner. `chronicle/vfm/report.py` already understands the optional
-`physical` / `duplicates` / `transient` fields and falls back to the bounds wording until the
-compiler copy is updated.
+- `tracks` — raw tracker tracks (upper bound);
+- `peak` — maximum same-label tracks visible in one frame (lower bound);
+- `physical` — tracks after removing near-identical cross-label duplicates and one-frame
+  transients, when the compiler can compute it.
+
+Methods: `vault-count-dedup` when `physical` is available and lower than the track count,
+`vault-count-visibility` for the peak bound, and `vault-count` for legacy vaults without
+observations. Cook bowls report `physical=0` (three near-identical plate duplicates plus one
+transient; two plates were confirmed visually for the report). `tests/test_vfm.py` covers the
+bounds path; the experiment's `tests/test_counts.py` covers dedup.
 
 Keep the package in sync when `prototype/` changes. The copy is deliberate:
 the dashboard must not import the experiment directory or rely on `sys.path`.

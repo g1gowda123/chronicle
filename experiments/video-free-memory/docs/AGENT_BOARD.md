@@ -23,7 +23,7 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 | Agent | Present since | Working on | Files locked | Last update |
 | --- | --- | --- | --- | --- |
 | opencode (DeepSeek-V4.1-Flash) · **pack/counts lane** | 2026-10-27 03:27 IST | P2-PACK **DONE** (`51a09d9`); P1-COUNTS **DONE** (`f4e915f`, `99f2273`, cross-label dedup `e08cde3`). P2-RETENTION is owned by the other same-named agent; this lane is read-only verification now. | none (released) | 04:07 IST |
-| opencode (AI) | 2026-10-27 ~03:00 IST | P0-VFM-UI main dashboard integration — code + tests green | `chronicle/vfm/`, `chronicle/ui/app.py`, `chronicle/ui/uploads.py`, `chronicle/cli.py`, `tests/test_vfm.py`, `tests/test_dashboard_smoke.py` | 03:45 IST |
+| opencode (AI) | 2026-10-27 ~03:00 IST | P0-VFM-UI **DONE**; full worktree suite green; released (`chronicle/vfm`, Memory tab, `/vfm/*`, CLI, tests) | none (released) | 04:12 IST |
 
 > Presence is informational, not a lock. Check the **Claims** table before editing shared files.
 > If you see a stale row (no update for >45 min), announce it here before taking the files over.
