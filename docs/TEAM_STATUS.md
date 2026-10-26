@@ -149,8 +149,9 @@ within tolerance, and a hallucinated timestamp is always rejected.
 **Role C note (this push):** all six items landed with model-free tests
 (`tests/test_verification_queue.py`, `tests/test_calibration.py`,
 `tests/test_evaluation.py`). Pushed as `9ae1e5e`; current verification on the
-merged tree is `pytest` 212 passed, `unittest discover -s tests` 108 passed,
-`ruff check chronicle tests` clean, and `chronicle.semantic.demo` /
+merged tree is `pytest` 215 collected (214 passed, 1 dashboard test skipped
+without the `ui` extra), `unittest discover -s tests` 109 passed, `ruff check
+chronicle tests` clean, and `chronicle.semantic.demo` /
 `chronicle.semantic.evaluation` both exit 0 (7/7 cases, 100 % citation
 precision), plus a full `chronicle run --source synthetic --ask ...` smoke.
 `snapshot()` now embeds `verification_stats` (TASK-C1, `ee9fed7`), so the
@@ -191,7 +192,9 @@ and export the graph without touching Python.
   `SemanticEngine` contracts intact; put cross-role glue in
   `chronicle/integration.py`.
 - **Model-free tests are mandatory.** CI has no GPU, no model weights and no
-  Ollama. Use the colour/deterministic/template fallbacks.
+  Ollama. Use the colour/deterministic/template fallbacks. Tests that need the
+  optional `ui` extra (FastAPI/NiceGUI) skip when it is absent, so the core
+  `pytest` run stays green on a plain `pip install -r requirements.txt`.
 - **Before pushing:** `pytest`, `unittest discover -s tests`, `ruff check
   chronicle tests`, and one `chronicle run` smoke test.
 - **Report status here.** Tick your boxes and add a one-line note with the
