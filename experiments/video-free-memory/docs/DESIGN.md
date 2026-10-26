@@ -209,6 +209,19 @@ memory pack.
 Studio keeps the uploaded video for playback; the vault, pack, report and zip do not reference it.
 `--delete-video` is only for a strictly video-free session.
 
+### 7.4 Captioner and deployment choice
+
+Florence-2 is the main repo's existing captioner and a plausible CPU/Render choice for frame
+captions, object tags and OCR. It has not been benchmarked against Qwen2.5-VL on this ledger or
+memory-pack QA. Qwen2.5-VL was chosen for richer 30 s action narrative and strict JSON; Florence
+may be good enough for a cheaper deployment. A/B them on object/action coverage, pack tokens and
+the 30-question pack score before switching.
+
+The current Studio assumes local Ollama, local SQLite/evidence and long jobs in-process. Render's
+small CPU services cannot host the 2.8 GB VLM + 4.7 GB text model or durable local files. A Render
+deployment needs async jobs, object storage, a background worker and either Florence/CPU captioning
+or an external GPU VLM. Static precompiled vaults/reports can be hosted directly with no GPU.
+
 ## 8. Query API (v0 prototype)
 
 `query.py` supports:

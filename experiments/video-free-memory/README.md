@@ -56,6 +56,8 @@ prototype/
   attach_ledger.py    attach compressed ledger to a vault
   query.py            where/when/around/before/after/count/inventory/keyword + cache
   nlq.py              optional Qwen answers from compiled captions/events (no video)
+  memory_pack.py      LLM-ready text pack: captions, events, entities, evidence refs
+  llm_pack_baseline.py benchmark Qwen answering from the memory pack
   video_vault.py      raw video + caption ledger -> SQLite vault (upload path)
   studio_app.py       NiceGUI upload → compile → playback/download UI
   benchmark.py        multi-episode 30-question evaluation + legacy smoke test
@@ -236,6 +238,23 @@ Measured on the same 30 questions:
 The pack is small (~4,000 chars / ~1,000 tokens per question), fits a normal context window, and
 Qwen only has to phrase the verified answer. This is the intended usability change: the hard work
 moves into compilation, not into prompting a video model.
+
+## Deployment and new uploads
+
+**Florence-2** is already wrapped in the main repo and is a strong CPU/Render candidate for frame
+captions, objects and OCR. It has **not** been A/B'd against Qwen2.5-VL on the 30 s window ledger in
+this branch. Use Qwen as the quality option; test Florence before using it as the default.
+
+**Render:** the current Studio is not a small-Render fit — it runs local Ollama (Qwen2.5-VL 3B +
+Qwen 7B), SQLite and long jobs on local disk. Viable shapes:
+
+1. static report/vault demo;
+2. Render web app + background worker + S3/R2 + external GPU VLM;
+3. Render CPU-only with Florence + a small/hosted text model;
+4. self-hosted GPU for the current stack.
+
+**New video:** each upload is an isolated compile job. The LLM is not retrained; Qwen reads only
+that video's memory pack at question time. Cross-video/global memory is not built yet.
 
 ## Test the two UIs side by side
 

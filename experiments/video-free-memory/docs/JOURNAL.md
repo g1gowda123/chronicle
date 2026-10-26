@@ -425,3 +425,22 @@ playback. The LLM must consume the compiled output.
 2. Add optional graph ingest for uploads when the main perception stack is available.
 3. Perceptual-hash dedup for evidence; timeline thumbnails.
 4. External benchmark subset and physical-count calibration.
+
+---
+
+## 2026-10-27 — Postscript: Florence, Render and new uploads
+
+No code this entry; clarifying deployment choices.
+
+- **Florence-2** is already in the main repo and is the natural CPU/Render candidate for frame
+  captions/objects/OCR. It was **not** A/B'd against Qwen2.5-VL in this branch. Do not claim either
+  is better for the memory pack until the same 30 s windows and 30 questions are run through a
+  Florence-ledger. Qwen remains the quality option.
+- **Render:** the current Studio is not a small-Render fit. It assumes local Ollama (Qwen2.5-VL 3B
+  + Qwen 7B), local SQLite/evidence and long in-process jobs. Render needs async jobs, object
+  storage, background workers and either CPU Florence or an external GPU VLM. A static
+  vault/report demo is the easiest deployable artifact.
+- **New video:** each upload is an isolated compile job; the LLM is not retrained and only sees
+  that video's pack. Cross-video/global memory and entity resolution are still future work.
+- The main UI integration remains the top priority (see `HANDOFF.md`); the Studio is a separate
+  reference implementation, not a replacement for the dashboard the user built.

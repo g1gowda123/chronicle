@@ -3,7 +3,7 @@
 **Branch:** `experiment/video-free-memory`  
 **Worktree:** `/home/g1/projects/chronicle-vfm`  
 **Experiment dir:** `experiments/video-free-memory`  
-**Latest commit at handoff:** `97d8ced`
+**Latest commit at handoff:** see `git log -1` (baseline before this update: `97d8ced`)
 **Main repo:** `/home/g1/projects/chronicle` — do not destabilise it.
 
 > **Main UI integration is not done yet.** The Studio app is a separate uploader in the experiment.
@@ -256,17 +256,92 @@ report, zip and pack downloads returned 200.
    structured answer. The current 30/30 deliberately uses retrieval + phrasing.
 10. Gemini/OpenAI online baseline on a paid/faster key. The free Gemini probe took **234 s for one
     question**; do not report it as a benchmark.
+11. Florence-2 vs Qwen2.5-VL A/B on the same 30 s windows, pack size and pack QA. Florence may be
+    good enough for CPU/Render; it is unmeasured here.
+12. Render deployment shape: static report first, then async upload worker + object storage +
+    external VLM. The current local Ollama Studio is not a small-Render fit.
 
 ### P2 — product polish
 
-11. Snapshot dedup / perceptual hash and a 24 h / 7 day retention test.
-12. Add a token-budget selector to the pack (2k/4k/8k).
-13. Optional audio/speech ledger (EgoCITE).
-14. Int8 embeddings only if lexical/dense retrieval misses measurable cases.
+13. Snapshot dedup / perceptual hash and a 24 h / 7 day retention test.
+14. Add a token-budget selector to the pack (2k/4k/8k).
+15. Optional audio/speech ledger (EgoCITE).
+16. Int8 embeddings only if lexical/dense retrieval misses measurable cases.
+17. Multi-video registry and cross-episode entity resolution; not built yet.
 
 ---
 
-## 6. Gotchas / do-nots
+## 6. Deployment, captioners and new uploads
+
+### 6.1 Florence vs Qwen (captioner choice)
+
+Florence-2 is already wrapped in the main repo (`chronicle/semantic/florence.py`) and is a strong
+candidate for the upload path:
+
+- Florence-2-base (~0.23B) / large (~0.77B): cheap, CPU-friendly, good frame captions,
+  object detection/OCR/region grounding.
+- Qwen2.5-VL 3B: better in our run at chronological action narration and strict JSON across a
+  30 s window; heavier (~2.8 GB Ollama model) and needs a GPU for comfortable latency.
+
+**Not measured:** Florence was not A/B'd against Qwen in this branch. Do not claim it is worse or
+better for memory-pack QA until the same 30 s windows and the same 30 questions are run through a
+Florence-ledger. Recommended test:
+
+1. Florence-2-base/large frame captions + deterministic window synthesis.
+2. Same evidence/report/pack pipeline.
+3. Compare object/action coverage, pack tokens, and 30-question pack accuracy/latency.
+4. Keep Qwen as the quality option; use Florence for CPU/Render if it clears the bar.
+
+### 6.2 Render deployment
+
+The **current Studio is not deployable as-is on a small Render service** because it assumes:
+
+- local Ollama serving Qwen2.5-VL 3B + Qwen2.5 7B,
+- local SQLite/evidence files on disk,
+- long compile jobs inside the web process,
+- a durable filesystem.
+
+Render web services are primarily CPU instances, have limited RAM (check the current free/paid
+limits), spin down when idle on free tiers, and have ephemeral local storage unless a persistent
+disk is attached. A 2.8 GB VLM plus a 4.7 GB text model will not fit a free/small instance.
+
+Viable deployment shapes:
+
+1. **Static demo (easiest):** publish precompiled vaults + `memory.html` reports as a static site.
+   No upload, no GPU.
+2. **Render web app + external VLM:** Render/FastAPI/NiceGUI for upload/status/downloads; a
+   background worker runs ffmpeg/Florence; Qwen VLM calls go to Modal/RunPod/Replicate/HF or
+   another GPU endpoint. Store source/evidence/vault/zip in S3/R2; jobs in Postgres.
+3. **Render CPU-only:** Florence-2 captions/objects + a small text model or hosted LLM. Lower
+   quality than Qwen VLM, but deployable without a GPU.
+4. **Self-hosted GPU:** current Ollama stack; best privacy/quality, not a Render fit.
+
+Minimum production requirements: async jobs/queue, object storage, signed download URLs,
+per-user quotas, max video duration/size, virus scanning, TTL cleanup, and a warm model or
+external inference endpoint. Do not put a 5–15 minute compile inside one HTTP request.
+
+### 6.3 What happens on a new upload
+
+Each video is an isolated compile job:
+
+```
+upload → save source → probe duration → caption 30 s windows
+       → vault + evidence + HTML report + memory pack → zip/downloads
+       → source kept for playback (or TTL/--delete-video)
+```
+
+The LLM is **not retrained**. Qwen only sees the memory pack for that video at question time, so a
+new upload cannot contaminate another user’s memory. Current limitations:
+
+- no cross-video/global entity resolution; each vault is separate;
+- no user accounts/quotas or signed URLs in Studio;
+- no automatic cleanup policy yet;
+- main UI integration is still pending (section 2).
+
+For multi-video memory, add an episode registry, consistent entity IDs across episodes, a combined
+pack/index, and a retention policy before claiming “all my videos” QA.
+
+## 7. Gotchas / do-nots
 
 - **Do not revert main dashboard changes.** `dashboard/app.py`, `dashboard/runtime.py`,
   `dashboard/ui/page.py`, `dashboard/ui/theme.py`, `dashboard/static/chronicle.js` may have
@@ -289,7 +364,7 @@ report, zip and pack downloads returned 200.
 
 ---
 
-## 7. Commit rules
+## 8. Commit rules
 
 - Work only on `experiment/video-free-memory`; do not push main.
 - Run tests: `pytest -q tests` (15 pass at handoff).
