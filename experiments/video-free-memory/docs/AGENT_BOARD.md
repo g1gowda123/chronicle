@@ -94,6 +94,15 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 > **:8082** so it does not fight main's :8080, and supports `start|stop|restart|status|logs|
 > pipeline|test`. Verified: start → 200 on :8082 → stop; main :8080 untouched.
 
+
+> **VLM answer path (2026-10-27 04:25 IST, pack/counts/UI lane):** the zine chat is VLM-first again.
+> On first view of a clip with a DB, `dashboard.memory.auto_compile()` builds the vault in the
+> background (`CHRONICLE_VFM_AUTO=0` disables); once ready, answers are deterministic from captions
+> + events (~0.05 ms, no video) and show `provider: vfm-memory`. If no vault exists yet, timeline
+> questions fall back to labelled state/edge events around the parsed time (e.g. "around 10s")
+> instead of the old "No VLM-verified interactions" dead end. Replay entity events now emit at
+> first sight so labels are not anonymous `Track` rows.
+
 ## Rules for parallel agents
 
 1. **One owner per file area.** If you need a shared file, add an entry here first.
