@@ -70,6 +70,12 @@ def attach(vault: Path, ledger_path: Path) -> dict[str, Any]:
             "insert or replace into meta(key, value) values (?, ?)",
             list(meta.items()),
         )
+        # A new caption ledger invalidates answers computed before it existed,
+        # especially cached "no-match" replies to holding/what-happened questions.
+        try:
+            con.execute("delete from qa_cache")
+        except sqlite3.Error:
+            pass
         con.commit()
         con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     finally:

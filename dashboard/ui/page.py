@@ -457,7 +457,7 @@ def build_dashboard() -> None:
                     )
                     break
                 answer = {
-                    "route": "vfm",
+                    "route": "none" if result.method == "no-match" else "vfm",
                     "answer": result.answer,
                     "provider": "vfm-memory",
                     "model": "deterministic",

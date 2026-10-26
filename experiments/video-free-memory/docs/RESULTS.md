@@ -110,13 +110,23 @@ done
 
 ## Long real video (speed proof)
 
-- `data/uploads/walking-long/source.mp4` — **15:03**, 1280×720, 29.97 fps, ~249 MB,
-  real London street walk (people, shops, traffic).
-- It has no graph DB, so it uses the **caption-first** path: 31 × 30 s VLM windows
-  become the ledger/entities; query answers are deterministic after compile.
-- The zine clip switcher lists it as a video-only clip; the Memory card auto-compiles
-  it on first view (or press **Compile memory**).
-- Query latency after compile is the same ~0.05–0.06 ms; the point for judges is
-  that a 15-minute 250 MB video becomes a ~1 MB memory and answers are instant.
-- Evidence thumbnails are only shown when the stored still is within 8 s of the
-  question time; the `frame @ t` button always lets you capture the cited frame.
+`data/uploads/walking-long/source.mp4` — **15:03**, 1280×720, 29.97 fps, ~249 MB,
+real London street walk (people, shops, traffic). No graph DB: caption-first path.
+
+| Metric | Value |
+|---|---:|
+| Video | 903 s · 1280×720 · ~249 MB |
+| Caption windows | 31 × 30 s (91 frame captions) |
+| Compile time | ~5 min once (VLM, GPU) |
+| Vault | **95 KB** |
+| Caption ledger | 102 KB |
+| Evidence | 776 KB (WebP stills) |
+| Memory pack | 14 KB |
+| Report / ZIP | 2.3 MB / 2.4 MB |
+| Query p50 (cold, 15 min) | **0.89 ms** |
+| Cached repeat | ~3 ms (SQLite cache hit) |
+
+The zine clip switcher lists it as a video-only clip; the Memory card auto-compiles
+it on first view (or press **Compile memory**). Evidence thumbnails are only shown
+when the stored still is within 8 s of the question time; the `frame @ t` button
+always lets you capture the cited frame.
