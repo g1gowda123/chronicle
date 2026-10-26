@@ -104,11 +104,11 @@ start_server() {
         export CHRONICLE_EMBEDDER_BACKEND="deterministic"
     fi
 
-    nohup "${CHRONICLE_BIN}" serve \
+    nohup setsid "${CHRONICLE_BIN}" serve \
         --source "${source}" \
         --port "${port}" \
         --host "127.0.0.1" \
-        >> "${LOG_FILE}" 2>&1 &
+        >> "${LOG_FILE}" 2>&1 < /dev/null &
 
     local pid=$!
     disown "${pid}" 2>/dev/null || true
