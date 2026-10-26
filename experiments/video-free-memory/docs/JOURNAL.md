@@ -534,6 +534,56 @@ Results and measurements will be appended as a separate entry when the integrati
 
 ---
 
+## 2026-10-27 — Session 10: caption-window fine-tune, cook first pass (QUICK-WINDOW)
+
+### Goal
+
+Stop assuming 30 s without data. Keep the VLM, prompts, frames/window, evidence/report/pack
+pipeline and 30 questions fixed; vary only `caption_ledger.py --window-s` on cook (10/20/30 s
+first, per the handoff).
+
+### Setup
+
+- Video: `data/real/aria_cook_45s.mp4` (45 s).
+- Same `qwen2.5vl:3b` per-frame captions + `qwen2.5:1.5b` synthesis, 3 frames/window.
+- Each ledger attached to a copy of the same 30 s-event cook vault; walking/hololens vaults were
+  unchanged copies, so only the cook caption ledger varied.
+- Deterministic 30-question suite and `llm_pack_baseline.py` (Qwen2.5 7B, no video) on each.
+
+### Measured
+
+| Window | Ledger zlib | Windows | VLM calls | Caption wall | Objects / actions | Full cook pack | Qwen pack/question | Qwen p50 | 30-Q accuracy |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 10 s | 1,804 B | 5 | 15 | 40.4 s | 23 / 55 | 2,158 tok | 1,152 tok | 1,363 ms | 30/30 |
+| 20 s | 1,438 B | 3 | 9 | 24.0 s | 22 / 49 | 1,704 tok | 1,050 tok | 1,155 ms | 30/30 |
+| 30 s | **1,095 B** | **2** | **6** | **16.0 s** | 21 / 31 | **1,641 tok** | **1,041 tok** | **1,113 ms** | 30/30 |
+
+- Deterministic accuracy is unchanged (30/30, p50 0.045–0.058 ms) because event timestamps, not
+  captions, carry the temporal answer. Caption windows only affect caption/keyword/LLM paths.
+- 10 s buys no accuracy and costs ~65% more ledger bytes, 2.5× the VLM calls and ~35% more Qwen
+  prompt tokens than 30 s.
+- Caption language is unstable at short windows in this Ollama build: the 10 s and 20 s ledgers
+  contained Chinese action strings, and the 20 s synthesis produced a one-word "kitchen" window.
+  The 30 s ledger was English and the most coherent.
+
+### Decision
+
+- **Keep 30 s as the default.** All candidates pass the regression set; 30 s is the smallest
+  ledger/pack and the fastest compile, with the cleanest captions. Tie-break rule says 30 s.
+- Do not claim the window sweep is complete: 15/45/60 s and walking/hololens are still unmeasured.
+  The 30 s default is justified by the cook pass and by the earlier 30 vs 60 s comparison
+  (Session 4: 30 s wins on recall per byte).
+
+### Next
+
+1. Run 15/45/60 s on walking + hololens (the expensive half; dominated by VLM calls).
+2. Ablate the event-ledger anchor interval (`compile.py WINDOW_S`) separately from the caption
+   window; they are both 30 s today but serve different purposes.
+3. If a shorter window is ever wanted for uploads, fix caption language/synthesis quality first;
+   the current 10/20 s output is not clean enough to recommend.
+
+---
+
 ## 2026-10-27 — Session 9: snapshot dedup + 24 h / 7 day retention (P2-RETENTION)
 
 ### Goal
