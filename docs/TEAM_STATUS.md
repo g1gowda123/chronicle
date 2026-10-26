@@ -38,6 +38,17 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 - Tests for the runtime seam and furniture association, plus
   `docs/INTEGRATION.md`.
 
+## Latest change (TASK-E2)
+
+- The dashboard graph now clusters nodes around their room/zone anchor. Zone
+  nodes are fixed on a deterministic ring, each zone gets a stable accent
+  colour, entities inherit a matching border, and an invisible force spring
+  keeps zone members together without adding false edges to the exported graph.
+- Graph/timeline option builders moved to `chronicle/ui/graph_view.py` so the
+  payload is testable without NiceGUI/FastAPI (`tests/test_graph_view.py`).
+- `visualization_snapshot()` now exposes `zone_id` on entity, furniture and zone
+  nodes; foreground snapshots no longer shadow background anchors.
+
 ## Dynamic Task Notice Board (Priority Queue)
 
 > **Team Notice Board:** Anyone finishing early can claim the next highest-priority `[READY]` ticket or post a new task below.
@@ -54,8 +65,8 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-D2** | **P1** | **Distinct furniture anchor styling in graph**<br>Render background furniture anchors with distinct shape (rounded rectangle) and golden border (`#f59e0b`) so they are immediately visually distinct from episodic entities with lifecycles. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D3** | **P1** | **Queue depth badge & UI error/empty states**<br>Add verification queue depth chip in dashboard header; show friendly empty/stopped/error states when video is missing or query fails. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D4** | **P2** | **Headless dashboard smoke tests**<br>Add Starlette/FastAPI `TestClient` tests for NiceGUI endpoints (`/`, `/source-video`, `/export/snapshot.json`, `/export/entities.csv`) verifying zero-GPU, zero-browser CI operation. | `tests/test_dashboard_smoke.py` | `[DONE]` | Orchestrator |
-| **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source aria-cook` / `aria-living-room` offline evaluation when video assets are present; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[READY]` | Open / Any Teammate |
-| **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py` | `[READY]` | Open / Any Teammate |
+| **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source aria-cook` / `aria-living-room` offline evaluation when video assets are present; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[BLOCKED — data/real Aria clips missing]` | Open / Any Teammate |
+| **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py`<br>`chronicle/ui/graph_view.py` | `[DONE]` | Orchestrator |
 | **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget in NiceGUI dashboard allowing users to upload an exported `chronicle_snapshot.json` and call `runtime.load_snapshot_json()` directly from the UI without CLI. | `chronicle/ui/app.py` | `[READY]` | Open / Any Teammate |
 
 ## What I am working on right now
@@ -180,6 +191,8 @@ labelled HoloLens pass before the “done when” line can be ticked.
   `TestClient`), and keep the page usable without a GPU (`tests/test_dashboard_smoke.py`).
 - [x] Show furniture anchors distinctly from episodic entities (they are
   background structure, not objects with a lifecycle, rendered as golden rounded rectangles).
+- [x] Cluster the memory graph by zone with fixed room anchors, stable zone
+  accents and zone-aware tooltips (`chronicle/ui/graph_view.py`).
 
 **Done when:** a teammate can switch sources, watch ingestion, ask a question
 and export the graph without touching Python.

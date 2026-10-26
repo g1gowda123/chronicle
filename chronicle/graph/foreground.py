@@ -15,7 +15,7 @@ from typing import Any
 import networkx as nx
 
 from chronicle.config import DEFAULT_THRESHOLDS, Thresholds
-from chronicle.graph.ids import AGENT_NODE, entity_node, raw_entity_id
+from chronicle.graph.ids import AGENT_NODE, entity_node, raw_entity_id, zone_node
 from chronicle.storage.records import EdgeRecord, EntityRecord, TransitionRecord
 from chronicle.telemetry import EventBus
 from chronicle.types import ObjectState, Relation, StateTransition
@@ -573,6 +573,10 @@ class ForegroundGraph:
     ) -> dict[str, list[dict[str, Any]]]:
         nodes: list[dict[str, Any]] = []
         for node_id, attrs in self.graph.nodes(data=True):
+            if str(node_id).startswith(("anchor:", "zone:")):
+                # Background nodes are referenced as RESTING_ON targets here;
+                # let the background graph own their visual representation.
+                continue
             kind = attrs.get("kind", "entity")
             if kind == "agent":
                 nodes.append(
@@ -585,13 +589,19 @@ class ForegroundGraph:
                 )
                 continue
             state = attrs.get("state", "NEW")
+            raw_zone = attrs.get("zone_id")
+            zone_id = zone_node(str(raw_zone)) if raw_zone else None
+            title = f"{attrs.get('label', node_id)}<br/>state: {state}"
+            if zone_id:
+                title += f"<br/>zone: {zone_id}"
             nodes.append(
                 {
                     "id": node_id,
                     "label": attrs.get("label", node_id),
                     "group": "entity",
                     "state": state,
-                    "title": f"{attrs.get('label', node_id)}<br/>state: {state}",
+                    "zone_id": zone_id,
+                    "title": title,
                 }
             )
         edges: list[dict[str, Any]] = []

@@ -156,6 +156,10 @@ def test_visualization_payload_for_dashboard(memory: ChronicleMemory) -> None:
     payload = memory.visualization_snapshot()
     node_ids = {node["id"] for node in payload["nodes"]}
     assert {"entity:cup", "agent:user", "anchor:dining_table", "zone:kitchen"} <= node_ids
+    nodes = {node["id"]: node for node in payload["nodes"]}
+    assert nodes["entity:cup"]["zone_id"] == "zone:kitchen"
+    assert nodes["anchor:dining_table"]["zone_id"] == "zone:kitchen"
+    assert nodes["zone:kitchen"]["zone_id"] == "zone:kitchen"
     relations = {edge["label"] for edge in payload["edges"]}
     assert Relation.RESTING_ON.value in relations
     assert Relation.IN_ZONE.value in relations

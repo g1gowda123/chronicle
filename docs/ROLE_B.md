@@ -172,7 +172,9 @@ anchor = memory.terminal_anchor("cup")
 
 Nodes and edges already use the public `<kind>:<id>` namespacing
 (`entity:cup`, `anchor:dining_table`, `zone:kitchen`, `agent:user`), so Vis.js
-can render the payload directly.
+can render the payload directly. Every entity, furniture and zone node also
+carries `zone_id` (the namespaced `zone:<id>` it belongs to), which the
+dashboard uses to cluster the force graph by room.
 
 Telemetry is pushed to every subscriber of `memory.bus`:
 
