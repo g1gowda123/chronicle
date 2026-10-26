@@ -103,19 +103,20 @@ embeddings + template GraphRAG). The HoloLens clip is available as
   mean |Δt| 0.28 s, FAIL. Documented as fallback-only in
   `docs/PERCEPTION.md`; re-run with the production backends for the real number.
 
-### TASK-F3 — live stream source
+### TASK-F3 — live stream source (superseded)
 
-- `chronicle run --source live` resolves a live input instead of requiring
-  `data/live/stream.mp4`. `--live-stream` accepts a camera index (default `0`),
-  an RTSP/HTTP URL, or a local video path; `CHRONICLE_LIVE_STREAM` sets the
-  default when the flag is omitted.
-- `ClipSource.live` marks the entry, so `chronicle sources` and
-  `available_sources()` list the feed without a file; `resolve_live_stream()`
-  normalises numeric indices and passes URLs/paths through.
-- Frames reuse the existing `VideoSource`/`PerceptionPipeline` loop with
-  monotonic capture timestamps, the usual backends, and an optional
-  `--max-frames` cap. Model-free tests replay the demo clip through the live
-  path and cover flag/environment/default resolution (`tests/test_sources.py`).
+- Removed per project direction to focus exclusively on reproducible egocentric
+  video assets (`synthetic`, `tabletop`, `cook`, `play`, `walking`) with in-UI
+  source switching.
+
+### TASK-D5 — service launcher script (`chronicle.sh`)
+
+- Created root `./chronicle.sh` script for zero-friction service management.
+- Running `./chronicle.sh` starts the dashboard in the background (using `setsid`
+  and detached input) and reports <http://127.0.0.1:8080>.
+- Commands: `./chronicle.sh` (or `start`), `./chronicle.sh stop`, `./chronicle.sh restart`,
+  `./chronicle.sh status`, `./chronicle.sh logs`, `./chronicle.sh test`.
+- All video sources can be switched dynamically directly in the UI dropdown.
 
 ### TASK-E1 - Aria clip pipeline benchmark
 
@@ -158,12 +159,13 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-D2** | **P1** | **Distinct furniture anchor styling in graph**<br>Render background furniture anchors with distinct shape (rounded rectangle) and golden border (`#f59e0b`) so they are immediately visually distinct from episodic entities with lifecycles. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D3** | **P1** | **Queue depth badge & UI error/empty states**<br>Add verification queue depth chip in dashboard header; show friendly empty/stopped/error states when video is missing or query fails. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D4** | **P2** | **Headless dashboard smoke tests**<br>Add Starlette/FastAPI `TestClient` tests for NiceGUI endpoints (`/`, `/source-video`, `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv`) verifying zero-GPU, zero-browser CI operation plus attachment headers/media types. | `tests/test_dashboard_smoke.py` | `[DONE (f52482b, 5e51c20)]` | Orchestrator / karthiknk7019 |
+| **TASK-D5** | **P1** | **Service runner script (`chronicle.sh`)**<br>Zero-argument `./chronicle.sh` launcher to start dashboard daemon, report URL, tail logs, and stop easily with in-UI source switching. | `chronicle.sh` | `[DONE (7edb9df)]` | Orchestrator |
 | **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source cook` / `play` / `walking` offline evaluation using the tracked video assets in `data/real/`; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[DONE (cc250a0)]` | Orchestrator / Likhithvu |
 | **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py`<br>`chronicle/ui/graph_view.py` | `[DONE (371f216)]` | Orchestrator |
 | **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget and `/import/snapshot` route in the NiceGUI dashboard so an exported `chronicle_snapshot.json` restores graph state without re-ingesting; validate it with `chronicle/ui/snapshot_io.py`. | `chronicle/ui/app.py`<br>`chronicle/integration.py`<br>`chronicle/ui/snapshot_io.py` | `[DONE (a31d417, 973798a)]` | Orchestrator |
 | **TASK-F1** | **P1** | **HoloLens tabletop action verification benchmark**<br>Benchmark `chronicle run --source tabletop` and evaluate action extraction against HoloLens ground truth (`docs/PERCEPTION.md`). | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[DONE (feba585)]` | karthiknk7019 |
 | **TASK-F2** | **P1** | **GraphRAG question prompt enhancement**<br>Support multi-hop queries like "Where was the cup before it was placed on the table?" using timeline edge walks. | `chronicle/semantic/graphrag.py`<br>`tests/test_graphrag.py` | `[DONE (f224d33)]` | Orchestrator / Likhithvu |
-| **TASK-F3** | **P2** | **Live stream source implementation**<br>Implement live video capture ingestion loop for the `live` ClipSource placeholder (`chronicle run --source live`). | `chronicle/sources.py`<br>`chronicle/perception/pipeline.py` | `[DONE (5bceed4)]` | karthiknk7019 |
+| **TASK-F3** | **P2** | **Live stream source implementation**<br>Implement live video capture ingestion loop for the `live` ClipSource placeholder (`chronicle run --source live`). | `chronicle/sources.py`<br>`chronicle/perception/pipeline.py` | `[SUPERSEDED]` | karthiknk7019 |
 
 ## What I am working on right now
 
@@ -301,8 +303,9 @@ marks). Ambient caption phrasing still needs a labelled HoloLens pass before the
 
 - [x] Visual regression pass on the ported UI (graph, timeline, tables, chat,
   pipeline log) at 1280/1440/1920 px.
-- [ ] Add a live/streaming source placeholder next to the pre-recorded sources;
-  keep the `ChronicleRuntime` seam, do not import the prototype engine.
+- [x] In-dashboard video source switching (`synthetic`, `tabletop`, `cook`, `play`, `walking`)
+  directly in the UI dropdown without terminal commands.
+- [x] Service launcher script (`./chronicle.sh`) for daemon lifecycle management.
 - [x] Export/import: download the current snapshot as JSON/CSV, reload it
 - [x] Export/import: download the current snapshot as JSON/CSV, reload it
   without re-ingesting (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`),

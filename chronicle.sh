@@ -2,12 +2,11 @@
 # ==============================================================================
 # Chronicle Management Control Script
 # Usage:
-#   ./chronicle.sh start [source] [port]   - Start dashboard in background
+#   ./chronicle.sh                         - Launch Chronicle dashboard
 #   ./chronicle.sh stop                    - Stop running dashboard
-#   ./chronicle.sh restart [source] [port] - Restart dashboard
+#   ./chronicle.sh restart                 - Restart dashboard
 #   ./chronicle.sh status                  - Check server status & health
 #   ./chronicle.sh logs                    - Tail server log output
-#   ./chronicle.sh serve [source] [port]   - Run in foreground
 #   ./chronicle.sh test                    - Run fast test suite
 # ==============================================================================
 
@@ -133,10 +132,11 @@ start_server() {
     if is_running; then
         echo -e "${GREEN}✓ Chronicle dashboard successfully started!${NC} (PID: ${pid})"
         echo -e "\n  ${BOLD}URL:${NC} ${CYAN}http://127.0.0.1:${port}${NC}\n"
-        echo -e "Useful commands:"
-        echo -e "  ${YELLOW}./chronicle.sh logs${NC}    - View live logs"
-        echo -e "  ${YELLOW}./chronicle.sh status${NC}  - Check status"
+        echo -e "Switch between videos (${CYAN}synthetic${NC}, ${CYAN}tabletop${NC}, ${CYAN}cook${NC}, ${CYAN}play${NC}, ${CYAN}walking${NC}) directly in the UI dropdown."
+        echo -e "\nUseful commands:"
         echo -e "  ${YELLOW}./chronicle.sh stop${NC}    - Stop the server"
+        echo -e "  ${YELLOW}./chronicle.sh status${NC}  - Check status"
+        echo -e "  ${YELLOW}./chronicle.sh logs${NC}    - View live logs"
     else
         echo -e "${RED}✗ Failed to start server. Check logs:${NC}"
         tail -n 15 "${LOG_FILE}"
@@ -265,11 +265,11 @@ print_help() {
 # ------------------------------------------------------------------------------
 # Command Dispatcher
 # ------------------------------------------------------------------------------
-ACTION="${1:-help}"
+ACTION="${1:-launch}"
 shift || true
 
 case "${ACTION}" in
-    start)
+    launch|start)
         start_server "${1:-$DEFAULT_SOURCE}" "${2:-$DEFAULT_PORT}"
         ;;
     stop)
