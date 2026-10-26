@@ -464,6 +464,26 @@ def extract_json_object(raw: str) -> dict[str, Any]:
     raise ActionParseError("action JSON must be an object")
 
 
+def coerce_action(value: Any) -> ActionPrimitive:
+    """Map a label/name to an :class:`ActionPrimitive` or raise ``ValueError``.
+
+    Used by calibration/evaluation files so ``"pick up"``, ``"pick-up"`` and
+    ``"PICK_UP"`` are all accepted.  Unlike :func:`parse_action_json` this is
+    for trusted local data, not model output.
+    """
+    key = _normalise_action_key(value)
+    try:
+        return ActionPrimitive(key.upper())
+    except ValueError:
+        action = _ACTION_ALIASES.get(key)
+        if action is not None:
+            return action
+        allowed = ", ".join(item.value for item in ActionPrimitive)
+        raise ValueError(
+            f"unknown action {value!r}; expected one of {allowed}"
+        ) from None
+
+
 def parse_action_json(
     raw: str,
     *,

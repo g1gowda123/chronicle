@@ -16,6 +16,7 @@ Role C (semantic engine) is complete and integrated with the runtime:
                                         per-action acceptance thresholds
   chronicle/semantic/verification.py    caption -> LLM JSON -> validated action
   chronicle/semantic/calibration.py     labelled-set thresholds + precision/recall
+  chronicle/semantic/timeline.py        verified actions vs labelled action timeline
   chronicle/semantic/graphrag.py        serialized subgraph -> cited answer
   chronicle/semantic/evaluation.py      GraphRAG eval set + citation precision
   chronicle/semantic/queue.py           bounded queue, dedup, latency telemetry
@@ -27,11 +28,13 @@ Role C (semantic engine) is complete and integrated with the runtime:
   docs/ROLE_C.md                        integration contract
 
 Test status (all model-free, no network):
-  python -m pytest                      192 collected, all pass
-  python -m unittest discover -s tests  100 tests, all pass
+  python -m pytest                      232 collected, all pass
+  python -m unittest discover -s tests  122 tests, all pass
   python -m chronicle.semantic.demo     exits 0
   python -m chronicle.semantic.evaluation
                                         7/7 cases, 100% citation precision
+  python -m chronicle.semantic.timeline
+                                        demo labels PASS (1/1, 0.07 s error)
   python -m ruff check chronicle tests  clean
 
 
@@ -60,6 +63,13 @@ Test status (all model-free, no network):
       python -m chronicle.semantic.calibration --labels labels.jsonl
     writes the CHRONICLE_ACTION_THRESHOLDS=... line and exits non-zero if the
     target precision is not reached. See docs/calibration_labels.example.json.
+  - Action timelines can be scored against a snapshot export or a predictions
+    file, so the "done when" bar is measurable without touching code:
+      python -m chronicle.semantic.timeline \
+        --labels runs/hololens_timeline.json \
+        --snapshot runs/chronicle_snapshot.json --tolerance 2.0
+    Exit 0 requires precision=recall=1 and entity/container agreement where
+    comparable. See docs/action_timeline.example.json.
 
 
 3. SUGGESTED NEXT STEPS - ROLE A (PERCEPTION)
@@ -152,8 +162,10 @@ Test status (all model-free, no network):
   - Calibration ships with a 16-caption seed set. Put real HoloLens labels in a
     JSON/JSONL file and run
     `python -m chronicle.semantic.calibration --labels <file>`; commit the
-    resulting thresholds once the timeline is labelled. This is the remaining
-    step for the "done when" bar in TEAM_STATUS.
+    resulting thresholds once the timeline is labelled. The timeline scorer is
+    ready (`python -m chronicle.semantic.timeline --labels <file> --snapshot
+    <export>`); only the labelled real footage is missing for the "done when"
+    bar in TEAM_STATUS.
   - The deterministic HSV embedder is demo/test-only.
   - GraphRAG grounds timestamps and zones but does not re-rank entities with
     CLIP text-to-node similarity yet.

@@ -55,6 +55,7 @@ chronicle = "chronicle.cli:main"
 chronicle-perception = "chronicle.perception.cli:main"
 chronicle-semantic-demo = "chronicle.semantic.demo:main"
 chronicle-semantic-calibrate = "chronicle.semantic.calibration:main"
+chronicle-semantic-timeline = "chronicle.semantic.timeline:main"
 chronicle-semantic-eval = "chronicle.semantic.evaluation:main"
 
 [tool.setuptools.packages.find]
