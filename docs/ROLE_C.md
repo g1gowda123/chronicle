@@ -475,8 +475,8 @@ to load `CHRONICLE_LLM_MODEL` with Hugging Face `pipeline("text-generation")`.
 ## 9. Tests and evaluation
 
 ```powershell
-python -m unittest discover -s tests -v   # 100 model-free tests
-python -m pytest                          # 192 collected across the repo
+python -m unittest discover -s tests -v   # 101 model-free tests
+python -m pytest                          # 205 collected across the repo
 python -m chronicle.semantic.demo         # offline end-to-end demo
 python -m chronicle.semantic.evaluation   # GraphRAG eval set (or -m chronicle-semantic-eval)
 ```
