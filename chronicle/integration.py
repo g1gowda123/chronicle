@@ -937,13 +937,11 @@ class ChronicleRuntime:
 
     def _on_perception_event(self, event: PerceptionTelemetryEvent) -> None:
         tag = _TAG_BY_CATEGORY.get(str(event.category.value), TelemetryTag.GEOM)
-        self.bus.emit(
-            tag,
-            event.message,
-            event.presentation_time,
-            frame_index=event.frame_index,
-            **dict(event.data),
-        )
+        # Clip/semantic payloads may already carry a ``frame_index`` key.  Merge
+        # explicitly so the bus never receives the keyword twice.
+        data = dict(event.data)
+        data["frame_index"] = event.frame_index
+        self.bus.emit(tag, event.message, event.presentation_time, **data)
 
     def _reset_memory(self) -> None:
         try:
