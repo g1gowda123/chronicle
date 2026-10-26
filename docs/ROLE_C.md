@@ -9,7 +9,7 @@ specification:
 | 1×3 temporal strip compositor for 30-frame interaction buffers | `chronicle/semantic/temporal_strip.py` |
 | Florence-2 `<MORE_DETAILED_CAPTION>` + strict JSON action classification | `chronicle/semantic/florence.py`, `actions.py`, `verification.py` |
 | GraphRAG interface between serialized subgraphs and a local LLM | `chronicle/semantic/graphrag.py`, `llm.py` |
-| Bounded verification queue, calibration and eval set | `chronicle/semantic/queue.py`, `calibration.py`, `evaluation.py` |
+| Bounded verification queue, calibration, action-timeline and GraphRAG eval sets | `chronicle/semantic/queue.py`, `calibration.py`, `timeline.py`, `evaluation.py` |
 | One facade + telemetry events | `chronicle/semantic/engine.py` |
 
 The code has **offline fallbacks** for every heavy dependency, so the pipeline,
@@ -272,6 +272,22 @@ Hallucinated timestamps are dropped and an uncited LLM answer automatically
 falls back to the deterministic template, so the judge never sees an
 ungrounded location.
 
+#### Multi-hop / "before" questions
+
+Temporal questions such as *"Where was the cup before it was placed on the
+table?"* are answered with a backward walk over the entity's facts:
+
+1. locate the reference event from the query (placement/action wording plus the
+   target object, e.g. `PLACED table`), or from an explicit `t=9s` / `9 seconds`;
+2. keep the facts strictly earlier than that timestamp;
+3. answer with the latest earlier location fact, citing its timestamp
+   (`"Before it was placed on the table, the cup had been resting on the work
+   desk at [t=5.0s]."`).
+
+If no earlier location exists the template returns an ungrounded
+`"I don't have an earlier location for ..."` answer instead of inventing one.
+The same path is exercised by the `before-placement` evaluation case.
+
 ---
 
 ## 5. Role D integration — telemetry & UI
@@ -443,6 +459,92 @@ prints the `CHRONICLE_ACTION_THRESHOLDS=...` value to copy into the environment,
 and exits non-zero if the requested precision cannot be reached on those labels
 (so CI can gate a regression).
 
+### Action timeline evaluation
+
+The Role C acceptance bar is that the verified actions for a clip match a
+hand-labelled timeline within tolerance. `timeline.py` measures exactly that
+against the same `snapshot()["actions"]` rows the dashboard consumes.
+
+Label file (also accepted as `{"labels": [...]}`):
+
+```json
+[
+  {"timestamp": 1.9, "action": "PICK_UP", "entity": "keys"},
+  {"timestamp": 4.2, "action": "INSERT_INTO", "entity": "keys", "container": "drawer"}
+]
+```
+
+```python
+from chronicle.semantic import (
+    evaluate_action_timeline,
+    load_action_labels,
+    load_annotation_actions,
+    predictions_from_snapshot,
+)
+
+labels = load_action_labels("runs/hololens_timeline.json")
+report = evaluate_action_timeline(
+    predictions_from_snapshot(runtime.snapshot()),   # ingest the clip first
+    labels,
+    tolerance=2.0,                                   # seconds, inclusive
+)
+
+report.passed                     # precision/recall = 1, entity/container ok
+report.precision, report.recall
+report.mean_timestamp_error       # seconds over matched labels
+report.entity_accuracy            # None when no prediction has an entity
+report.container_accuracy         # None when neither side names a container
+print("\n".join(report.summary_lines()))
+```
+
+HoloAssist annotations can be scored without converting them first.
+`load_annotation_actions()` reads `ground_truth.actions` (or a bare action
+list), takes the first candidate in each row's `actions` list that maps to a
+Chronicle primitive (`PICK_UP`, `PLACE` -> `PUT_DOWN`, `INSERT_INTO`,
+`REMOVE_FROM`, ...), and skips movement-only rows (`MOVE`/`VISIBLE_MOVING`).
+`data/real/holoassist_switch_34s.json` yields 7 scorable labels.
+
+Matching is greedy by nearest `|Δt|` among predictions with the same action
+primitive. Wrong-action or out-of-window predictions count as extras (they lower
+precision); unmatched labels lower recall. Entity/container strings are compared
+case- and separator-insensitively (`keys` matches `the keys`); when only one
+side has a container the pair is reported as **not comparable** rather than
+wrong. Predictions with `accepted=false` are skipped by default so rejected
+actions cannot inflate recall.
+
+```bash
+# one-shot score of an exported snapshot
+python -m chronicle.semantic.timeline \
+  --labels docs/action_timeline.example.json \
+  --snapshot runs/chronicle_snapshot.json --tolerance 2.0
+
+# score a predictions file (useful before the runtime exists), or include rejects
+python -m chronicle.semantic.timeline \
+  --labels docs/action_timeline.example.json \
+  --predictions docs/action_predictions.example.json --json
+
+# HoloLens benchmark: export a snapshot, then score HoloAssist annotations
+python -m chronicle.cli run --source tabletop \
+  --db runs/hololens.db --reset --snapshot-out runs/hololens_snapshot.json
+python -m chronicle.semantic.timeline \
+  --annotations data/real/holoassist_switch_34s.json \
+  --snapshot runs/hololens_snapshot.json --tolerance 2.2 --ignore-entity
+```
+
+`--annotations` is mutually exclusive with `--labels`. `--ignore-entity` still
+matches actions and timestamps but reports entity/container accuracy as `None`
+and drops those checks from the PASS gate; use it when the ground truth and the
+runtime detector use different vocabularies (for example HoloAssist `joy-con`
+vs. the colour fallback's `cup`/`mug`).
+
+The command exits 0 only when every label is matched, there are no extra
+predictions, and (where comparable) entity/container names agree; otherwise it
+exits 1 and prints `MISS` / `EXTRA` lines, so CI can gate the "done when" bar.
+The bundled demo example matches `PICK_UP keys @ 1.967 s` against a label at
+1.9 s (mean error 0.07 s). Snapshot action rows do not currently include a
+`container` column, so container accuracy only becomes comparable when scoring
+a predictions file (or after Role B adds the field).
+
 ---
 
 ## 7. Configuration
@@ -497,10 +599,13 @@ to load `CHRONICLE_LLM_MODEL` with Hugging Face `pipeline("text-generation")`.
 ## 9. Tests and evaluation
 
 ```powershell
-python -m unittest discover -s tests -v   # 109 model-free tests
-python -m pytest                          # 215 collected (dashboard test skips without the ui extra)
+python -m unittest discover -s tests -v   # 128 model-free tests
+python -m pytest                          # 250 collected (dashboard test skips without the ui extra)
 python -m chronicle.semantic.demo         # offline end-to-end demo
 python -m chronicle.semantic.evaluation   # GraphRAG eval set (or -m chronicle-semantic-eval)
+python -m chronicle.semantic.timeline `
+  --labels docs/action_timeline.example.json `
+  --predictions docs/action_predictions.example.json   # labelled action timeline (section 6)
 ```
 
 The Role C suite covers:
@@ -519,8 +624,13 @@ The Role C suite covers:
   per-action thresholds and threshold suggestion;
 * labelled-caption files: JSON list/mapping/`labels` wrapper, JSONL, alias
   action names, invalid-label rejection, CLI `--json`/`--write` output;
-* GraphRAG evaluation: 7 cases (location, time, action, remove, lost, zone-only,
-  unknown), 100 % citation precision, hallucinated-timestamp fallback.
+* action timeline: tolerance boundaries, nearest-match pairing, extra / missing /
+  wrong-action accounting, entity/container aliases, entity-agnostic scoring,
+  rejected predictions, snapshot/prediction/annotation loaders and CLI exit
+  codes;
+* GraphRAG evaluation: 9 cases (location, time, action, temporal before-placement,
+  remove, lost, zone-only, unknown), 100 % citation precision,
+  hallucinated-timestamp fallback.
 
 The suite has **no model downloads and no network access**.
 
@@ -533,9 +643,10 @@ The suite has **no model downloads and no network access**.
   is a matter of replacing `ActionVerifier.chat_client` with a vision client;
   the schema and fallbacks stay unchanged.
 * Calibration ships with a 16-caption seed set and now accepts labelled files
-  (`python -m chronicle.semantic.calibration --labels labels.jsonl`). Add
-  labelled HoloLens clips and commit the resulting thresholds once the real
-  timeline is labelled.
+  (`python -m chronicle.semantic.calibration --labels labels.jsonl`). The
+  action-timeline harness (`python -m chronicle.semantic.timeline`) is ready to
+  score the real clip; label the HoloLens pass, commit the resulting thresholds,
+  and the “done when” line in `TEAM_STATUS.md` can be ticked.
 * The deterministic embedder is intentionally not CLIP-quality. It exists for
   offline demos/tests; production must install `requirements-semantic-models.txt`.
 * Zone prototypes are in-memory + JSON by default. Role B can persist
@@ -544,3 +655,7 @@ The suite has **no model downloads and no network access**.
 * GraphRAG grounds timestamps and zones, but does not yet re-rank candidate
   entities with CLIP text-to-node similarity; Role B currently supplies the
   entity context.
+* "Before" questions can only use facts inside the serialized 2-hop context. If
+  Role B's retrieval window drops the earlier location, GraphRAG returns the
+  ungrounded "no earlier location" fallback; widen `max_facts`/`hops` rather
+  than inventing a location.

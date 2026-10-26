@@ -73,7 +73,7 @@ queue/drain ordering in `_verify_clip()` unless the pipeline contract changes.
 
 ```python
 {
-  "nodes": [{"id", "label", "group", "title"}],      # Role B graph
+  "nodes": [{"id", "label", "group", "zone_id", "title"}],  # Role B graph
   "edges": [{"from", "to", "label", "arrows"}],
   "entities": [{"id", "label", "state", "zone", "anchor", ...}],
   "actions": [{"id", "timestamp", "action", "entity", ...}],
@@ -90,6 +90,26 @@ queue/drain ordering in `_verify_clip()` unless the pipeline contract changes.
 
 The dashboard only consumes this schema. Adding a field is backward-compatible;
 renaming one requires updating `chronicle/ui/app.py` in the same change.
+
+`nodes[].zone_id` is the namespaced `zone:<id>` anchor for entities, furniture
+and zone nodes (a zone points at itself). The dashboard uses it to cluster the
+force graph by room; the field is additive and safe for older consumers.
+
+## Graph payload helpers
+
+`chronicle/ui/graph_view.py` owns the ECharts option builders (`graph_options`,
+`timeline_options`). It imports no NiceGUI or FastAPI code, so the visual payload
+is covered by model-free tests without the optional `ui` extra
+(`tests/test_graph_view.py`).
+
+## Snapshot import
+
+The dashboard's **Import** button accepts an exported
+`chronicle_snapshot.json`, stops the current ingestion, and calls
+`runtime.load_snapshot_json()` with the parsed payload. Validation lives in
+`chronicle/ui/snapshot_io.py` (`parse_snapshot`): the file must be UTF-8 (BOM
+allowed), a JSON object, and contain `nodes` and `entities` lists. Invalid files
+surface a notification and leave the current graph untouched.
 
 ## Query normalization
 

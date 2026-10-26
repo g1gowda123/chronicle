@@ -4,6 +4,7 @@ Usage::
 
     chronicle sources
     chronicle run data/demo/chronicle_demo.mp4 --max-frames 120
+    chronicle run --source live --live-stream 0 --max-frames 300
     chronicle ask "where are my keys?" --db data/demo/chronicle.db
     chronicle serve --source synthetic
 
@@ -25,6 +26,7 @@ from chronicle.sources import (
     SOURCES,
     ClipSource,
     default_source,
+    resolve_live_stream,
     source_for_key,
     source_for_video,
 )
@@ -37,8 +39,9 @@ def _resolve_source(
     *,
     source_key: str | None = None,
     video: str | None = None,
-) -> tuple[ClipSource, Path]:
-    """Resolve a source key or explicit video path to a source + path."""
+    live_stream: str | None = None,
+) -> tuple[ClipSource, str | Path | int]:
+    """Resolve a source key or explicit video path to a source + input."""
 
     if video:
         path = Path(video).expanduser().resolve()
@@ -62,6 +65,8 @@ def _resolve_source(
         return source, path
 
     source = source_for_key(source_key, data_dir) if source_key else default_source(data_dir)
+    if source.live:
+        return source, resolve_live_stream(live_stream)
     path = source.video_path(data_dir)
     if not path.is_file():
         raise SystemExit(
@@ -85,6 +90,18 @@ def cmd_sources(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir).expanduser().resolve()
     rows = []
     for source in SOURCES:
+        if source.live:
+            stream = resolve_live_stream()
+            rows.append(
+                {
+                    "key": source.key,
+                    "label": source.label,
+                    "available": True,
+                    "video": f"camera:{stream}" if isinstance(stream, int) else stream,
+                    "db": str(source.db_path(data_dir)),
+                }
+            )
+            continue
         path = source.video_path(data_dir)
         rows.append(
             {
@@ -105,6 +122,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         data_dir,
         source_key=args.source,
         video=args.video,
+        live_stream=args.live_stream,
     )
     db_path = Path(args.db).expanduser() if args.db else source.db_path(data_dir)
     runtime = ChronicleRuntime(
@@ -121,6 +139,11 @@ def cmd_run(args: argparse.Namespace) -> int:
             fps_override=args.fps,
         )
         print(json.dumps(summary.as_dict(), indent=2))
+        if args.snapshot_out:
+            snapshot_path = Path(args.snapshot_out).expanduser()
+            snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+            snapshot_path.write_text(runtime.export_snapshot_json(), encoding="utf-8")
+            print(json.dumps({"snapshot": str(snapshot_path)}, indent=2))
         if args.ask:
             for question in args.ask:
                 print(json.dumps(runtime.ask(question).to_dict(), indent=2))
@@ -187,12 +210,23 @@ def build_parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run", help="ingest a video through perception, memory and semantics")
     run.add_argument("video", nargs="?", help="explicit video path (defaults to --source)")
     run.add_argument("--source", help="source key from `chronicle sources`")
+    run.add_argument(
+        "--live-stream",
+        help=(
+            "live input for --source live: camera index (0), RTSP/HTTP URL, or "
+            "video path (default: $CHRONICLE_LIVE_STREAM or 0)"
+        ),
+    )
     run.add_argument("--db", help="SQLite database path (defaults to the source database)")
     run.add_argument("--zone", help="zone label override")
     run.add_argument("--max-frames", type=int)
     run.add_argument("--fps", type=float, help="override video FPS")
     run.add_argument("--reset", action="store_true", help="recreate the database before ingesting")
     run.add_argument("--ask", action="append", help="question to answer after ingestion")
+    run.add_argument(
+        "--snapshot-out",
+        help="write the post-ingestion ChronicleRuntime snapshot JSON to this path",
+    )
     _add_backend_flags(run)
     run.set_defaults(func=cmd_run)
 

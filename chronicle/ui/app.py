@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from nicegui import app, run, ui
 
@@ -29,35 +29,9 @@ from chronicle.sources import (
     source_for_key,
     source_for_video,
 )
-
-STATE_ORDER = [
-    "NEW",
-    "VISIBLE_STATIC",
-    "INTERACTED",
-    "VISIBLE_MOVING",
-    "HELD",
-    "CONTAINED",
-    "OCCLUDED",
-    "OUT_OF_VIEW",
-    "LOST",
-]
-STATE_COLORS = {
-    "NEW": "#94a3b8",
-    "VISIBLE_STATIC": "#22c55e",
-    "INTERACTED": "#f59e0b",
-    "VISIBLE_MOVING": "#38bdf8",
-    "HELD": "#f97316",
-    "CONTAINED": "#a855f7",
-    "OCCLUDED": "#64748b",
-    "OUT_OF_VIEW": "#475569",
-    "LOST": "#ef4444",
-}
-GROUP_COLORS = {
-    "entity": "#38bdf8",
-    "furniture": "#f59e0b",
-    "zone": "#2dd4bf",
-    "agent": "#e879f9",
-}
+from chronicle.ui.graph_view import graph_options as _graph_options
+from chronicle.ui.graph_view import timeline_options as _timeline_options
+from chronicle.ui.snapshot_io import SnapshotImportError, parse_snapshot, snapshot_summary
 
 
 @dataclass
@@ -199,147 +173,6 @@ class DashboardState:
                 self.runtime.close()
             except Exception:
                 pass
-
-
-def _graph_options(snapshot: dict[str, Any]) -> dict[str, Any]:
-    nodes = snapshot.get("nodes", [])
-    edges = snapshot.get("edges", [])
-    categories = [
-        {"name": "entity"},
-        {"name": "furniture"},
-        {"name": "zone"},
-        {"name": "agent"},
-    ]
-    category_index = {c["name"]: i for i, c in enumerate(categories)}
-    data = []
-    for node in nodes:
-        node_type = str(node.get("group") or "entity")
-        state = str(node.get("state") or "")
-        color = STATE_COLORS.get(state) if node_type == "entity" else GROUP_COLORS.get(node_type)
-        if node_type == "furniture":
-            symbol = "roundRect"
-            size = [42, 22]
-            item_style = {
-                "color": color or "#f59e0b",
-                "borderColor": "#fbbf24",
-                "borderWidth": 1.5,
-            }
-            label_cfg = {"show": True, "fontSize": 10, "color": "#fef08a"}
-        elif node_type == "zone":
-            symbol = "diamond"
-            size = 38
-            item_style = {"color": color or "#2dd4bf"}
-            label_cfg = {"show": True, "fontSize": 11, "color": "#5eead4"}
-        elif node_type == "agent":
-            symbol = "pin"
-            size = 34
-            item_style = {"color": color or "#e879f9"}
-            label_cfg = {"show": True, "fontSize": 11, "color": "#f5d0fe"}
-        else:
-            symbol = "circle"
-            size = 34
-            item_style = {"color": color or "#94a3b8"}
-            label_cfg = {"show": True, "fontSize": 11, "color": "#e2e8f0"}
-
-        data.append(
-            {
-                "id": node["id"],
-                "name": node.get("label", node["id"]),
-                "category": category_index.get(node_type, 0),
-                "symbol": symbol,
-                "symbolSize": size,
-                "itemStyle": item_style,
-                "label": label_cfg,
-            }
-        )
-    links = [
-        {
-            "source": edge.get("from"),
-            "target": edge.get("to"),
-            "value": edge.get("label", edge.get("kind", "")),
-        }
-        for edge in edges
-        if edge.get("from") and edge.get("to")
-    ]
-    return {
-        "backgroundColor": "transparent",
-        "tooltip": {"formatter": "{b}"},
-        "legend": [
-            {
-                "data": [c["name"] for c in categories],
-                "textStyle": {"color": "#94a3b8"},
-                "top": 0,
-            }
-        ],
-        "series": [
-            {
-                "type": "graph",
-                "layout": "force",
-                "roam": True,
-                "draggable": True,
-                "categories": categories,
-                "data": data,
-                "links": links,
-                "force": {"repulsion": 220, "edgeLength": [70, 170], "gravity": 0.08},
-                "label": {
-                    "show": True,
-                    "position": "right",
-                    "color": "#e2e8f0",
-                    "fontSize": 11,
-                },
-                "lineStyle": {"color": "#475569", "curveness": 0.12, "opacity": 0.8},
-                "edgeLabel": {
-                    "show": True,
-                    "formatter": "{c}",
-                    "fontSize": 9,
-                    "color": "#94a3b8",
-                },
-                "emphasis": {"focus": "adjacency", "lineStyle": {"width": 2}},
-            }
-        ],
-    }
-
-
-def _timeline_options(transitions: list[dict[str, Any]]) -> dict[str, Any]:
-    points: list[dict[str, Any]] = []
-    for row in reversed(transitions):
-        state = str(row.get("to_state") or "NEW")
-        y = STATE_ORDER.index(state) if state in STATE_ORDER else 0
-        points.append(
-            {
-                "value": [
-                    round(float(row.get("timestamp") or 0.0), 2),
-                    y,
-                    row.get("label") or "",
-                ],
-                "itemStyle": {"color": STATE_COLORS.get(state, "#94a3b8")},
-            }
-        )
-    return {
-        "backgroundColor": "transparent",
-        "grid": {"left": 90, "right": 24, "top": 24, "bottom": 40},
-        "tooltip": {"formatter": "t={@[0]}s<br/>{@[2]} -> {b}"},
-        "xAxis": {
-            "type": "value",
-            "name": "seconds",
-            "axisLabel": {"color": "#94a3b8"},
-            "splitLine": {"lineStyle": {"color": "#1e293b"}},
-        },
-        "yAxis": {
-            "type": "category",
-            "data": STATE_ORDER,
-            "axisLabel": {"color": "#94a3b8", "fontSize": 10},
-            "splitLine": {"lineStyle": {"color": "#1e293b"}},
-        },
-        "series": [
-            {
-                "type": "scatter",
-                "symbolSize": 9,
-                "data": points,
-                "emphasis": {"scale": 1.4},
-            }
-        ],
-    }
 
 
 def _video_url(path: Path) -> str:
@@ -485,6 +318,17 @@ def create_app(
             headers={"Content-Disposition": 'attachment; filename="chronicle_actions.csv"'},
         )
 
+    @app.post("/import/snapshot")
+    async def _import_snapshot_route(request: Request) -> dict[str, Any]:
+        payload = await request.json()
+        with state.lock:
+            state.runtime.load_snapshot_json(payload)
+        return {
+            "status": "imported",
+            "entities": len(payload.get("entities", [])),
+            "furniture": len(payload.get("furniture", [])),
+        }
+
     def _switch_source(source: ClipSource) -> bool:
         target = source.video_path(data_root)
         if source.key == "custom":
@@ -572,6 +416,50 @@ def create_app(
             "</style>"
         )
 
+        async def _import_snapshot(event: Any) -> None:
+            file = getattr(event, "file", None)
+            if file is None:
+                ui.notify("No file received", type="negative")
+                return
+            try:
+                payload = parse_snapshot(await file.text())
+            except SnapshotImportError as exc:
+                ui.notify(f"Import failed: {exc}", type="negative")
+                return
+            except Exception as exc:  # defensive: upload/stream failure
+                ui.notify(f"Could not read file: {exc}", type="negative")
+                return
+            state.stop()
+            with state.lock:
+                runtime = state.runtime
+            try:
+                await run.io_bound(runtime.load_snapshot_json, payload)
+            except Exception as exc:
+                ui.notify(f"Import failed: {type(exc).__name__}: {exc}", type="negative")
+                return
+            import_upload.reset()
+            import_dialog.close()
+            ui.notify(snapshot_summary(payload), type="positive")
+
+        with ui.dialog() as import_dialog, ui.card().classes("dark chronicle-card").style(
+            "min-width:390px;max-width:480px"
+        ):
+            ui.label("Import snapshot").classes("text-sm font-semibold")
+            ui.label(
+                "Upload a chronicle_snapshot.json exported from this dashboard. "
+                "The graph is reloaded from the file without re-ingesting video."
+            ).classes("text-xs text-slate-400")
+            import_upload = ui.upload(
+                label="chronicle_snapshot.json",
+                on_upload=_import_snapshot,
+                auto_upload=True,
+                max_file_size=8 * 1024 * 1024,
+            ).props("accept=.json flat dense").classes("w-full")
+            with ui.row().classes("w-full justify-end"):
+                ui.button("Cancel", on_click=import_dialog.close).props(
+                    "flat dense no-caps"
+                ).classes("text-xs")
+
         with ui.header().classes("items-center px-6 py-2").style(
             "background:rgba(7,11,17,.92);border-bottom:1px solid rgba(148,163,184,.12)"
         ):
@@ -602,6 +490,12 @@ def create_app(
                 )
                 with llm_chip:
                     llm_tip = ui.tooltip("Local model status")
+
+                ui.button("Import", icon="upload", on_click=import_dialog.open).props(
+                    "outline dense size=sm no-caps"
+                ).classes("text-xs chronicle-mono text-slate-300").tooltip(
+                    "Reload an exported snapshot without re-ingesting video"
+                )
 
                 with ui.button("Export", icon="download").props(
                     "outline dense size=sm no-caps"
@@ -732,6 +626,13 @@ def create_app(
                             ).props("flat dense size=xs no-caps").classes(
                                 "text-slate-400 text-[10px]"
                             ).tooltip("Download entities CSV")
+                            ui.button(
+                                "Import",
+                                icon="file_upload",
+                                on_click=import_dialog.open,
+                            ).props("flat dense size=xs no-caps").classes(
+                                "text-slate-400 text-[10px]"
+                            ).tooltip("Import snapshot JSON")
                         pipeline_label = ui.label("").classes(
                             "text-[10px] chronicle-mono text-slate-500 truncate"
                         )

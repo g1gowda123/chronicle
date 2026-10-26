@@ -1,0 +1,10 @@
+[
+  {
+    "timestamp": 1.967,
+    "action": "PICK_UP",
+    "entity": "keys",
+    "confidence": 0.74,
+    "accepted": true,
+    "caption": "the hand grasps the keys"
+  }
+]

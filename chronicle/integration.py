@@ -27,6 +27,7 @@ import csv
 import io
 import json
 import logging
+import os
 import threading
 import time
 import urllib.request
@@ -738,6 +739,8 @@ class ChronicleRuntime:
             label = str(f.get("label", "furniture"))
             zone_id = f.get("zone_id") or "unmapped"
             t = float(f.get("created_at") or 0.0)
+            self.memory.background.ensure_zone(zone_id, t, zone_id=zone_id)
+            self.memory.store.upsert_zone(zone_id, zone_id, t)
             self.memory.background.ensure_furniture(anchor_id, label, zone_id, t, attrs=f)
             self.memory.store.upsert_furniture(anchor_id, label, zone_id, t, attrs=f)
         for e in payload.get("entities", []):
@@ -745,6 +748,9 @@ class ChronicleRuntime:
             label = str(e.get("label", "object"))
             state = str(e.get("state", "VISIBLE_STATIC"))
             zone = e.get("zone")
+            if zone:
+                self.memory.background.ensure_zone(zone, 0.0, zone_id=zone)
+                self.memory.store.upsert_zone(zone, zone, 0.0)
             state_val = (
                 ObjectState(state)
                 if state in ObjectState._value2member_map_
@@ -898,10 +904,16 @@ class ChronicleRuntime:
                 if self._pipeline is not None
                 else None
             )
+            embedder_backend = os.getenv("CHRONICLE_EMBEDDER_BACKEND")
+            if not embedder_backend:
+                if self.perception_config and self.perception_config.embedder.backend == "color":
+                    embedder_backend = "deterministic"
+                else:
+                    embedder_backend = "auto"
             self._semantic = SemanticEngine(
                 config=config,
                 captioner_backend="auto",
-                embedder_backend="auto",
+                embedder_backend=embedder_backend,
                 embedder=embedder,
                 on_event=self._on_semantic_event,
             )

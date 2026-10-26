@@ -137,7 +137,9 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   │   ├── evaluation.py                   # GraphRAG eval set + citation score
 │   │   └── engine.py                       # facade + telemetry events
 │   └── ui/                                 # Role D NiceGUI dashboard
-│       └── app.py                          # graph, timeline, tables, chat, log
+│       ├── app.py                          # graph, timeline, tables, chat, log
+│       ├── graph_view.py                   # zone-clustered ECharts payloads
+│       └── snapshot_io.py                  # validated snapshot import
 ├── docs/
 │   ├── PERCEPTION.md                       # Role A contract
 │   ├── ROLE_B.md                           # Role B integration contract
@@ -195,16 +197,23 @@ with `PRE | CONTACT | POST` composites.
 ```bash
 pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
 python -m chronicle.semantic.demo
-python -m chronicle.semantic.evaluation    # GraphRAG eval: 7 cases, citation precision
+python -m chronicle.semantic.evaluation    # GraphRAG eval: 9 cases, citation precision
 python -m chronicle.semantic.calibration   # per-action thresholds from labelled captions
+python -m chronicle.semantic.timeline \
+  --labels docs/action_timeline.example.json \
+  --predictions docs/action_predictions.example.json   # verified actions vs labels
+python -m chronicle.semantic.timeline \
+  --annotations data/real/holoassist_switch_34s.json \
+  --snapshot runs/hololens_snapshot.json \
+  --tolerance 2.2 --ignore-entity                   # HoloAssist ground truth
 ```
 
 The demo exercises VPR, temporal strips, action verification, the bounded
 verification queue (dedup + backpressure + latency), confidence calibration and
 the GraphRAG evaluation set, then prints the telemetry the dashboard consumes.
-The suite is model-free: `python -m unittest discover -s tests` runs 109 tests
-and `python -m pytest` collects 215 across the repo (the dashboard smoke test
-skips when the `ui` extra is not installed).
+The suite is model-free: `python -m unittest discover -s tests` and
+`python -m pytest` run the full suite without downloads; the dashboard smoke
+test skips when the `ui` extra is not installed.
 
 For the real OpenCLIP + Florence-2 stack and optional Ollama GraphRAG:
 
@@ -231,7 +240,10 @@ The dashboard streams the live dual graph, state timeline, entity/action
 tables, pipeline log and grounded GraphRAG chat from the same
 `ChronicleRuntime` used by the CLI. It degrades to the colour detector,
 deterministic embeddings and template GraphRAG when models are unavailable.
-`chronicle serve --source tabletop` uses the real HoloLens clip.
+`chronicle serve --source tabletop` uses the real HoloLens clip. The memory
+graph clusters entities and furniture around fixed room anchors, so switching
+between zones stays visually legible. Snapshots can be exported as JSON/CSV or
+re-imported from the header without re-running the pipeline.
 
 The header download buttons expose the same data as files, and the endpoints
 can be scripted directly:
@@ -269,6 +281,26 @@ python -m chronicle.perception data/real/holoassist_switch_34s.mp4 \
 
 Run `python -m chronicle.perception --help` for flags. The installed
 `chronicle-perception` entry point is equivalent.
+
+### Live stream (webcam / RTSP)
+
+```bash
+# camera 0; stop with Ctrl+C, or cap frames for a smoke run
+chronicle run --source live --max-frames 300 --db runs/live.db
+
+# RTSP/HTTP feed, or replay a file through the live path
+chronicle run --source live --live-stream rtsp://192.168.1.20:8554/feed
+chronicle run --source live --live-stream data/demo/chronicle_demo.mp4 --max-frames 60
+
+# set the default input once (camera index, URL, or path)
+export CHRONICLE_LIVE_STREAM=1
+```
+
+`--live-stream` accepts a camera index, an RTSP/HTTP URL, or a local video path.
+The live source writes into `data/live/chronicle.db` unless `--db` overrides it;
+without `--max-frames` it runs until interrupted. Frames use monotonic capture
+timestamps, so action verification and timeline scoring behave the same as for
+recorded clips.
 
 ### Tests
 

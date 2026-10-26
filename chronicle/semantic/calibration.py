@@ -17,7 +17,6 @@ Usage (offline, no models)::
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +27,7 @@ from .actions import (
     ActionCalibrator,
     ActionPrimitive,
     RuleBasedActionClassifier,
+    coerce_action,
 )
 
 
@@ -332,17 +332,6 @@ _CAPTION_KEYS = ("caption", "text", "description")
 _ACTION_KEYS = ("action", "label", "expected", "expected_action")
 
 
-def _coerce_action(value: Any) -> ActionPrimitive:
-    key = re.sub(r"[^A-Z0-9]+", "_", str(value).strip().upper()).strip("_")
-    try:
-        return ActionPrimitive(key)
-    except ValueError as exc:
-        allowed = ", ".join(item.value for item in ActionPrimitive)
-        raise ValueError(
-            f"unknown action {value!r}; expected one of {allowed}"
-        ) from exc
-
-
 def _entry_from_mapping(
     item: Mapping[str, Any], *, index: int | str
 ) -> tuple[str, ActionPrimitive]:
@@ -353,7 +342,7 @@ def _entry_from_mapping(
             f"label entry {index} needs a caption and one of "
             f"{'/'.join(_ACTION_KEYS)}"
         )
-    return str(caption), _coerce_action(action)
+    return str(caption), coerce_action(action)
 
 
 def _entries_from_sequence(items: Sequence[Any]) -> list[tuple[str, ActionPrimitive]]:
@@ -367,7 +356,7 @@ def _entries_from_sequence(items: Sequence[Any]) -> list[tuple[str, ActionPrimit
             and len(item) == 2
         ):
             caption, action = item
-            entries.append((str(caption), _coerce_action(action)))
+            entries.append((str(caption), coerce_action(action)))
         else:
             raise ValueError(
                 f"label entry {index} must be an object or a (caption, action) pair"
@@ -443,9 +432,9 @@ def load_calibration_labels(
                             ),
                             action_name,
                         )
-                        entries.append((str(text), _coerce_action(overridden)))
+                        entries.append((str(text), coerce_action(overridden)))
                     else:
-                        entries.append((str(caption), _coerce_action(action_name)))
+                        entries.append((str(caption), coerce_action(action_name)))
             data = entries
 
     if not isinstance(data, Sequence) or isinstance(data, (str, bytes)):

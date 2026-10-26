@@ -76,7 +76,30 @@ def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
             "id,timestamp,action,entity_id,entity,confidence,source,clip_ref,caption"
         )
 
-        # 5. Missing source-video returns 404 cleanly
+        # 5. Snapshot import route
+        import_payload = {
+            "entities": [
+                {
+                    "id": "entity:imported-cup",
+                    "label": "cup",
+                    "state": "VISIBLE_STATIC",
+                    "zone": "Kitchen",
+                }
+            ],
+            "furniture": [
+                {"anchor_id": "table-1", "label": "table", "zone_id": "Kitchen"}
+            ],
+        }
+        res_import = client.post("/import/snapshot", json=import_payload)
+        assert res_import.status_code == 200
+        assert res_import.json()["status"] == "imported"
+        assert res_import.json()["entities"] == 1
+
+        # Verify imported entity is now in snapshot
+        snapshot_after = json.loads(client.get("/export/snapshot.json").text)
+        assert any(e["label"] == "cup" for e in snapshot_after["entities"])
+
+        # 6. Missing source-video returns 404 cleanly
         res_video = client.get("/source-video")
         assert res_video.status_code == 404
     finally:

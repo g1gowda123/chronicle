@@ -10,6 +10,7 @@ the graph is the only source of truth.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -41,6 +42,26 @@ _VISIBLE_STATES = {
     "HELD",
     "CONTAINED",
 }
+_BEFORE_RE = re.compile(
+    r"\b(?:before|prior to|earlier than)(?:\s+(.+?))?(?:\?|\.(?:\s|$)|$)",
+    re.IGNORECASE,
+)
+_PREVIOUS_RE = re.compile(
+    r"\b(?:previously|earlier|before that|before then|prior location|former location|previous location)\b",
+    re.IGNORECASE,
+)
+_PRONOUN_CLAUSES = {"that", "this", "then", "now", "it", "they", "them", "that event", "that time"}
+_STOPWORDS = {
+    "a", "an", "and", "are", "at", "did", "do", "does", "for", "from", "i",
+    "in", "is", "it", "me", "my", "of", "on", "the", "to", "was", "were",
+    "where", "what", "when", "which", "with",
+}
+
+
+def is_temporal_multihop_query(query: str) -> bool:
+    """Return True if query asks about a previous state, location, or action."""
+    query_lower = query.lower()
+    return bool(_BEFORE_RE.search(query_lower) or _PREVIOUS_RE.search(query_lower))
 
 
 @dataclass
@@ -132,7 +153,10 @@ class QueryResult:
             "Answer the question using ONLY the retrieved graph context below.\n"
             "Always cite the timestamp as t=<seconds>s and the location by zone or\n"
             "support-surface label. If the object is currently held or contained, say\n"
-            "so explicitly. Never invent observations that are absent from the table.\n\n"
+            "so explicitly. Never invent observations that are absent from the table.\n"
+            "For temporal queries (e.g. 'where was X before Y?', 'what was X's previous location?'),\n"
+            "walk backward along the timestamped timeline to identify the previous location or\n"
+            "action that occurred before the referenced event.\n\n"
             f"QUESTION: {question}\n\n"
             f"ENTITY: {self.label} (id={self.entity_id})\n"
             f"MATCH CONFIDENCE: {self.confidence:.2f} ({self.match_reason or 'direct lookup'})\n"
@@ -146,10 +170,169 @@ class QueryResult:
             f"{self.to_table()}\n"
         )
 
+    def timeline(self) -> list[dict[str, Any]]:
+        """Chronologically sorted list of timestamped edges."""
+        return sorted(
+            (e for e in self.edges if e.get("t_start") is not None),
+            key=lambda e: (float(e["t_start"]), str(e.get("relation"))),
+        )
+
+    def walk_timeline_before(
+        self, query: str | None = None
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str | None, bool]:
+        """Walk backward along timestamped edges to resolve temporal multi-hop queries.
+
+        Returns (prior_edge, ref_edge, ref_label, ref_found).
+        """
+        query_text = (query or self.query or "").strip()
+        if not query_text:
+            return None, None, None, False
+
+        m_before = _BEFORE_RE.search(query_text)
+        m_prev = _PREVIOUS_RE.search(query_text)
+        if not m_before and not m_prev:
+            return None, None, None, False
+
+        node_labels = {
+            str(n["node_id"]): str(n.get("label") or _short_node(str(n["node_id"])))
+            for n in self.nodes
+        }
+        node_labels[self.node_id] = self.label
+
+        entity_edges = [
+            e
+            for e in self.edges
+            if (e.get("src") == self.node_id or e.get("dst") == self.node_id)
+            and e.get("t_start") is not None
+        ]
+        if not entity_edges:
+            return None, None, None, False
+
+        entity_edges.sort(key=lambda e: float(e["t_start"]))
+        is_action = any(
+            tok in query_text.lower()
+            for tok in ("what did", "action", "happen", "do with", "done", "user")
+        )
+
+        clause = (m_before.group(1) or "").strip() if m_before else None
+        if clause and clause.lower() not in _PRONOUN_CLAUSES:
+            m_ts = re.fullmatch(r"(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*s?", clause, re.IGNORECASE)
+            if m_ts:
+                t_ref = float(m_ts.group(1))
+                ref_edge = None
+                ref_label = f"t={t_ref:.1f}s"
+            else:
+                tokens = {
+                    tok
+                    for tok in re.findall(r"[a-z0-9_]+", clause.lower())
+                    if tok not in _STOPWORDS
+                }
+                best_edge: dict[str, Any] | None = None
+                best_score = 0.0
+                for edge in entity_edges:
+                    score = 0.0
+                    src_lbl = node_labels.get(str(edge.get("src")), "")
+                    dst_lbl = node_labels.get(str(edge.get("dst")), "")
+                    rel = str(edge.get("relation", ""))
+                    act = str(edge.get("action", ""))
+                    text = f"{src_lbl} {dst_lbl} {rel} {act}".lower()
+                    text_toks = set(re.findall(r"[a-z0-9_]+", text))
+                    score += 3.0 * len(tokens & text_toks)
+                    if any(t in dst_lbl.lower() for t in tokens):
+                        score += 5.0
+                    if any(t in act.lower() for t in tokens):
+                        score += 4.0
+                    if score > best_score:
+                        best_score = score
+                        best_edge = edge
+                if best_edge is not None and best_score > 0:
+                    ref_edge = best_edge
+                    t_ref = float(best_edge["t_start"])
+                    dst_id = str(best_edge.get("dst", ""))
+                    ref_label = node_labels.get(dst_id, _short_node(dst_id))
+                else:
+                    return None, None, clause, False
+        else:
+            placements = [
+                e
+                for e in entity_edges
+                if e.get("relation") in {Relation.RESTING_ON.value, Relation.INSIDE.value}
+            ]
+            ref_edge = placements[-1] if placements else entity_edges[-1]
+            t_ref = float(ref_edge["t_start"])
+            dst_id = str(ref_edge.get("dst", ""))
+            ref_label = node_labels.get(dst_id, _short_node(dst_id))
+
+        prior_edges = [
+            e for e in entity_edges if float(e["t_start"]) < t_ref - 1e-4
+        ]
+        if not prior_edges:
+            return None, ref_edge, ref_label, True
+
+        if is_action:
+            action_cands = [e for e in prior_edges if e.get("relation") == Relation.ACTION.value]
+            prior_edge = action_cands[-1] if action_cands else prior_edges[-1]
+        else:
+            loc_cands = [
+                e
+                for e in prior_edges
+                if e.get("relation") in {Relation.RESTING_ON.value, Relation.INSIDE.value}
+            ]
+            prior_edge = loc_cands[-1] if loc_cands else prior_edges[-1]
+
+        return prior_edge, ref_edge, ref_label, True
+
     def fallback_answer(self) -> str:
         """Deterministic answer used when no local LLM is configured."""
 
         label = self.label
+        query_text = (self.query or "").strip()
+        if is_temporal_multihop_query(query_text):
+            prior_edge, ref_edge, ref_label, ref_found = self.walk_timeline_before(query_text)
+            if not ref_found:
+                return "I don't have that in my memory."
+            if prior_edge is None:
+                target = ref_label or "that"
+                return f"I don't have a record of where {label} was before the {target}."
+
+            node_labels = {
+                str(n["node_id"]): str(n.get("label") or _short_node(str(n["node_id"])))
+                for n in self.nodes
+            }
+            dst_id = str(prior_edge.get("dst", ""))
+            dst_label = node_labels.get(dst_id, _short_node(dst_id))
+            t_start = float(prior_edge.get("t_start", 0.0))
+            rel = str(prior_edge.get("relation", ""))
+            zone = (
+                f" in the {self.zone_label}"
+                if self.zone_label and self.zone_label.lower() != dst_label.lower()
+                else ""
+            )
+
+            if _PREVIOUS_RE.search(query_text.lower()) and not _BEFORE_RE.search(query_text.lower()):
+                prefix = "Previously"
+            elif ref_edge is not None:
+                ref_rel = str(ref_edge.get("relation", ""))
+                if ref_rel == Relation.INSIDE.value:
+                    prefix = f"Before being placed in the {ref_label}"
+                elif ref_rel == Relation.RESTING_ON.value:
+                    prefix = f"Before being placed on the {ref_label}"
+                elif ref_rel == Relation.ACTION.value and str(ref_edge.get("action")) == "PICK_UP":
+                    prefix = "Before being picked up"
+                else:
+                    prefix = f"Before the {ref_label}"
+            else:
+                prefix = f"Before {ref_label or 'that'}"
+
+            if rel == Relation.RESTING_ON.value:
+                return f"{prefix}, {label} was resting on the {dst_label}{zone} at t={t_start:.1f}s."
+            if rel == Relation.INSIDE.value:
+                return f"{prefix}, {label} was inside the {dst_label}{zone} at t={t_start:.1f}s."
+            if rel == Relation.ACTION.value:
+                act = str(prior_edge.get("action", "interacted")).lower().replace("_", " ")
+                return f"{prefix}, {label} was {act} at t={t_start:.1f}s."
+            return f"{prefix}, {label} was at {dst_label}{zone} at t={t_start:.1f}s."
+
         anchor = self.terminal_anchor
         location = "an unrecorded location"
         if anchor:

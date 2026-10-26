@@ -444,11 +444,18 @@ class BackgroundGraph:
         nodes = []
         for node_id, attrs in self.graph.nodes(data=True):
             kind = attrs.get("kind", "zone")
+            if kind == "zone":
+                zone_id = node_id
+            elif kind == "furniture":
+                zone_id = self.zone_of(node_id)
+            else:
+                zone_id = attrs.get("zone_id")
             nodes.append(
                 {
                     "id": node_id,
                     "label": attrs.get("label", node_id),
                     "group": kind,
+                    "zone_id": zone_id,
                     "title": f"{kind}: {attrs.get('label', node_id)}",
                 }
             )

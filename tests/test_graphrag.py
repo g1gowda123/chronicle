@@ -43,6 +43,36 @@ CONTEXT = {
     ],
 }
 
+CUP_CONTEXT = {
+    "entity": {"id": "cup", "label": "cup", "zone": "kitchen"},
+    "facts": [
+        {
+            "subject": "cup",
+            "relation": "RESTING_ON",
+            "object": "work desk",
+            "timestamp": 5.0,
+            "zone": "kitchen",
+            "confidence": 0.9,
+        },
+        {
+            "subject": "user",
+            "relation": "PICK_UP",
+            "object": "cup",
+            "timestamp": 8.0,
+            "zone": "kitchen",
+            "confidence": 0.88,
+        },
+        {
+            "subject": "cup",
+            "relation": "PLACED",
+            "object": "table",
+            "timestamp": 10.0,
+            "zone": "kitchen",
+            "confidence": 0.86,
+        },
+    ],
+}
+
 
 class ContextTest(unittest.TestCase):
     def test_mapping_coercion(self) -> None:
@@ -155,6 +185,66 @@ class TemplateAnswerTest(unittest.TestCase):
         self.assertIn("on the desk at [t=4.2s]", answer.answer)
 
 
+class BeforeQueryTest(unittest.TestCase):
+    def test_before_placement_walks_back_to_prior_location(self) -> None:
+        answer = template_answer(
+            "Where was the cup before it was placed on the table?",
+            GraphContext.from_mapping(CUP_CONTEXT),
+        )
+        self.assertIn("before it was placed on the table", answer.answer.lower())
+        self.assertIn("work desk", answer.answer)
+        self.assertIn("[t=5.0s]", answer.answer)
+        self.assertTrue(answer.grounded)
+        self.assertEqual(answer.citations[0].timestamp, 5.0)
+        self.assertEqual(answer.citations[0].relation, "RESTING_ON")
+        self.assertEqual(answer.citations[0].zone, "kitchen")
+
+    def test_before_pickup_uses_prior_location(self) -> None:
+        answer = template_answer(
+            "Where was the cup before it was picked up?",
+            GraphContext.from_mapping(CUP_CONTEXT),
+        )
+        self.assertIn("picked up", answer.answer.lower())
+        self.assertIn("work desk", answer.answer)
+        self.assertEqual(answer.citations[0].timestamp, 5.0)
+
+    def test_prior_to_phrasing(self) -> None:
+        answer = template_answer(
+            "Where was the cup prior to being placed on the table?",
+            GraphContext.from_mapping(CUP_CONTEXT),
+        )
+        self.assertIn("[t=5.0s]", answer.answer)
+        self.assertEqual(answer.citations[0].relation, "RESTING_ON")
+
+    def test_before_accepts_explicit_timestamp(self) -> None:
+        answer = template_answer(
+            "Where was the cup before t=9s?",
+            GraphContext.from_mapping(CUP_CONTEXT),
+        )
+        self.assertIn("work desk", answer.answer)
+        self.assertEqual(answer.citations[0].timestamp, 5.0)
+
+    def test_before_without_earlier_fact_is_unknown(self) -> None:
+        context = GraphContext.from_mapping(
+            {
+                "entity": {"id": "cup", "label": "cup", "zone": "kitchen"},
+                "facts": [
+                    {
+                        "subject": "cup",
+                        "relation": "PLACED",
+                        "object": "table",
+                        "timestamp": 10.0,
+                        "zone": "kitchen",
+                    }
+                ],
+            }
+        )
+        answer = template_answer("Where was the cup before it was placed on the table?", context)
+        self.assertIn("don't have an earlier location", answer.answer.lower())
+        self.assertFalse(answer.grounded)
+        self.assertEqual(answer.citations, ())
+
+
 class CitationTest(unittest.TestCase):
     def test_extracts_known_timestamp(self) -> None:
         context = GraphContext.from_mapping(CONTEXT)
@@ -196,6 +286,15 @@ class GraphRAGTest(unittest.TestCase):
         self.assertTrue(answer.grounded)
         self.assertEqual(answer.citations[0].timestamp, 16.4)
         self.assertIn("Entity: keys", chat.calls[0][1])
+
+    def test_llm_multihop_temporal_answer(self) -> None:
+        chat = FakeChat("Before being placed in the drawer, your keys were resting on the work desk [t=12.0s].")
+        rag = GraphRAG(chat_client=chat, config=SemanticConfig())
+        answer = rag.answer("Where were the keys before the drawer?", CONTEXT)
+        self.assertEqual(answer.source, "llm")
+        self.assertTrue(answer.grounded)
+        self.assertEqual(answer.citations[0].timestamp, 12.0)
+        self.assertEqual(answer.citations[0].relation, "RESTING_ON")
 
     def test_uncited_llm_answer_falls_back(self) -> None:
         rag = GraphRAG(chat_client=FakeChat("They are in the drawer."))

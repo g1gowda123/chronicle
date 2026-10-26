@@ -38,6 +38,85 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 - Tests for the runtime seam and furniture association, plus
   `docs/INTEGRATION.md`.
 
+## Recent changes
+
+### TASK-E2 — zone-clustered graph
+
+- The dashboard graph now clusters nodes around their room/zone anchor. Zone
+  nodes are fixed on a deterministic ring, each zone gets a stable accent
+  colour, entities inherit a matching border, and an invisible force spring
+  keeps zone members together without adding false edges to the exported graph.
+- Graph/timeline option builders moved to `chronicle/ui/graph_view.py` so the
+  payload is testable without NiceGUI/FastAPI (`tests/test_graph_view.py`).
+- `visualization_snapshot()` now exposes `zone_id` on entity, furniture and zone
+  nodes; foreground snapshots no longer shadow background anchors.
+
+### TASK-E3 — snapshot import from the dashboard
+
+- The header now has an **Import** button that opens a JSON upload dialog and
+  calls `ChronicleRuntime.load_snapshot_json()` after stopping ingestion.
+- Uploaded files are validated by `chronicle/ui/snapshot_io.py` (UTF-8/BOM,
+  JSON object, `nodes`/`entities` lists) with actionable error notifications.
+- Import is covered by model-free tests (`tests/test_snapshot_io.py`) and the
+  receipt reports entity/action/zone counts.
+
+### TASK-C2 — action-timeline evaluation
+
+- `chronicle/semantic/timeline.py` scores `snapshot()["actions"]` (or a
+  predictions export) against a hand-labelled JSON timeline using greedy
+  nearest-time matching, tolerance, precision/recall, mean timestamp error and
+  entity/container accuracy.
+- Labelled files stay outside the code (`docs/action_timeline.example.json`);
+  `python -m chronicle.semantic.timeline --labels ... --snapshot ...` exits 0
+  only when every label is matched with no extras, so CI can gate the Role C
+  "done when" bar.
+- The runtime smoke (`chronicle run --source synthetic`) exports a snapshot that
+  matches the bundled label at 0.07 s error; `tests/test_timeline.py` covers
+  matching, loaders and CLI exit codes without models.
+
+### TASK-F2 — multi-hop "before" questions
+
+- `template_answer()` now recognises temporal phrasing (`before`, `prior to`,
+  `previously`, `earlier`) and walks an entity's facts backwards from the
+  reference event.
+- The reference event is the placement/action the query names (e.g.
+  `PLACED table`) or an explicit `t=..s`; the answer cites the latest location
+  fact strictly before it, e.g. *"Before it was placed on the table, the cup had
+  been resting on the work desk at [t=5.0s]."*
+- When no earlier location exists the answer is an ungrounded
+  `"I don't have an earlier location..."` fallback, so a multi-hop question can
+  never invent a location.
+- Added `before-placement` to the GraphRAG evaluation set (now 9/9, 100 %
+  citation precision) and model-free coverage in `tests/test_graphrag.py`.
+
+### TASK-F1 — HoloLens tabletop action benchmark
+
+- `load_annotation_actions()` reads HoloAssist `ground_truth.actions`, picks the
+  first candidate per row that maps to a Chronicle primitive, and skips
+  movement-only rows. The bundled `holoassist_switch_34s.json` yields 7
+  scorable labels.
+- `chronicle run --snapshot-out PATH` exports the post-ingestion snapshot, and
+  `python -m chronicle.semantic.timeline --annotations ... --snapshot ...`
+  scores it (`--ignore-entity` drops entity/container agreement from the gate).
+- Fallback benchmark (colour detector/hands/embedder; production models are not
+  installed here): 19 predictions, 1 match, precision 5.3 %, recall 14.3 %,
+  mean |Δt| 0.28 s, FAIL. Documented as fallback-only in
+  `docs/PERCEPTION.md`; re-run with the production backends for the real number.
+
+### TASK-F3 — live stream source
+
+- `chronicle run --source live` resolves a live input instead of requiring
+  `data/live/stream.mp4`. `--live-stream` accepts a camera index (default `0`),
+  an RTSP/HTTP URL, or a local video path; `CHRONICLE_LIVE_STREAM` sets the
+  default when the flag is omitted.
+- `ClipSource.live` marks the entry, so `chronicle sources` and
+  `available_sources()` list the feed without a file; `resolve_live_stream()`
+  normalises numeric indices and passes URLs/paths through.
+- Frames reuse the existing `VideoSource`/`PerceptionPipeline` loop with
+  monotonic capture timestamps, the usual backends, and an optional
+  `--max-frames` cap. Model-free tests replay the demo clip through the live
+  path and cover flag/environment/default resolution (`tests/test_sources.py`).
+
 ## Dynamic Task Notice Board (Priority Queue)
 
 > **Team Notice Board:** Anyone finishing early can claim the next highest-priority `[READY]` ticket or post a new task below.
@@ -51,13 +130,17 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 | **TASK-B1** | **P0** | **Dual furniture fixtures & SQLite persistence**<br>Add regression tests for 2 co-visible sofas remaining distinct during consolidation sweep, sequential duplicate merging on pan re-entry, and alias restoration across SQLite reopen blocking anchor re-minting. | `tests/test_consolidation.py`<br>`chronicle/graph/consolidation.py` | `[DONE (0636492)]` | karthiknk7019 |
 | **TASK-B2** | **P1** | **Lifecycle & persistence hardening**<br>Enforce exactly one terminal `RESTING_ON`/`INSIDE` placement, non-mutual containment, parent-zone context for contained queries, `exit_dwell_s`, strict-support reacquisition, `OUT_OF_VIEW` archival reachability, multi-frame furniture pan compensation, timestamp clamping, and namespaced furniture promotion. | `chronicle/state_machine.py`<br>`chronicle/graph/{foreground,query,furniture,background,memory}.py`<br>`chronicle/storage/sqlite_store.py`<br>`tests/test_{state_machine,graph_storage,query,furniture,consolidation}.py` | `[DONE]` | Role B |
 | **TASK-C1** | **P0** | **Verification queue depth telemetry in snapshot**<br>Expose `verification_stats` (`depth`, `dropped`, `avg_latency_ms`) in `ChronicleRuntime.snapshot()` and `snapshot()["stats"]`. Add queue depth regression test. | `chronicle/integration.py`<br>`tests/test_verification_queue.py` | `[DONE (ee9fed7)]` | karthiknk7019 |
+| **TASK-C2** | **P0** | **Action-timeline evaluation harness**<br>Score verified actions against a hand-labelled timeline (tolerance, precision/recall, timestamp error, entity/container agreement) from a snapshot export or predictions file, with a CI-gating CLI. | `chronicle/semantic/timeline.py`<br>`tests/test_timeline.py` | `[DONE (b7f2c70)]` | karthiknk7019 |
 | **TASK-D1** | **P0** | **JSON & CSV memory graph export**<br>Add export methods to runtime (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`) and `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv` endpoints + UI download buttons in NiceGUI header/card. CSVs use stable headers and JSON-encode nested values. | `chronicle/integration.py`<br>`chronicle/ui/app.py` | `[DONE (f52482b, 5e51c20)]` | Orchestrator / karthiknk7019 |
 | **TASK-D2** | **P1** | **Distinct furniture anchor styling in graph**<br>Render background furniture anchors with distinct shape (rounded rectangle) and golden border (`#f59e0b`) so they are immediately visually distinct from episodic entities with lifecycles. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D3** | **P1** | **Queue depth badge & UI error/empty states**<br>Add verification queue depth chip in dashboard header; show friendly empty/stopped/error states when video is missing or query fails. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D4** | **P2** | **Headless dashboard smoke tests**<br>Add Starlette/FastAPI `TestClient` tests for NiceGUI endpoints (`/`, `/source-video`, `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv`) verifying zero-GPU, zero-browser CI operation plus attachment headers/media types. | `tests/test_dashboard_smoke.py` | `[DONE (f52482b, 5e51c20)]` | Orchestrator / karthiknk7019 |
-| **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source aria-cook` / `aria-living-room` offline evaluation when video assets are present; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[READY]` | Open / Any Teammate |
-| **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py` | `[READY]` | Open / Any Teammate |
-| **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget in NiceGUI dashboard allowing users to upload an exported `chronicle_snapshot.json` and call `runtime.load_snapshot_json()` directly from the UI without CLI. | `chronicle/ui/app.py` | `[READY]` | Open / Any Teammate |
+| **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source cook` / `play` / `walking` offline evaluation using the tracked video assets in `data/real/`; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[READY]` | Open / Any Teammate |
+| **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py`<br>`chronicle/ui/graph_view.py` | `[DONE (371f216)]` | Orchestrator |
+| **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget and `/import/snapshot` route in the NiceGUI dashboard so an exported `chronicle_snapshot.json` restores graph state without re-ingesting; validate it with `chronicle/ui/snapshot_io.py`. | `chronicle/ui/app.py`<br>`chronicle/integration.py`<br>`chronicle/ui/snapshot_io.py` | `[DONE (a31d417, 973798a)]` | Orchestrator |
+| **TASK-F1** | **P1** | **HoloLens tabletop action verification benchmark**<br>Benchmark `chronicle run --source tabletop` and evaluate action extraction against HoloLens ground truth (`docs/PERCEPTION.md`). | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[DONE (feba585)]` | karthiknk7019 |
+| **TASK-F2** | **P1** | **GraphRAG question prompt enhancement**<br>Support multi-hop queries like "Where was the cup before it was placed on the table?" using timeline edge walks. | `chronicle/semantic/graphrag.py`<br>`tests/test_graphrag.py` | `[DONE (f224d33)]` | Orchestrator / Likhithvu |
+| **TASK-F3** | **P2** | **Live stream source implementation**<br>Implement live video capture ingestion loop for the `live` ClipSource placeholder (`chronicle run --source live`). | `chronicle/sources.py`<br>`chronicle/perception/pipeline.py` | `[DONE (5bceed4)]` | karthiknk7019 |
 
 ## What I am working on right now
 
@@ -148,34 +231,46 @@ location.
 - [x] Extract `container` from the strip/caption reliably; add tests for
   `INSERT_INTO` / `REMOVE_FROM`. `extract_container()` / `resolve_container()`.
 - [x] Add a GraphRAG evaluation set: exact location, last-seen time, action,
-  and “I don’t know” cases. Track citation precision. `evaluation.py`
-  (7 cases, currently 100 % pass / 100 % citation precision).
+  temporal "before" questions, and “I don’t know” cases. Track citation
+  precision. `evaluation.py` (9 cases, currently 100 % pass / 100 % citation
+  precision).
+- [x] Answer multi-hop temporal questions ("where was X before it was placed on
+  Y?") by walking the entity timeline back to the prior location fact, with an
+  ungrounded fallback when no earlier fact exists.
 - [x] Keep the offline template path as the reference answer; any LLM answer
   without a verifiable citation must fall back.
 - [x] Emit queue depth / verification latency on the telemetry bus so the
   dashboard can show it. `QUEUE_DEPTH`, `QUEUE_BACKPRESSURE`,
   `VERIFICATION_LATENCY`, plus `runtime.verification_stats`.
+- [x] Measure the “done when” bar: `chronicle/semantic/timeline.py` matches
+  verified actions to a labelled timeline (precision/recall, timestamp error,
+  entity/container agreement) and gates CI via its CLI. Remaining input is the
+  labelled HoloLens pass (`docs/action_timeline.example.json` shows the format).
 
 **Done when:** the HoloLens clip’s verified actions match the labelled timeline
 within tolerance, and a hallucinated timestamp is always rejected.
 
 **Role C note (this push):** all six items landed with model-free tests
 (`tests/test_verification_queue.py`, `tests/test_calibration.py`,
-`tests/test_evaluation.py`). Pushed as `9ae1e5e`; current verification on the
-merged tree is `pytest` 215 collected (214 passed, 1 dashboard test skipped
-without the `ui` extra), `unittest discover -s tests` 109 passed, `ruff check
-chronicle tests` clean, and `chronicle.semantic.demo` /
-`chronicle.semantic.evaluation` both exit 0 (7/7 cases, 100 % citation
-precision), plus a full `chronicle run --source synthetic --ask ...` smoke.
-`snapshot()` now embeds `verification_stats` (TASK-C1, `ee9fed7`), so the
-dashboard can poll queue depth/dropped/latency without a second call. Labelled
-captions can be calibrated from a JSON/JSONL file with
+`tests/test_evaluation.py`), plus TASK-C2’s action-timeline harness
+(`tests/test_timeline.py`) and TASK-F2’s temporal multi-hop answers
+(`tests/test_graphrag.py`). Verification on the merged tree: `pytest` 250
+collected (249 passed, 1 dashboard test skipped without the `ui` extra),
+`unittest discover -s tests` 128 passed, `ruff check chronicle tests` clean,
+`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (9/9 cases,
+100 % citation precision), and `chronicle.semantic.timeline` reports PASS
+(1/1 label, 0.07 s error) on a snapshot exported from
+`chronicle run --source synthetic --max-frames 360`. `snapshot()` now embeds
+`verification_stats` (TASK-C1, `ee9fed7`), so the dashboard can poll queue
+depth/dropped/latency without a second call. Labelled captions can be calibrated
+from a JSON/JSONL file with
 `python -m chronicle.semantic.calibration --labels <file>` (see
-`docs/calibration_labels.example.json`), which unblocks calibrating on the
-HoloLens timeline without code changes. The only cross-role edit is the
-internal `_clip_queue` / `_drain_clips` seam in `chronicle/integration.py`
-(bounded queue + latency marks). Ambient caption phrasing still needs a
-labelled HoloLens pass before the “done when” line can be ticked.
+`docs/calibration_labels.example.json`), and the timeline scorer takes the same
+kind of external label file, so calibrating and gating on the HoloLens pass need
+no code changes. The only cross-role edit is the internal `_clip_queue` /
+`_drain_clips` seam in `chronicle/integration.py` (bounded queue + latency
+marks). Ambient caption phrasing still needs a labelled HoloLens pass before the
+“done when” line can be ticked.
 
 ### Role D — dashboard and product surface
 
@@ -186,8 +281,9 @@ labelled HoloLens pass before the “done when” line can be ticked.
 - [ ] Add a live/streaming source placeholder next to the pre-recorded sources;
   keep the `ChronicleRuntime` seam, do not import the prototype engine.
 - [x] Export/import: download the current snapshot as JSON/CSV, reload it
-  without re-ingesting (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`).
-  CSV exports use stable headers and are covered by runtime and endpoint tests.
+- [x] Export/import: download the current snapshot as JSON/CSV, reload it
+  without re-ingesting (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`),
+  including the in-dashboard JSON upload dialog. CSV exports use stable headers and are covered by runtime and endpoint tests.
 - [x] Add an explicit error/empty state for missing videos, stopped runs and
   failed GraphRAG queries.
 - [x] Add a headless smoke test for `/`, `/source-video` and all three export
@@ -195,6 +291,8 @@ labelled HoloLens pass before the “done when” line can be ticked.
   (`tests/test_dashboard_smoke.py`).
 - [x] Show furniture anchors distinctly from episodic entities (they are
   background structure, not objects with a lifecycle, rendered as golden rounded rectangles).
+- [x] Cluster the memory graph by zone with fixed room anchors, stable zone
+  accents and zone-aware tooltips (`chronicle/ui/graph_view.py`).
 
 **Done when:** a teammate can switch sources, watch ingestion, ask a question
 and export the graph without touching Python.
