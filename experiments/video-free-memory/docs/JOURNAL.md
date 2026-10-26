@@ -574,6 +574,16 @@ question users actually ask: "what does a day or a week of memory cost?"
   different views of the same object are not merged.
 - Do not count dedup as a query-time win; it only reduces at-rest bytes and upload/download size.
 
+### Studio integration (same session, after commit `0ac94d0`)
+
+- `studio_app.py` now runs `retention.apply(..., keep_per_hour=1e6, dedup=True)` right after
+  evidence extraction, before the report and zip. Near-identical snapshots are deleted from the
+  DB and disk, so the report, pack and zip all see the reduced set. `--no-dedup-evidence` opts out.
+- End-to-end on `/tmp/vfm/short_cook.mp4` (8.2 s, real Qwen2.5-VL): 1 caption window, 25 events,
+  24 KB vault, **9 snapshots → 8 after dedup (109 KB)**, 3,419-char / ~855-token pack, 323 KB
+  report, 221 KB zip. The zip contains `memory_pack_{2k,4k,8k}.md` and 8 evidence images.
+- The dedup is content-only: playback, the source video and query latency are untouched.
+
 ### Next
 
 - Run dedup on a real multi-hour episode with occlusions to see whether the 120 s window is too
