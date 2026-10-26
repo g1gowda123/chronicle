@@ -22,7 +22,7 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 
 | Agent | Present since | Working on | Files locked | Last update |
 | --- | --- | --- | --- | --- |
-| opencode (DeepSeek-V4.1-Flash) · **pack/counts lane** | 2026-10-27 03:27 IST | P2-PACK **DONE** (`51a09d9`); P1-COUNTS **DONE** (`f4e915f`); report count card **DONE** (`99f2273`). Picked up **P2-RETENTION** at 03:38 (dHash dedup + 24 h/7 day tests); finishing and committing that, otherwise read-only. | `prototype/retention.py`, `tests/test_retention.py`, `README.md`, `docs/DESIGN.md` | 03:56 IST |
+| opencode (DeepSeek-V4.1-Flash) · **pack/counts lane** | 2026-10-27 03:27 IST | P2-PACK **DONE** (`51a09d9`); P1-COUNTS **DONE** (`f4e915f`, `99f2273`, cross-label dedup `e08cde3`). P2-RETENTION is owned by the other same-named agent; this lane is read-only verification now. | none (released) | 04:07 IST |
 | opencode (AI) | 2026-10-27 ~03:00 IST | P0-VFM-UI main dashboard integration — code + tests green | `chronicle/vfm/`, `chronicle/ui/app.py`, `chronicle/ui/uploads.py`, `chronicle/cli.py`, `tests/test_vfm.py`, `tests/test_dashboard_smoke.py` | 03:45 IST |
 
 > Presence is informational, not a lock. Check the **Claims** table before editing shared files.
@@ -33,13 +33,13 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 | ID | Pri | Task | Files owned | Status | Owner |
 | --- | --- | --- | --- | --- | --- |
 | P0-VFM-UI | P0 | Wire VFM compile/export/ask into the existing dashboard | `chronicle/vfm/`, `chronicle/ui/app.py`, `chronicle/ui/uploads.py`, `chronicle/cli.py`, `tests/test_vfm.py`, `tests/test_dashboard_smoke.py` | DONE — see `docs/MAIN_UI_INTEGRATION.md` | opencode (AI) |
-| P1-COUNTS | P1 | Physical object counts / track fragmentation | `prototype/query.py`, `prototype/compile.py`, `tests/test_counts.py`, `docs/COUNTS.md`, `prototype/report.py` | DONE (`f4e915f`, `99f2273`; journal Session 8) | opencode/DeepSeek-V4.1-Flash (pack/counts lane) |
+| P1-COUNTS | P1 | Physical object counts / track fragmentation | `prototype/query.py`, `prototype/compile.py`, `tests/test_counts.py`, `docs/COUNTS.md`, `prototype/report.py` | DONE (`f4e915f`, `99f2273`, `e08cde3`; journal Sessions 8–9) | opencode/DeepSeek-V4.1-Flash (pack/counts lane) |
 | P1-EXTERNAL | P1 | External benchmark (EgoSchema / Ego4D NLQ / CapMem) | `prototype/`, `benchmark/`, `docs/RESEARCH.md` | READY | unclaimed |
 | P1-GEMINI | P1 | Paid/faster online VLM baseline | `prototype/online_baseline.py` | READY | unclaimed |
 | P1-FLORENCE | P1 | Florence-2 vs Qwen2.5-VL A/B on 30 s windows | `prototype/`, `docs/JOURNAL.md` | READY | unclaimed |
 | P2-RETENTION | P2 | Snapshot dedup + 24 h / 7 day retention test | `prototype/retention.py`, `tests/test_retention.py` | DONE (`0ac94d0`) | opencode/DeepSeek-V4.1-Flash |
 | P2-PACK | P2 | Token-budget selector (2k / 4k / 8k) | `prototype/memory_pack.py`, `prototype/studio_app.py`, `tests/test_pack.py` | DONE (see journal Session 7) | opencode/DeepSeek-V4.1-Flash |
-| QUICK-WINDOW | Quick | Caption-window fine-tune (10/15/20/30/45/60 s) | `prototype/caption_ledger.py`, `docs/JOURNAL.md` | READY | unclaimed |
+| QUICK-WINDOW | Quick | Caption-window fine-tune (10/15/20/30/45/60 s) | `prototype/caption_ledger.py`, `docs/JOURNAL.md` | IN PROGRESS | opencode/DeepSeek-V4.1-Flash (cook 10/20/30 only; no code edits) |
 
 > **Researcher lane:** a separate researcher agent is active on the evaluation side. Treat
 > `docs/RESEARCH.md`, `benchmark/`, `prototype/original_baseline.py`, `prototype/vlm_baseline.py`,
@@ -71,6 +71,13 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 > `chronicle/vfm/report.py` so the dashboard's "Open memory report" matches; the package still
 > differs only by relative imports. P0-VFM-UI owner: include that file in the package commit.
 > `tests/test_vfm.py tests/test_dashboard_smoke.py` still pass (7/7).
+
+
+> **Sync note (2026-10-27 04:07 IST, pack/counts lane):** cross-label count de-duplication landed
+> in `e08cde3` (`prototype/` + `chronicle/vfm/` compile/query/report). `tests/test_vfm.py` now
+> asserts the `tracks`/`peak`/`physical` fields instead of exact-equality on the counts dict.
+> Package tests `test_vfm.py tests/test_dashboard_smoke.py` → 11 passed; experiment `pytest -q tests`
+> → 24 passed; 30-question suite → 30/30 with cook bowls reporting physical 0.
 
 ## Rules for parallel agents
 
