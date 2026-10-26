@@ -71,6 +71,18 @@ class DefaultEvaluationTest(unittest.TestCase):
         self.assertFalse(unknown.grounded)
         self.assertIn("don't have", unknown.answer.lower())
 
+    def test_appearance_cases_pass(self) -> None:
+        report = evaluate_graphrag(make_engine())
+        appearance = [
+            case for case in report.cases if case.name.startswith("appearance-")
+        ]
+        self.assertEqual(len(appearance), 4)
+        self.assertTrue(all(case.passed for case in appearance), report.summary_lines())
+        colour = next(case for case in appearance if case.name == "appearance-colour")
+        self.assertIn("red", colour.answer.lower())
+        self.assertTrue(colour.relation_ok)
+        self.assertTrue(colour.timestamp_ok)
+
 
 class HallucinationFallbackTest(unittest.TestCase):
     def test_hallucinated_timestamp_falls_back_to_template(self) -> None:

@@ -220,7 +220,7 @@ transition invariants rather than claiming accuracy on unlabelled clips; pass
 ```bash
 pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
 python -m chronicle.semantic.demo
-python -m chronicle.semantic.evaluation    # GraphRAG eval: 9 cases, citation precision
+python -m chronicle.semantic.evaluation    # GraphRAG eval: 13 cases, citation precision
 python -m chronicle.semantic.calibration \
   --labels docs/calibration_labels.holoassist.json   # per-action thresholds from real labels
 python -m chronicle.semantic.timeline \

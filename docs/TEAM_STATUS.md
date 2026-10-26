@@ -40,6 +40,21 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### NB-12 — appearance attributes in the spec and evaluation
+
+- Added the **Object appearance attributes** subsection to
+  `docs/chronicle-spec-condensed.tex`: dominant-colour k-means, background
+  suppression, colour/shape/size/brightness/saturation/texture/position
+  thresholds and the colour-stability rule. Rebuilt
+  `docs/chronicle-spec-condensed.pdf` with `docs/build-spec.sh`.
+- Added four GraphRAG evaluation cases: colour, size, describe and
+  missing-appearance. The set is now **13/13, 100 % pass / 100 % citation
+  precision**.
+- Updated the evaluation docstring, `docs/ROLE_C.md`, `README.md`,
+  `docs/SUGGESTIONS.txt` and `docs/TEAM_STATUS.md` from 9 to 13 cases.
+- Tests: `tests/test_evaluation.py` asserts the four appearance cases pass and
+  that colour answers carry the `APPEARANCE` relation and correct timestamp.
+
 ### NB-07 — HoloAssist action timeline labelled and scored
 
 - Added `docs/action_timeline.holoassist.json` (7 scorable events from the
@@ -166,7 +181,7 @@ embeddings + template GraphRAG). The HoloLens clip is available as
   cover negation, a true action with "without dropping", and the calibration
   target.
 - Shipped on `main` (`9ed6735..d5870b3`; full `pytest` green, 142 unittest
-  tests, ruff clean, evaluation 9/9).
+  tests, ruff clean, evaluation 13/13).
 
 ### TASK-E2 — zone-clustered graph
 
@@ -214,8 +229,9 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 - When no earlier location exists the answer is an ungrounded
   `"I don't have an earlier location..."` fallback, so a multi-hop question can
   never invent a location.
-- Added `before-placement` to the GraphRAG evaluation set (now 9/9, 100 %
-  citation precision) and model-free coverage in `tests/test_graphrag.py`.
+- Added `before-placement` to the GraphRAG evaluation set (now 13/13 with the
+  later appearance cases, 100 % citation precision) and model-free coverage in
+  `tests/test_graphrag.py`.
 
 ### TASK-F1 — HoloLens tabletop action benchmark
 
@@ -412,9 +428,9 @@ location.
 - [x] Extract `container` from the strip/caption reliably; add tests for
   `INSERT_INTO` / `REMOVE_FROM`. `extract_container()` / `resolve_container()`.
 - [x] Add a GraphRAG evaluation set: exact location, last-seen time, action,
-  temporal "before" questions, and “I don’t know” cases. Track citation
-  precision. `evaluation.py` (9 cases, currently 100 % pass / 100 % citation
-  precision).
+  temporal "before" questions, colour, size, describe, missing-appearance and
+  “I don’t know” cases. Track citation precision. `evaluation.py` (13 cases,
+  currently 100 % pass / 100 % citation precision).
 - [x] Answer multi-hop temporal questions ("where was X before it was placed on
   Y?") by walking the entity timeline back to the prior location fact, with an
   ungrounded fallback when no earlier fact exists.
@@ -441,7 +457,7 @@ within tolerance, and a hallucinated timestamp is always rejected.
 (`tests/test_graphrag.py`). Verification on the merged tree: `pytest` 250
 collected (249 passed, 1 dashboard test skipped without the `ui` extra),
 `unittest discover -s tests` 128 passed, `ruff check chronicle tests` clean,
-`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (9/9 cases,
+`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (13/13 cases,
 100 % citation precision), and `chronicle.semantic.timeline` reports PASS
 (1/1 label, 0.07 s error) on a snapshot exported from
 `chronicle run --source synthetic --max-frames 360`. `snapshot()` now embeds

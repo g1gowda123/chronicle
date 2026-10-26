@@ -2,13 +2,14 @@
 
 The template path is the reference answer: it is deterministic and only cites
 timestamps that exist in the supplied subgraph.  This module scores that path
-(and any LLM path) on five question families:
+(and any LLM path) on six question families:
 
 * exact location ("where is X?");
 * last-seen time ("when did I last see X?");
 * action ("what did I do with X?");
 * temporal / multi-hop ("where was X before it was placed on Y?");
-* unknown entities ("where is my passport?" -> "I don't have that in my memory").
+* appearance ("what colour is X?", "how big is X?", "describe X");
+* unknown / missing detail ("where is my passport?" -> "I don't have that in my memory").
 
 It also reports **citation precision**: every citation in an answer must map
 back to a fact in that case's context.  A hallucinated timestamp is a failure,
@@ -351,6 +352,42 @@ _MUG_CONTEXT: Mapping[str, Any] = {
     ],
 }
 
+_MUG_APPEARANCE_CONTEXT: Mapping[str, Any] = {
+    "entity": {"id": "mug", "label": "mug", "zone": "work desk"},
+    "attributes": {
+        "colour": "red",
+        "colour_hex": "#c0392b",
+        "colour_confidence": 0.88,
+        "shape": "round",
+        "aspect_ratio": 1.0,
+        "size": "medium",
+        "relative_area": 0.08,
+        "texture": "smooth",
+        "brightness": "bright",
+        "saturation": "vivid",
+        "position": "center",
+        "vertical_band": "middle",
+    },
+    "facts": [
+        {
+            "subject": "mug",
+            "relation": "RESTING_ON",
+            "object": "work desk",
+            "timestamp": 12.0,
+            "zone": "work desk",
+            "confidence": 0.9,
+        },
+        {
+            "subject": "user",
+            "relation": "PICK_UP",
+            "object": "mug",
+            "timestamp": 14.2,
+            "zone": "work desk",
+            "confidence": 0.87,
+        },
+    ],
+}
+
 _CHARGER_CONTEXT: Mapping[str, Any] = {
     "entity": {"id": "charger", "label": "charger", "zone": "bedroom"},
     "facts": [
@@ -477,6 +514,36 @@ DEFAULT_GRAPHRAG_CASES: tuple[GraphRAGCase, ...] = (
         expected_location="work desk",
         expected_timestamp=5.0,
         expected_relation="RESTING_ON",
+    ),
+    GraphRAGCase(
+        name="appearance-colour",
+        query="What colour is the mug?",
+        context=_MUG_APPEARANCE_CONTEXT,
+        expected_location="red",
+        expected_timestamp=14.2,
+        expected_relation="APPEARANCE",
+    ),
+    GraphRAGCase(
+        name="appearance-size",
+        query="How big is the mug?",
+        context=_MUG_APPEARANCE_CONTEXT,
+        expected_location="medium",
+        expected_timestamp=14.2,
+        expected_relation="APPEARANCE",
+    ),
+    GraphRAGCase(
+        name="appearance-describe",
+        query="Describe the mug.",
+        context=_MUG_APPEARANCE_CONTEXT,
+        expected_location="red",
+        expected_timestamp=14.2,
+        expected_relation="APPEARANCE",
+    ),
+    GraphRAGCase(
+        name="appearance-missing",
+        query="What colour is the passport?",
+        context={"entity": {"id": "passport", "label": "passport"}},
+        expect_unknown=True,
     ),
     GraphRAGCase(
         name="unknown-entity",

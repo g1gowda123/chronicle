@@ -32,7 +32,7 @@ Test status (all model-free, no network):
   python -m unittest discover -s tests  128 tests, all pass
   python -m chronicle.semantic.demo     exits 0
   python -m chronicle.semantic.evaluation
-                                        9/9 cases, 100% citation precision
+                                        13/13 cases, 100% citation precision
   python -m chronicle.semantic.timeline
                                         demo labels PASS (1/1, 0.07 s error)
   python -m ruff check chronicle tests  clean
@@ -53,9 +53,9 @@ Test status (all model-free, no network):
     "out of the drawer ... into the pocket" resolves correctly for
     REMOVE_FROM vs INSERT_INTO. Explicit container still wins.
   - GraphRAG evaluation set with location, time, action, remove, lost,
-    zone-only and unknown cases. Citation precision is checked per answer.
-    "when" queries now select the latest entity fact rather than the latest
-    spatial fact.
+    zone-only, colour, size, describe, missing-appearance and unknown cases.
+    Citation precision is checked per answer. "when" queries select the latest
+    entity fact rather than the latest spatial fact.
   - `chronicle run` / `ChronicleRuntime` uses the Role C queue internally.
     Public runtime API and snapshot schema are unchanged (TASK-C1 added
     snapshot()["verification_stats"]).

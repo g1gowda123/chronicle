@@ -57,7 +57,7 @@ PR so parallel work does not collide.
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
 | NB-10 | P1 | Tune consolidation on the living-room clip | Graph | READY | unclaimed |
 | NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | READY | unclaimed |
-| NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | READY | unclaimed |
+| NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | IN PROGRESS | opencode (AI) |
 | NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | READY | unclaimed |
 | NB-14 | P2 | Search and filter actions / transitions | UI | READY | unclaimed |
 | NB-15 | P2 | Colour filter dropdown for entities | UI | READY | unclaimed |
@@ -171,18 +171,23 @@ PR so parallel work does not collide.
 - **Spec:** §Storage; TEAM_STATUS “Runtime efficiency”.
 
 ### NB-12 · Add appearance attributes to the spec + evaluation
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Docs / Semantic
+- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Docs / Semantic
+- **Started:** 2026-10-27 · **Branch:** `task/nb-12-appearance-spec`
 - **Why:** colour/shape/size/texture attributes are implemented and used by the
-  UI and GraphRAG, but the LaTeX spec and evaluation set do not mention them.
+  UI and GraphRAG, but the LaTeX spec and evaluation set did not mention them.
 - **Scope:**
   - Add an “Object appearance attributes” subsection to
     `docs/chronicle-spec-condensed.tex` (formula + thresholds).
-  - Add colour/size/describe cases to the GraphRAG evaluation set.
+  - Add colour/size/describe/missing-appearance cases to the GraphRAG
+    evaluation set.
   - Rebuild the PDF with `docs/build-spec.sh`.
 - **Files:** `docs/chronicle-spec-condensed.tex`,
-  `chronicle/semantic/evaluation.py`, `docs/chronicle-spec-condensed.pdf`
+  `chronicle/semantic/evaluation.py`, `docs/chronicle-spec-condensed.pdf`,
+  `tests/test_evaluation.py`, docs.
 - **Acceptance:** spec builds; evaluation passes with the new cases and reports
   citation precision.
+- **Progress note:** evaluation is now 13/13 with 100 % citation precision; the
+  PDF rebuilds cleanly via TinyTeX.
 - **Spec:** §Perception; new feature in `chronicle/perception/attributes.py`.
 
 ---

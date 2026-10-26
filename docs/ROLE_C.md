@@ -659,8 +659,9 @@ The Role C suite covers:
   wrong-action accounting, entity/container aliases, entity-agnostic scoring,
   rejected predictions, snapshot/prediction/annotation loaders and CLI exit
   codes;
-* GraphRAG evaluation: 9 cases (location, time, action, temporal before-placement,
-  remove, lost, zone-only, unknown), 100 % citation precision,
+* GraphRAG evaluation: 13 cases (location, time, action, temporal
+  before-placement, remove, lost, zone-only, colour, size, describe,
+  missing-appearance, unknown), 100 % citation precision,
   hallucinated-timestamp fallback.
 
 The suite has **no model downloads and no network access**.

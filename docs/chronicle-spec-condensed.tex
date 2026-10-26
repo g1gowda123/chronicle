@@ -208,6 +208,44 @@ Language model & \code{qwen2.5:7b-instruct}; 4096 ctx; 30\,min keep-alive \\
 \end{tabularx}
 \end{center}
 
+\subsection{Object appearance attributes}
+
+Every Nth detection crop gets a cheap, deterministic appearance pass; no model
+download and a few milliseconds per box on CPU.  It answers the question a label
+alone cannot: \emph{which} cup?
+
+\begin{itemize}[leftmargin=1.1em,itemsep=1pt,topsep=1pt]
+  \item \textbf{Dominant colour.} Trim 10\% from every crop edge, resize the
+  inner region to $\leq 64$\,px, and run $3$-means in BGR.  Cluster weights are
+  a Gaussian centre prior multiplied by a background-suppression term
+  $\mathrm{clip}(\lVert c-b\rVert/80,\,0.15,\,1)$, where $b$ is the median
+  border colour.  The central cluster wins when it covers $\geq 12\%$ of the
+  crop.  The primary BGR centroid becomes a stable colour word plus a
+  \code{\#rrggbb} swatch.
+  \item \textbf{Colour word.} Achromatic pixels are classified first
+  ($V<42$: black; $S<35$: white/grey), then hue bands map to red, orange,
+  yellow, green, cyan, blue, purple or pink.
+  \item \textbf{Shape.} Bounding-box aspect ratio: $\leq 0.82$ tall,
+  $\geq 1.22$ wide, otherwise square.
+  \item \textbf{Size.} Relative crop area: $\leq 1.2\%$ small,
+  $\leq 7.5\%$ medium, otherwise large.
+  \item \textbf{Brightness / saturation.} $V<70$ dark, $V<145$ dim, else
+  bright; $S<55$ muted, $S<150$ colourful, else vivid.
+  \item \textbf{Texture / position.} Laplacian variance $\geq 45$ is detailed,
+  else plain; the box centre gives left/centre/right and top/middle/bottom.
+  \item \textbf{Stability.} A new colour replaces the track colour only when
+  its confidence is at least $0.12$ higher; geometry and position update
+  immediately.
+\end{itemize}
+
+The flattened attributes are persisted on the foreground entity and exposed in
+snapshot/CSV exports, graph tooltips and GraphRAG.  Queries such as
+\emph{``what colour is the mug?''}, \emph{``how big is it?''} and
+\emph{``describe the backpack''} cite the entity's last observation with
+relation \code{APPEARANCE}; a missing attribute is answered as ungrounded rather
+than guessed.  The offline evaluation set includes colour, size, describe and
+missing-detail cases and currently passes 13/13 with 100\% citation precision.
+
 \section{Storage: why the graph is small}
 
 SQLite is a durable projection of the in-memory NetworkX graph, not a second copy.
