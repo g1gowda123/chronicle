@@ -150,7 +150,9 @@ just vault accuracy. Measured on the same 30 questions:
 The pack result is the important usability point: the LLM is not prompted over a plain video. It
 gets a verified structured answer plus timestamped captions/events/evidence references. The
 original is more fluent but reads terminal anchors, so it gives stale locations/timestamps. Counts
-remain track counts, not verified physical counts.
+are now a compile-time **bound**, not a single unqualified number: the track count is an upper bound
+and the peak number of same-label tracks visible at once is a lower bound. See
+[`COUNTS.md`](COUNTS.md). Physical ground truth is still not labelled.
 
 The advantage grows with duration: a real video LLM must either scale frames/tokens with length
 or keep a fixed frame budget and lose coverage. The vault grows with events (~42 KB/hour) plus a

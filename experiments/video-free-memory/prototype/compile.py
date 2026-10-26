@@ -114,6 +114,44 @@ def _transition_evidence(row: sqlite3.Row) -> dict[str, Any]:
         return {}
 
 
+def visibility_counts(
+    source: sqlite3.Connection, entities: list[sqlite3.Row]
+) -> dict[str, dict[str, int]]:
+    """Per-label track count plus peak simultaneous visibility.
+
+    A tracker can split one physical object into several tracks; the track count
+    alone is therefore an upper bound. The peak number of same-label tracks seen
+    in a single observation frame is a lower bound on the number of physical
+    objects. Reporting both is honest and still cheap to compute at compile
+    time, so the query engine never has to touch raw observations.
+    """
+
+    labels = {str(row["id"]): str(row["label"]) for row in entities}
+    if not labels:
+        return {}
+    track_totals: dict[str, int] = defaultdict(int)
+    for label in labels.values():
+        track_totals[label] += 1
+
+    # Round to the observation cadence (10 fps) so rows from the same frame
+    # collapse even when float timestamps differ in the last decimals.
+    frames: dict[str, dict[float, set[str]]] = defaultdict(lambda: defaultdict(set))
+    for row in _rows(source, "select entity_id, t from observations"):
+        entity_id = str(row["entity_id"])
+        label = labels.get(entity_id)
+        if label is None:
+            continue
+        frames[label][round(float(row["t"]), 2)].add(entity_id)
+
+    counts: dict[str, dict[str, int]] = {}
+    for label, per_time in frames.items():
+        counts[label] = {
+            "tracks": track_totals[label],
+            "peak": max((len(ids) for ids in per_time.values()), default=0),
+        }
+    return counts
+
+
 def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, Any]]:
     entities = _rows(source, "select id, label, state, zone_id, first_seen, last_seen from entities")
     zones = _rows(source, "select id, label from zones")
@@ -392,6 +430,7 @@ def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) ->
         zone_labels = {str(row["id"]): str(row["label"]) for row in zones}
         last_t = _rows(source, "select max(t) as last_t from observations")
         duration = float(last_t[0]["last_t"] or 0.0) if last_t else 0.0
+        counts = visibility_counts(source, entities)
     finally:
         source.close()
 
@@ -473,6 +512,7 @@ def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) ->
                 ("caption_windows", str(len(captions))),
                 ("event_blob_bytes", str(len(blob))),
                 ("caption_blob_bytes", str(len(captions_blob))),
+                ("counts", json.dumps(counts, sort_keys=True, separators=(",", ":"))),
                 ("video_retained", "0"),
             ],
         )
@@ -489,6 +529,7 @@ def compile_vault(source_db: Path, out_db: Path, *, title: str | None = None) ->
             "vault_bytes": out_db.stat().st_size,
             "duration_s": round(duration, 3),
             "bytes_per_event": round(len(blob) / len(events), 2) if events else 0,
+            "counts": counts,
         }
     finally:
         vault.close()

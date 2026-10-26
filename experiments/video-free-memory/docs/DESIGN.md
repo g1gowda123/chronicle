@@ -327,9 +327,9 @@ Simulate 40/12/4 snapshots/hour on a 60-minute synthetic vault. Result: 698/282/
   clean interface exists.
 - **Benchmark cherry-picking** — 30 questions is not a paper. Report per-category accuracy and
   failures, not just the mean. The current 30/30 is an internal regression suite.
-- **Track fragmentation** — count answers are track counts, not physical object counts. Cook has
-  2 plate tracks but a VLM may see 4 physical plates. Add compile-time physical-count calibration
-  before claiming count accuracy.
+- **Track fragmentation** — count answers are bounds, not physical object counts. Cook has
+  4 bowl tracks and only 2 bowls visible at once, so the vault reports "physical count between
+  2 and 4" (`docs/COUNTS.md`). Visual ground truth is still needed before claiming count accuracy.
 - **VLM caption hallucination** — the 30 s cook caption said "another person" when only one
   person was tracked. Captions need spot-checks or a verification model before they are trusted
   as ground truth.

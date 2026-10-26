@@ -518,3 +518,70 @@ Results and measurements will be appended as a separate entry when the integrati
 
 - Validate the 2k pack on the 30-question Qwen baseline (accuracy should hold if the verified
   answer is retained; measure latency/token savings).
+
+### Verification addendum (same session, re-run by P2-PACK owner)
+
+- `pytest -q tests` in this experiment directory → **16 passed** (the Session 7 note says 17; the
+  collected count is 5 compact + 3 pack + 6 retention + 2 studio).
+- `cook.db` has **2** caption windows, not 1. It still fits entirely under 2k (6,347 chars,
+  ~1,587 tokens), so all three variants are identical for the cook clip.
+- Synthetic 60-minute re-run: 2k = 7,844 chars / 7 windows / 4 events; 4k = 15,821 chars /
+  13 windows / 31 events; 8k = 31,830 chars / 26 windows / 77 events. All three stay under
+  `budget × 4` and keep the verified answer plus rules.
+- Studio `--pack-budget` now defaults to **4000** to match this entry; `memory_pack.py` itself
+  keeps its legacy unbudgeted default when `token_budget` is omitted.
+- Remaining gap: the 30-question Qwen run at 2k is still not measured.
+
+---
+
+## 2026-10-27 — Session 8: physical-count bounds (P1-COUNTS)
+
+### Problem
+
+Count answers used the raw tracker count. That is an upper bound presented as if it were the
+physical count. Cook has 4 bowl tracks while only 2 bowls are ever visible at the same instant;
+walking has 2 car tracks while only 1 is visible at a time. There was no way for a user to tell
+fragmentation from a real second object.
+
+### Built
+
+- `prototype/compile.py::visibility_counts`: per-label `{tracks, peak}` computed from the source
+  `observations` at 10 fps and stored once in vault `meta["counts"]`. The vault still has no
+  observations, no video and no per-frame rows.
+- `prototype/query.py`: `EventStore.counts`, loaded lazily from meta; `answer_count` reports
+  `peak … tracks` as a physical-count range. New method `vault-count-visibility`; legacy vaults
+  keep `vault-count` and the old wording. `--stats` now exposes the counts map.
+- `tests/test_counts.py`: compile contract, range wording, singular grammar, and legacy-vault
+  fallback.
+- `docs/COUNTS.md`: method, formula, IoU check, measured table and limits.
+
+### Measured
+
+| Episode | Label | Tracks | Peak visible | Bound |
+| --- | --- | ---: | ---: | --- |
+| cook | bowl | 4 | 2 | 2–4 |
+| cook | cup | 2 | 2 | 2 |
+| cook | plate | 2 | 2 | 2 |
+| walking | car | 2 | 1 | 1–2 |
+| walking | person | 4 | 3 | 3–4 |
+| hololens | joy-con | 2 | 2 | 2 |
+
+- Co-visible same-label boxes are spatially distinct on cook (max IoU 0.01 over 69 plate pairs),
+  so merging by overlap would under-count. Peak is a lower bound, track count the upper bound.
+- Rebuilt the three benchmark vaults from source DBs, re-attached the 30 s ledgers, and re-ran the
+  suite: **30/30 cold, 30/30 warm, 4/4 cache hits**, p50 **0.041 ms** cold / **0.048 ms** warm.
+  Expected strings (`4 bowl`, `2 car`) still match; count answers are strictly more informative.
+- `pytest -q tests` → 20 passed.
+
+### Decision
+
+- Report a range, never a bare physical count. Keep the track count as the first sentence so the
+  regression suite and the UI stay stable.
+- Do not merge co-visible tracks; label quality and occlusion are upstream problems.
+- Caption-first uploads have no observations, so they keep caption-coverage wording and must not
+  claim physical counts.
+
+### Next
+
+- Hand-label one episode's physical counts (bowls/cars) to turn the bounds into a measured range.
+- Surface `peak` in the HTML report/Studio count card if it helps the demo narrative.

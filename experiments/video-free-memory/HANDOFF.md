@@ -45,7 +45,8 @@ compact pack with the verified structured answer, timestamped captions, events a
 
 - VFM is **not integrated into the main dashboard UI**; the Studio is a separate app.
 - No external benchmark (CapMem/EgoSchema/Ego4D NLQ) has been run.
-- Counts are track counts, not verified physical object counts.
+- Counts are **bounds** (peak-visible … track count), not verified physical object counts; see
+  `docs/COUNTS.md`.
 - No paid/fast online VLM baseline; the free Gemini probe was unusable.
 - Full browser E2E for the Studio (upload → play → seek → ask → download) is not automated.
 
@@ -252,8 +253,11 @@ report, zip and pack downloads returned 200.
 
 ### P1 — correctness / evaluation
 
-7. Physical object counts. Current count questions are **track counts**; tracker fragmentation
-   (cook: 2 plate tracks vs possibly 4 plates) makes physical counts unverified.
+7. ~~Physical object counts.~~ **DONE (bounds).** Count answers now report the track count (upper
+   bound) and the peak simultaneous visibility (lower bound), computed at compile time from
+   observations (`prototype/compile.py::visibility_counts`, `docs/COUNTS.md`). Cook bowls:
+   4 tracks, physical bound 2–4; walking cars: 2 tracks, bound 1–2. Still open: visual ground
+   truth/labelled counts, which this cannot replace.
 8. External benchmark: CapMem caption-only QA if released; otherwise 100-clip EgoSchema subset;
    Ego4D NLQ for temporal grounding.
 9. Improve the ungrounded pack (18/30) only if you want the LLM to reason beyond the verified

@@ -111,6 +111,10 @@ class EventStore:
     captions: list[dict[str, Any]]
     con: sqlite3.Connection
     evidence: list[dict[str, Any]] = field(default_factory=list)
+    #: Per-label ``{"tracks": n, "peak": m}`` from compile-time observations.
+    #: ``peak`` is the most same-label tracks visible in one frame, i.e. a lower
+    #: bound on the physical object count; ``tracks`` is the upper bound.
+    counts: dict[str, dict[str, int]] = field(default_factory=dict)
     ledger: dict[str, Any] = field(default_factory=dict)
     by_subject: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     times: list[float] = field(default_factory=list)
@@ -256,6 +260,24 @@ def load_store(con: sqlite3.Connection) -> EventStore:
     except sqlite3.Error:
         pass
 
+    counts: dict[str, dict[str, int]] = {}
+    try:
+        row = con.execute("select value from meta where key='counts'").fetchone()
+        if row is not None:
+            raw = json.loads(str(row[0]) or "{}")
+            if isinstance(raw, dict):
+                for label, value in raw.items():
+                    if not isinstance(value, dict):
+                        continue
+                    clean = {
+                        "tracks": int(value.get("tracks") or 0),
+                        "peak": int(value.get("peak") or 0),
+                    }
+                    if clean["tracks"]:
+                        counts[str(label)] = clean
+    except (sqlite3.Error, TypeError, ValueError):
+        counts = {}
+
     events.sort(key=lambda event: float(event["t"]))
     by_subject: dict[str, list[dict[str, Any]]] = {}
     for event in events:
@@ -278,6 +300,7 @@ def load_store(con: sqlite3.Connection) -> EventStore:
         captions=captions,
         con=con,
         evidence=evidence,
+        counts=counts,
         ledger=ledger,
         by_subject=by_subject,
         times=times,
@@ -710,18 +733,41 @@ def answer_count(store: EventStore, query: str, entity: dict[str, Any] | None) -
             method="vault-count-captions",
         )
     plural = "" if count == 1 else "s"
-    answer_text = (
-        f"The memory tracked {count} {label.lower()} track{plural}. "
-        "The tracker can split one physical object into more than one track, "
-        "so this is a track count, not a verified object count."
-    )
+    summary = store.counts.get(label.lower()) or {}
+    peak = int(summary.get("peak") or 0)
+    if peak and peak < count:
+        answer_text = (
+            f"The memory tracked {count} {label.lower()} track{plural}. "
+            f"At most {peak} {label.lower()} track{'' if peak == 1 else 's'} "
+            f"{'was' if peak == 1 else 'were'} visible at the same instant, so the "
+            f"physical count is between {peak} and {count}: fragmentation or "
+            "occlusion may inflate the track count."
+        )
+    elif peak == 1 and count == 1:
+        answer_text = (
+            f"The memory tracked 1 {label.lower()} track. It was visible in the "
+            "observation window, but this is still a track count, not a verified "
+            "physical count."
+        )
+    elif peak:
+        answer_text = (
+            f"The memory tracked {count} {label.lower()} track{plural}. "
+            f"Up to {peak} were visible at the same instant, which is still a track "
+            "count, not a verified physical count."
+        )
+    else:
+        answer_text = (
+            f"The memory tracked {count} {label.lower()} track{plural}. "
+            "The tracker can split one physical object into more than one track, "
+            "so this is a track count, not a verified object count."
+        )
     return Answer(
         query,
         answer_text,
         citations=[_citation(latest)] if latest else [],
         evidence=_evidence_list(store, float(latest["t"])) if latest else [],
-        confidence=0.7,
-        method="vault-count",
+        confidence=0.75 if peak else 0.7,
+        method="vault-count-visibility" if peak else "vault-count",
     )
 
 
@@ -1077,6 +1123,9 @@ def stats(store: EventStore, vault: Path) -> dict[str, Any]:
         "ledger_windows": len(store.ledger_windows),
         "ledger_model": str(store.ledger.get("model") or "") if isinstance(store.ledger, dict) else "",
         "duration_s": round(store.duration, 3),
+        # Per-label track count and peak simultaneous visibility. Empty for
+        # caption-first vaults, which have no per-frame observations.
+        "counts": store.counts,
     }
     try:
         row = store.con.execute("select value from meta where key='event_blob_bytes'").fetchone()
