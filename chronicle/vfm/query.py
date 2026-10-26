@@ -82,7 +82,7 @@ _STOPWORDS = {
     "first", "before", "after", "then", "tell", "show", "memory",
 }
 #: Bump when answer wording or canonicalisation changes, so stale answers miss.
-CACHE_VERSION = "v3.3"
+CACHE_VERSION = "v3.4"
 
 
 @dataclass
@@ -674,58 +674,78 @@ def answer_after(
 
 
 def answer_window(store: EventStore, query: str, t: float) -> Answer:
-    """Answer around a time, separating a tight event window from a caption window.
+    """Answer around a time using the nearest caption *frame*, not the window edge.
 
-    A 30 s caption always starts before ``t``; listing those events as if they
-    happened "around t" is misleading. Show the containing caption explicitly,
-    list events within 5 s first, and label farther events as nearest/fallback.
+    A 30 s window caption starts at 0 s; quoting it as "around 10 s" makes the
+    answer look like it is about 0 or 30 s. Frames inside the window are timestamped,
+    so prefer the nearest frame and state its actual time. Only list state events
+    inside a tight ±5 s window; farther events are not presented as "around t".
     """
 
     tight = 5.0
     lo = bisect.bisect_left(store.times, t - tight)
     hi = bisect.bisect_right(store.times, t + tight)
     near = store.events[lo:hi]
-    radius = tight
-    if not near:
-        radius = 20.0
-        lo = bisect.bisect_left(store.times, t - radius)
-        hi = bisect.bisect_right(store.times, t + radius)
-    rows = store.events[lo:hi]
-    caption = _window_caption(store, t)
-    if not rows and caption is None:
-        return Answer(query, f"No events recorded around t={t:.1f}s.", method="no-match")
+    window = _window_caption(store, t)
+    frames = [
+        frame
+        for frame in (window or {}).get("frames") or []
+        if isinstance(frame, dict) and frame.get("t") is not None
+    ]
+    frame = min(frames, key=lambda item: abs(float(item.get("t") or 0.0) - t)) if frames else None
+    frame_t = float(frame.get("t") or 0.0) if frame else None
+    if not near and frame is None:
+        return Answer(query, f"No events or caption frames recorded around t={t:.1f}s.", method="no-match")
 
     lines = [f"Around t={t:.1f}s:"]
-    if caption is not None:
-        start = float(caption.get("t_start") or 0.0)
-        end = float(caption.get("t_end") or start + 30.0)
+    if frame is not None:
+        delta = abs(frame_t - t)
+        prefix = "Frame" if delta <= 3.0 else "Nearest caption frame"
+        lines.append(
+            f"{prefix} at t={frame_t:.1f}s: "
+            f"{frame.get('caption') or frame.get('text') or ''}"
+        )
+        for obj in frame.get("objects") or []:
+            lines.append(f"- object: {obj}")
+    elif window is not None:
+        start = float(window.get("t_start") or 0.0)
+        end = float(window.get("t_end") or start + 30.0)
         lines.append(
             f"Caption [{start:.1f}-{end:.1f}s]: "
-            f"{caption.get('caption') or caption.get('text') or ''}"
+            f"{window.get('caption') or window.get('text') or ''}"
         )
-    if near:
-        lines.extend(f"- {caption_for(event)}" for event in near[:12])
-    elif rows:
-        lines.append(f"No state changes within {tight:g}s; nearest events:")
-        lines.extend(f"- {caption_for(event)}" for event in rows[:12])
 
-    evidence = _nearest_evidence(store, t)
-    citations = [_citation(event) for event in (near or rows)[:12]]
-    if caption is not None:
-        citations.insert(
-            0,
+    if near:
+        lines.extend(f"- {caption_for(event)}" for event in near[:8])
+    else:
+        lines.append("No state changes within 5s.")
+
+    evidence_t = frame_t if frame_t is not None else t
+    evidence = _nearest_evidence(store, evidence_t)
+    citations: list[dict[str, Any]] = []
+    if frame is not None:
+        citations.append(
             {
-                "t": round(float(caption.get("t_start", 0.0)), 3),
-                "kind": "caption",
-                "caption": str(caption.get("caption") or caption.get("text") or "")[:500],
-            },
+                "t": round(frame_t, 3),
+                "kind": "frame",
+                "caption": str(frame.get("caption") or "")[:500],
+            }
         )
+    elif window is not None:
+        citations.append(
+            {
+                "t": round(float(window.get("t_start") or 0.0), 3),
+                "kind": "caption",
+                "caption": str(window.get("caption") or "")[:500],
+            }
+        )
+    citations.extend(_citation(event) for event in near[:8])
     return Answer(
         query,
         "\n".join(lines),
         citations=citations,
         evidence=[evidence] if evidence else [],
-        confidence=0.8 if near else (0.7 if caption else 0.6),
+        confidence=0.8 if frame_t is not None and abs(frame_t - t) <= 5.0 else 0.65,
         method="vault-window",
     )
 

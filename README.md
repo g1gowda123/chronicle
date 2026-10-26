@@ -345,7 +345,7 @@ When the VFM vault has a stored still **within 8 s of the question time**, one
 evidence thumbnail is attached to the reply; otherwise the reply stays text-only
 and the explicit `frame @ t` button remains the way to inspect a frame.
 
-**Export / import graphs.** The stage toolbar has `⤓ export` and `⤒ import`.
+**Export / import graphs.** The stage toolbar has `⤒ export` and `⤓ import`.
 Export downloads `chronicle_graphs.zip` with a manifest, the current full event
 timeline (`current/events.jsonl`), a readable `snapshot.json`, entity/edge/zone
 CSVs, every replay timeline under `clips/`, and the active VFM vault/report/pack/
@@ -364,7 +364,10 @@ rebuild; after the first build it reads **Rebuild memory**. Disable auto-compile
 with `CHRONICLE_VFM_AUTO=0`, disable the whole panel with `CHRONICLE_VFM=0`.
 Clips with no graph DB (fresh uploads, long street walks) use the **caption-first**
 path: VLM captions become the ledger and entities, so they still answer
-"what happened around 10 s?" without running perception.
+"what happened around 10 s?" without running perception. The zine manager now
+defaults to **20 s caption windows** (`CHRONICLE_VFM_WINDOW_S=20`) so a 10 s
+question gets a frame at 10 s, not a 0–30 s caption; set
+`CHRONICLE_VFM_WINDOW_S=30` for long videos where compile time matters more.
 
 With a compiled vault, answers show `provider: vfm-memory`; count questions get
 the track/visibility bounds and deduped physical estimate. Clips that only have

@@ -52,7 +52,12 @@ def manager(data_dir: Path | str) -> VFMJobManager:
     root = Path(data_dir).expanduser().resolve()
     instance = _MANAGERS.get(root)
     if instance is None:
-        instance = VFMJobManager(root, enabled=enabled())
+        instance = VFMJobManager(
+            root,
+            enabled=enabled(),
+            window_s=float(os.getenv("CHRONICLE_VFM_WINDOW_S", "20")),
+            frames_per_window=int(os.getenv("CHRONICLE_VFM_FRAMES", "3")),
+        )
         _MANAGERS[root] = instance
     return instance
 
