@@ -68,10 +68,14 @@ Test status (all model-free, no network):
   - Action timelines can be scored against a snapshot export or a predictions
     file, so the "done when" bar is measurable without touching code:
       python -m chronicle.semantic.timeline \
-        --labels runs/hololens_timeline.json \
-        --snapshot runs/chronicle_snapshot.json --tolerance 2.0
+        --labels docs/action_timeline.holoassist.json \
+        --snapshot runs/nb07/hololens_snapshot.json \
+        --tolerance 2.2 --ignore-entity
     Exit 0 requires precision=recall=1 and entity/container agreement where
-    comparable. See docs/action_timeline.example.json.
+    comparable. NB-07 scores the real clip at 1/7 (precision 6.3%, recall
+    14.3%, mean |dt| 0.06 s); the timestamp is right, the action class is not
+    because Florence-2 is unavailable. See docs/action_timeline.example.json
+    for the format and docs/PERCEPTION.md for the report.
 
 
 3. SUGGESTED NEXT STEPS - ROLE A (PERCEPTION)
@@ -165,9 +169,10 @@ Test status (all model-free, no network):
     (precision 0.93, recall 1.00; see docs/CALIBRATION.md). One PICK_UP false
     positive remains on a pre-grasp "reaches ..." caption; raising the cutoff
     would also reject true pickups, so it needs a classifier/phrasing fix. The
-    timeline scorer is ready (`python -m chronicle.semantic.timeline --labels
-    <file> --snapshot <export>`); the full labelled timeline is still missing
-    for the "done when" bar in TEAM_STATUS.
+    timeline scorer is ready and the real HoloAssist labels are committed
+    (docs/action_timeline.holoassist.json). NB-07 scores 1/7 because the
+    Florence-2 captioner is unavailable, so every strip collapses to PICK_UP;
+    NB-19 reruns with real VLM captions before the "done when" bar can be met.
   - The deterministic HSV embedder is demo/test-only.
   - GraphRAG grounds timestamps and zones but does not re-rank entities with
     CLIP text-to-node similarity yet.

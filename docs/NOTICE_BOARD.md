@@ -51,7 +51,8 @@ PR so parallel work does not collide.
 | NB-04 | P0 | Demo preflight script and checklist | Ops | DONE | opencode (AI) |
 | NB-05 | P0 | Verify every bundled source end to end | QA | DONE | opencode (AI) |
 | NB-06 | P0 | Real-clip evidence images for demo answers | Perception | DONE | opencode (AI) |
-| NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
+| NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | DONE | opencode (AI) |
+| NB-19 | P1 | Re-run HoloAssist action timeline with Florence-2 captions | Semantic | READY | unclaimed |
 | NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | DONE | opencode (AI) |
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
 | NB-10 | P1 | Tune consolidation on the living-room clip | Graph | READY | unclaimed |
@@ -113,17 +114,26 @@ PR so parallel work does not collide.
 
 ## P1 — quality and correctness
 
-### NB-07 · Label the HoloLens action timeline and run the scorer
+### NB-19 · Re-run HoloAssist action timeline with Florence-2 captions
 - **Status:** READY · **Owner:** unclaimed · **Lane:** Semantic
-- **Why:** the action-timeline harness exists, but the “done when” bar is still
-  gated on a hand-labelled real clip.
-- **Scope:** label actions in the HoloAssist clip using
-  `docs/action_timeline.example.json`; run
-  `python -m chronicle.semantic.timeline --annotations ... --snapshot ...`.
-- **Files:** `docs/action_timeline.example.json` (new real label file),
-  `docs/TEAM_STATUS.md`
-- **Acceptance:** timeline scorer exits 0 or the remaining mismatches are
-  documented with a concrete tuning task.
+- **Why:** NB-07 labelled the timeline and scored the production run. The
+  timestamps are excellent (mean |Δt| 0.06 s) but every prediction is
+  `PICK_UP` because Florence-2 is unavailable and `StubCaptioner` emits
+  `"the hand grasps the joy-con"` for every strip.
+- **Scope:** install/point at Florence-2 (or a vision LLM), run
+  `chronicle run --source tabletop` with real captions, then rescore:
+  ```bash
+  python -m chronicle.semantic.timeline \
+    --labels docs/action_timeline.holoassist.json \
+    --snapshot runs/nb07/hololens_snapshot.json \
+    --tolerance 2.2 --ignore-entity
+  ```
+- **Files:** `chronicle/semantic/florence.py`, `docs/action_timeline.holoassist.report.json`,
+  `docs/PERCEPTION.md`, `docs/TEAM_STATUS.md`
+- **Acceptance:** at least `PUT_DOWN`, `INSERT_INTO` and `REMOVE_FROM` appear
+  in predictions; document the new precision/recall and any threshold change.
+  If the VLM is still unavailable, record the blocker and stop claiming action
+  accuracy.
 - **Spec:** §Quality; §Ten-minute demo script step 5.
 
 ### NB-09 · Review drawer for rejected / ambiguous actions
@@ -262,6 +272,21 @@ PR so parallel work does not collide.
 | NB-04 | Demo preflight script and checklist | opencode (AI) | `3b74ef5`; `scripts/demo_preflight.py`; `docs/DEMO_PREFLIGHT.md` |
 | NB-05 | Verify every bundled source end to end | opencode (AI) | `f8fcd0e`; `docs/PERCEPTION.md` NB-05 tables; 5/5 sources 9/9 checks |
 | NB-06 | Real-clip evidence images for demo answers | opencode (AI) | `f967a71`; `data/*/evidence/`; `scripts/build_evidence_fixtures.py` |
+| NB-07 | Label the HoloLens action timeline and run the scorer | opencode (AI) | `docs/action_timeline.holoassist.json` + report; 1/7, 6.3% precision |
+
+### NB-07 details
+
+- **Labels:** `docs/action_timeline.holoassist.json` (7 scorable events from
+  the published HoloAssist annotations, with source event strings).
+- **Run:** full 1019-frame tabletop clip with YOLO-World + MediaPipe + OpenCLIP
+  (4 entities, 16 actions, 16 clips); snapshot and report are local under
+  `runs/nb07/` and `docs/action_timeline.holoassist.report.json`.
+- **Score:** 1/7 matched, precision 6.3%, recall 14.3%, mean |Δt| 0.06 s,
+  **FAIL**.
+- **Root cause:** no Florence-2 → `StubCaptioner` returns one generic
+  `PICK_UP` caption for every strip. Timestamp extraction is excellent; action
+  classification is the gap.
+- **Follow-up:** **NB-19** reruns with real VLM captions.
 
 ### NB-06 details
 

@@ -555,6 +555,26 @@ The bundled demo example matches `PICK_UP keys @ 1.967 s` against a label at
 `container` column, so container accuracy only becomes comparable when scoring
 a predictions file (or after Role B adds the field).
 
+**Real HoloAssist timeline (NB-07).** The hand-labelled file is
+[`docs/action_timeline.holoassist.json`](action_timeline.holoassist.json) (7
+scorable events from the published annotations) and the scored report is
+[`docs/action_timeline.holoassist.report.json`](action_timeline.holoassist.report.json):
+
+```bash
+python -m chronicle.semantic.timeline \
+  --labels docs/action_timeline.holoassist.json \
+  --snapshot runs/nb07/hololens_snapshot.json \
+  --tolerance 2.2 --ignore-entity
+# 1/7 matched · precision 6.3% · recall 14.3% · mean |dt| 0.06 s · FAIL
+```
+
+The timestamp is right; the action class is wrong. This run used the fallback
+`StubCaptioner` (Florence-2 is not installed), which emits
+`"the hand grasps the joy-con"` for every strip, so the rule classifier can
+only produce `PICK_UP`. Re-run the same command with Florence-2 or a vision LLM
+before treating the result as production accuracy; that work is NB-19 on the
+notice board.
+
 ---
 
 ## 7. Configuration

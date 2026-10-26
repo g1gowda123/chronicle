@@ -238,6 +238,34 @@ class TimelineLoaderTest(unittest.TestCase):
             load_action_labels(self.write("bad.json", {"nope": []}))
 
 
+class HoloAssistLabelsTest(unittest.TestCase):
+    LABELS = ROOT / "docs" / "action_timeline.holoassist.json"
+    ANNOTATIONS = ROOT / "data" / "real" / "holoassist_switch_34s.json"
+
+    def test_label_file_matches_published_annotations(self) -> None:
+        labels = load_action_labels(self.LABELS)
+        self.assertEqual(len(labels), 7)
+        self.assertEqual(
+            [label.action for label in labels],
+            [
+                ActionPrimitive.PICK_UP,
+                ActionPrimitive.PUT_DOWN,
+                ActionPrimitive.INSERT_INTO,
+                ActionPrimitive.REMOVE_FROM,
+                ActionPrimitive.PUT_DOWN,
+                ActionPrimitive.REMOVE_FROM,
+                ActionPrimitive.PUT_DOWN,
+            ],
+        )
+        self.assertTrue(all(label.entity == "joy-con" for label in labels))
+
+        annotations = load_annotation_actions(self.ANNOTATIONS)
+        self.assertEqual(
+            [(round(row.timestamp, 2), row.action) for row in annotations],
+            [(round(row.timestamp, 2), row.action) for row in labels],
+        )
+
+
 class AnnotationLoaderTest(unittest.TestCase):
     def test_holoassist_annotations_pick_first_mappable_action(self) -> None:
         annotations = {

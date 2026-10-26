@@ -40,6 +40,24 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### NB-07 — HoloAssist action timeline labelled and scored
+
+- Added `docs/action_timeline.holoassist.json` (7 scorable events from the
+  published HoloAssist annotations) and
+  `docs/action_timeline.holoassist.report.json`.
+- Ran the full HoloAssist clip with production backends
+  (YOLO-World + MediaPipe + OpenCLIP): 1019 frames, 4 entities, 16 actions,
+  16 clips.
+- Timeline score: **1/7 matched, precision 6.3%, recall 14.3%, mean |Δt|
+  0.06 s, FAIL**. The timestamp is right; the action class is not.
+- Root cause: Florence-2 is not installed, so `StubCaptioner` returns
+  `"the hand grasps the joy-con"` for every strip and the rule classifier can
+  only produce `PICK_UP`. Documented in `docs/PERCEPTION.md` and
+  `docs/ROLE_C.md`.
+- Follow-up **NB-19**: rerun with Florence-2 (or a vision LLM) captions and
+  re-calibrate. The scorer, label file and commands are ready; only the VLM
+  captions are missing.
+
 ### NB-06 — real-clip evidence images
 
 - Added `scripts/build_evidence_fixtures.py`: it writes a portable
@@ -392,8 +410,11 @@ location.
   `VERIFICATION_LATENCY`, plus `runtime.verification_stats`.
 - [x] Measure the “done when” bar: `chronicle/semantic/timeline.py` matches
   verified actions to a labelled timeline (precision/recall, timestamp error,
-  entity/container agreement) and gates CI via its CLI. Remaining input is the
-  labelled HoloLens pass (`docs/action_timeline.example.json` shows the format).
+  entity/container agreement) and gates CI via its CLI. The real HoloAssist
+  pass is `docs/action_timeline.holoassist.json`; NB-07 scores it at 1/7
+  (precision 6.3 %, recall 14.3 %, mean |Δt| 0.06 s). The timestamp bar is met;
+  action classification is not, because Florence-2 is unavailable and the stub
+  captioner collapses every strip to `PICK_UP`.
 
 **Done when:** the HoloLens clip’s verified actions match the labelled timeline
 within tolerance, and a hallucinated timestamp is always rejected.
@@ -418,8 +439,10 @@ now come from the real HoloAssist pass in
 timeline scorer takes the same kind of external label file, so calibrating and
 gating on the HoloLens pass need no code changes. The only cross-role edit is the internal `_clip_queue` /
 `_drain_clips` seam in `chronicle/integration.py` (bounded queue + latency
-marks). Ambient caption phrasing still needs a labelled HoloLens pass before the
-“done when” line can be ticked.
+marks). The “done when” line is **not ticked**: NB-07 has the labels and the
+scorer, and NB-19 is the concrete next task — rerun with Florence-2/vision-LLM
+captions because the stub captioner cannot produce `PUT_DOWN`, `INSERT_INTO` or
+`REMOVE_FROM`.
 
 ### Role D — dashboard and product surface
 

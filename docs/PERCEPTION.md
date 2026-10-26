@@ -312,6 +312,7 @@ installed, so the colour detector/hands/embedder are the only runnable path):
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Fallback | colour detector + colour hands + colour embedder | 7 | 19 | 1 | 5.3% | 14.3% | 0.28 s | 0% (--ignore-entity) | FAIL |
 | Production YOLO-World (TASK-F4) | YOLO-World (vocabulary) + colour hands + colour embedder | 7 | 25 | 1 | 4.0% | 14.3% | 0.06 s | 100% | FAIL |
+| Production + NB-07 | YOLO-World (vocabulary) + MediaPipe + OpenCLIP | 7 | 16 | 1 | 6.3% | 14.3% | 0.06 s | n/a (--ignore-entity) | FAIL |
 | Harness self-check | bundled demo snapshot | 1 | 1 | 1 | 100% | 100% | 0.07 s | 100% | PASS |
 
 The fallback's 19 predictions are all `PICK_UP` on `cup`/`mug` (colour blobs),
@@ -331,6 +332,27 @@ improving mean timestamp error from 0.28 s down to **0.06 s** on the matched
 PICK_UP joy-con interaction at t=4.48s (vs. t=4.20s ground truth). Full action
 recall on the remaining assembly steps requires Florence-2 VLM classification
 beyond the rule-based hand-contact classifier.
+
+**NB-07 measured this explicitly.** The labelled timeline is now committed as
+`docs/action_timeline.holoassist.json` and the full-clip production run is
+stored in `docs/action_timeline.holoassist.report.json`:
+
+```bash
+python -m chronicle.cli run --source tabletop --reset \
+  --db runs/nb07/hololens.db --snapshot-out runs/nb07/hololens_snapshot.json
+python -m chronicle.semantic.timeline \
+  --labels docs/action_timeline.holoassist.json \
+  --snapshot runs/nb07/hololens_snapshot.json --tolerance 2.2 --ignore-entity
+# 1/7 matched · precision 6.3% · recall 14.3% · mean |dt| 0.06 s · FAIL
+```
+
+The timestamps are good; the labels are not. With Florence-2 unavailable, the
+`StubCaptioner` returns `"the hand grasps the joy-con"` for every strip, so the
+rule classifier emits `PICK_UP` 16 times and never predicts `PUT_DOWN`,
+`INSERT_INTO` or `REMOVE_FROM`. This is a caption/classification gap, not a
+timeline-scoring bug. The concrete follow-up is **NB-19**: run the same
+command with Florence-2 (or a vision LLM) captions and re-calibrate; until then
+the HoloLens action-accuracy bar is not met.
 
 ### Aria clip pipeline benchmark
 
