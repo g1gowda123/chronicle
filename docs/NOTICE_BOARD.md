@@ -57,7 +57,7 @@ PR so parallel work does not collide.
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
 | NB-10 | P1 | Tune consolidation on the living-room clip | Graph | IN PROGRESS | opencode (AI) |
 | NB-20 | P1 | Add living-room furniture labels and stop armchair/sofa conflation | Graph / Perception | READY | unclaimed |
-| NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | IN PROGRESS | opencode (AI) |
+| NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | DONE | opencode (AI) |
 | NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | DONE | opencode (AI) |
 | NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | READY | unclaimed |
 | NB-14 | P2 | Search and filter actions / transitions | UI | READY | unclaimed |
@@ -183,19 +183,6 @@ PR so parallel work does not collide.
   sofa and one per armchair; the co-visible two-sofa test still passes.
 - **Spec:** §Data model; TEAM_STATUS Role B “Done when”.
 
-### NB-11 · Reduce per-frame support / SQLite write cost
-- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Graph
-- **Started:** 2026-10-27 · **Branch:** `task/nb-11-write-cost`
-- **Why:** TEAM_STATUS lists repeated support updates and per-frame SQLite
-  writes as the remaining runtime-efficiency work.
-- **Scope:** deduplicate unchanged support writes, batch entity/observation
-  writes, and keep snapshots cheap enough for 30 fps.
-- **Files:** `chronicle/graph/memory.py`,
-  `chronicle/storage/sqlite_store.py`, benchmark script
-- **Acceptance:** measurable write reduction on the walking clip with identical
-  snapshot content and passing tests.
-- **Spec:** §Storage; TEAM_STATUS “Runtime efficiency”.
-
 ---
 
 ## P2 — polish
@@ -271,6 +258,18 @@ PR so parallel work does not collide.
 | NB-07 | Label the HoloLens action timeline and run the scorer | opencode (AI) | `68b1432`; `docs/action_timeline.holoassist.json`; 1/7, 6.3% precision |
 | NB-18 | Reduce the pre-grasp PICK_UP false positive | opencode (AI) | `dfcd4d7`; negation-aware rule matching; precision 1.00 / recall 1.00 |
 | NB-12 | Add appearance attributes to the spec + evaluation | opencode (AI) | `5518a91`; spec PDF + 4 appearance cases; evaluation 13/13 |
+| NB-11 | Reduce per-frame support/SQLite write cost | opencode (AI) | `ac067df`; walking 180f entity upserts 172 → 59 |
+
+### NB-11 details
+
+- **Branch:** `task/nb-11-write-cost` · **Commit:** `ac067df`
+- **Change:** `persistence_interval_s = 0.5` batches entity/support projection
+  writes; a state change still writes immediately. Observations keep their
+  `0.1 s` trajectory cadence.
+- **Measured:** walking clip, 180 frames / 3 entities: entity upserts
+  **172 → 59** (66 % fewer); in-memory snapshot unchanged.
+- **Regression:** `tests/test_graph_storage.py::test_entity_and_support_writes_are_throttled`.
+- **Docs:** `docs/ROLE_B.md` documents the projection cadence.
 
 ### NB-12 details
 
