@@ -11,6 +11,8 @@
 #   ./chronicle.sh status                  - Check server status & health
 #   ./chronicle.sh logs                    - Tail server log output
 #   ./chronicle.sh test                    - Run fast test suite
+#   ./chronicle.sh preflight               - PASS/WARN/FAIL demo readiness check
+#   ./chronicle.sh preflight --warm-llm    - Also load Qwen before the demo
 # ==============================================================================
 
 set -euo pipefail
@@ -346,6 +348,8 @@ print_help() {
     echo -e "  ${GREEN}logs${NC}                    Tail live log output (-f)"
     echo -e "  ${GREEN}serve${NC} [source] [port]   Run the web dashboard in foreground"
     echo -e "  ${GREEN}test${NC}                    Run full test & verification suite"
+    echo -e "  ${GREEN}preflight${NC} [options]     Check videos, SQLite, backends, LLM, tests"
+    echo -e "                          and a 30-frame run before the demo"
     echo -e "  ${GREEN}sources${NC}                 List all registered video sources"
     echo -e "  ${GREEN}help${NC}                    Show this help message"
     echo
@@ -363,6 +367,8 @@ print_help() {
     echo -e "  ./chronicle.sh stop                     # Stop running server"
     echo -e "  ./chronicle.sh status                   # Check if running"
     echo -e "  ./chronicle.sh test                     # Run all 250+ tests & benchmarks"
+    echo -e "  ./chronicle.sh preflight                # Check demo readiness"
+    echo -e "  ./chronicle.sh preflight --warm-llm     # Load Qwen before the demo"
 }
 
 # ------------------------------------------------------------------------------
@@ -403,6 +409,9 @@ case "${ACTION}" in
         ;;
     test|tests)
         run_tests
+        ;;
+    preflight|doctor)
+        exec "${PYTHON_BIN}" "${ROOT_DIR}/scripts/demo_preflight.py" "$@"
         ;;
     sources)
         "${CHRONICLE_BIN}" sources

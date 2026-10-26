@@ -48,7 +48,7 @@ PR so parallel work does not collide.
 | NB-01 | P0 | Clickable citations seek the video | UI | READY | unclaimed |
 | NB-02 | P0 | Show the evidence frame under each answer | UI | READY | unclaimed |
 | NB-03 | P0 | Grounding / rejection provenance in the query panel | UI | READY | unclaimed |
-| NB-04 | P0 | Demo preflight script and checklist | Ops | READY | unclaimed |
+| NB-04 | P0 | Demo preflight script and checklist | Ops | IN PROGRESS | opencode (AI) |
 | NB-05 | P0 | Verify every bundled source end to end | QA | READY | unclaimed |
 | NB-06 | P0 | Real-clip evidence images for demo answers | Perception | READY | unclaimed |
 | NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
@@ -110,7 +110,8 @@ PR so parallel work does not collide.
 - **Spec:** §Query step 4.
 
 ### NB-04 · Demo preflight script and checklist
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Ops
+- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Ops
+- **Started:** 2026-10-26 · **Branch:** `task/nb-04-demo-preflight`
 - **Why:** the spec lists stage pitfalls: Qwen cold load, missing evidence
   images, un-checkpointed WAL, and claiming unavailable model backends.
 - **Scope:**

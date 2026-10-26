@@ -40,6 +40,24 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### NB-04 — demo preflight
+
+- Added `scripts/demo_preflight.py` and `./chronicle.sh preflight`: one command
+  checks Python/venv, the data dir, dashboard deps, every bundled video
+  (first + middle frame), SQLite WAL/`quick_check`/checkpoint, the configured
+  detector/hands/embedder on a real frame, stored evidence or frame extraction,
+  Ollama/model warm state, `pytest`, and a 30-frame synthetic ingestion run.
+- Output is a `PASS` / `WARN` / `FAIL` table with the exact next command;
+  `--strict` makes warnings fail, `--json` is available for CI, and
+  `--warm-llm` loads Qwen before the demo.
+- Silent colour fallbacks are surfaced as `WARN` on real sources, so the
+  preflight never claims YOLO/MediaPipe/OpenCLIP when the runtime fell back.
+- Added `docs/DEMO_PREFLIGHT.md` (stage-day checklist and failure playbook) and
+  model-free tests in `tests/test_demo_preflight.py`.
+- Issues called out by the first run: no stored evidence images yet for the
+  bundled clips (video-frame fallback works), tracked as the evidence follow-up
+  under NB-06/NB-16.
+
 ### TASK-F4 — Source vocabulary & production-detector benchmark
 
 - chronicle run --source tabletop now passes ClipSource.vocabulary into _perception_config(), ensuring YOLO-World prompts include joy-con, switch console, 	able, etc.
@@ -370,6 +388,9 @@ marks). Ambient caption phrasing still needs a labelled HoloLens pass before the
 - [x] In-dashboard video source switching (`synthetic`, `tabletop`, `cook`, `play`, `walking`)
   directly in the UI dropdown without terminal commands.
 - [x] Service launcher script (`./chronicle.sh`) for daemon lifecycle management.
+- [x] Demo preflight (`./chronicle.sh preflight`) with a `PASS`/`WARN`/`FAIL`
+  table for videos, SQLite/WAL, backends, evidence, Ollama, tests and a
+  30-frame smoke run (`scripts/demo_preflight.py`, `docs/DEMO_PREFLIGHT.md`).
 - [x] Export/import: download the current snapshot as JSON/CSV, reload it
 - [x] Export/import: download the current snapshot as JSON/CSV, reload it
   without re-ingesting (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`),

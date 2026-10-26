@@ -150,11 +150,13 @@ Natural-language queries use a two-stage GraphRAG pipeline: retrieve the entity'
 │   ├── ROLE_C.md                           # Role C contract
 │   ├── INTEGRATION.md                      # runtime/UI contract
 │   ├── CALIBRATION.md                      # real-label action thresholds + report
+│   ├── DEMO_PREFLIGHT.md                   # pre-stage readiness checklist
 │   ├── NOTICE_BOARD.md                     # claimable, prioritised team tasks
 │   └── TEAM_STATUS.md                      # current work + role assignments
 ├── scripts/
 │   ├── fetch_assets.py                     # download model weights
 │   ├── make_demo.py                        # render the offline demo clip
+│   ├── demo_preflight.py                   # PASS/WARN/FAIL demo readiness check
 │   └── demo_role_b.py                      # synthetic lifecycle + retrieval demo
 ├── tests/                                  # model-free unit/integration suite
 ├── requirements-semantic.txt               # Role C demo/test dependencies
@@ -261,10 +263,15 @@ telemetry payloads, action JSON schema, and configuration.
 
 ```bash
 uv sync --extra ui
+./chronicle.sh preflight          # PASS/WARN/FAIL demo readiness check
 chronicle sources                 # list bundled/demo clips
 chronicle serve --source synthetic --auto-run
 # open http://127.0.0.1:8080
 ```
+
+`./chronicle.sh preflight --warm-llm` also loads Qwen before the demo. See
+[`docs/DEMO_PREFLIGHT.md`](docs/DEMO_PREFLIGHT.md) for what each check means
+and the stage-day checklist.
 
 The dashboard streams the live dual graph, state timeline, entity/action
 tables, pipeline log and grounded GraphRAG chat from the same

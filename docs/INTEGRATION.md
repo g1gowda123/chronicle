@@ -39,7 +39,11 @@ chronicle sources
 chronicle run data/demo/chronicle_demo.mp4 --max-frames 120
 chronicle ask "where are my keys?" --db data/demo/chronicle.db
 chronicle serve --source synthetic
+./chronicle.sh preflight        # demo readiness: PASS/WARN/FAIL table
 ```
+
+`docs/DEMO_PREFLIGHT.md` explains each preflight check and the stage-day
+checklist; `--json` gives the same result to CI.
 
 ## Responsibilities
 
