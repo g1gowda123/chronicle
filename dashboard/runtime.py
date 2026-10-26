@@ -80,9 +80,9 @@ class Runtime:
 
         if demo_enabled is None:
             demo_enabled = os.getenv("CHRONICLE_SOURCE", "demo").strip().lower() not in {"live", "pipeline"}
-        self.demo_events, self.demo_session, self.demo_duration = load_demo_events(
-            self.data_dir / "demo_events.jsonl"
-        )
+        replay_path = os.getenv("CHRONICLE_REPLAY") or ""
+        demo_events_file = Path(replay_path).expanduser() if replay_path else self.data_dir / "demo_events.jsonl"
+        self.demo_events, self.demo_session, self.demo_duration = load_demo_events(demo_events_file)
         if video_override is None:
             video_override = os.getenv("CHRONICLE_VIDEO") or None
         self.video_override = video_override

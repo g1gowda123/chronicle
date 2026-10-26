@@ -304,6 +304,20 @@ drives the event contract from ``dashboard/``; ``--source live`` waits for
 ``POST /api/ingest`` instead of replaying the bundled demo. The live-pipeline
 demo (real perception, clip switching, exports) stays available via
 ``./chronicle.sh pipeline`` (a.k.a. ``chronicle serve``).
+
+The zine dashboard can replay any recorded clip timeline (`.events.jsonl`)
+instead of the bundled demo:
+
+```bash
+# the HoloLens tabletop timeline ships with the repo
+python run_dashboard.py --replay data/real/holoassist_switch_34s.events.jsonl
+# record one for another source, then replay it
+python -m chronicle.event_export --source cook --out data/real/cook.events.jsonl
+python run_dashboard.py --replay data/real/cook.events.jsonl
+```
+
+The session header in the event file supplies the video, title and duration, so
+the feed, overlays, timeline and chat all follow that clip.
 The **canonical demo surface remains `./chronicle.sh start` / `chronicle serve`
 on port 8080**; mission control is an optional parallel view, not a replacement
 for the operator dashboard. See

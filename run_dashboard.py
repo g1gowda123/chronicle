@@ -33,6 +33,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--data-dir", default=os.getenv("CHRONICLE_DATA_DIR"), help="asset directory")
     parser.add_argument("--events", default=os.getenv("CHRONICLE_EVENTS_JSONL"), help="JSONL event file")
+    parser.add_argument(
+        "--replay",
+        default=os.getenv("CHRONICLE_REPLAY"),
+        help="replay a recorded .events.jsonl timeline (real clips) instead of the bundled demo",
+    )
     parser.add_argument("--db", default=os.getenv("CHRONICLE_DB"), help="producer SQLite database")
     parser.add_argument("--video", default=os.getenv("CHRONICLE_VIDEO"), help="override video URL")
     parser.add_argument(
@@ -45,9 +50,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
-    os.environ["CHRONICLE_SOURCE"] = args.source
+    os.environ["CHRONICLE_SOURCE"] = "demo" if args.replay else args.source
     if args.data_dir:
         os.environ["CHRONICLE_DATA_DIR"] = str(Path(args.data_dir).expanduser().resolve())
+    if args.replay:
+        os.environ["CHRONICLE_REPLAY"] = str(Path(args.replay).expanduser().resolve())
     if args.events:
         os.environ["CHRONICLE_EVENTS_JSONL"] = str(Path(args.events).expanduser().resolve())
     if args.db:
