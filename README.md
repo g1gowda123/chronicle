@@ -308,6 +308,11 @@ drives the event contract from ``dashboard/``; ``--source live`` waits for
 demo (real perception, clip switching, exports) stays available via
 ``./chronicle.sh pipeline`` (a.k.a. ``chronicle serve``).
 
+The header's **export** button downloads `chronicle-memory.zip` (live + full
+graph projections, entity/action/transition tables as JSON and CSV, the current
+replay timeline and every cached clip timeline). **import** accepts the same ZIP
+and restores those timelines into the clip menu.
+
 The zine dashboard can replay any recorded clip timeline (`.events.jsonl`)
 instead of the bundled demo:
 

@@ -151,6 +151,17 @@ def _clip_options() -> list[dict[str, str]]:
             seen.add(rel)
             stems.add(video.stem)
 
+    replays_dir = base / "replays"
+    if replays_dir.is_dir():
+        for events in sorted(replays_dir.rglob("*.events.jsonl")):
+            rel = events.relative_to(base).as_posix()
+            if rel in seen:
+                continue
+            options.append(
+                {"value": "events:" + rel, "title": _session_title(events) or events.stem}
+            )
+            seen.add(rel)
+
     options.sort(key=lambda option: not option["value"].startswith("events:"))
     return options
 

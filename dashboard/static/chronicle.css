@@ -276,6 +276,9 @@ body {
 
 .metric-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 
+a.btnz { text-decoration: none; color: var(--ink); }
+.topbar-actions { display: flex; align-items: center; gap: 7px; }
+
 .clip-switch {
   display: inline-flex;
   align-items: center;
