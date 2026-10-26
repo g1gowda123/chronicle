@@ -578,8 +578,8 @@ to load `CHRONICLE_LLM_MODEL` with Hugging Face `pipeline("text-generation")`.
 ## 9. Tests and evaluation
 
 ```powershell
-python -m unittest discover -s tests -v   # 127 model-free tests
-python -m pytest                          # 248 collected (dashboard test skips without the ui extra)
+python -m unittest discover -s tests -v   # 128 model-free tests
+python -m pytest                          # 250 collected (dashboard test skips without the ui extra)
 python -m chronicle.semantic.demo         # offline end-to-end demo
 python -m chronicle.semantic.evaluation   # GraphRAG eval set (or -m chronicle-semantic-eval)
 python -m chronicle.semantic.timeline `
@@ -606,7 +606,7 @@ The Role C suite covers:
 * action timeline: tolerance boundaries, nearest-match pairing, extra / missing /
   wrong-action accounting, entity/container aliases, rejected predictions,
   snapshot + prediction loaders and CLI exit codes;
-* GraphRAG evaluation: 8 cases (location, time, action, temporal before-placement,
+* GraphRAG evaluation: 9 cases (location, time, action, temporal before-placement,
   remove, lost, zone-only, unknown), 100 % citation precision,
   hallucinated-timestamp fallback.
 

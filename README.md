@@ -197,7 +197,7 @@ with `PRE | CONTACT | POST` composites.
 ```bash
 pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
 python -m chronicle.semantic.demo
-python -m chronicle.semantic.evaluation    # GraphRAG eval: 8 cases, citation precision
+python -m chronicle.semantic.evaluation    # GraphRAG eval: 9 cases, citation precision
 python -m chronicle.semantic.calibration   # per-action thresholds from labelled captions
 python -m chronicle.semantic.timeline \
   --labels docs/action_timeline.example.json \

@@ -86,7 +86,7 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 - When no earlier location exists the answer is an ungrounded
   `"I don't have an earlier location..."` fallback, so a multi-hop question can
   never invent a location.
-- Added `before-placement` to the GraphRAG evaluation set (now 8/8, 100 %
+- Added `before-placement` to the GraphRAG evaluation set (now 9/9, 100 %
   citation precision) and model-free coverage in `tests/test_graphrag.py`.
 
 ## Dynamic Task Notice Board (Priority Queue)
@@ -191,7 +191,7 @@ location.
   `INSERT_INTO` / `REMOVE_FROM`. `extract_container()` / `resolve_container()`.
 - [x] Add a GraphRAG evaluation set: exact location, last-seen time, action,
   temporal "before" questions, and “I don’t know” cases. Track citation
-  precision. `evaluation.py` (8 cases, currently 100 % pass / 100 % citation
+  precision. `evaluation.py` (9 cases, currently 100 % pass / 100 % citation
   precision).
 - [x] Answer multi-hop temporal questions ("where was X before it was placed on
   Y?") by walking the entity timeline back to the prior location fact, with an
@@ -213,10 +213,10 @@ within tolerance, and a hallucinated timestamp is always rejected.
 (`tests/test_verification_queue.py`, `tests/test_calibration.py`,
 `tests/test_evaluation.py`), plus TASK-C2’s action-timeline harness
 (`tests/test_timeline.py`) and TASK-F2’s temporal multi-hop answers
-(`tests/test_graphrag.py`). Verification on the merged tree: `pytest` 248
-collected (247 passed, 1 dashboard test skipped without the `ui` extra),
-`unittest discover -s tests` 127 passed, `ruff check chronicle tests` clean,
-`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (8/8 cases,
+(`tests/test_graphrag.py`). Verification on the merged tree: `pytest` 250
+collected (249 passed, 1 dashboard test skipped without the `ui` extra),
+`unittest discover -s tests` 128 passed, `ruff check chronicle tests` clean,
+`chronicle.semantic.demo` / `chronicle.semantic.evaluation` exit 0 (9/9 cases,
 100 % citation precision), and `chronicle.semantic.timeline` reports PASS
 (1/1 label, 0.07 s error) on a snapshot exported from
 `chronicle run --source synthetic --max-frames 360`. `snapshot()` now embeds
