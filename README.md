@@ -217,7 +217,8 @@ transition invariants rather than claiming accuracy on unlabelled clips; pass
 pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
 python -m chronicle.semantic.demo
 python -m chronicle.semantic.evaluation    # GraphRAG eval: 9 cases, citation precision
-python -m chronicle.semantic.calibration   # per-action thresholds from labelled captions
+python -m chronicle.semantic.calibration \
+  --labels docs/calibration_labels.holoassist.json   # per-action thresholds from real labels
 python -m chronicle.semantic.timeline \
   --labels docs/action_timeline.example.json \
   --predictions docs/action_predictions.example.json   # verified actions vs labels
@@ -230,6 +231,9 @@ python -m chronicle.semantic.timeline \
 The demo exercises VPR, temporal strips, action verification, the bounded
 verification queue (dedup + backpressure + latency), confidence calibration and
 the GraphRAG evaluation set, then prints the telemetry the dashboard consumes.
+The calibrated thresholds come from the real HoloAssist clip; see
+[`docs/CALIBRATION.md`](docs/CALIBRATION.md) for the label file, per-action
+report and reproduction commands.
 The suite is model-free: `python -m unittest discover -s tests` and
 `python -m pytest` run the full suite without downloads; the dashboard smoke
 test skips when the `ui` extra is not installed.

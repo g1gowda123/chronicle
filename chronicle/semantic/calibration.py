@@ -103,6 +103,11 @@ class CalibrationReport:
         return sum(item.false_negatives for _, item in self.metrics)
 
     @property
+    def rejected_correct(self) -> int:
+        """Correct samples that were rejected (mostly deliberate ``OTHER``)."""
+        return sum(item.correct - item.true_positives for _, item in self.metrics)
+
+    @property
     def precision(self) -> float:
         denominator = self.true_positives + self.false_positives
         return self.true_positives / denominator if denominator else 0.0
@@ -121,6 +126,7 @@ class CalibrationReport:
         return {
             "samples": self.samples,
             "accepted": self.accepted,
+            "rejected_correct": self.rejected_correct,
             "precision": round(self.precision, 4),
             "recall": round(self.recall, 4),
             "f1": round(self.f1, 4),
@@ -177,7 +183,10 @@ def evaluate_calibration(
                 bucket["true_positives"] += 1
             else:
                 bucket["false_positives"] += 1
-        elif sample.correct:
+        elif sample.correct and sample.action is not ActionPrimitive.OTHER:
+            # A correct ``OTHER`` is a deliberate rejection, not a missed
+            # action: counting it as a false negative made the aggregate recall
+            # collapse whenever the label file contained negative examples.
             bucket["false_negatives"] += 1
 
     metrics = tuple(
@@ -506,6 +515,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = result.report
         print(
             f"labels={len(result.samples)} accepted={report.accepted} "
+            f"rejected_correct={report.rejected_correct} "
             f"precision={report.precision:.2f} recall={report.recall:.2f}"
         )
         print(f"CHRONICLE_ACTION_THRESHOLDS={env}")

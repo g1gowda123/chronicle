@@ -62,7 +62,9 @@ Test status (all model-free, no network):
   - Labelled captions can now live outside the code:
       python -m chronicle.semantic.calibration --labels labels.jsonl
     writes the CHRONICLE_ACTION_THRESHOLDS=... line and exits non-zero if the
-    target precision is not reached. See docs/calibration_labels.example.json.
+    target precision is not reached. The shipped defaults come from the real
+    HoloAssist pass; see docs/CALIBRATION.md and
+    docs/calibration_labels.holoassist.json.
   - Action timelines can be scored against a snapshot export or a predictions
     file, so the "done when" bar is measurable without touching code:
       python -m chronicle.semantic.timeline \
@@ -159,13 +161,13 @@ Test status (all model-free, no network):
   - Action classification is caption-then-text-classify, not a true VLM call.
     Replace ActionVerifier.chat_client with a vision client to change that;
     the schema and fallbacks stay the same.
-  - Calibration ships with a 16-caption seed set. Put real HoloLens labels in a
-    JSON/JSONL file and run
-    `python -m chronicle.semantic.calibration --labels <file>`; commit the
-    resulting thresholds once the timeline is labelled. The timeline scorer is
-    ready (`python -m chronicle.semantic.timeline --labels <file> --snapshot
-    <export>`); only the labelled real footage is missing for the "done when"
-    bar in TEAM_STATUS.
+  - Calibration now uses 19 real HoloAssist labels and the resulting defaults
+    (precision 0.93, recall 1.00; see docs/CALIBRATION.md). One PICK_UP false
+    positive remains on a pre-grasp "reaches ..." caption; raising the cutoff
+    would also reject true pickups, so it needs a classifier/phrasing fix. The
+    timeline scorer is ready (`python -m chronicle.semantic.timeline --labels
+    <file> --snapshot <export>`); the full labelled timeline is still missing
+    for the "done when" bar in TEAM_STATUS.
   - The deterministic HSV embedder is demo/test-only.
   - GraphRAG grounds timestamps and zones but does not re-rank entities with
     CLIP text-to-node similarity yet.

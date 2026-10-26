@@ -40,6 +40,32 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### NB-08 — real HoloAssist action calibration
+
+- Added `docs/calibration_labels.holoassist.json`: 19 hand-labelled captions
+  grounded in the published HoloAssist Joy-Con timeline, including scene and
+  pre-grasp `OTHER` negatives. The file records timestamps and original event
+  strings so every label is traceable; captions are labels, not model output.
+- Ran `python -m chronicle.semantic.calibration` at a 0.9 precision target:
+  **19 labels, 15 accepted, 4 correct rejections, precision 0.933, recall
+  1.000, F1 0.966**; committed the report to
+  `docs/calibration.holoassist.report.json`.
+- Updated `DEFAULT_ACTION_THRESHOLDS` to the calibrated values (`PICK_UP` 0.74,
+  `PUT_DOWN` 0.76, `INSERT_INTO` 0.80, `REMOVE_FROM` 0.78, `HOLD` 0.62,
+  `PUSH` 0.68); actions without real labels keep their seed cutoffs.
+- Correct `OTHER` rejections no longer count as false negatives, and the report
+  exposes `rejected_correct`, so negative examples cannot artificially collapse
+  recall.
+- Real labels exposed two rule-classifier regex gaps: "slide …" was not
+  `PUSH` and "withdraw …" was not `REMOVE_FROM`. Both are fixed in
+  `chronicle/semantic/actions.py` with regression tests.
+- Follow-up captured on the board: the one remaining false positive is a
+  pre-grasp "reaches toward …" caption classified as `PICK_UP`; raising the
+  threshold would also reject true pickups, so it needs a classifier/phrasing
+  fix rather than a threshold change.
+- Reproduce from `docs/CALIBRATION.md`; model-free coverage is in
+  `tests/test_calibration.py` and `tests/test_actions.py`.
+
 ### TASK-E2 — zone-clustered graph
 
 - The dashboard graph now clusters nodes around their room/zone anchor. Zone
@@ -316,10 +342,11 @@ collected (249 passed, 1 dashboard test skipped without the `ui` extra),
 `verification_stats` (TASK-C1, `ee9fed7`), so the dashboard can poll queue
 depth/dropped/latency without a second call. Labelled captions can be calibrated
 from a JSON/JSONL file with
-`python -m chronicle.semantic.calibration --labels <file>` (see
-`docs/calibration_labels.example.json`), and the timeline scorer takes the same
-kind of external label file, so calibrating and gating on the HoloLens pass need
-no code changes. The only cross-role edit is the internal `_clip_queue` /
+`python -m chronicle.semantic.calibration --labels <file>`; the shipped defaults
+now come from the real HoloAssist pass in
+`docs/calibration_labels.holoassist.json` (see `docs/CALIBRATION.md`), and the
+timeline scorer takes the same kind of external label file, so calibrating and
+gating on the HoloLens pass need no code changes. The only cross-role edit is the internal `_clip_queue` /
 `_drain_clips` seam in `chronicle/integration.py` (bounded queue + latency
 marks). Ambient caption phrasing still needs a labelled HoloLens pass before the
 “done when” line can be ticked.
