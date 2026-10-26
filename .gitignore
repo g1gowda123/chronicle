@@ -56,6 +56,8 @@ logs/
 .chronicle.pid
 .chronicle.port
 .chronicle.llm
+.chronicle-ui.pid
+.chronicle-ui.port
 *.db
 *.db-shm
 *.db-wal
