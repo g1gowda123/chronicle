@@ -50,10 +50,10 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 |---|---|---|---|---|---|
 | **TASK-B1** | **P0** | **Dual furniture fixtures & SQLite persistence**<br>Add regression tests for 2 co-visible sofas remaining distinct during consolidation sweep, sequential duplicate merging on pan re-entry, and alias restoration across SQLite reopen blocking anchor re-minting. | `tests/test_consolidation.py`<br>`chronicle/graph/consolidation.py` | `[DONE (0636492)]` | karthiknk7019 |
 | **TASK-C1** | **P0** | **Verification queue depth telemetry in snapshot**<br>Expose `verification_stats` (`depth`, `dropped`, `avg_latency_ms`) in `ChronicleRuntime.snapshot()` and `snapshot()["stats"]`. Add queue depth regression test. | `chronicle/integration.py`<br>`tests/test_verification_queue.py` | `[DONE (ee9fed7)]` | karthiknk7019 |
-| **TASK-D1** | **P0** | **JSON & CSV memory graph export**<br>Add export methods to runtime (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`) and `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv` endpoints + UI download buttons in NiceGUI header/card. | `chronicle/integration.py`<br>`chronicle/ui/app.py` | `[DONE]` | Orchestrator |
+| **TASK-D1** | **P0** | **JSON & CSV memory graph export**<br>Add export methods to runtime (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`) and `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv` endpoints + UI download buttons in NiceGUI header/card. CSVs use stable headers and JSON-encode nested values. | `chronicle/integration.py`<br>`chronicle/ui/app.py` | `[DONE (f52482b, 5e51c20)]` | Orchestrator / karthiknk7019 |
 | **TASK-D2** | **P1** | **Distinct furniture anchor styling in graph**<br>Render background furniture anchors with distinct shape (rounded rectangle) and golden border (`#f59e0b`) so they are immediately visually distinct from episodic entities with lifecycles. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
 | **TASK-D3** | **P1** | **Queue depth badge & UI error/empty states**<br>Add verification queue depth chip in dashboard header; show friendly empty/stopped/error states when video is missing or query fails. | `chronicle/ui/app.py` | `[DONE]` | Orchestrator |
-| **TASK-D4** | **P2** | **Headless dashboard smoke tests**<br>Add Starlette/FastAPI `TestClient` tests for NiceGUI endpoints (`/`, `/source-video`, `/export/snapshot.json`, `/export/entities.csv`) verifying zero-GPU, zero-browser CI operation. | `tests/test_dashboard_smoke.py` | `[DONE]` | Orchestrator |
+| **TASK-D4** | **P2** | **Headless dashboard smoke tests**<br>Add Starlette/FastAPI `TestClient` tests for NiceGUI endpoints (`/`, `/source-video`, `/export/snapshot.json`, `/export/entities.csv`, `/export/actions.csv`) verifying zero-GPU, zero-browser CI operation plus attachment headers/media types. | `tests/test_dashboard_smoke.py` | `[DONE (f52482b, 5e51c20)]` | Orchestrator / karthiknk7019 |
 | **TASK-E1** | **P1** | **Aria clip pipeline benchmarking**<br>Benchmark `chronicle run --source aria-cook` / `aria-living-room` offline evaluation when video assets are present; verify state transitions align with ground-truth action annotations. | `chronicle/sources.py`<br>`docs/PERCEPTION.md` | `[READY]` | Open / Any Teammate |
 | **TASK-E2** | **P1** | **Graph visualizer force layout tuning & zone clustering**<br>Group nodes by zone in visually distinct clusters or categories in ECharts force layout so multi-room navigation is immediately intuitive. | `chronicle/ui/app.py` | `[READY]` | Open / Any Teammate |
 | **TASK-E3** | **P2** | **Snapshot import UI button**<br>Wire a file upload widget in NiceGUI dashboard allowing users to upload an exported `chronicle_snapshot.json` and call `runtime.load_snapshot_json()` directly from the UI without CLI. | `chronicle/ui/app.py` | `[READY]` | Open / Any Teammate |
@@ -174,10 +174,12 @@ labelled HoloLens pass before the “done when” line can be ticked.
   keep the `ChronicleRuntime` seam, do not import the prototype engine.
 - [x] Export/import: download the current snapshot as JSON/CSV, reload it
   without re-ingesting (`export_snapshot_json`, `export_entities_csv`, `export_actions_csv`, `load_snapshot_json`).
+  CSV exports use stable headers and are covered by runtime and endpoint tests.
 - [x] Add an explicit error/empty state for missing videos, stopped runs and
   failed GraphRAG queries.
-- [x] Add a headless smoke test for `/` and `/source-video` (Playwright or
-  `TestClient`), and keep the page usable without a GPU (`tests/test_dashboard_smoke.py`).
+- [x] Add a headless smoke test for `/`, `/source-video` and all three export
+  endpoints (Playwright or `TestClient`), and keep the page usable without a GPU
+  (`tests/test_dashboard_smoke.py`).
 - [x] Show furniture anchors distinctly from episodic entities (they are
   background structure, not objects with a lifecycle, rendered as golden rounded rectangles).
 
