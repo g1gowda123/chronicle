@@ -40,6 +40,17 @@ embeddings + template GraphRAG). The HoloLens clip is available as
 
 ## Recent changes
 
+### NB-11 — SQLite write throttling
+
+- Added `persistence_interval_s = 0.5` to `ChronicleMemory`. Entity and support
+  rows now persist on a state change or the interval, not every frame;
+  observations keep their existing `0.1 s` trajectory cadence.
+- Walking clip, 180 frames / 3 entities: **entity upserts 172 → 59** (66 %
+  fewer) with the in-memory snapshot unchanged.
+- Added `test_entity_and_support_writes_are_throttled`; focused graph,
+  integration and furniture tests pass.
+- Docs: `docs/ROLE_B.md` now explains the projection cadence.
+
 ### NB-10 partial — support anchors collapse into durable furniture anchors
 
 - Reordered `ChronicleMemory.observe()` so furniture routing runs before Role A

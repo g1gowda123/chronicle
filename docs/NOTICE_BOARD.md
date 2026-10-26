@@ -57,7 +57,7 @@ PR so parallel work does not collide.
 | NB-09 | P1 | Review drawer for rejected / ambiguous actions | UI | READY | unclaimed |
 | NB-10 | P1 | Tune consolidation on the living-room clip | Graph | IN PROGRESS | opencode (AI) |
 | NB-20 | P1 | Add living-room furniture labels and stop armchair/sofa conflation | Graph / Perception | READY | unclaimed |
-| NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | READY | unclaimed |
+| NB-11 | P1 | Reduce per-frame support/SQLite write cost | Graph | IN PROGRESS | opencode (AI) |
 | NB-12 | P1 | Add appearance attributes to the spec + evaluation | Docs / Semantic | DONE | opencode (AI) |
 | NB-13 | P2 | Retire or clearly separate the duplicate dashboard | UI / Docs | READY | unclaimed |
 | NB-14 | P2 | Search and filter actions / transitions | UI | READY | unclaimed |
@@ -184,7 +184,8 @@ PR so parallel work does not collide.
 - **Spec:** §Data model; TEAM_STATUS Role B “Done when”.
 
 ### NB-11 · Reduce per-frame support / SQLite write cost
-- **Status:** READY · **Owner:** unclaimed · **Lane:** Graph
+- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** Graph
+- **Started:** 2026-10-27 · **Branch:** `task/nb-11-write-cost`
 - **Why:** TEAM_STATUS lists repeated support updates and per-frame SQLite
   writes as the remaining runtime-efficiency work.
 - **Scope:** deduplicate unchanged support writes, batch entity/observation
