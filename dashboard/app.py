@@ -193,6 +193,18 @@ async def vfm_report(request: Request) -> Any:
     return FileResponse(artifact, media_type="text/html")
 
 
+@app.get("/api/vfm/evidence")
+async def vfm_evidence(request: Request) -> Any:
+    source = memory.resolve(_vfm_clip(request), DATA_DIR)
+    if source is None:
+        return _vfm_error("unknown clip")
+    name = str(request.query_params.get("name") or "")
+    artifact = memory.manager(DATA_DIR).evidence_file(source, name)
+    if artifact is None:
+        return _vfm_error("evidence not found", 404)
+    return FileResponse(artifact)
+
+
 @app.get("/api/vfm/download")
 async def vfm_download(request: Request) -> Any:
     source = memory.resolve(_vfm_clip(request), DATA_DIR)

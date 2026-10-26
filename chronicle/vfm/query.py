@@ -39,6 +39,11 @@ _INVENTORY = re.compile(
     r"what objects|what is in (this )?memory)\b"
 )
 _NEGATIVE = re.compile(r"\bnot in (this )?memory\b|\bunknown\b|\bno such\b")
+_HOLDING = re.compile(
+    r"\b(?:holding|carrying|holds|carries|has)\s+(?:a|an|the|his|her|their|my)?\s*"
+    r"([a-z0-9][a-z0-9' \-]{1,60})",
+    re.IGNORECASE,
+)
 _ACTION_WORDS = {
     "touch": {"touch", "touched", "touching", "pick", "picked", "grab", "grabbed",
               "hold", "held", "handle", "handled", "use", "used", "grasp", "grasped"},
@@ -77,7 +82,7 @@ _STOPWORDS = {
     "first", "before", "after", "then", "tell", "show", "memory",
 }
 #: Bump when answer wording or canonicalisation changes, so stale answers miss.
-CACHE_VERSION = "v3.1"
+CACHE_VERSION = "v3.2"
 
 
 @dataclass
@@ -903,6 +908,63 @@ def answer_yesno(
     )
 
 
+def _clean_holding(value: str) -> str:
+    text = re.split(r"[.;,:]|\band\b|\bwhile\b|\bwho\b|\bwith\b", value, maxsplit=1)[0]
+    text = " ".join(text.split()).strip(" -")
+    if not text:
+        return ""
+    if not re.match(r"^(a|an|the|his|her|their|my|some)\b", text, re.IGNORECASE):
+        text = ("an " if text[0].lower() in "aeiou" else "a ") + text
+    return text
+
+
+def answer_holding(
+    store: EventStore, query: str, entity: dict[str, Any] | None
+) -> Answer:
+    """Answer "what is X holding?" from explicit caption phrases."""
+
+    candidates: list[tuple[float, str, dict[str, Any]]] = []
+    for window in store.ledger_windows:
+        text = str(window.get("caption") or window.get("text") or "")
+        for match in _HOLDING.finditer(text):
+            value = _clean_holding(match.group(1))
+            if value:
+                candidates.append((float(window.get("t_start") or 0.0), value, window))
+    if not candidates:
+        return Answer(
+            query,
+            "The captions do not say what was being held.",
+            method="no-match",
+        )
+
+    seen: set[str] = set()
+    unique: list[tuple[float, str, dict[str, Any]]] = []
+    for t, value, window in candidates:
+        key = value.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append((t, value, window))
+    # Prefer the first explicit phrase: "what is the other person holding?"
+    # should be one direct answer, not a dump of every caption clause.
+    first_t, first_value, first_window = unique[0]
+    answer_text = first_value[:1].upper() + first_value[1:] + "."
+    return Answer(
+        query,
+        answer_text,
+        citations=[
+            {
+                "t": round(first_t, 3),
+                "kind": "caption",
+                "caption": str(first_window.get("caption") or "")[:500],
+            }
+        ],
+        evidence=_nearest_evidence(store, first_t),
+        confidence=0.75,
+        method="vault-holding",
+    )
+
+
 def answer_keyword(store: EventStore, query: str) -> Answer:
     tokens = sorted(
         _normal_tokens(query) - _STOPWORDS
@@ -1015,6 +1077,8 @@ def classify(
         if t is not None:
             return "window", entity, t, ""
         return ("keyword" if in_ledger else "history"), entity, None, ""
+    if re.search(r"\b(holding|carrying|holds|carries|in (?:his|her|their) hand)\b", lower):
+        return "holding", entity, None, ""
     if re.search(r"\b(where|which room|what room|what zone)\b", lower):
         return ("keyword" if in_ledger else "where"), entity, None, ""
     if re.search(r"\b(when|what time|at what (second|time))\b", lower):
@@ -1043,6 +1107,8 @@ def canonical_key(
         return f"{CACHE_VERSION}:unknown:" + "|".join(sorted(_normal_tokens(query) - _STOPWORDS))
     if intent in {"where", "count", "history"}:
         return f"{CACHE_VERSION}:{intent}:{entity_key}"
+    if intent == "holding":
+        return f"{CACHE_VERSION}:holding:" + "|".join(sorted(_normal_tokens(query) - _STOPWORDS))
     if intent in {"when", "yesno"}:
         return f"{CACHE_VERSION}:{intent}:{entity_key}:{action or 'any'}"
     if intent in {"before", "after"}:
@@ -1129,6 +1195,8 @@ def answer(store: EventStore, query: str, *, use_cache: bool = True) -> Answer:
         result = Answer(query, "I don't have that in my memory.", method="no-match")
     elif intent == "count":
         result = answer_count(store, query, entity)
+    elif intent == "holding":
+        result = answer_holding(store, query, entity)
     elif intent == "before":
         result = answer_before(store, query, entity, action, t)
     elif intent == "after":

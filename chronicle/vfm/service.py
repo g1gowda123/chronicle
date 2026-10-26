@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from . import caption_ledger, memory_pack, nlq, query
+from . import caption_ledger, memory_pack, nlq, query, video_vault
 from .attach_ledger import attach as attach_ledger_file
 from .compile import compile_vault
 from .extract_evidence import extract as extract_evidence
@@ -218,7 +218,7 @@ def _update_vault_flags(vault: Path, *, video_retained: bool) -> None:
 
 def compile_memory(
     video: Path | None,
-    source_db: Path | str,
+    source_db: Path | str | None,
     job_dir: Path | str,
     *,
     data_root: Path | str | None = None,
@@ -245,16 +245,20 @@ def compile_memory(
     arguments as :func:`caption_ledger.build_ledger`.
     """
 
-    source_db = Path(source_db).expanduser().resolve()
+    source_db = Path(source_db).expanduser().resolve() if source_db is not None else None
     job_dir = Path(job_dir).expanduser().resolve()
     job_dir.mkdir(parents=True, exist_ok=True)
     video_path = Path(video).expanduser().resolve() if video is not None else None
     if video_path is not None and not video_path.is_file():
         if log:
-            log(f"video not found, compiling graph memory only: {video_path}")
+            log(f"video not found: {video_path}")
         video_path = None
-    if not source_db.is_file():
-        raise FileNotFoundError(f"source database not found: {source_db}")
+    if source_db is not None and not source_db.is_file():
+        if log:
+            log(f"source database not found, using caption-first path: {source_db}")
+        source_db = None
+    if source_db is None and video_path is None:
+        raise FileNotFoundError("a source database or a video is required")
 
     def _stage(stage: str, percent: int, message: str = "") -> None:
         if progress:
@@ -262,9 +266,13 @@ def compile_memory(
         if message and log:
             log(message)
 
-    _stage("snapshot", 5, "snapshotting the run database")
-    source_copy = job_dir / "source.db"
-    _snapshot_db(source_db, source_copy)
+    source_copy: Path | None = None
+    if source_db is not None:
+        _stage("snapshot", 5, "snapshotting the run database")
+        source_copy = job_dir / "source.db"
+        _snapshot_db(source_db, source_copy)
+    else:
+        _stage("snapshot", 5, "no graph DB; caption-first memory")
 
     ledger_file: Path | None = None
     caption_summary: dict[str, Any] | None = None
@@ -317,9 +325,16 @@ def compile_memory(
 
     _stage("vault", 40, "building the packed SQLite vault")
     vault = job_dir / "vault.db"
-    # ``compile_vault`` is a synced copy of the experiment module; keep our
-    # call surface to its public ``(source_db, out_db, title=...)`` signature.
-    vault_summary = compile_vault(source_copy, vault, title=title)
+    if source_copy is not None:
+        # ``compile_vault`` is a synced copy of the experiment module; keep our
+        # call surface to its public ``(source_db, out_db, title=...)`` signature.
+        vault_summary = compile_vault(source_copy, vault, title=title)
+    elif ledger_file is not None and video_path is not None:
+        vault_summary = video_vault.compile_caption_vault(
+            video_path, ledger_file, vault, title=title or "Caption memory"
+        )
+    else:
+        raise FileNotFoundError("no graph DB and no caption ledger")
     if episode_id:
         con = sqlite3.connect(str(vault))
         try:
@@ -466,7 +481,7 @@ def compile_memory(
 @dataclass
 class VFMJob:
     source_key: str
-    source_db: Path
+    source_db: Path | None
     video: Path | None
     job_dir: Path
     title: str
@@ -630,10 +645,15 @@ class VFMJobManager:
     ) -> VFMJob | None:
         if not self.enabled:
             return None
-        source_db = Path(source.db_path(self.data_dir)).expanduser().resolve()
+        raw_db = getattr(source, "db", None)
+        source_db = Path(raw_db).expanduser().resolve() if raw_db is not None else None
+        if source_db is not None and not source_db.is_file():
+            source_db = None
         video_path = Path(video).expanduser().resolve() if video is not None else None
         if video_path is not None and not video_path.is_file():
             video_path = None
+        if source_db is None and video_path is None:
+            raise FileNotFoundError("source has neither a graph DB nor a video")
         signature = self._signature(source_db, video_path)
         job_dir = self.job_dir(source)
         with self._lock:
@@ -699,7 +719,7 @@ class VFMJobManager:
         self._thread.join(timeout=5.0)
 
     # -- internals ------------------------------------------------------
-    def _signature(self, source_db: Path, video: Path | None) -> tuple[Any, ...]:
+    def _signature(self, source_db: Path | None, video: Path | None) -> tuple[Any, ...]:
         def _stamp(path: Path | None) -> tuple[int, int]:
             if path is None:
                 return (0, 0)

@@ -1349,6 +1349,23 @@
         warn.textContent = "LLM fallback";
         badges.appendChild(warn);
       }
+      if (Array.isArray(data.evidence) && data.evidence.length) {
+        const gallery = document.createElement("div");
+        gallery.className = "chat-evidence";
+        data.evidence.slice(0, 3).forEach((ev) => {
+          if (!ev || !ev.url) return;
+          const img = document.createElement("img");
+          img.src = ev.url;
+          img.loading = "lazy";
+          img.alt = "Evidence at t=" + Number(ev.t || 0).toFixed(1) + "s";
+          img.title = "Open evidence fullscreen";
+          img.onclick = () =>
+            this.showShot(ev.url, "chronicle-evidence-" + Number(ev.t || 0).toFixed(1) + "s.png",
+              String(ev.label || "evidence"), safeFloat(ev.t, 0));
+          gallery.appendChild(img);
+        });
+        if (gallery.children.length) host.appendChild(gallery);
+      }
       const metaLine = document.createElement("div");
       metaLine.className = "msg-meta";
       metaLine.textContent = "chronicle · " + meta;

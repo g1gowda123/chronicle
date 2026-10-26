@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from urllib.parse import quote
 from typing import Any
@@ -394,6 +395,19 @@ def build_dashboard() -> None:
 
     # ---- actions ------------------------------------------------------ #
 
+    _QUERY_TIME = re.compile(
+        r"(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\b", re.IGNORECASE
+    )
+
+    def _question_time(text: str) -> float:
+        match = _QUERY_TIME.search(text or "")
+        if match is not None:
+            try:
+                return max(0.0, float(match.group(1)))
+            except ValueError:
+                pass
+        return float(runtime.playhead or 0.0)
+
     async def run_query(value: str | None = None) -> None:
         text = (value if value is not None else "") or ""
         text = str(text).strip()
@@ -416,12 +430,39 @@ def build_dashboard() -> None:
                 result = await run.io_bound(
                     memory.manager(default_data_dir()).ask, vfm_source, text
                 )
+                # Attach one stored evidence still only when it is close to the
+                # question time. Far-away frames are still reachable through the
+                # explicit "frame @ t" button; auto-showing them is misleading.
+                evidence = []
+                asked_t = _question_time(text)
+                for item in (result.evidence or [])[:3]:
+                    try:
+                        evidence_t = float(item.get("t"))
+                    except (TypeError, ValueError):
+                        continue
+                    if abs(evidence_t - asked_t) > 8.0:
+                        continue
+                    name = Path(str(item.get("rel_path") or "")).name
+                    if not name:
+                        continue
+                    evidence.append(
+                        {
+                            "t": item.get("t"),
+                            "label": item.get("label") or item.get("kind") or "evidence",
+                            "url": "/api/vfm/evidence?"
+                            + _clip_query()
+                            + "&name="
+                            + quote(name),
+                        }
+                    )
+                    break
                 answer = {
                     "route": "vfm",
                     "answer": result.answer,
                     "provider": "vfm-memory",
                     "model": "deterministic",
                     "citations": result.citations,
+                    "evidence": evidence,
                     "duration_ms": result.elapsed_ms,
                     "confidence": result.confidence,
                     "matched_entity": None,
@@ -598,8 +639,8 @@ def build_dashboard() -> None:
 
     async def compile_memory() -> None:
         source = memory.resolve(active_clip, default_data_dir())
-        if source is None or source.db is None:
-            ui.notify("This clip has no graph DB to compile", type="warning")
+        if source is None or (source.db is None and source.video is None):
+            ui.notify("This clip has nothing to compile", type="warning")
             return
         memory.manager(default_data_dir()).submit(source, source.video, force=True)
         ui.notify("Memory compile queued", type="info")
@@ -635,15 +676,19 @@ def build_dashboard() -> None:
             if source is None:
                 ui.label("pick a clip to compile its memory").classes("text-xs")
                 return
-            if source.db is None:
-                ui.label("no graph DB for this clip yet").classes("text-xs")
+            if source.db is None and source.video is None:
+                ui.label("no graph DB or video for this clip").classes("text-xs")
                 return
             with ui.row().classes("items-center gap-2 flex-wrap"):
                 if state.get("status") in {"queued", "running"}:
                     ui.spinner(size="sm")
                 else:
-                    ui.button("Compile memory", on_click=compile_memory).props(
+                    label = "Rebuild memory" if files else "Compile memory"
+                    ui.button(label, on_click=compile_memory).props(
                         "outline dense no-caps"
+                    ).tooltip(
+                        "Build the video-free VLM vault for this clip (captions, events, "
+                        "evidence). It runs automatically on first view; use this to force a rebuild."
                     )
                 if state.get("status") == "done":
                     ui.button(

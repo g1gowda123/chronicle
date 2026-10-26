@@ -1502,3 +1502,25 @@ body {
   font-size: 0.72rem;
   letter-spacing: 0.02em;
 }
+
+/* Evidence thumbnails attached to a chat answer */
+.chat-evidence {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.chat-evidence img {
+  width: 132px;
+  height: 92px;
+  object-fit: cover;
+  border: 2px solid #26221a;
+  border-radius: 3px;
+  box-shadow: 3px 3px 0 #26221a;
+  cursor: zoom-in;
+  background: #0b1020;
+}
+.chat-evidence img:hover {
+  transform: translateY(-1px);
+  box-shadow: 4px 4px 0 #26221a;
+}

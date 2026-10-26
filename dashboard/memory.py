@@ -179,7 +179,9 @@ def auto_compile(clip: str | None, data_dir: Path | str) -> dict[str, Any] | Non
         return None
     root = Path(data_dir).expanduser().resolve()
     source = resolve(clip, root)
-    if source is None or source.db is None or not source.db.is_file():
+    if source is None:
+        return None
+    if source.db is None and source.video is None:
         return None
     instance = manager(root)
     if instance.has_memory(source):
@@ -199,10 +201,10 @@ def status(clip: str | None, data_dir: Path | str) -> dict[str, Any]:
     source = resolve(clip, root)
     if source is None:
         return {"status": "unavailable", "message": "pick a clip first", "files": {}}
-    if source.db is None:
+    if source.db is None and source.video is None:
         return {
             "status": "no-db",
-            "message": "no graph DB for this clip; run the pipeline or upload an ingested run",
+            "message": "no graph DB or video for this clip",
             "files": {},
         }
     return manager(root).status(source) or {

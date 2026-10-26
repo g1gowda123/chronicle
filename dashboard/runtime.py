@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import threading
 import time
 from collections.abc import Iterable
@@ -43,11 +44,13 @@ def clip_title(path: Path) -> str:
     """Pretty label for a clip filename (uploads use their original name)."""
     stem = path.stem
     if stem.lower() in {"source", "video", "clip", "upload"} and path.parent.name:
-        parts = path.parent.name.split("-", 3)
-        if len(parts) == 4 and parts[3]:
-            stem = parts[3]
-        elif len(parts) == 3 and parts[2]:
-            stem = parts[2]
+        parent = path.parent.name
+        # Uploads are laid out as <run-id>/source.mp4 or <name>/source.mp4.
+        run_id = re.match(r"^\d{8}-\d{6}-[0-9a-f]+-(.+)$", parent)
+        if run_id:
+            stem = run_id.group(1)
+        elif parent.lower() not in {"uploads", "real", "demo"}:
+            stem = parent
     stem = stem.replace("_", " ").strip()
     words = [word.upper() if word.lower().startswith("aria") else word.capitalize() for word in stem.split()]
     return " ".join(words) or path.name
