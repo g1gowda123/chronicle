@@ -88,6 +88,12 @@ Agents: post one line here when you start and when you stop. Timestamps are IST.
 > has a `chronicle.db` (gitignored; copied locally for the demo). API:
 > `/api/vfm/{status,compile,report,download,ask}`; chat prefers a compiled vault.
 
+
+> **Ops note (2026-10-27 04:20 IST, pack/counts/UI lane):** `./chronicle.sh` now runs from this
+> worktree without a local `.venv` (uses the sibling main venv + `PYTHONPATH`), defaults to
+> **:8082** so it does not fight main's :8080, and supports `start|stop|restart|status|logs|
+> pipeline|test`. Verified: start → 200 on :8082 → stop; main :8080 untouched.
+
 ## Rules for parallel agents
 
 1. **One owner per file area.** If you need a shared file, add an entry here first.
