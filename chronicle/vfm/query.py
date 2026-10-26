@@ -1026,7 +1026,11 @@ def answer_keyword(store: EventStore, query: str) -> Answer:
 
 def _time_hint(query: str) -> float | None:
     lower = query.lower()
-    if not re.search(r"\b(s|sec|secs|seconds?|m|min|mins|minutes?)\b|t\s*=|\b(?:at|around|near)\s+\d", lower):
+    if not re.search(
+        r"\d+\s*(?:s|sec|secs|second|seconds|m|min|mins|minute|minutes)\b"
+        r"|t\s*=|\b(?:at|around|near|time)\s+\d",
+        lower,
+    ):
         return None
     match = _NUMBER.search(lower)
     if not match:

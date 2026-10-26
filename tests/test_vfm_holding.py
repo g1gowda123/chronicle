@@ -52,3 +52,8 @@ def test_holding_answer_is_direct(tmp_path: Path) -> None:
         assert result.citations
     finally:
         con.close()
+
+
+def test_time_hint_accepts_time_10s() -> None:
+    assert query._time_hint("what happened at time 10s?") == 10.0
+    assert query._time_hint("what happened around 42s?") == 42.0
