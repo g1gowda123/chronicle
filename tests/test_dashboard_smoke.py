@@ -2,16 +2,28 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-from nicegui import app
+import pytest
 
-from chronicle.ui.app import create_app
+_HAS_DASHBOARD_DEPS = bool(
+    importlib.util.find_spec("fastapi") and importlib.util.find_spec("nicegui")
+)
+
+pytestmark = pytest.mark.skipif(
+    not _HAS_DASHBOARD_DEPS,
+    reason="dashboard extras not installed (uv sync --extra ui)",
+)
 
 
 def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+    from nicegui import app
+
+    from chronicle.ui.app import create_app
+
     state = create_app(
         data_dir=tmp_path,
         source_key="synthetic",
