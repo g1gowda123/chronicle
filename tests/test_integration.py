@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import csv
+import io
+import json
+
 from conftest import DT, TABLE_POLY, cup, feed, hand_at, make_frame, run_lift_scene
 
 from chronicle.graph.memory import ChronicleMemory
@@ -219,5 +223,111 @@ def test_runtime_normalizes_role_b_edges_for_role_c() -> None:
         assert context.entity_label == "keys"
         assert context.zone == "work desk"
         assert context.last_seen == 8.0
+    finally:
+        runtime.close()
+
+
+def test_runtime_exports_snapshot_json() -> None:
+    runtime = ChronicleRuntime(
+        ":memory:",
+        semantic_enabled=False,
+        zone_label="kitchen",
+        reset=True,
+    )
+    try:
+        for index in range(30):
+            runtime.memory.observe(
+                make_frame(index * DT, objects=[cup()], zone_label="kitchen")
+            )
+
+        payload = json.loads(runtime.export_snapshot_json())
+        assert payload["entities"][0]["label"] == "cup"
+        assert payload["stats"]["entities"] >= 1
+        assert payload["running"] is False
+        assert "verification_stats" in payload["stats"]
+        assert "backends" in payload
+    finally:
+        runtime.close()
+
+
+def test_runtime_exports_entities_csv() -> None:
+    runtime = ChronicleRuntime(
+        ":memory:",
+        semantic_enabled=False,
+        zone_label="kitchen",
+        reset=True,
+    )
+    try:
+        for index in range(30):
+            runtime.memory.observe(
+                make_frame(index * DT, objects=[cup()], zone_label="kitchen")
+            )
+
+        text = runtime.export_entities_csv()
+        reader = csv.DictReader(io.StringIO(text))
+        assert reader.fieldnames == [
+            "id",
+            "label",
+            "state",
+            "zone",
+            "anchor",
+            "container",
+            "first_seen",
+            "last_seen",
+            "span",
+            "track_id",
+            "confidence",
+        ]
+        rows = list(reader)
+        assert len(rows) == 1
+        assert rows[0]["id"] == "cup"
+        assert rows[0]["label"] == "cup"
+        assert rows[0]["zone"] == "kitchen"
+        assert rows[0]["state"] == "VISIBLE_STATIC"
+    finally:
+        runtime.close()
+
+
+def test_runtime_exports_actions_csv() -> None:
+    runtime = ChronicleRuntime(
+        ":memory:",
+        semantic_enabled=False,
+        zone_label="kitchen",
+        reset=True,
+    )
+    try:
+        for index in range(30):
+            runtime.memory.observe(
+                make_frame(index * DT, objects=[cup()], zone_label="kitchen")
+            )
+        runtime.memory.foreground.add_action(
+            "cup",
+            "PICK_UP",
+            1.5,
+            confidence=0.92,
+            source="test",
+            clip_ref="clip-1",
+            evidence={"caption": "the hand picks up the cup"},
+        )
+
+        text = runtime.export_actions_csv()
+        reader = csv.DictReader(io.StringIO(text))
+        assert reader.fieldnames == [
+            "id",
+            "timestamp",
+            "action",
+            "entity_id",
+            "entity",
+            "confidence",
+            "source",
+            "clip_ref",
+            "caption",
+        ]
+        rows = list(reader)
+        assert len(rows) == 1
+        assert rows[0]["action"] == "PICK_UP"
+        assert rows[0]["entity"] == "cup"
+        assert rows[0]["source"] == "test"
+        assert rows[0]["caption"] == "the hand picks up the cup"
     finally:
         runtime.close()

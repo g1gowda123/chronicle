@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from nicegui import app, run, ui
 
@@ -318,6 +318,17 @@ def create_app(
             headers={"Content-Disposition": 'attachment; filename="chronicle_actions.csv"'},
         )
 
+    @app.post("/import/snapshot")
+    async def _import_snapshot_route(request: Request) -> dict[str, Any]:
+        payload = await request.json()
+        with state.lock:
+            state.runtime.load_snapshot_json(payload)
+        return {
+            "status": "imported",
+            "entities": len(payload.get("entities", [])),
+            "furniture": len(payload.get("furniture", [])),
+        }
+
     def _switch_source(source: ClipSource) -> bool:
         target = source.video_path(data_root)
         if source.key == "custom":
@@ -615,6 +626,13 @@ def create_app(
                             ).props("flat dense size=xs no-caps").classes(
                                 "text-slate-400 text-[10px]"
                             ).tooltip("Download entities CSV")
+                            ui.button(
+                                "Import",
+                                icon="file_upload",
+                                on_click=import_dialog.open,
+                            ).props("flat dense size=xs no-caps").classes(
+                                "text-slate-400 text-[10px]"
+                            ).tooltip("Import snapshot JSON")
                         pipeline_label = ui.label("").classes(
                             "text-[10px] chronicle-mono text-slate-500 truncate"
                         )

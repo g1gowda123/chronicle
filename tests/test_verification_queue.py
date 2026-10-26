@@ -315,9 +315,16 @@ class RuntimeQueueSeamTest(unittest.TestCase):
 
             # CSV exports
             csv_entities = runtime.export_entities_csv()
-            self.assertIn("id,label,state,zone,anchor,container,span", csv_entities)
+            self.assertIn(
+                "id,label,state,zone,anchor,container,first_seen,last_seen,"
+                "span,track_id,confidence",
+                csv_entities,
+            )
             csv_actions = runtime.export_actions_csv()
-            self.assertIn("id,timestamp,action,entity,caption,source", csv_actions)
+            self.assertIn(
+                "id,timestamp,action,entity_id,entity,confidence,source,clip_ref,caption",
+                csv_actions,
+            )
         finally:
             runtime.close()
 

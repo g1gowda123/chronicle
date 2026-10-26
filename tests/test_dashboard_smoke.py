@@ -42,10 +42,14 @@ def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
         res_json = client.get("/export/snapshot.json")
         assert res_json.status_code == 200
         assert res_json.headers["content-type"] == "application/json"
+        assert res_json.headers["content-disposition"] == (
+            'attachment; filename="chronicle_snapshot.json"'
+        )
         payload = json.loads(res_json.text)
         assert "nodes" in payload
         assert "edges" in payload
         assert "verification" in payload
+        assert "verification_stats" in payload
         assert "stats" in payload
         assert "verification_queue_depth" in payload["stats"]
 
@@ -53,15 +57,49 @@ def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
         res_csv = client.get("/export/entities.csv")
         assert res_csv.status_code == 200
         assert "text/csv" in res_csv.headers["content-type"]
-        assert res_csv.text.startswith("id,label,state,zone,anchor,container,span")
+        assert res_csv.headers["content-disposition"] == (
+            'attachment; filename="chronicle_entities.csv"'
+        )
+        assert res_csv.text.startswith(
+            "id,label,state,zone,anchor,container,first_seen,last_seen,"
+            "span,track_id,confidence"
+        )
 
         # 4. CSV actions export route
         res_actions = client.get("/export/actions.csv")
         assert res_actions.status_code == 200
         assert "text/csv" in res_actions.headers["content-type"]
-        assert res_actions.text.startswith("id,timestamp,action,entity,caption,source")
+        assert res_actions.headers["content-disposition"] == (
+            'attachment; filename="chronicle_actions.csv"'
+        )
+        assert res_actions.text.startswith(
+            "id,timestamp,action,entity_id,entity,confidence,source,clip_ref,caption"
+        )
 
-        # 5. Missing source-video returns 404 cleanly
+        # 5. Snapshot import route
+        import_payload = {
+            "entities": [
+                {
+                    "id": "entity:imported-cup",
+                    "label": "cup",
+                    "state": "VISIBLE_STATIC",
+                    "zone": "Kitchen",
+                }
+            ],
+            "furniture": [
+                {"anchor_id": "table-1", "label": "table", "zone_id": "Kitchen"}
+            ],
+        }
+        res_import = client.post("/import/snapshot", json=import_payload)
+        assert res_import.status_code == 200
+        assert res_import.json()["status"] == "imported"
+        assert res_import.json()["entities"] == 1
+
+        # Verify imported entity is now in snapshot
+        snapshot_after = json.loads(client.get("/export/snapshot.json").text)
+        assert any(e["label"] == "cup" for e in snapshot_after["entities"])
+
+        # 6. Missing source-video returns 404 cleanly
         res_video = client.get("/source-video")
         assert res_video.status_code == 404
     finally:
