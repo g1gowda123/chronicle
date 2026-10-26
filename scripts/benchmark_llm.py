@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Benchmark GraphRAG answer paths")
     parser.add_argument("--backend", choices=("template", "ollama", "gemini", "all"), default="all")
     parser.add_argument("--model", default="", help="model name (defaults per backend)")
-    parser.add_argument("--gemini-model", default="gemini-2.5-flash")
+    parser.add_argument("--gemini-model", default="gemini-2.5-flash-lite")
     parser.add_argument("--ollama-model", default="qwen2.5:7b-instruct")
     parser.add_argument("--sleep", type=float, default=0.0, help="pause between cases (rate limits)")
     parser.add_argument("--out", default=str(OUT_DIR / "graphrag_benchmark.json"))

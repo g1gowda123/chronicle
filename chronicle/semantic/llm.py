@@ -337,7 +337,7 @@ class GeminiChatClient:
 
     def __init__(
         self,
-        model: str = "gemini-2.5-flash",
+        model: str = "gemini-2.5-flash-lite",
         *,
         api_key: str | None = None,
         base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai",
