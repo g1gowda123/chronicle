@@ -49,7 +49,7 @@ PR so parallel work does not collide.
 | NB-02 | P0 | Show the evidence frame under each answer | UI | READY | unclaimed |
 | NB-03 | P0 | Grounding / rejection provenance in the query panel | UI | READY | unclaimed |
 | NB-04 | P0 | Demo preflight script and checklist | Ops | DONE | opencode (AI) |
-| NB-05 | P0 | Verify every bundled source end to end | QA | IN PROGRESS | opencode (AI) |
+| NB-05 | P0 | Verify every bundled source end to end | QA | DONE | opencode (AI) |
 | NB-06 | P0 | Real-clip evidence images for demo answers | Perception | READY | unclaimed |
 | NB-07 | P1 | Label the HoloLens action timeline and run the scorer | Semantic | READY | unclaimed |
 | NB-08 | P1 | Calibrate action thresholds against real labels | Semantic | DONE | opencode (AI) |
@@ -108,20 +108,6 @@ PR so parallel work does not collide.
 - **Acceptance:** a known unknown query shows an ungrounded state; a template
   answer shows `template`; no hallucinated timestamp is presented as grounded.
 - **Spec:** §Query step 4.
-
-### NB-05 · Verify every bundled source end to end
-- **Status:** IN PROGRESS (opencode AI) · **Owner:** opencode (AI) · **Lane:** QA
-- **Started:** 2026-10-27 · **Branch:** `task/nb-05-source-verification`
-- **Why:** the demo switches between synthetic, HoloLens and Aria clips.
-  A source that cannot ingest is a live failure.
-- **Scope:** run `chronicle run` for `synthetic`, `tabletop`, `cook`, `play`,
-  `walking`; record frames, entities, actions, errors, and backends used.
-  Check the dashboard source dropdown and video player for each.
-- **Files:** `docs/TEAM_STATUS.md` (table), `docs/PERCEPTION.md`,
-  `tests/test_dashboard_smoke.py` if a route is broken; no runtime changes
-  unless a source is broken.
-- **Acceptance:** every source either passes or has a documented blocking reason.
-- **Spec:** §Interfaces and operations; §Demo pitfalls.
 
 ### NB-06 · Real-clip evidence images for demo answers
 - **Status:** READY · **Owner:** unclaimed · **Lane:** Perception
@@ -285,6 +271,24 @@ PR so parallel work does not collide.
 | NB-D05 | Snapshot import / export | orchestrator | `tests/test_snapshot_io.py`, `tests/test_dashboard_smoke.py` |
 | NB-08 | Calibrate action thresholds against real labels | opencode (AI) | `9ed6735`; `docs/CALIBRATION.md`; 19 labels, precision 0.93 / recall 1.00 |
 | NB-04 | Demo preflight script and checklist | opencode (AI) | `3b74ef5`; `scripts/demo_preflight.py`; `docs/DEMO_PREFLIGHT.md` |
+| NB-05 | Verify every bundled source end to end | opencode (AI) | `f8fcd0e`; `docs/PERCEPTION.md` NB-05 tables; 5/5 sources 9/9 checks |
+
+### NB-05 details
+
+- **Branch:** `task/nb-05-source-verification` · **Commit:** `f8fcd0e`
+- **Full-clip fallback:** all five sources completed with 9/9 snapshot
+  invariants (`synthetic` 360 frames, `tabletop` 1019, `walking` 600, `cook`
+  450, `play` 450).
+- **Bounded production:** 180 frames with YOLO-World + MediaPipe + OpenCLIP on
+  all four real clips; all 9/9 (`tabletop` 4 actions, `cook` 1, `play` 0,
+  `walking` 0).
+- **Dashboard:** headless `/source-video` check returns HTTP 200 + `video/*` for
+  every registered clip; the interactive dropdown/player remains the later UI
+  pass.
+- **Acceptance:** every source passes; the only documented gap is Aria action
+  accuracy (no labels), not ingestion.
+- **Artifacts:** `runs/benchmark/nb05-*.json` (local, not committed) and the
+  tables in `docs/PERCEPTION.md`.
 
 ### NB-04 details
 
