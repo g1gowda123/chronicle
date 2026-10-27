@@ -137,6 +137,20 @@ def test_fragmented_red_hat_labels_are_merged() -> None:
     assert "first seen at t=96.0s" in when.answer
 
 
+def test_headwear_synonyms_match_beret_labels() -> None:
+    store = _store()
+    store.entities = [_entity("man wearing red beret", 94.8)]
+    entity = query._match_entity(store, "where is the man wearing a red hat")
+    assert entity is not None
+    assert entity["label"] == "man wearing red beret"
+
+
+def test_city_arch_does_not_match_city_skyline() -> None:
+    store = _store()
+    store.entities = [_entity("city skyline", 888.0)]
+    assert query._match_entity(store, "where is the city arch") is None
+
+
 def test_rare_keyword_beats_common_city_captions() -> None:
     store = _store()
     store.ledger = {

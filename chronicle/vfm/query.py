@@ -72,6 +72,12 @@ _QUERY_SYNONYMS = {
     "someone": "person",
     "rucksack": "backpack",
     "bag": "backpack",
+    # Headwear: captioners alternate between hat/beret/beanie for the same
+    # object, and a query for a "red hat" must find a "red beret".
+    "beret": "hat",
+    "beanie": "hat",
+    "headwear": "hat",
+    "headgear": "hat",
 }
 _STOPWORDS = {
     "the", "a", "an", "is", "was", "were", "are", "am", "did", "do", "does",
@@ -82,7 +88,7 @@ _STOPWORDS = {
     "first", "before", "after", "then", "tell", "show", "memory",
 }
 #: Bump when answer wording or canonicalisation changes, so stale answers miss.
-CACHE_VERSION = "v3.10"
+CACHE_VERSION = "v3.11"
 
 
 @dataclass
@@ -390,10 +396,22 @@ def _match_entity(store: EventStore, query: str) -> dict[str, Any] | None:
     for entity in store.entities:
         label = str(entity["label"]).lower()
         label_tokens = _normal_tokens(label) - _STOPWORDS
+        label_norm = {_singular(token) for token in label_tokens}
+        # When the query carries distinctive words, all of them must appear in
+        # the label. Otherwise "where is the city arch" matched "city skyline"
+        # on the shared "city" alone.
+        distinctive = {
+            _singular(token) for token in (tokens - _GENERIC_LABEL_TOKENS)
+        }
+        if distinctive and not distinctive <= label_norm:
+            continue
+        overlap = {_singular(token) for token in tokens} & label_norm
+        if not overlap:
+            continue
         score = 0.0
         if label and re.search(rf"\b{re.escape(label)}\b", lower):
             score += 3.0
-        score += len(tokens & label_tokens) * 2.0
+        score += len(overlap) * 2.0
         if not score and label_tokens:
             singular = _singular(label)
             if singular in tokens or any(_singular(token) == singular for token in tokens):
@@ -463,9 +481,16 @@ def _merge_aliases(
         result["last_seen"] = max(lasts)
     if zones:
         result["zone"] = max(set(zones), key=zones.count)
+    # Speak the user's vocabulary: "beret" normalises to "hat" in answers.
+    display = label
+    for synonym in ("beret", "beanie", "headwear", "headgear"):
+        display = re.sub(rf"\b{synonym}\b", "hat", display, flags=re.IGNORECASE)
     # Answer helpers look up history by label; point the chosen label at the
     # merged rows so "where/when" sees every alias.
     store.by_subject[label.lower()] = merged
+    if display != label:
+        store.by_subject[display.lower()] = merged
+        result["label"] = display
     return result
 
 
