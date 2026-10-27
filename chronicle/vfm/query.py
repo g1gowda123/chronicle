@@ -948,7 +948,14 @@ def answer_yesno(
 
 
 def _clean_holding(value: str) -> str:
-    text = re.split(r"[.;,:]|\band\b|\bwhile\b|\bwho\b|\bwith\b", value, maxsplit=1)[0]
+    # Stop at a locative or clause boundary: "cup near a tree in the outdoors"
+    # should become "cup", while "cup of coffee" stays intact.
+    text = re.split(
+        r"[.;,:]|\b(?:and|while|who|with|near|in|on|at|beside|by|outside|inside|"
+        r"next\s+to|outdoors|holding)\b",
+        value,
+        maxsplit=1,
+    )[0]
     text = " ".join(text.split()).strip(" -")
     if not text:
         return ""
