@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chronicle · ask your memory</title>
+<meta name="description" content="Ask the compiled Chronicle memory a question. No video, no model, no network.">
+<meta name="theme-color" content="#faf3e3">
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Caveat:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap">
+<link rel="stylesheet" href="/chronicle/chronicle.css">
+<style>
+  /* ---- ask landing page: one composer, zine components ---------------- */
+
+  .home {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 980px;
+    min-height: 100vh;
+    margin: 0 auto;
+    padding: 18px 22px 46px;
+  }
+
+  .home a { color: inherit; text-decoration: none; }
+
+  .home-top {
+    position: relative;
+    top: auto;
+    margin: 0 0 4px;
+    padding: 10px 2px 12px;
+  }
+
+  .home-status { font-family: var(--mono); font-size: .62rem; letter-spacing: .04em; }
+  .home-status.is-ready { background: var(--mint); color: #fff; }
+  .home-status.is-busy { background: var(--mustard); }
+  .home-status.is-warn { background: var(--secondary); color: var(--inksoft); }
+  .home-status.is-off { background: var(--coral); color: #fff; }
+  .home-status.is-busy .dot { animation: blinkrec 1.2s infinite; background: var(--ink); }
+  .home-status.is-ready .dot { background: #fff; }
+
+  .home-main { flex: 1 1 auto; }
+
+  .home-hero { padding: clamp(38px, 8vh, 82px) 0 0; text-align: center; }
+
+  .home-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1.5px solid var(--borderline);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cardz) 82%, transparent);
+    padding: .34rem .82rem;
+    font-family: var(--mono);
+    font-size: .62rem;
+    font-weight: 600;
+    letter-spacing: .17em;
+    text-transform: uppercase;
+    color: var(--inksoft);
+  }
+  .home-kicker .rec-dot { width: .45rem; height: .45rem; }
+  .home-kicker-sep { opacity: .45; }
+
+  .home-title {
+    margin: 20px 0 0;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(2.7rem, 7.6vw, 4.9rem);
+    line-height: .92;
+    letter-spacing: -.045em;
+  }
+  .home-mark {
+    position: relative;
+    display: inline-block;
+    padding: 0 .06em;
+    background: linear-gradient(180deg, transparent 60%, var(--mustard) 60% 94%, transparent 94%);
+    transform: rotate(-1.1deg);
+  }
+  .home-nowrap { white-space: nowrap; }
+  .home-period { display: inline-block; }
+  .home-spark {
+    display: inline-block;
+    margin-left: .04em;
+    color: var(--coral);
+    font-size: .46em;
+    vertical-align: .6em;
+    transform: rotate(9deg);
+  }
+  .home-lede {
+    max-width: 570px;
+    margin: 20px auto 0;
+    color: var(--inksoft);
+    font-size: 1.02rem;
+    line-height: 1.55;
+  }
+  .home-hand {
+    font-family: var(--hand);
+    font-size: 1.24em;
+    color: var(--coral);
+    white-space: nowrap;
+  }
+
+  .home-composer {
+    position: relative;
+    max-width: 760px;
+    margin: 30px auto 0;
+    padding: 14px 16px 13px;
+    border-radius: 20px;
+    text-align: left;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .home-composer:focus-within {
+    transform: translate(-2px, -2px);
+    box-shadow: 7px 7px 0 0 var(--ink),
+                0 0 0 4px color-mix(in srgb, var(--mustard) 55%, transparent);
+  }
+  .home-composer textarea {
+    display: block;
+    width: 100%;
+    min-height: 66px;
+    max-height: 220px;
+    padding: 6px 4px 2px;
+    border: 0;
+    outline: none;
+    resize: none;
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--fonts);
+    font-size: 1.06rem;
+    line-height: 1.55;
+  }
+  .home-composer textarea::placeholder {
+    color: color-mix(in srgb, var(--inksoft) 72%, transparent);
+  }
+  .home-composer-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 6px;
+  }
+  .home-hint {
+    margin-right: auto;
+    font-family: var(--mono);
+    font-size: .6rem;
+    letter-spacing: .03em;
+    color: var(--inksoft);
+  }
+  .home-hint kbd {
+    border: 1.5px solid var(--borderline);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: var(--paper);
+    padding: .04rem .28rem;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: .58rem;
+  }
+  .home-hint span { opacity: .5; }
+  .home-send { gap: .42rem; padding: .55rem .95rem; font-size: .82rem; }
+  .home-send svg { width: 14px; height: 14px; }
+  .home-send:disabled {
+    opacity: .55;
+    cursor: progress;
+    transform: none;
+    box-shadow: 3px 3px 0 0 var(--ink);
+  }
+
+  .home-sugs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    max-width: 760px;
+    margin: 18px auto 0;
+  }
+  .home-sugs .sug { font-family: var(--fonts); font-size: .72rem; }
+
+  .home-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    max-width: 760px;
+    margin: 34px auto 0;
+  }
+  .home-turn { display: flex; flex-direction: column; gap: 10px; scroll-margin-top: 24px; }
+
+  .home-q {
+    align-self: flex-end;
+    max-width: 84%;
+    border: 2px solid var(--ink);
+    border-radius: 14px 14px 4px 14px;
+    background: var(--ink);
+    box-shadow: 3px 3px 0 0 var(--mustard);
+    color: var(--paper);
+    padding: 9px 13px;
+  }
+  .home-q p {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: .9rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+  }
+  .home-q .msg-meta {
+    margin-top: 4px;
+    color: color-mix(in srgb, var(--paper) 62%, transparent);
+    text-align: right;
+  }
+
+  .home-a {
+    max-width: 96%;
+    border: 2px solid var(--ink);
+    border-radius: 16px 16px 16px 5px;
+    background: var(--cardz);
+    box-shadow: 5px 5px 0 0 var(--ink);
+    padding: 14px 16px 12px;
+  }
+  .home-a.is-empty { background: #fff0ea; box-shadow: 5px 5px 0 0 var(--borderline); }
+  .home-a-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .home-a-head .ava { width: 28px; height: 28px; margin: 0; }
+  .home-a-head .ava svg { width: 18px; height: 18px; }
+  .home-a-tag {
+    font-family: var(--mono);
+    font-size: .57rem;
+    font-weight: 600;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--inksoft);
+  }
+  .home-a.is-empty .home-a-tag { color: var(--coral); }
+  .home-a-method {
+    margin-left: auto;
+    border: 1.5px solid var(--borderline);
+    border-radius: 999px;
+    padding: .08rem .45rem;
+    font-family: var(--mono);
+    font-size: .55rem;
+    color: var(--inksoft);
+  }
+  .home-a-text {
+    margin: 10px 0 0;
+    overflow-wrap: anywhere;
+    font-size: .96rem;
+    line-height: 1.62;
+    white-space: pre-wrap;
+  }
+
+  .home-cites { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+  .home-cite {
+    cursor: pointer;
+    border-radius: 999px;
+    padding: .1rem .52rem;
+    font-family: var(--mono);
+    font-size: .6rem;
+    transition: transform .1s ease, box-shadow .1s ease;
+  }
+  .home-cite:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0 0 var(--ink); }
+  .home-cite .t { font-weight: 600; }
+  .home-cite-detail {
+    flex-basis: 100%;
+    border-left: 2px solid var(--mustard);
+    border-radius: 0 6px 6px 0;
+    background: var(--secondary);
+    padding: 6px 8px;
+    color: var(--inksoft);
+    font-family: var(--mono);
+    font-size: .61rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+  }
+
+  .home-a .chat-evidence { margin-top: 12px; }
+  .home-a .chat-evidence a { display: inline-flex; }
+
+  .home-a-foot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1.5px dashed var(--borderline);
+    color: var(--inksoft);
+    font-family: var(--mono);
+    font-size: .56rem;
+    letter-spacing: .03em;
+  }
+  .home-copy {
+    margin-left: auto;
+    border: 0;
+    background: none;
+    color: var(--inksoft);
+    font-family: var(--mono);
+    font-size: .56rem;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+  .home-copy:hover { color: var(--coral); }
+
+  .home-thinking { display: flex; align-items: center; gap: 10px; padding: 3px 1px; }
+  .home-thinking .ava { width: 28px; height: 28px; margin: 0; }
+  .home-thinking .ava svg { width: 18px; height: 18px; }
+  .home-dots { display: inline-flex; gap: 4px; }
+  .home-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--coral);
+    animation: home-bounce 1s infinite ease-in-out;
+  }
+  .home-dots span:nth-child(2) { animation-delay: .14s; }
+  .home-dots span:nth-child(3) { animation-delay: .28s; }
+  @keyframes home-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: .55; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+  .home-think-text { font-family: var(--hand); font-size: 1.06rem; color: var(--inksoft); }
+
+  .home-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    max-width: 620px;
+    margin: 34px auto 0;
+    color: var(--inksoft);
+    font-family: var(--hand);
+    font-size: 1.13rem;
+    text-align: center;
+  }
+  .home-empty svg { flex: 0 0 auto; width: 46px; height: 26px; opacity: .8; }
+  .home-empty[hidden] { display: none; }
+
+  .home-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    max-width: 760px;
+    width: 100%;
+    margin: 44px auto 0;
+    padding-top: 12px;
+    border-top: 2px dashed var(--borderline);
+    color: var(--inksoft);
+    font-family: var(--mono);
+    font-size: .59rem;
+    letter-spacing: .04em;
+  }
+
+  .home-glow {
+    position: fixed;
+    z-index: 0;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(70px);
+  }
+  .home-glow-a { width: 430px; height: 430px; top: -170px; left: -110px; background: var(--mustard); opacity: .28; }
+  .home-glow-b { width: 360px; height: 360px; top: -120px; right: -120px; background: var(--coral); opacity: .16; }
+  .home-glow-c { width: 340px; height: 340px; bottom: -190px; left: 34%; background: var(--mint); opacity: .13; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (max-width: 680px) {
+    .home { padding: 12px 14px 34px; }
+    .home-top { gap: 10px; }
+    .home-top .brand-sub { display: none; }
+    .home-top .btnz { display: none; }
+    .home-title { font-size: clamp(2.45rem, 11.2vw, 3.4rem); }
+    .home-hero { padding-top: 34px; }
+    .home-hint { font-size: .55rem; }
+    .home-q { max-width: 92%; }
+    .home-a { max-width: 100%; }
+    .home-foot { font-size: .55rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-composer, .home-cite, .home-turn, .home-dots span, .floaty { transition: none; animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="home-glow home-glow-a" aria-hidden="true"></div>
+<div class="home-glow home-glow-b" aria-hidden="true"></div>
+<div class="home-glow home-glow-c" aria-hidden="true"></div>
+
+<div class="home">
+  <header class="z-topbar home-top">
+    <a class="brand" href="/" aria-label="Chronicle mission control">
+      <span class="brand-fig floaty">
+        <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <path d="M4 24 C 12 10, 36 10, 44 24 C 36 38, 12 38, 4 24 Z"
+                fill="#fffcf4" stroke="#26221a" stroke-width="3" stroke-linejoin="round"/>
+          <circle cx="24" cy="24" r="8.5" fill="#ffd34d" stroke="#26221a" stroke-width="3"/>
+          <circle cx="24" cy="24" r="3.4" fill="#26221a"/>
+          <circle cx="27" cy="21" r="1.4" fill="#fffcf4"/>
+        </svg>
+      </span>
+      <div>
+        <div class="brand-name">Chronicle<span class="dotz">.</span></div>
+        <div class="brand-sub">a head-cam that remembers</div>
+      </div>
+    </a>
+    <div class="topbar-spacer"></div>
+    <span class="chipz home-status" id="memory-status" title="checking the vault…">
+      <span class="dot"></span><span id="status-text">checking memory…</span>
+    </span>
+    <a class="btnz" href="/">
+      mission control
+      <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">
+        <path d="M3 8 H13 M9 4 L13 8 L9 12" stroke="currentColor" stroke-width="1.9"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </header>
+
+  <main class="home-main">
+    <section class="home-hero">
+      <div class="home-kicker">
+        <span class="rec-dot"></span>
+        video-free memory
+        <span class="home-kicker-sep">/</span>
+        deterministic
+      </div>
+      <h1 class="home-title">Ask your <span class="home-nowrap"><span class="home-mark">memory</span><span class="home-spark">✦</span><span class="home-period">.</span></span></h1>
+      <p class="home-lede">
+        The camera saw it, the vault kept it.
+        <span class="home-hand">No video, no model, no network.</span>
+      </p>
+    </section>
+
+    <form class="home-composer zcard" id="composer" autocomplete="off">
+      <span class="tape" style="width:74px" aria-hidden="true"></span>
+      <label class="sr-only" for="q">Ask your memory a question</label>
+      <textarea id="q" rows="2" maxlength="600" spellcheck="true"
+                placeholder="Where did I leave the keys?"></textarea>
+      <div class="home-composer-foot">
+        <span class="home-hint">
+          <kbd>Enter</kbd> to ask <span>·</span>
+          <kbd>Shift</kbd>+<kbd>Enter</kbd> new line
+        </span>
+        <button class="btnz btnz-ink home-send" id="send" type="submit">
+          ask
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 8 L14 2 L9.5 14 L7.5 9 Z" stroke="currentColor" stroke-width="1.8"
+                  stroke-linejoin="round" fill="currentColor" fill-opacity="0.25"/>
+          </svg>
+        </button>
+      </div>
+    </form>
+
+    <div class="home-sugs" id="sugs" aria-label="Example questions"></div>
+
+    <section class="home-thread" id="thread" aria-live="polite" aria-label="Answers"></section>
+
+    <div class="home-empty" id="empty">
+      <svg viewBox="0 0 60 34" fill="none" aria-hidden="true">
+        <path d="M4 6 C 22 4, 42 10, 50 24" stroke="#ff6b4a" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M50 24 L 41 21 M50 24 L 49 14" stroke="#ff6b4a" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <span>Ask about anything the camera saw — places, counts, firsts and lasts.</span>
+    </div>
+  </main>
+
+  <footer class="home-foot">
+    <span>chronicle · grounded in the vault</span>
+    <span id="clip-note">memory: demo</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const EYE_SVG =
+    '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true" width="22" height="22">' +
+      '<path d="M4 24 C 12 10, 36 10, 44 24 C 36 38, 12 38, 4 24 Z" fill="#fffcf4" stroke="#26221a" stroke-width="3"/>' +
+      '<circle cx="24" cy="24" r="8.5" fill="#ffd34d" stroke="#26221a" stroke-width="3"/>' +
+      '<circle cx="24" cy="24" r="3.4" fill="#26221a"/>' +
+    '</svg>';
+
+  const SUGGESTIONS = [
+    "Where is the mug?",
+    "When did I last see the keys?",
+    "What was on the table?",
+    "How many bottles are there?"
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const clip = (new URLSearchParams(location.search).get("clip") || "").trim();
+  const clipQS = clip ? "?clip=" + encodeURIComponent(clip) : "";
+  const thread = $("thread");
+  const empty = $("empty");
+  const form = $("composer");
+  const input = $("q");
+  const send = $("send");
+  const statusEl = $("memory-status");
+  const statusText = $("status-text");
+
+  let busy = false;
+
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  };
+
+  const avatar = () => {
+    const node = el("span", "ava");
+    node.innerHTML = EYE_SVG;  // trusted constant
+    return node;
+  };
+
+  const setStatus = (kind, text, title) => {
+    statusEl.className = "chipz home-status is-" + kind;
+    statusText.textContent = text;
+    statusEl.title = title || text;
+  };
+
+  const clock = () => {
+    try {
+      return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch (_) {
+      return "now";
+    }
+  };
+
+  async function loadStatus() {
+    try {
+      const res = await fetch("/api/vfm/status" + clipQS, { headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      const state = String(data.status || "");
+      const message = String(data.message || "");
+      if (state === "done") {
+        setStatus("ready", "memory ready", message || "compiled vault loaded");
+      } else if (state === "queued" || state === "running") {
+        setStatus("busy", "compiling memory…", message || "the vault is still being built");
+        setTimeout(loadStatus, 5000);
+      } else {
+        setStatus("warn", "no vault yet", message || "no compiled memory for this clip");
+      }
+    } catch (_) {
+      setStatus("off", "backend offline",
+        "Could not reach /api/vfm/status. This page needs the Chronicle app, not a plain static host.");
+    }
+  }
+
+  SUGGESTIONS.forEach((text, index) => {
+    const button = el("button", "chipz sug" + (index === 0 ? " first" : ""), text);
+    button.type = "button";
+    button.addEventListener("click", () => ask(text));
+    $("sugs").appendChild(button);
+  });
+
+  function thinking() {
+    const row = el("div", "home-thinking");
+    row.append(avatar());
+    const dots = el("span", "home-dots");
+    dots.append(el("span"), el("span"), el("span"));
+    row.append(dots, el("span", "home-think-text", "reading the vault…"));
+    return row;
+  }
+
+  function ask(question) {
+    const text = String(question || "").trim();
+    if (!text || busy) return;
+
+    busy = true;
+    send.disabled = true;
+    input.value = "";
+    grow();
+    empty.hidden = true;
+
+    const turn = el("article", "home-turn");
+    const questionBox = el("div", "home-q");
+    questionBox.append(el("p", null, text));
+    questionBox.append(el("div", "msg-meta", "you · " + clock()));
+
+    const card = el("div", "home-a");
+    card.append(thinking());
+    turn.append(questionBox, card);
+    thread.appendChild(turn);
+    turn.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    fetch("/api/vfm/ask" + clipQS, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ question: text })
+    })
+      .then(async (res) => {
+        let data = null;
+        try { data = await res.json(); } catch (_) { /* keep null */ }
+        if (!res.ok) {
+          const message = (data && data.error) ? String(data.error) : "HTTP " + res.status;
+          throw new Error(message);
+        }
+        return data || {};
+      })
+      .then((data) => renderAnswer(card, data))
+      .catch((error) => renderError(card, String(error && error.message || error)))
+      .finally(() => {
+        busy = false;
+        send.disabled = false;
+        input.focus();
+      });
+  }
+
+  function renderAnswer(card, data) {
+    card.textContent = "";
+    const method = String(data.method || "vault").replace(/^cache:/, "");
+    const noMatch = method === "no-match" || method.startsWith("no-match");
+    if (noMatch) card.classList.add("is-empty");
+    else card.classList.remove("is-empty");
+
+    const head = el("div", "home-a-head");
+    head.append(avatar());
+    head.append(el("span", "home-a-tag", noMatch ? "not in memory" : "vault answer"));
+    head.append(el("span", "home-a-method", method));
+    card.append(head);
+    card.append(el("p", "home-a-text", String(data.answer || "No answer was produced.")));
+
+    const citations = Array.isArray(data.citations) ? data.citations : [];
+    if (citations.length) {
+      const wrap = el("div", "home-cites");
+      citations.slice(0, 6).forEach((citation) => {
+        const stamp = Number(citation && citation.t);
+        const button = el("button", "chipz home-cite");
+        button.type = "button";
+        button.append(el("span", "t", Number.isFinite(stamp) ? "t=" + stamp.toFixed(1) + "s" : "note"));
+        const detail = String((citation && (citation.caption || citation.subject)) || "");
+        if (detail) {
+          button.title = detail;
+          button.addEventListener("click", () => {
+            const open = wrap.querySelector(".home-cite-detail");
+            if (open) open.remove();
+            const note = el("div", "home-cite-detail", detail);
+            wrap.appendChild(note);
+          });
+        }
+        wrap.appendChild(button);
+      });
+      card.append(wrap);
+    }
+
+    const evidence = Array.isArray(data.evidence) ? data.evidence : [];
+    if (evidence.length) {
+      const strip = el("div", "chat-evidence");
+      evidence.slice(0, 4).forEach((item) => {
+        const name = String((item && item.rel_path) || "").split("/").pop();
+        if (!name) return;
+        const link = document.createElement("a");
+        link.href = "/api/vfm/evidence" + clipQS + (clipQS ? "&" : "?") + "name=" + encodeURIComponent(name);
+        link.target = "_blank";
+        link.rel = "noopener";
+        const label = String((item && (item.label || item.kind)) || "evidence");
+        const stamp = Number(item && item.t);
+        const alt = label + (Number.isFinite(stamp) ? " at t=" + stamp.toFixed(1) + "s" : "");
+        const img = document.createElement("img");
+        img.src = link.href;
+        img.alt = alt;
+        img.loading = "lazy";
+        img.addEventListener("error", () => link.remove());
+        link.appendChild(img);
+        strip.appendChild(link);
+      });
+      if (strip.childElementCount) card.append(strip);
+    }
+
+    const foot = el("div", "home-a-foot");
+    const elapsed = Number(data.elapsed_ms);
+    const confidence = Number(data.confidence);
+    const bits = [
+      Number.isFinite(elapsed) ? Math.max(0, Math.round(elapsed)) + " ms" : null,
+      data.cached ? "cached" : "fresh",
+      Number.isFinite(confidence) ? "confidence " + confidence.toFixed(2) : null
+    ].filter(Boolean);
+    foot.append(el("span", null, bits.join(" · ")));
+    const copy = el("button", "home-copy", "copy");
+    copy.type = "button";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(String(data.answer || ""));
+        copy.textContent = "copied ✓";
+        setTimeout(() => { copy.textContent = "copy"; }, 1400);
+      } catch (_) {
+        copy.textContent = "copy failed";
+        setTimeout(() => { copy.textContent = "copy"; }, 1400);
+      }
+    });
+    foot.append(copy);
+    card.append(foot);
+  }
+
+  function renderError(card, message) {
+    card.textContent = "";
+    card.classList.add("is-empty");
+    const head = el("div", "home-a-head");
+    head.append(avatar());
+    head.append(el("span", "home-a-tag", "not available"));
+    head.append(el("span", "home-a-method", "offline"));
+    const missing = /not compiled|no compiled|memory is not/i.test(message);
+    const text = missing
+      ? "This server has no compiled memory for this clip yet."
+      : "I couldn't read the memory.";
+    card.append(head, el("p", "home-a-text", text));
+    card.append(el("div", "home-cite-detail",
+      missing
+        ? "Add a vault under data/vfm/<clip>/ (or bake one into the deploy), then reload."
+        : message));
+    const foot = el("div", "home-a-foot");
+    foot.append(el("span", null, "chronicle · vault error"));
+    card.append(foot);
+  }
+
+  function grow() {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight || 66, 220) + "px";
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    ask(input.value);
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+  input.addEventListener("input", grow);
+
+  $("clip-note").textContent = "memory: " + (clip || "demo");
+  const prefill = new URLSearchParams(location.search).get("q");
+  if (prefill) {
+    input.value = prefill;
+    grow();
+  }
+
+  loadStatus();
+  grow();
+  if (window.matchMedia && window.matchMedia("(pointer: fine)").matches) input.focus();
+})();
+</script>
+</body>
+</html>

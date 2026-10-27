@@ -57,7 +57,8 @@ def manager(data_dir: Path | str) -> VFMJobManager:
             root,
             enabled=enabled(),
             window_s=float(os.getenv("CHRONICLE_VFM_WINDOW_S", "20")),
-            frames_per_window=int(os.getenv("CHRONICLE_VFM_FRAMES", "3")),
+            frames_per_window=int(os.getenv("CHRONICLE_VFM_FRAMES", "6")),
+            caption_workers=int(os.getenv("CHRONICLE_VFM_WORKERS", "4")),
         )
         _MANAGERS[root] = instance
     return instance

@@ -34,7 +34,9 @@ from .extract_evidence import extract as extract_evidence
 from .report import build_report
 
 DEFAULT_WINDOW_S = 30.0
-DEFAULT_FRAMES_PER_WINDOW = 3
+#: Six frames per 30 s window (one every ~5 s). Three was too sparse for
+#: 15-minute clips: a person visible at t=96 s was first captioned at t=165 s.
+DEFAULT_FRAMES_PER_WINDOW = 6
 DEFAULT_MAX_SNAPSHOTS = 40
 EVIDENCE_WIDTH = 480
 EVIDENCE_QUALITY = 75
@@ -238,6 +240,7 @@ def compile_memory(
     max_ledger_windows: int = 0,
     progress: Callable[[str, int, str], None] | None = None,
     log: Callable[[str], None] | None = None,
+    caption_workers: int = 1,
 ) -> dict[str, Any]:
     """Compile one video/DB pair into a downloadable memory.
 
@@ -291,18 +294,23 @@ def compile_memory(
     if ledger_file is None and video_path is not None:
         _stage("captions", 15, f"captioning {window_s:g}s windows from the source video")
         builder = captioner or caption_ledger.build_ledger
+        builder_kwargs: dict[str, Any] = {
+            "model": vlm_model,
+            "host": vlm_host,
+            "window_s": window_s,
+            "frames_per_window": frames_per_window,
+            "width": frame_width,
+            "timeout": vlm_timeout,
+            "synth_model": synth_model,
+            "max_windows": max_ledger_windows,
+        }
+        if captioner is None:
+            builder_kwargs["workers"] = caption_workers
         try:
             caption_summary = builder(
                 video_path,
                 job_dir / "ledger.json",
-                model=vlm_model,
-                host=vlm_host,
-                window_s=window_s,
-                frames_per_window=frames_per_window,
-                width=frame_width,
-                timeout=vlm_timeout,
-                synth_model=synth_model,
-                max_windows=max_ledger_windows,
+                **builder_kwargs,
             )
             if int(caption_summary.get("windows") or 0) > 0:
                 ledger_file = job_dir / "ledger.json"
@@ -586,6 +594,7 @@ class VFMJobManager:
         vlm_timeout: float = 300.0,
         delete_video: bool = False,
         captioner: Callable[..., dict[str, Any]] | None = None,
+        caption_workers: int = 4,
         enabled: bool = True,
     ) -> None:
         self.data_dir = Path(data_dir).expanduser().resolve()
@@ -600,6 +609,7 @@ class VFMJobManager:
         self.vlm_timeout = float(vlm_timeout)
         self.delete_video = bool(delete_video)
         self.captioner = captioner
+        self.caption_workers = max(1, int(caption_workers))
         self.enabled = bool(enabled)
         self._jobs: dict[str, VFMJob] = {}
         self._lock = threading.RLock()
@@ -793,6 +803,7 @@ class VFMJobManager:
                 synth_model=self.synth_model,
                 progress=_progress,
                 log=job._log,
+                caption_workers=self.caption_workers,
             )
             with job.lock:
                 job.status = "done"

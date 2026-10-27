@@ -282,8 +282,8 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument(
         "--vfm-frames-per-window",
         type=int,
-        default=3,
-        help="frames captioned per VLM window (default: 3)",
+        default=6,
+        help="frames captioned per VLM window (default: 6)",
     )
     serve.add_argument(
         "--vfm-max-snapshots",
