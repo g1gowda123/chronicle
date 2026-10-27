@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import importlib
 import io
 import zipfile
 from pathlib import Path
-
-import importlib
 
 from fastapi.testclient import TestClient
 
@@ -66,11 +65,15 @@ def test_toolbar_has_export_import_controls() -> None:
     html = theme.video_html({"video_url": "/media/demo.mp4", "title": "Demo"})
     assert "Chronicle.exportGraphs()" in html
     assert "Chronicle.importGraphs(this)" in html
+    # Export points out/up; import points in/down (they used to be swapped).
+    assert "⤒ export" in html
+    assert "⤓ import" in html
     js = (ROOT / "dashboard" / "static" / "chronicle.js").read_text(encoding="utf-8")
     assert "exportGraphs()" in js
     assert "importGraphs(input)" in js
     assert "/api/export/graphs.zip" in js
     assert "/api/import/graphs" in js
+    assert 'link.download = "chronicle_graphs.zip"' in js
 
 
 def test_export_endpoint_returns_zip() -> None:

@@ -966,15 +966,17 @@
           if (!data || !data.video_url) throw new Error((data && data.error) || "upload failed");
           const clip = byId("chron-clip");
           const value = "video:" + data.path;
+          let option = null;
           if (clip) {
-            const option = document.createElement("option");
+            option = document.createElement("option");
             option.value = value;
-            option.textContent = data.title || file.name;
+            option.textContent = (data.title || file.name) + " · processing…";
             clip.appendChild(option);
             clip.value = value;
           }
           if (window.emitEvent) emitEvent("chron-replay", value);
-          if (status) status.textContent = "clip uploaded · playing";
+          if (status) status.textContent = "clip saved · running perception…";
+          if (data.upload) this.watchUpload(data, option, status);
         })
         .catch((error) => {
           if (status) status.textContent = "upload failed";
@@ -983,6 +985,59 @@
         .finally(() => {
           input.value = "";
         });
+    },
+
+    watchUpload(data, option, status) {
+      const key = data.upload;
+      const started = Date.now();
+      const title = data.title || "uploaded clip";
+      const tick = () => {
+        fetch("/api/upload/status?key=" + encodeURIComponent(key), { cache: "no-store" })
+          .then((response) => response.json())
+          .then((state) => {
+            if (!state || state.status === "error") {
+              if (option) option.textContent = title + " · failed";
+              if (status) {
+                status.textContent =
+                  "perception failed · " +
+                  ((state && (state.error || state.message)) || "unknown error");
+              }
+              return;
+            }
+            if (state.status === "done") {
+              const events = state.events ? "events:" + state.events : "";
+              const clip = byId("chron-clip");
+              const wasSelected = Boolean(clip && option && clip.value === option.value);
+              if (option) {
+                option.textContent = title;
+                if (events) option.value = events;
+              }
+              if (wasSelected && events) {
+                clip.value = events;
+                if (window.emitEvent) emitEvent("chron-replay", events);
+              }
+              if (status) {
+                const summary = state.summary || {};
+                const tracks = summary.entities ? summary.entities + " tracks · " : "";
+                status.textContent =
+                  "clip ready · " + tracks + (state.detections || 0) + " detections";
+              }
+              return;
+            }
+            const pct = typeof state.progress === "number" ? state.progress : 0;
+            if (option) option.textContent = title + " · " + pct + "%";
+            if (status) {
+              status.textContent =
+                "perception " + pct + "% · " + (state.message || state.stage || "running");
+            }
+            if (Date.now() - started < 45 * 60 * 1000) setTimeout(tick, 1000);
+          })
+          .catch((error) => {
+            if (status) status.textContent = "perception status unavailable";
+            console.error(error);
+          });
+      };
+      setTimeout(tick, 800);
     },
 
     async exportGraphs() {

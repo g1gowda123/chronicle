@@ -17,15 +17,16 @@ CHRONICLE_OLLAMA_URL   Ollama base URL (default http://127.0.0.1:11434)
 
 from __future__ import annotations
 
-import re
+import shutil
 from pathlib import Path
 from typing import Any
 
 from fastapi import Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from nicegui import app, ui
+from starlette.concurrency import run_in_threadpool
 
-from . import memory, transfer
+from . import memory, processing, transfer
 from .runtime import clip_title, default_data_dir, probe_duration, runtime
 from .ui.page import build_dashboard
 
@@ -114,19 +115,16 @@ async def ingest(request: Request) -> JSONResponse:
 
 @app.post("/api/upload")
 async def upload(request: Request) -> JSONResponse:
-    """Store an uploaded clip under ``data/uploads`` and return its URL."""
+    """Accept a clip, start perception, and return while it processes.
+
+    The file is stored as ``data/uploads/<run-id>/source.mp4`` and registered
+    like a bundled source. A background worker then builds its graph DB and
+    replay, so the clip gains detections, object tags and a VFM memory.
+    """
     raw_name = Path(str(request.query_params.get("name") or "clip.mp4")).name
     suffix = Path(raw_name).suffix.lower()
-    if suffix not in {".mp4", ".webm", ".mov", ".mkv"}:
+    if suffix not in processing.VIDEO_SUFFIXES:
         return JSONResponse({"error": "unsupported video type"}, status_code=400)
-    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(raw_name).stem).strip("-") or "clip"
-    uploads = DATA_DIR / "uploads"
-    uploads.mkdir(parents=True, exist_ok=True)
-    target = uploads / f"{stem}{suffix}"
-    counter = 1
-    while target.exists():
-        counter += 1
-        target = uploads / f"{stem}-{counter}{suffix}"
     body = await request.body()
     if not body:
         return JSONResponse({"error": "empty upload"}, status_code=400)
@@ -134,7 +132,26 @@ async def upload(request: Request) -> JSONResponse:
         return JSONResponse({"error": "not a video file (Git-LFS placeholder?)"}, status_code=400)
     if len(body) > 512 * 1024 * 1024:
         return JSONResponse({"error": "file too large"}, status_code=413)
+
+    try:
+        target = processing.new_upload_target(DATA_DIR, raw_name)
+    except processing.UploadError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+
     target.write_bytes(body)
+    probe = await run_in_threadpool(processing.probe_video, target)
+    if probe is None:
+        shutil.rmtree(target.parent, ignore_errors=True)
+        return JSONResponse({"error": "the uploaded file is not a decodable video"}, status_code=400)
+
+    vocabulary = processing.parse_vocabulary(request.query_params.get("vocab"))
+    source = processing.register_upload(
+        DATA_DIR,
+        target,
+        original_name=raw_name,
+        vocabulary=vocabulary,
+    )
+    job = processing.processor(DATA_DIR).submit(target.parent, target, source)
     rel = target.relative_to(DATA_DIR).as_posix()
     return JSONResponse(
         {
@@ -143,8 +160,23 @@ async def upload(request: Request) -> JSONResponse:
             "title": clip_title(target),
             "duration": probe_duration(target),
             "bytes": len(body),
+            "upload": job.key,
+            "status": job.status,
+            "events": job.events,
+            "vocabulary": list(vocabulary),
         }
     )
+
+
+@app.get("/api/upload/status")
+async def upload_status(request: Request) -> JSONResponse:
+    """Report perception progress for one uploaded clip."""
+
+    key = str(request.query_params.get("key") or "").strip()
+    state = processing.processor(DATA_DIR).status(key)
+    if state is None:
+        return JSONResponse({"error": "unknown upload"}, status_code=404)
+    return JSONResponse(state)
 
 
 # --------------------------------------------------------------------------- #

@@ -27,4 +27,5 @@ def test_client_has_answer_time_screenshot_and_lightbox() -> None:
     css = (ROOT / "dashboard" / "static" / "chronicle.css").read_text(encoding="utf-8")
     assert ".chron-shot-modal" in css
     assert ".video-stage:fullscreen" in css
-    assert 'chronicle.js?v=4' in theme.HEAD_HTML
+    assert "chronicle.js?v=" in theme.HEAD_HTML
+    assert "chronicle.css?v=" in theme.HEAD_HTML

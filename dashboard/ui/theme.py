@@ -8,19 +8,42 @@ runtime as before (:meth:`dashboard.ui.page.build_dashboard`).
 from __future__ import annotations
 
 import html
+from pathlib import Path
 from typing import Any
 
-HEAD_HTML = """
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+
+
+def _asset_version(filename: str) -> str:
+    """Return a cache-buster that changes whenever a static asset changes.
+
+    ``/chronicle`` files are served with ``cache-control: max-age=3600``, so a
+    hard-coded ``?v=`` tag goes stale as soon as the asset is edited. Deriving
+    the tag from the file's mtime keeps browsers from running old JavaScript.
+    """
+    try:
+        return str((_STATIC_DIR / filename).stat().st_mtime_ns)
+    except OSError:
+        return "1"
+
+
+_HEAD_TEMPLATE = """
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Caveat:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap">
-<link rel="stylesheet" href="/chronicle/chronicle.css?v=4">
+<link rel="stylesheet" href="/chronicle/chronicle.css?v=__CSS_VERSION__">
 <script defer src="/chronicle/vis-network.min.js?v=1"></script>
-<script defer src="/chronicle/chronicle.js?v=4"></script>
+<script defer src="/chronicle/chronicle.js?v=__JS_VERSION__"></script>
 <meta name="theme-color" content="#faf3e3">
 <meta name="color-scheme" content="light">
 <style>html,body{background:#faf3e3;color:#26221a}</style>
-""".strip()
+"""
+
+HEAD_HTML = (
+    _HEAD_TEMPLATE.strip()
+    .replace("__CSS_VERSION__", _asset_version("chronicle.css"))
+    .replace("__JS_VERSION__", _asset_version("chronicle.js"))
+)
 
 EYE_LOGO = """
 <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
@@ -210,9 +233,10 @@ def video_html(snapshot: dict[str, Any], replays: list[dict[str, str]] | None = 
              onchange="Chronicle.uploadClip(this)">
     </label>
     <button class="btnz btnz-ghost" onclick="Chronicle.exportGraphs()"
-            title="Download every graph/timeline on this machine as one ZIP">⤓ export</button>
+            title="Download every graph/timeline on this machine as one ZIP"
+            aria-label="Export graphs as one ZIP">⤒ export</button>
     <label class="btnz btnz-ghost" title="Import a Chronicle graph ZIP (no re-ingest)">
-      ⤒ import
+      ⤓ import
       <input type="file" id="chron-import" accept=".zip,application/zip" hidden
              onchange="Chronicle.importGraphs(this)">
     </label>

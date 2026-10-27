@@ -142,7 +142,6 @@ def _clip_options() -> list[dict[str, str]]:
     except Exception:  # registry must never take the dashboard down
         pass
 
-    stems = {Path(option["value"].split(":", 1)[1]).stem for option in options}
     for folder in (base / "real", base / "uploads"):
         if not folder.is_dir():
             continue
@@ -156,13 +155,14 @@ def _clip_options() -> list[dict[str, str]]:
                 continue
             entry = _clip_entry(video, base)
             rel = entry["value"].split(":", 1)[1]
-            if rel in seen or rel == "demo/chronicle_demo.mp4" or video.stem in stems:
+            # Uploads all use the same ``source.mp4`` filename, so dedupe on
+            # the relative path (their run folder) rather than the stem.
+            if rel in seen or rel == "demo/chronicle_demo.mp4":
                 continue
             if not entry["value"].startswith("events:"):
                 entry["title"] += " · video only"
             options.append(entry)
             seen.add(rel)
-            stems.add(video.stem)
 
     options.sort(key=lambda option: not option["value"].startswith("events:"))
     return options
