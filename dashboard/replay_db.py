@@ -64,6 +64,19 @@ def events_from_db(
     if not events:
         return []
 
+    # The mirror timestamps entity rows at last_seen; rewind them to first_seen
+    # so labels (person/cup/car/...) exist from the moment the track appears.
+    for event in events:
+        if event.get("kind") != "entity":
+            continue
+        data = event.get("data") or {}
+        first = data.get("first_seen")
+        if first is not None:
+            try:
+                event["t"] = max(0.0, float(first))
+            except (TypeError, ValueError):
+                pass
+
     duration = max((float(event.get("t") or 0.0) for event in events), default=0.0)
     if video_path is not None and Path(video_path).is_file():
         duration = max(duration, probe_duration(Path(video_path)))

@@ -7,18 +7,41 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_VOCABULARY: tuple[str, ...] = (
+    # everyday egocentric objects
     "keys",
     "phone",
     "mug",
-    "backpack",
     "cup",
+    "bottle",
+    "backpack",
+    "bag",
+    "wallet",
+    "notebook",
+    "pen",
+    "book",
+    "glasses",
+    # furniture / room
     "table",
+    "desk",
+    "chair",
     "sofa",
+    "shelf",
+    "cabinet",
+    "door",
+    "window",
+    "trash can",
+    "whiteboard",
+    # computer-lab kit
     "monitor",
+    "laptop",
     "mouse",
     "keyboard",
-    "laptop",
-    "desk",
+    "headphones",
+    "charger",
+    "cable",
+    "router",
+    "tv",
+    "person",
 )
 
 CS_LAB_VOCABULARY: tuple[str, ...] = (
@@ -62,9 +85,26 @@ DEFAULT_ALIASES: dict[str, str] = {
     "notebook": "laptop",
     "couch": "sofa",
     "screen": "monitor",
+    "display": "monitor",
     "computer monitor": "monitor",
     "computer screen": "monitor",
     "computer mouse": "mouse",
+    "computer keyboard": "keyboard",
+    "laptop computer": "laptop",
+    "notebook computer": "laptop",
+    "back pack": "backpack",
+    "handbag": "bag",
+    "tote bag": "bag",
+    "shoulder bag": "bag",
+    "notepad": "notebook",
+    "headphone": "headphones",
+    "earphones": "headphones",
+    "power adapter": "charger",
+    "usb cable": "cable",
+    "charging cable": "cable",
+    "white board": "whiteboard",
+    "garbage can": "trash can",
+    "bin": "trash can",
 }
 
 #: Opt-in broad prompt set for uploaded clips.  YOLO-World is open-vocabulary

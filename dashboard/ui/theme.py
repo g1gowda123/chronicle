@@ -106,6 +106,25 @@ def topbar_html(session: dict[str, Any], snapshot: dict[str, Any]) -> str:
     <span class="metric" title="VLM actions verified"><span class="metric-val" id="metric-actions">—</span><span class="metric-label">actions</span></span>
   </div>
   <div class="topbar-spacer"></div>
+  <div class="topbar-actions">
+    <a class="btnz" href="/api/export" download="chronicle-memory.zip"
+       title="Download the memory bundle (.zip): graphs, tables, replay timelines">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+        <path d="M8 2 V10 M4.5 7 L8 10.5 L11.5 7 M3 13 H13" stroke="currentColor"
+              stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      export
+    </a>
+    <label class="btnz" title="Import a Chronicle memory bundle (.zip)">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+        <path d="M8 10.5 V2.5 M4.5 6 L8 2.5 L11.5 6 M3 13 H13" stroke="currentColor"
+              stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      import
+      <input type="file" id="chron-import" accept=".zip,application/zip" hidden
+             onchange="Chronicle.importBundle(this)">
+    </label>
+  </div>
   <span class="chipz chipz-secondary" title="episode · query provider"><span id="chron-episode-title">{title}</span> · <span id="chron-provider-chip">{provider}</span></span>
   <span class="chipz chipz-lg status-pill {pill_cls}" id="chron-mode">
     <span class="pill-dot"></span><span id="chron-mode-badge">{_e(pill_label.upper())}</span>

@@ -221,6 +221,7 @@ transition invariants rather than claiming accuracy on unlabelled clips; pass
 pip install -r requirements-semantic.txt   # NumPy + Pillow; demo works offline
 python -m chronicle.semantic.demo
 python -m chronicle.semantic.evaluation    # GraphRAG eval: 13 cases, citation precision
+python scripts/benchmark_llm.py --backend all  # accuracy / latency / tokens by backend
 python -m chronicle.semantic.calibration \
   --labels docs/calibration_labels.holoassist.json   # per-action thresholds from real labels
 python -m chronicle.semantic.timeline \
@@ -235,6 +236,8 @@ python -m chronicle.semantic.timeline \
 The demo exercises VPR, temporal strips, action verification, the bounded
 verification queue (dedup + backpressure + latency), confidence calibration and
 the GraphRAG evaluation set, then prints the telemetry the dashboard consumes.
+Measured accuracy, latency and token numbers for template, Ollama and Gemini are
+in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 The calibrated thresholds come from the real HoloAssist clip; see
 [`docs/CALIBRATION.md`](docs/CALIBRATION.md) for the label file, per-action
 report and reproduction commands.
@@ -321,6 +324,11 @@ drives the event contract from ``dashboard/``; ``--source live`` waits for
 demo (real perception, clip switching, exports) stays available via
 ``./chronicle.sh pipeline`` (a.k.a. ``chronicle serve``).
 
+The header's **export** button downloads `chronicle-memory.zip` (live + full
+graph projections, entity/action/transition tables as JSON and CSV, the current
+replay timeline and every cached clip timeline). **import** accepts the same ZIP
+and restores those timelines into the clip menu.
+
 The zine dashboard can replay any recorded clip timeline (`.events.jsonl`)
 instead of the bundled demo:
 
@@ -397,9 +405,24 @@ Clips that only have a replay timeline and no DB show a clear "no graph DB"
 note; the graph fallback still answers state/edge questions instead of claiming
 there were no events.
 
-The **canonical demo surface is `./chronicle.sh start`** (zine mission control,
-port 8080); the live-pipeline/VFM operator UI is `./chronicle.sh pipeline`
-(a.k.a. `chronicle serve`). See
+**Computer lab / on-site recording.** For an on-site recording, drop it at
+``data/real/lab/lab_demo.mp4``, ingest it with the production stack
+(``chronicle run --source lab --detector yolo-world``), then pick
+**Computer lab · recorded demo** in the CLIP menu. The replay timeline is built
+from the clip's database automatically; it is generated once and reused on every
+replay (no re-processing when the video loops).
+
+The default detector vocabulary covers everyday egocentric objects plus a
+computer-lab set: bag, wallet, notebook, pen, book, glasses, monitor, laptop,
+mouse, keyboard, headphones, charger, cable, router, whiteboard, chair, shelf,
+cabinet, door, window, trash can. More tags do not make the answer model
+hallucinate — they only widen the detector's recall (with a few more false
+positives); answers still require a graph citation or fall back to "not in my
+memory".
+
+The **canonical demo surface is `./chronicle.sh start`** (zine mission control;
+this worktree defaults to `:8082`). The live-pipeline/VFM operator UI is
+`./chronicle.sh pipeline` (a.k.a. `chronicle serve`). See
 [`docs/INTEGRATION.md`](docs/INTEGRATION.md#two-dashboards-one-canonical-entry-point).
 
 Headless smoke test:
