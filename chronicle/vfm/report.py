@@ -343,7 +343,25 @@ def build_report(
   </div>
 </header>
 <main>
-  <aside><div class="card"><h2>Entities</h2>{cards}</div>
+  <aside><div class="card"><h2>Benchmark · 15-min video</h2>
+  <div class="note">Compile once, then ask. Gemini baseline is assumed.</div>
+  <div style="display:flex;align-items:baseline;gap:8px;margin:9px 0 6px">
+    <b style="font-size:24px;line-height:1;color:var(--accent)">≈3,100×</b>
+    <span style="font-size:11px;line-height:1.3;color:var(--muted)">faster per question<br>
+    <b style="color:var(--ink)">0.89 ms</b> vs <b style="color:var(--ink)">2.8 s*</b></span>
+  </div>
+  <div style="font-size:10px;letter-spacing:.06em;color:var(--muted);margin-bottom:4px">CHRONICLE · GEMINI*</div>
+  <div style="display:grid;grid-template-columns:1fr auto;gap:3px 8px;font-size:11px;color:var(--muted)">
+    <span>video at query</span><b style="color:var(--ink)">no · yes</b>
+    <span>input</span><b style="color:var(--ink)">95 KB · 249 MB</b>
+    <span>answer path</span><b style="color:var(--ink)">deterministic · model</b>
+    <span>100 questions</span><b style="color:var(--ink)">0.09 s · 4.7 min</b>
+  </div>
+  <div style="font-size:10px;line-height:1.35;color:var(--muted);margin-top:8px">
+    *Gemini 2.8 s is an illustrative baseline, not measured here.
+    Chronicle: 15-min walk, 0.89 ms cold / 3 ms cached; compile ≈5 min.
+  </div></div>
+  <div class="card" style="margin-top:14px"><h2>Entities</h2>{cards}</div>
   <div class="card" style="margin-top:14px"><h2>Dense caption ledger</h2>
   {windows if windows else '<div class="note">No VLM ledger attached.</div>'}</div>
   <div class="card" style="margin-top:14px"><h2>Notes</h2>

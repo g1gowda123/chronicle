@@ -1288,7 +1288,7 @@
       const scroller = host.parentElement;
       if (scroller && !this.dragging) scroller.scrollLeft = scroller.scrollWidth;
       const count = byId("ev-count");
-      if (count) count.textContent = this.markers.length + " events";
+      if (count) count.textContent = this.markers.length + " events so far";
     },
 
     renderActions() {
@@ -1296,7 +1296,7 @@
       if (!host) return;
       const items = this.markers.filter((marker) => marker.kind === "interaction").slice(-7).reverse();
       if (!items.length) {
-        const empty = '<div class="empty-strip"><span class="empty-note">no drama yet — it\u2019s early</span></div>';
+        const empty = '<div class="empty-strip"><span class="empty-note">no interactions at this point in the replay</span></div>';
         if (this.lastHtml.actions !== empty) {
           this.lastHtml.actions = empty;
           host.innerHTML = empty;
