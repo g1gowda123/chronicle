@@ -220,6 +220,10 @@ def test_manager_compiles_in_background_and_persists_status(tmp_path: Path) -> N
         assert "not visible" in late.answer.lower()
         assert late.citations
 
+        early = manager.ask(source, "where is the cup?", now=3.0)
+        assert "visible" in early.answer.lower()
+        assert all(float(cite.get("t") or 0.0) <= 3.05 for cite in early.citations)
+
         reloaded = load_status(memory_job_dir(tmp_path, source))
         assert reloaded is not None
         assert reloaded["status"] == "done"

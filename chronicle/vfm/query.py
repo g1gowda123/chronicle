@@ -82,7 +82,7 @@ _STOPWORDS = {
     "first", "before", "after", "then", "tell", "show", "memory",
 }
 #: Bump when answer wording or canonicalisation changes, so stale answers miss.
-CACHE_VERSION = "v3.6"
+CACHE_VERSION = "v3.8"
 
 
 @dataclass
@@ -418,7 +418,14 @@ def _evidence_list(store: EventStore, t: float | None) -> list[dict[str, Any]]:
     if t is None:
         return []
     item = _nearest_evidence(store, t)
-    return [item] if item else []
+    if item is None:
+        return []
+    # The UI treats this as "show me the frame". Only return a still that is
+    # close enough to the claim (the documented 8 s evidence window); otherwise
+    # the video frame chip is the honest source.
+    if float(item.get("distance_s", 999.0)) > 8.0:
+        return []
+    return [item]
 
 
 def _latest(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -494,8 +501,52 @@ def answer_where(
     seen_value = entity.get("last_seen")
     seen_t = float(seen_value) if seen_value is not None else latest_t
     seen_t = max(seen_t, latest_t)
+    first_t = float(entity.get("first_seen") or 0.0)
     state = str(entity.get("state") or "").upper()
     now_t = float(now) if now is not None else None
+
+    # The vault covers the whole episode.  A question asked at an earlier
+    # playhead must not be answered with a future "last seen" time.
+    if now_t is not None and seen_t > now_t + 0.4:
+        if now_t + 0.4 < first_t:
+            return Answer(
+                query,
+                f"At t={now_t:.1f}s, the {label.lower()} has not appeared yet.",
+                method="vault-where-current",
+                confidence=0.7,
+            )
+        known = [event for event in history if float(event["t"]) <= now_t + 0.05]
+        latest_known = _latest(known)
+        citations = [_citation(latest_known)] if latest_known is not None else []
+        if not citations:
+            citations = [
+                {
+                    "t": round(first_t, 3),
+                    "kind": "seen",
+                    "subject": label,
+                    "relation": "SEEN",
+                    "object": "",
+                    "zone": zone,
+                    "caption": f"{label.capitalize()} first seen at t={first_t:.1f}s.",
+                }
+            ]
+        evidence_t = float(latest_known["t"]) if latest_known is not None else first_t
+        evidence = [
+            item
+            for item in _evidence_list(store, evidence_t)
+            if float(item.get("distance_s", 999.0)) <= 8.0
+        ]
+        return Answer(
+            query,
+            f"At t={now_t:.1f}s, the {label.lower()} is visible"
+            + (f" in the {zone}" if zone else "")
+            + ".",
+            citations=citations,
+            evidence=evidence,
+            confidence=0.8,
+            method="vault-where-current",
+        )
+
     not_visible = bool(
         now_t is not None
         and now_t > seen_t + 0.4
@@ -584,11 +635,7 @@ def answer_where(
         if seen_is_later
         else float(last_place["t"]) if last_place is not None else latest_t
     )
-    evidence = [
-        item
-        for item in _evidence_list(store, evidence_t)
-        if float(item.get("distance_s", 999.0)) <= 8.0
-    ]
+    evidence = _evidence_list(store, evidence_t)
     return Answer(
         query,
         " ".join(parts),
