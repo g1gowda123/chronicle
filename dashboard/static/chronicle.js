@@ -1040,6 +1040,60 @@
       setTimeout(tick, 800);
     },
 
+    async eventClips(button) {
+      const clip = byId("chron-clip");
+      const value = clip ? clip.value : "";
+      if (!value) {
+        this.flash("pick a clip first — event clipping needs its timeline");
+        return;
+      }
+      this.flash("cutting event clips · 3s pre / 3s post…");
+      if (button) button.disabled = true;
+      try {
+        const response = await fetch("/api/event-clips", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clip: value }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data || data.error) {
+          throw new Error((data && data.error) || "event clipping failed");
+        }
+        const clips = Array.isArray(data.clips) ? data.clips : [];
+        let first = null;
+        clips.forEach((entry) => {
+          if (!clip || !entry.play) return;
+          let option = Array.from(clip.options).find((item) => item.value === entry.play);
+          if (!option) {
+            option = document.createElement("option");
+            option.value = entry.play;
+            clip.appendChild(option);
+          }
+          const nodes = entry.graph_nodes || 0;
+          option.textContent =
+            (entry.title || "event clip") + " · " + nodes + " nodes";
+          if (!first) first = entry.play;
+        });
+        if (first) {
+          clip.value = first;
+          if (window.emitEvent) emitEvent("chron-replay", first);
+        }
+        this.flash(
+          clips.length +
+            " event clips · one graph each · " +
+            (data.pre_s || 3) +
+            "s pre / " +
+            (data.post_s || 3) +
+            "s post",
+        );
+      } catch (error) {
+        this.flash("event clips failed · " + (error.message || error));
+        console.error(error);
+      } finally {
+        if (button) button.disabled = false;
+      }
+    },
+
     async exportGraphs() {
       this.flash("packing graphs…");
       try {

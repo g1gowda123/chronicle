@@ -353,6 +353,16 @@ evidence when compiled. Import accepts that ZIP and reloads the timeline into th
 dashboard without re-ingesting video; the imported graph appears first in the clip
 switcher. Endpoints: `GET /api/export/graphs.zip`, `POST /api/import/graphs`.
 
+**Event clips + per-event graphs.** The toolbar's **✂ events** button cuts the
+active timeline into bounded event windows (3 s pre + 3 s post by default):
+state transitions, interactions, low-confidence/rejected actions and label
+conflicts become short `clip.mp4` files, a rebased `events.jsonl` replay and a
+`graph.json` snapshot with entity/zone/edge nodes at the trigger time. Each cut
+is added to the clip switcher, so the graph, boxes and timeline replay that
+event in isolation. Endpoints: `POST /api/event-clips`, `GET /api/event-clips`.
+See [`docs/EVENT_CLIPS.md`](docs/EVENT_CLIPS.md) for the salience table and
+artifact layout.
+
 **Memory card / VLM answers.** When the active clip has a graph DB, the zine
 chat uses the compiled VFM vault: dense VLM caption windows + event ledger +
 evidence, answered deterministically in **~0.05 ms** without touching the video.

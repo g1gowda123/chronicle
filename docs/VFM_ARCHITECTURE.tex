@@ -378,10 +378,10 @@ The trigger for “something important happened” is the \textbf{graph state ma
 \end{itemize}
 
 \noindent
-The standalone \code{evidence\_recorder.py} prototype can write 640\,px JPEGs plus a JSONL index, but it is not wired into the live zine pipeline. There is \textbf{no live anomaly/surprise score} and no automatic pre/post video clip recording. That is a deliberate scope choice: the current demo records \emph{stills at meaningful transitions} and verifies \emph{actions}, not every strange moment.
+The standalone \code{evidence\_recorder.py} prototype can write 640\,px JPEGs plus a JSONL index. The zine pipeline now also includes an \textbf{event-clip recorder}: transition, low-confidence and label-conflict triggers receive a readable salience score, coalesce within 2.5\,s, and become a 3\,s pre + 3\,s post \code{clip.mp4}, a rebased \code{events.jsonl} replay and a \code{graph.json} snapshot (entity/zone/edge nodes at the anchor time). The \textbf{events} button and \code{POST /api/event-clips} expose it; see \code{docs/EVENT\_CLIPS.md}. There is still \textbf{no learned live anomaly score} and no VLM call on every strange moment. That remains a deliberate scope choice: the recorder is bounded, the trigger is auditable, and the VLM can be run on the selected clips later.
 
 \noindent
-If a live “important/strange” recorder is added, the bounded shape should be: transition / low confidence / label conflict $\rightarrow$ salience score $\rightarrow$ 3\,s pre + 3\,s post clip $\rightarrow$ Florence/Qwen on that clip only $\rightarrow$ evidence index + review queue. This keeps the cost bounded and makes the trigger auditable.
+The bounded shape is: transition / low confidence / label conflict $\rightarrow$ salience score $\rightarrow$ 3\,s pre + 3\,s post clip $\rightarrow$ Florence/Qwen on that clip only $\rightarrow$ evidence index + review queue. The event-clip recorder already implements the first three stages (\code{POST /api/event-clips}); the optional VLM pass and evidence/review indexing remain future work. This keeps the cost bounded and makes the trigger auditable.
 
 \section{Is this a good system?}
 

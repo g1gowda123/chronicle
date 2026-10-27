@@ -68,6 +68,7 @@ data/**/*.db-wal
 data/uploads/
 data/imports/
 data/vfm/
+data/event_clips/
 *.mov
 *.avi
 *.mkv

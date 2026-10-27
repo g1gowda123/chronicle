@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from nicegui import app, ui
 from starlette.concurrency import run_in_threadpool
 
-from . import memory, processing, transfer
+from . import event_clips, memory, processing, transfer
 from .runtime import clip_title, default_data_dir, probe_duration, runtime
 from .ui.page import build_dashboard
 
@@ -60,6 +60,14 @@ def _arg(request: Request, name: str, default: float | None = None) -> float | N
         return float(raw)
     except ValueError:
         return default
+
+
+def _clamp_float(value: Any, default: float, low: float, high: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(high, number))
 
 
 def _t(request: Request) -> float:
@@ -267,6 +275,64 @@ async def vfm_ask(request: Request) -> JSONResponse:
     except RuntimeError as error:
         return _vfm_error(str(error), 409)
     return JSONResponse(answer.to_dict())
+
+
+# --------------------------------------------------------------------------- #
+# Event-based clipping
+# --------------------------------------------------------------------------- #
+
+
+@app.post("/api/event-clips")
+async def build_event_clips(request: Request) -> JSONResponse:
+    """Cut a clip into salient event windows and snapshot a graph per window."""
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    clip = str(payload.get("clip") or request.query_params.get("clip") or "").strip()
+    pre = _clamp_float(payload.get("pre"), 3.0, 0.0, 30.0)
+    post = _clamp_float(payload.get("post"), 3.0, 0.0, 30.0)
+    cooldown = _clamp_float(payload.get("cooldown"), 2.5, 0.0, 60.0)
+    limit = int(_clamp_float(payload.get("limit"), 12.0, 1.0, 40.0))
+    min_score = _clamp_float(payload.get("min_score"), 0.28, 0.0, 1.0)
+    cut_video = payload.get("cut", True) is not False
+    if not clip:
+        return JSONResponse({"error": "clip is required"}, status_code=400)
+    try:
+        index = await run_in_threadpool(
+            event_clips.build_event_clips,
+            clip,
+            DATA_DIR,
+            pre=pre,
+            post=post,
+            cooldown=cooldown,
+            limit=limit,
+            min_score=min_score,
+            cut=cut_video,
+        )
+    except ValueError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    except Exception as error:  # never leave the UI with an unhandled 500
+        return JSONResponse(
+            {"error": f"{type(error).__name__}: {error}"}, status_code=500
+        )
+    return JSONResponse(index)
+
+
+@app.get("/api/event-clips")
+async def get_event_clips(request: Request) -> JSONResponse:
+    """List an existing event-clip index without re-cutting the video."""
+
+    clip = str(request.query_params.get("clip") or "").strip()
+    if clip:
+        index = event_clips.read_index(clip, DATA_DIR)
+        if index is None:
+            return JSONResponse({"source": clip, "clips": []})
+        return JSONResponse(index)
+    return JSONResponse({"clips": event_clips.list_event_clips(DATA_DIR)})
 
 
 # --------------------------------------------------------------------------- #

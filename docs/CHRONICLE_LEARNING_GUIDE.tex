@@ -695,12 +695,14 @@ captioner. It emits transitions such as \code{NEW}, \code{INTERACTED}, \code{HEL
 \end{itemize}
 
 \noindent
-There is \textbf{no live anomaly/surprise score} and no automatic pre/post clip recording. That is a
-deliberate scope choice: the demo records \emph{stills at meaningful transitions} and verifies
-\emph{actions}, not every strange moment. A future live recorder would keep the same bounded shape:
-transition / low confidence / label conflict \(\rightarrow\) salience score \(\rightarrow\) 3\,s pre
-+ 3\,s post clip \(\rightarrow\) Florence/Qwen on that clip only \(\rightarrow\) evidence index +
-review queue.
+The event-clip recorder implements the bounded version of that idea: state transitions, interactions,
+low-confidence/rejected actions and label conflicts get a readable salience score, coalesce within
+2.5\,s, and become a 3\,s pre + 3\,s post \code{clip.mp4}, a rebased \code{events.jsonl} replay and
+a \code{graph.json} snapshot. The zine toolbar exposes it as \textbf{events}
+(\code{POST /api/event-clips}); see \code{docs/EVENT\_CLIPS.md}. There is still \textbf{no learned
+live anomaly score} and no VLM call on every strange moment: the VLM pass over selected clips and
+the evidence/review indexing remain future work. The demo therefore records \emph{stills and
+bounded clips at meaningful transitions} and verifies \emph{actions}, not every strange moment.
 
 \begin{checkpoint}
 Why is 30/30 not a benchmark claim? \emph{It is an internal 30-question regression suite designed by

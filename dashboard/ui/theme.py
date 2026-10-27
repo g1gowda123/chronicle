@@ -232,6 +232,9 @@ def video_html(snapshot: dict[str, Any], replays: list[dict[str, str]] | None = 
       <input type="file" id="chron-upload" accept="video/*" hidden
              onchange="Chronicle.uploadClip(this)">
     </label>
+    <button class="btnz btnz-ghost" onclick="Chronicle.eventClips(this)"
+            title="Cut the active clip into short event windows (3 s pre/post) and snapshot a graph for each"
+            aria-label="Cut the active clip into event clips">✂ events</button>
     <button class="btnz btnz-ghost" onclick="Chronicle.exportGraphs()"
             title="Download every graph/timeline on this machine as one ZIP"
             aria-label="Export graphs as one ZIP">⤒ export</button>
