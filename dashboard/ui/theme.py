@@ -465,7 +465,7 @@ def actions_card_html() -> str:
 def benchmark_card_html() -> str:
     """Static 15-minute benchmark card (Chronicle vs an assumed Gemini baseline).
 
-    Gemini latency is deliberately labelled as assumed: it is a stand-in for a
+    Gemini latency is deliberately labelled as estimated: it is a stand-in for a
     measured baseline, not a number produced on this machine.
     """
     return """
@@ -473,7 +473,7 @@ def benchmark_card_html() -> str:
   <div class="card-head">
     <h2 class="card-title">benchmark · 15-min video</h2>
     <div class="head-right">
-      <span class="chipz chipz-mustard" style="font-size:.58rem">Gemini 2.8 s*</span>
+      <span class="chipz chipz-mustard" style="font-size:.58rem">Gemini ~20 s*</span>
     </div>
   </div>
 
@@ -482,10 +482,10 @@ def benchmark_card_html() -> str:
   </div>
 
   <div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 10px">
-    <div style="font-family:var(--display);font-size:2.15rem;font-weight:800;line-height:1">≈3,100×</div>
+    <div style="font-family:var(--display);font-size:2.15rem;font-weight:800;line-height:1">≈22,000×</div>
     <div style="font-size:.66rem;line-height:1.3;color:var(--inksoft)">
       faster per question<br>
-      <b style="color:var(--ink)">0.89 ms</b> cold vs <b style="color:var(--ink)">2.8 s</b> assumed
+      <b style="color:var(--ink)">0.89 ms</b> cold vs <b style="color:var(--ink)">~20 s</b> estimated
     </div>
   </div>
 
@@ -497,8 +497,8 @@ def benchmark_card_html() -> str:
     </div>
     <div style="border:1.5px solid var(--ink);background:#f2eee4;padding:7px 8px">
       <div style="font-size:.54rem;letter-spacing:.08em;font-weight:800;color:var(--inksoft)">GEMINI*</div>
-      <div style="font-size:1.05rem;font-weight:800;line-height:1.1;margin-top:2px">2.8 s</div>
-      <div style="font-size:.58rem;color:var(--inksoft)">per question</div>
+      <div style="font-size:1.05rem;font-weight:800;line-height:1.1;margin-top:2px">~20 s</div>
+      <div style="font-size:.58rem;color:var(--inksoft)">15–25 s typical</div>
     </div>
   </div>
 
@@ -511,12 +511,14 @@ def benchmark_card_html() -> str:
     <span>memory / input</span><b style="color:var(--ink)">95 KB</b><b style="color:var(--ink)">249 MB</b>
     <span>answer path</span><b style="color:var(--ink)">deterministic</b><b style="color:var(--ink)">video model</b>
     <span>evidence</span><b style="color:var(--ink)">citation + frame</b><b style="color:var(--ink)">text</b>
-    <span>100 questions</span><b style="color:var(--ink)">0.09 s</b><b style="color:var(--ink)">4.7 min</b>
+    <span>100 questions</span><b style="color:var(--ink)">0.09 s</b><b style="color:var(--ink)">33 min</b>
   </div>
 
   <div style="margin-top:8px;padding-top:6px;border-top:1px dashed #d8cdb7;font-size:.55rem;line-height:1.35;color:var(--inksoft)">
-    *Gemini 2.8 s is an illustrative baseline, not measured on this machine.
-    Chronicle: 15-min walk, 0.89 ms cold / 3 ms cached; one-time compile ≈5 min.
+    *Gemini ~20 s: typical 15-min video pass after upload (10-min public benchmark
+    12–14.5 s; not measured here). It accepts 15-min input: 1M-context models handle
+    ≤1 h high-res / ≤3 h low-res; 249 MB via Files API. Chronicle: 0.89 ms cold /
+    3 ms cached; one-time compile ≈5 min.
   </div>
 </div>
 """.strip()

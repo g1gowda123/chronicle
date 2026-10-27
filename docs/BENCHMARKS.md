@@ -61,6 +61,34 @@ resolved to a fact in that case's context (12/12 and 16/16 valid).
   7B model is faster in wall-clock time on this GPU; the cloud model has the
   better timestamp accuracy in this sample.
 
+## 15-minute video: Gemini baseline
+
+The GraphRAG numbers above are **text-only** calls over an already-retrieved
+subgraph. They are not video-understanding latency.
+
+For a 15-minute video:
+
+- **It is accepted.** Per the [Gemini video docs](https://ai.google.dev/gemini-api/docs/video-understanding)
+  (updated 2026-10-13), models with a 1M-token context can process up to about
+  **1 hour at high media resolution** or **3 hours at low media resolution**.
+  The Files API is recommended for inputs over 100 MB or 10 minutes; 249 MB is
+  within the 20 GB paid / 2 GB free limit.
+- **Token load.** At the default 1 FPS, 15 minutes is 900 frames. At low
+  resolution that is roughly **90k tokens** (66/frame + 32/s audio); at high
+  resolution roughly **270k tokens** (258/frame + 32/s audio).
+- **Typical latency.** A public 24-run benchmark on a 10-minute talk reports
+  **12.0–14.1 s** for static processing and **10.5–14.5 s** for agentic
+  processing ([DEV Community](https://dev.to/gde/gemini-agentic-video-isnt-always-cheaper-a-24-run-benchmark-4ge3)).
+  Scaling the static pass to 15 minutes gives roughly **18–21 s after upload**,
+  so the frontend card uses **~20 s (15–25 s typical)**.
+- **First use is slower.** Upload + Files API processing is additional. Reuse or
+  context caching lowers repeat cost, but does not make a 15-minute video
+  sub-second.
+
+The card's "≈22,000×" is `20 s / 0.89 ms`; the 100-question row is
+`100 × 20 s ≈ 33 min` versus `100 × 0.89 ms ≈ 0.09 s`. These are order-of-
+magnitude comparisons, not a controlled head-to-head on the same machine.
+
 ## More detector tags vs. hallucination
 
 Detector vocabulary only controls **what the perception stage looks for**. More
