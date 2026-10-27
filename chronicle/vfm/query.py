@@ -78,6 +78,7 @@ _QUERY_SYNONYMS = {
     "beanie": "hat",
     "headwear": "hat",
     "headgear": "hat",
+    "cap": "hat",
 }
 _STOPWORDS = {
     "the", "a", "an", "is", "was", "were", "are", "am", "did", "do", "does",
@@ -88,7 +89,7 @@ _STOPWORDS = {
     "first", "before", "after", "then", "tell", "show", "memory",
 }
 #: Bump when answer wording or canonicalisation changes, so stale answers miss.
-CACHE_VERSION = "v4.1"
+CACHE_VERSION = "v4.2"
 
 
 @dataclass
@@ -483,7 +484,7 @@ def _merge_aliases(
         result["zone"] = max(set(zones), key=zones.count)
     # Speak the user's vocabulary: "beret" normalises to "hat" in answers.
     display = label
-    for synonym in ("beret", "beanie", "headwear", "headgear"):
+    for synonym in ("beret", "beanie", "headwear", "headgear", "cap"):
         display = re.sub(rf"\b{synonym}\b", "hat", display, flags=re.IGNORECASE)
     # Answer helpers look up history by label; point the chosen label at the
     # merged rows so "where/when" sees every alias.
