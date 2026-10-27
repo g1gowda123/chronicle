@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from chronicle.perception.config import DEFAULT_VOCABULARY
+from chronicle.perception.config import CS_LAB_VOCABULARY, DEFAULT_VOCABULARY
 
 
 @dataclass(frozen=True)
@@ -122,6 +122,18 @@ SOURCES: tuple[ClipSource, ...] = (
             "countertop",
         ),
         questions=("where is the cup?", "what did I see?"),
+    ),
+    ClipSource(
+        key="cslab",
+        label="CS lab · desk",
+        badge="UPLOAD",
+        caption="CS lab · phone, laptop, monitor and desk",
+        description="Short phone clip of a CS lab desk with monitor, keyboard, mouse and phone.",
+        relative_path="real/cslab.mp4",
+        relative_db="real/cslab/chronicle.db",
+        zone_label="CS Lab",
+        vocabulary=CS_LAB_VOCABULARY,
+        questions=("what is on the desk?", "where is the phone?", "what did I see?"),
     ),
     ClipSource(
         key="play",
