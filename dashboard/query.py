@@ -38,7 +38,7 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _HTML_RE = re.compile(r"<[^>]+>")
 _TIME_HINT_RE = re.compile(
     r"\b(?:around|at|near|about|after|before|by)\s+(\d+(?:\.\d+)?)\s*"
-    r"(?:s|sec|secs|second|seconds)?\b",
+    r"(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?\b",
     re.IGNORECASE,
 )
 
@@ -319,9 +319,15 @@ class QueryEngine:
         if match is None:
             return None
         try:
-            return max(0.0, float(match.group(1)))
+            value = max(0.0, float(match.group(1)))
         except ValueError:
             return None
+        unit = (match.group(2) or "").lower()
+        if unit in {"m", "min", "mins", "minute", "minutes"}:
+            value *= 60.0
+        elif unit in {"h", "hr", "hrs", "hour", "hours"}:
+            value *= 3600.0
+        return value
 
     # ------------------------------------------------------------------ #
     # Subgraph

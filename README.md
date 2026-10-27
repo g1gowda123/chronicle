@@ -382,8 +382,10 @@ is detected and rebuilt once the graph DB has entities. Disable auto-compile
 with `CHRONICLE_VFM_AUTO=0`, disable the whole panel with `CHRONICLE_VFM=0`.
 Clips with no graph DB (fresh uploads, long street walks) use the **caption-first**
 path: VLM captions become the ledger and entities, so they still answer
-"what happened around 10 s?" without running perception. The zine manager now
-defaults to **20 s caption windows** (`CHRONICLE_VFM_WINDOW_S=20`) so a 10 s
+"what happened around 10 s?" without running perception. Video-only entries that
+already have a caption vault are labelled **caption memory** in the picker and
+are used by the chat; entries without one stay **video only**. The zine manager
+now defaults to **20 s caption windows** (`CHRONICLE_VFM_WINDOW_S=20`) so a 10 s
 question gets a frame at 10 s, not a 0–30 s caption; set
 `CHRONICLE_VFM_WINDOW_S=30` for long videos where compile time matters more.
 
