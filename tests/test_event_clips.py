@@ -230,10 +230,13 @@ def test_build_event_clips_rejects_paths_outside_data_dir(tmp_path: Path) -> Non
 
 
 def test_event_clips_api_builds_and_lists(tmp_path: Path, monkeypatch) -> None:
+    import importlib
+
     from fastapi.testclient import TestClient
 
     import dashboard.app as app_module
 
+    app_module = importlib.reload(app_module)
     data = tmp_path / "data"
     data.mkdir()
     _write_timeline(data / "fixture.events.jsonl", _timeline())

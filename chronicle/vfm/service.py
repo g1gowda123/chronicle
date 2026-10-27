@@ -690,7 +690,14 @@ class VFMJobManager:
             time.sleep(0.05)
         return self.status(source)
 
-    def ask(self, source: Any, question: str, *, use_qwen: bool = False) -> query.Answer:
+    def ask(
+        self,
+        source: Any,
+        question: str,
+        *,
+        use_qwen: bool = False,
+        now: float | None = None,
+    ) -> query.Answer:
         vault = artifact(self.job_dir(source), "vault.db")
         if vault is None:
             raise RuntimeError("memory is not compiled yet")
@@ -706,7 +713,7 @@ class VFMJobManager:
                     host=self.ollama_url,
                     timeout=self.qwen_timeout,
                 )
-            return query.answer(store, question, use_cache=True)
+            return query.answer(store, question, use_cache=True, now=now)
         finally:
             con.close()
 

@@ -427,14 +427,15 @@ def build_dashboard() -> None:
         )
         try:
             if vfm_ready and vfm_source is not None:
+                asked_t = _question_time(text)
+                manager = memory.manager(default_data_dir())
                 result = await run.io_bound(
-                    memory.manager(default_data_dir()).ask, vfm_source, text
+                    lambda: manager.ask(vfm_source, text, now=asked_t)
                 )
                 # Attach one stored evidence still only when it is close to the
                 # question time. Far-away frames are still reachable through the
                 # explicit "frame @ t" button; auto-showing them is misleading.
                 evidence = []
-                asked_t = _question_time(text)
                 for item in (result.evidence or [])[:3]:
                     try:
                         evidence_t = float(item.get("t"))

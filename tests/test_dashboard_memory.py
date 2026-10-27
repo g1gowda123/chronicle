@@ -81,6 +81,34 @@ def test_compile_endpoint_rejects_unknown_clip() -> None:
     assert response.status_code == 400
 
 
+def test_auto_compile_rebuilds_thin_vault_after_ingest(monkeypatch, tmp_path: Path) -> None:
+    _fake_data(tmp_path)
+    clip = "events:demo_events.jsonl"
+    vault = tmp_path / "thin" / "vault.db"
+    vault.parent.mkdir()
+    vault.write_bytes(b"")
+
+    calls: list[bool] = []
+
+    class _Thin:
+        def has_memory(self, source):
+            return True
+
+        def artifact(self, source, name):
+            return vault
+
+        def submit(self, source, video=None, *, force=False):
+            calls.append(force)
+            return type("Job", (), {"to_dict": lambda self: {"status": "queued"}})()
+
+    monkeypatch.setattr(memory, "manager", lambda root: _Thin())
+    monkeypatch.setattr(memory, "_db_has_memory", lambda db: True)
+    monkeypatch.setattr(memory, "_AUTO_ATTEMPTED", set())
+
+    assert memory.auto_compile(clip, tmp_path) == {"status": "queued"}
+    assert calls == [True]
+
+
 def test_auto_compile_skips_cached_clip(monkeypatch, tmp_path: Path) -> None:
     _fake_data(tmp_path)
     clip = "events:demo_events.jsonl"

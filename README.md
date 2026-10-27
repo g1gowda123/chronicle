@@ -376,7 +376,9 @@ The first time a clip is opened the memory is compiled **automatically in the
 background** (VLM captions, one-time cost); the `MEMORY · VIDEO-FREE` card shows
 progress and then the report/downloads (`vault.db`, `memory.html`,
 `memory_pack.md`, `memory.zip`). The card's **Compile memory** button forces a
-rebuild; after the first build it reads **Rebuild memory**. Disable auto-compile
+rebuild; after the first build it reads **Rebuild memory**. If a vault was
+compiled while an upload was still being perceived (an empty "thin" vault), it
+is detected and rebuilt once the graph DB has entities. Disable auto-compile
 with `CHRONICLE_VFM_AUTO=0`, disable the whole panel with `CHRONICLE_VFM=0`.
 Clips with no graph DB (fresh uploads, long street walks) use the **caption-first**
 path: VLM captions become the ledger and entities, so they still answer
@@ -386,9 +388,12 @@ question gets a frame at 10 s, not a 0–30 s caption; set
 `CHRONICLE_VFM_WINDOW_S=30` for long videos where compile time matters more.
 
 With a compiled vault, answers show `provider: vfm-memory`; count questions get
-the track/visibility bounds and deduped physical estimate. Clips that only have
-a replay timeline and no DB show a clear "no graph DB" note; the graph fallback
-still answers state/edge questions instead of claiming there were no events.
+the track/visibility bounds and deduped physical estimate. "Where is X?"
+answers use the current playhead: if X is no longer visible it says so and
+reports the last seen timestamp instead of pretending X is still in frame.
+Clips that only have a replay timeline and no DB show a clear "no graph DB"
+note; the graph fallback still answers state/edge questions instead of claiming
+there were no events.
 
 The **canonical demo surface is `./chronicle.sh start`** (zine mission control,
 port 8080); the live-pipeline/VFM operator UI is `./chronicle.sh pipeline`

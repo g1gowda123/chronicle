@@ -270,8 +270,15 @@ async def vfm_ask(request: Request) -> JSONResponse:
     if not question:
         return _vfm_error("question is required")
     use_qwen = bool((payload or {}).get("qwen"))
+    now_raw = (payload or {}).get("now", request.query_params.get("now"))
     try:
-        answer = memory.manager(DATA_DIR).ask(source, question, use_qwen=use_qwen)
+        now = float(now_raw) if now_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        now = None
+    try:
+        answer = memory.manager(DATA_DIR).ask(
+            source, question, use_qwen=use_qwen, now=now
+        )
     except RuntimeError as error:
         return _vfm_error(str(error), 409)
     return JSONResponse(answer.to_dict())

@@ -82,7 +82,7 @@ _STOPWORDS = {
     "first", "before", "after", "then", "tell", "show", "memory",
 }
 #: Bump when answer wording or canonicalisation changes, so stale answers miss.
-CACHE_VERSION = "v3.5"
+CACHE_VERSION = "v3.6"
 
 
 @dataclass
@@ -468,7 +468,13 @@ def _window_caption(store: EventStore, t: float) -> dict[str, Any] | None:
     )
 
 
-def answer_where(store: EventStore, query: str, entity: dict[str, Any]) -> Answer:
+def answer_where(
+    store: EventStore,
+    query: str,
+    entity: dict[str, Any],
+    *,
+    now: float | None = None,
+) -> Answer:
     label = str(entity["label"])
     history = _events_for(store, label)
     latest = _latest(history)
@@ -488,6 +494,16 @@ def answer_where(store: EventStore, query: str, entity: dict[str, Any]) -> Answe
     seen_value = entity.get("last_seen")
     seen_t = float(seen_value) if seen_value is not None else latest_t
     seen_t = max(seen_t, latest_t)
+    state = str(entity.get("state") or "").upper()
+    now_t = float(now) if now is not None else None
+    not_visible = bool(
+        now_t is not None
+        and now_t > seen_t + 0.4
+        and (
+            state in {"OCCLUDED", "OUT_OF_VIEW", "LOST"}
+            or now_t > seen_t + 0.75
+        )
+    )
     # The entity bounds come from observations and can outlive the last salient
     # event (for example, an object stays visible after it was picked up). Keep
     # the two times distinct so the answer and its citation agree.
@@ -495,7 +511,16 @@ def answer_where(store: EventStore, query: str, entity: dict[str, Any]) -> Answe
     latest_is_held = str(latest["kind"]) == "interaction" and str(latest["relation"]).upper() == "HELD"
 
     parts: list[str] = []
-    if latest_is_held:
+    if not_visible:
+        parts.append(
+            f"At t={now_t:.1f}s, the {label.lower()} is not visible."
+        )
+        parts.append(
+            f"It was last seen at t={seen_t:.1f}s"
+            + (f" in the {zone}" if zone else "")
+            + "."
+        )
+    elif latest_is_held:
         parts.append(
             f"The {label.lower()} was last held at t={latest_t:.1f}s"
             + (f" in the {zone}" if zone else "")
@@ -510,10 +535,18 @@ def answer_where(store: EventStore, query: str, entity: dict[str, Any]) -> Answe
             + "."
         )
 
+    latest_is_later_interaction = (
+        str(latest["kind"]) == "interaction"
+        and latest_t > float(last_place["t"]) + 0.05
+        if last_place is not None
+        else False
+    )
     if last_place is not None:
         parts.append(
             f"Last recorded placement: {caption_for(last_place).rstrip('.')}."
         )
+        if latest_is_later_interaction:
+            parts.append(f"Last interaction: {caption_for(latest).rstrip('.')}.")
     elif not latest_is_held:
         if seen_is_later and str(latest["kind"]) == "interaction":
             parts.append(f"Last interaction: {caption_for(latest).rstrip('.')}.")
@@ -537,18 +570,12 @@ def answer_where(store: EventStore, query: str, entity: dict[str, Any]) -> Answe
                 ),
             }
         )
-    for citation in (
-        _citation(last_place) if last_place is not None else None,
-        _citation(latest),
-    ):
-        if citation is None:
-            continue
-        if any(
-            item["t"] == citation["t"] and item["kind"] == citation["kind"]
-            for item in citations
-        ):
-            continue
-        citations.append(citation)
+    if last_place is not None:
+        citations.append(_citation(last_place))
+        if latest_is_later_interaction:
+            citations.append(_citation(latest))
+    else:
+        citations.append(_citation(latest))
 
     # Prefer a still near the claim being made. If the nearest stored still is
     # more than 8 s away, return none rather than showing unrelated evidence.
@@ -1316,7 +1343,13 @@ def _cache_put(con: sqlite3.Connection, key: str, question: str, result: Answer)
         pass
 
 
-def answer(store: EventStore, query: str, *, use_cache: bool = True) -> Answer:
+def answer(
+    store: EventStore,
+    query: str,
+    *,
+    use_cache: bool = True,
+    now: float | None = None,
+) -> Answer:
     started = time.perf_counter()
     lower = query.lower().strip()
     if not lower:
@@ -1324,6 +1357,8 @@ def answer(store: EventStore, query: str, *, use_cache: bool = True) -> Answer:
 
     intent, entity, t, action = classify(store, query)
     key = canonical_key(intent, entity, t, action, store, query)
+    if now is not None and intent == "where":
+        key += f":now={round(float(now), 1)}"
     if use_cache:
         cached = _cache_get(store.con, key, query)
         if cached is not None:
@@ -1348,7 +1383,7 @@ def answer(store: EventStore, query: str, *, use_cache: bool = True) -> Answer:
         if entity is None:
             result = Answer(query, "I don't have that in my memory.", method="no-match")
         else:
-            result = answer_where(store, query, entity)
+            result = answer_where(store, query, entity, now=now)
     elif intent == "when":
         if entity is None:
             result = Answer(query, "I don't have that in my memory.", method="no-match")

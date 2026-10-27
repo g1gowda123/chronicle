@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -177,11 +178,55 @@ def resolve(clip: str | None, data_dir: Path | str) -> MemorySource | None:
     )
 
 
-def auto_compile(clip: str | None, data_dir: Path | str) -> dict[str, Any] | None:
+def _db_has_memory(db: Path | None) -> bool:
+    """True when the run DB already contains perception rows."""
+
+    if db is None or not Path(db).is_file():
+        return False
+    try:
+        con = sqlite3.connect(f"file:{Path(db).as_posix()}?mode=ro", uri=True, timeout=2.0)
+        try:
+            row = con.execute("select count(*) from entities").fetchone()
+            return bool(row and int(row[0]) > 0)
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return False
+
+
+def _vault_is_thin(vault: Path | None) -> bool:
+    """A vault compiled from an empty/early DB has no entities and no events."""
+
+    if vault is None or not Path(vault).is_file():
+        return True
+    try:
+        con = sqlite3.connect(f"file:{Path(vault).as_posix()}?mode=ro", uri=True, timeout=2.0)
+        try:
+            entities = int(con.execute("select count(*) from entities").fetchone()[0])
+            events = 0
+            try:
+                row = con.execute("select value from meta where key='event_count'").fetchone()
+                events = int(row[0]) if row else 0
+            except (sqlite3.Error, TypeError, ValueError):
+                pass
+            return entities == 0 and events == 0
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return True
+
+
+def auto_compile(
+    clip: str | None,
+    data_dir: Path | str,
+    *,
+    force: bool = False,
+) -> dict[str, Any] | None:
     """Compile a clip's memory once, in the background, when it is first seen.
 
     Answers are deterministic and instant once the vault exists; this only pays
-    the one-time VLM/evidence cost. A failed job is not retried automatically.
+    the one-time VLM/evidence cost. A vault compiled while an upload was still
+    being perceived is detected as *thin* and rebuilt once the DB has entities.
     """
 
     if not enabled() or not auto_enabled():
@@ -193,16 +238,20 @@ def auto_compile(clip: str | None, data_dir: Path | str) -> dict[str, Any] | Non
     if source.db is None and source.video is None:
         return None
     instance = manager(root)
-    if instance.has_memory(source):
-        return None
+    rebuild = bool(force)
+    if not rebuild and instance.has_memory(source):
+        if _db_has_memory(source.db) and _vault_is_thin(instance.artifact(source, "vault.db")):
+            rebuild = True
+        else:
+            return None
     # No live-job check here: after a server restart a stale "running" job.json
     # must not block the first real compile. `_AUTO_ATTEMPTED` already stops
     # duplicate submissions within one process.
     with _AUTO_LOCK:
-        if source.key in _AUTO_ATTEMPTED:
+        if not rebuild and source.key in _AUTO_ATTEMPTED:
             return None
         _AUTO_ATTEMPTED.add(source.key)
-        job = instance.submit(source, source.video)
+        job = instance.submit(source, source.video, force=rebuild)
     return job.to_dict() if job is not None else None
 
 

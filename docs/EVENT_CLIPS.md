@@ -31,9 +31,11 @@ curl -s 'http://127.0.0.1:8082/api/event-clips?clip=events:replays/cslab.events.
 
 Generated clips live under `<data-dir>/event_clips/` and are **not** added to
 the main clip picker. The picker stays limited to real sources/replays; event
-artifacts are available through the API and the folder above. The dashboard
-button verifies the first four clips by default so the demo gets semantic
-captions without waiting for a long queue.
+artifacts are available through the API and the folder above. New uploads run
+this automatically after perception finishes (`CHRONICLE_EVENT_CLIPS_AUTO=0`
+disables it), so an important transition gets its own clip and snapshot even
+when the whole-clip caption window is only 20 s long. The dashboard button
+verifies the first four clips by default.
 
 ## VLM verification (3 frames per event)
 

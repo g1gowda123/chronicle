@@ -161,7 +161,10 @@ def test_worker_builds_replay_and_queues_memory(monkeypatch, tmp_path: Path) -> 
     monkeypatch.setattr("dashboard.runtime.probe_duration", lambda path: 2.0)
     monkeypatch.setattr("dashboard.replay_db.events_from_db", _events_from_db)
     monkeypatch.setattr("dashboard.replay_db.write_events", _write_events)
-    monkeypatch.setattr("dashboard.memory.auto_compile", lambda clip, root: calls.update(memory=clip))
+    monkeypatch.setattr(
+        "dashboard.memory.auto_compile",
+        lambda clip, root, **kwargs: calls.update(memory=clip, force=kwargs.get("force")),
+    )
 
     processor = processing.UploadProcessor(tmp_path)
     try:
@@ -178,6 +181,7 @@ def test_worker_builds_replay_and_queues_memory(monkeypatch, tmp_path: Path) -> 
         assert state["events"] == "uploads/run/source.events.jsonl"
         assert (video.parent / "source.events.jsonl").is_file()
         assert calls.get("memory") == "events:uploads/run/source.events.jsonl"
+        assert calls.get("force") is True
         assert calls.get("closed") is True
     finally:
         processor.stop()

@@ -18,6 +18,7 @@ Jobs run one at a time on a daemon thread; progress is written to
 from __future__ import annotations
 
 import json
+import os
 import queue
 import threading
 import time
@@ -299,12 +300,47 @@ class UploadProcessor:
             )
             job.write()
 
-        # Compile the video-free memory server-side as well, so it is ready
-        # even if the browser tab that started the upload is already closed.
+        # Important events deserve their own clips, 3-frame VLM pass, snapshot
+        # and per-event vault. This is independent of the 20 s caption window.
+        if os.getenv("CHRONICLE_EVENT_CLIPS_AUTO", "1").strip().lower() not in {
+            "0",
+            "false",
+            "off",
+            "no",
+        }:
+            try:
+                from dashboard.event_clips import build_event_clips
+
+                with self._lock:
+                    job.update(message="cutting + verifying event memories")
+                    job.write()
+                index = build_event_clips(
+                    "events:" + str(job.events),
+                    self.data_dir,
+                    limit=4,
+                    verify=True,
+                    verify_limit=2,
+                )
+                with self._lock:
+                    job.update(
+                        message=(
+                            f"clip ready · {index.get('verified', 0)} event memories "
+                            f"verified · {len(index.get('clips') or [])} event clips"
+                        )
+                    )
+                    job.write()
+            except Exception:
+                traceback.print_exc()
+
+        # Compile the whole-clip video-free memory server-side as well, so it is
+        # ready even if the browser tab that started the upload is closed.
         try:
             from dashboard import memory
 
-            memory.auto_compile("events:" + str(job.events), self.data_dir)
+            # `force=True` is important: a browser may have opened this clip
+            # while perception was still running, producing an empty "thin"
+            # vault. The DB is populated now, so rebuild it.
+            memory.auto_compile("events:" + str(job.events), self.data_dir, force=True)
         except Exception:
             traceback.print_exc()
 

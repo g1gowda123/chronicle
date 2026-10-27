@@ -216,6 +216,10 @@ def test_manager_compiles_in_background_and_persists_status(tmp_path: Path) -> N
         assert "cup" in answer.answer.lower()
         assert answer.method.startswith("vault")
 
+        late = manager.ask(source, "where is the cup?", now=10.0)
+        assert "not visible" in late.answer.lower()
+        assert late.citations
+
         reloaded = load_status(memory_job_dir(tmp_path, source))
         assert reloaded is not None
         assert reloaded["status"] == "done"
