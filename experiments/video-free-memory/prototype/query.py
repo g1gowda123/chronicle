@@ -82,7 +82,7 @@ _STOPWORDS = {
     "first", "before", "after", "then", "tell", "show", "memory",
 }
 #: Bump when answer wording or canonicalisation changes, so stale answers miss.
-CACHE_VERSION = "v3.4"
+CACHE_VERSION = "v3.5"
 
 
 @dataclass
@@ -529,6 +529,52 @@ def answer_where(store: EventStore, query: str, entity: dict[str, Any]) -> Answe
 
 def answer_when(store: EventStore, query: str, entity: dict[str, Any], action: str) -> Answer:
     label = str(entity["label"])
+    # "When was the cup last seen?" is a first/last-seen question. The salience
+    # ledger may only contain the appearance event, so use the entity bounds that
+    # the compiler kept from observations (first_seen/last_seen) instead.
+    if action in {"see", ""} and re.search(r"\b(seen|see|spotted)\b", query.lower()):
+        first = "first" in query.lower()
+        value = entity.get("first_seen") if first else entity.get("last_seen")
+        if value is not None:
+            seen_t = float(value)
+            zone = str(entity.get("zone") or "")
+            window = _window_caption(store, seen_t)
+            frame = None
+            if window is not None:
+                frames = [
+                    item for item in window.get("frames") or []
+                    if isinstance(item, dict) and item.get("t") is not None
+                ]
+                if frames:
+                    frame = min(frames, key=lambda item: abs(float(item["t"]) - seen_t))
+            frame_t = float(frame.get("t")) if frame else seen_t
+            prefix = "first" if first else "last"
+            text = (
+                f"The {label.lower()} was {prefix} seen at t={seen_t:.1f}s"
+                + (f" in the {zone}" if zone else "")
+                + "."
+            )
+            if frame is not None and abs(frame_t - seen_t) <= 8.0:
+                text += f" Nearest caption frame at t={frame_t:.1f}s: {frame.get('caption') or ''}"
+            citations = [{
+                "t": round(seen_t, 3),
+                "kind": "seen",
+                "caption": f"{label} {prefix} seen at t={seen_t:.1f}s",
+            }]
+            if frame is not None:
+                citations.append({
+                    "t": round(frame_t, 3),
+                    "kind": "frame",
+                    "caption": str(frame.get("caption") or "")[:500],
+                })
+            return Answer(
+                query,
+                text,
+                citations=citations,
+                evidence=_evidence_list(store, seen_t),
+                confidence=0.85,
+                method="vault-when-seen",
+            )
     rows = _events_for(store, label)
     if not rows:
         return Answer(query, f"No events recorded for the {label.lower()}.", method="no-match")
