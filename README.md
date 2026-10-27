@@ -10,6 +10,30 @@ An egocentric, episodic memory engine that parses pre-recorded first-person vide
 > [`docs/PERCEPTION.md`](docs/PERCEPTION.md),
 > [`docs/ROLE_B.md`](docs/ROLE_B.md) and [`docs/ROLE_C.md`](docs/ROLE_C.md).
 
+## Why Chronicle
+
+Most video-QA systems re-watch the video for every question. Chronicle moves the
+expensive work to **compile time** and leaves a tiny, portable memory for
+**query time**:
+
+| Advantage | What it means |
+| --- | --- |
+| **Compress once, on the server** | A GPU or workstation runs perception and the VLM once, then writes a compact SQLite vault: graph index, packed event ledger, timestamped captions and a few evidence stills. The pitch measurement is **249 MB / 15 min → ~95 KB**; the 45 s cook clip compiles to **164.5 KB (5.4% of the video)**, and a 60 min episode projects to **~282 KB/hour** at 12 snapshots/hour. |
+| **Ask on the glasses, locally** | The vault is a single portable file. Copy it to a phone or smart-glasses-class device and answer where/when/count/around questions **on-device**, with no server round-trip and no GPU. The deterministic path needs no LLM; a small local text model is optional phrasing. |
+| **Privacy by construction** | Raw video is used only for compilation and optional playback. The query context is text + graph, never frames. Compile locally to keep footage on-device, or upload once to a server and delete the source after compile (`--delete-video`). |
+| **Answers you can audit** | Every answer carries a timestamp and citation; a `frame @ t` chip opens the exact evidence frame. If the memory does not contain the answer, Chronicle says so instead of inventing one. |
+| **Compute only when it matters** | Motion and geometry gating skips static frames, and the VLM runs on state transitions and salient events rather than every frame. |
+| **Graceful degradation** | Missing Ollama, Florence-2 or OpenCLIP falls back to the colour detector, deterministic embeddings and template GraphRAG. The demo and tests run fully offline. |
+| **Storage grows with events, not frames** | The packed ledger is ~42 KB/hour plus a bounded snapshot budget; a 60 min synthetic episode is a 139 KB vault. |
+| **Open and portable** | MIT-licensed code, a single-file SQLite vault, JSON/CSV/ZIP import-export, local models and no vendor lock-in. |
+
+The repository ships the vault, the deterministic query engine and a
+browser-side query path (`memory.html`). The glasses/phone client is a
+deployment target for that same vault, not a separate AR app in this repo. The
+30-question numbers in this README are an internal regression suite, not a
+public benchmark; count answers are track/visibility bounds, not verified
+physical counts.
+
 ## Overview
 
 Chronicle avoids running heavyweight vision-language models on every frame. Instead, deterministic motion and geometric gating decide *when* foundation models are invoked:
@@ -31,7 +55,25 @@ Chronicle avoids running heavyweight vision-language models on every frame. Inst
 | Perception & tracking | OpenCV, Ultralytics YOLO-World, MediaPipe Hands, ByteTrack-style association, OpenCLIP |
 | Spatial reasoning & state engine | Shapely, NetworkX, SQLite |
 | Semantic engine | Florence-2-base, OpenCLIP (ViT-B-32) |
-| UI & telemetry | NiceGUI, ECharts, `ui.log` |
+| UI & telemetry | NiceGUI, ECharts, vis-network, `ui.log` |
+
+### Split deployment: compile on the server, query on the glasses
+
+```text
+┌──────────────────────────────────┐        ┌──────────────────────────────────┐
+│ Server / workstation (once)      │        │ Smart glasses / phone (per query)│
+│                                  │        │                                  │
+│ video ─► perception ─► graph     │        │  vault.db  (KB–MB, SQLite)       │
+│       ─► VLM captions ─► vault   │───────►│  ├─ deterministic lookup         │
+│       ─► evidence stills         │ copy   │  ├─ timestamp + citation         │
+│                                  │        │  └─ optional local text LLM      │
+└──────────────────────────────────┘        └──────────────────────────────────┘
+```
+
+The compile side can be a cloud GPU, a home server or a laptop. The query side
+only needs SQLite and, for natural-language phrasing, a small local text model.
+`memory.html` is a single-file offline report whose query box runs in the
+browser — the same split without any server.
 
 ### Role A dataflow
 
@@ -347,11 +389,14 @@ and the explicit `frame @ t` button remains the way to inspect a frame.
 
 **Export / import graphs.** The stage toolbar has `⤒ export` and `⤓ import`.
 Export downloads `chronicle_graphs.zip` with a manifest, the current full event
-timeline (`current/events.jsonl`), a readable `snapshot.json`, entity/edge/zone
-CSVs, every replay timeline under `clips/`, and the active VFM vault/report/pack/
-evidence when compiled. Import accepts that ZIP and reloads the timeline into the
-dashboard without re-ingesting video; the imported graph appears first in the clip
-switcher. Endpoints: `GET /api/export/graphs.zip`, `POST /api/import/graphs`.
+timeline (`current/events.jsonl`), a readable `snapshot.json` built from that
+whole timeline (not just the playhead), entity/edge/zone CSVs, every replay
+timeline under `clips/`, each per-event graph/timeline under `event_clips/`, and
+the active VFM vault/report/pack/evidence when compiled. Import accepts that ZIP
+and reloads the timeline into the dashboard without re-ingesting video; the
+imported graph appears first in the clip
+switcher. Endpoints: `GET /api/export/graphs.zip?clip=<active-clip>`,
+`POST /api/import/graphs`.
 
 **Event clips + per-event graphs.** The toolbar's **✂ events** button cuts the
 active timeline into bounded event windows (3 s pre + 3 s post by default):
@@ -479,6 +524,101 @@ graph, or render a dashboard. Role B consumes `FrameContext` (or a Role A
 `FrameResult`) and owns the episodic memory. Role C does not mutate the graph;
 it emits validated events and answer payloads for Roles B and D.
 
-## References
+## Papers, prior art & open source
 
-The design builds on R4DSG (ACM MM 2026), VL-KnG (2026), ESOM (WACV 2026), hand-object interaction research (WACV 2024), and LightMem-Ego.
+Chronicle is an integration of prior work: the memory model, perception stack
+and query path all build on published research and open-source projects. Links
+are provided for attribution and further reading.
+
+### Memory, retrieval and compression
+
+| Work | Venue | What Chronicle borrows |
+| --- | --- | --- |
+| [R4DSG](https://arxiv.org/abs/2608.11017) | ACM MM 2026 | Anchor-relative 4D scene memory; compact queryable entries without a global 3D reconstruction. |
+| [VL-KnG](https://arxiv.org/abs/2510.01483) | 2025/2026 | Persistent spatio-temporal knowledge graph; query latency decoupled from video length. |
+| [EgoGraph](https://arxiv.org/abs/2602.23709) | 2026 | Training-free temporal knowledge graph with an egocentric entity/location/event schema. |
+| [CapMem](https://arxiv.org/abs/2609.17688) | EMNLP 2026 | Caption-only episodic-memory QA; 30 s / 60 s caption-window study and retrieve-and-verify. |
+| [EgoCITE](https://arxiv.org/abs/2608.12627) | 2026 | Dense visual captions and transcripts as memory entries; time as a first-class retrieval key. |
+| [MERIT](https://arxiv.org/abs/2608.07663) | ECCV 2026 | Query-agnostic memory construction; high-recall keys and query-time temporal expansion. |
+| [FocusGraph](https://arxiv.org/abs/2603.04349) | 2026 | Text-first, pixels-second routing; sparse keyframes only when the text answer is insufficient. |
+| [VideoMem](https://arxiv.org/abs/2512.04540) | 2025/2026 | Adaptive global memory buffer; compression and retention-policy inspiration. |
+| [EM-LLM](https://proceedings.iclr.cc/paper_files/paper/2025/hash/c05144b635df16ac9bbf8246bbbd55ca-Abstract-Conference.html) | ICLR 2025 | Event segmentation with similarity plus temporal-contiguity retrieval. |
+| [LightMem](https://arxiv.org/abs/2510.18866) | ICLR 2026 | Sensory → short-term → long-term tiers; offline consolidation. |
+| [HippoRAG](https://arxiv.org/abs/2405.14831) | NeurIPS 2024 | Knowledge-graph retrieval as a cheap alternative to iterative model calls. |
+| [EgoMemory / EgoRetriever](https://aclanthology.org/2026.findings-acl.362.pdf) | ACL Findings 2026 | Personal memory bank and training-free retrieval over long egocentric video. |
+| [Continuous Semantic Caching](https://research.ece.cmu.edu/lions/Papers/Semantic_LLM_Caching.pdf) | 2026 | Semantic answer-cache reuse and eviction under uncertainty. |
+| [Titans](https://arxiv.org/abs/2501.00663) | 2024/2025 | Neural long-term memory as a north star for model-native episodic memory. |
+| [MemoryLLM](https://arxiv.org/abs/2402.04624) | ICML 2024 | Fixed-size latent memory pool inside a transformer. |
+| [Caption-once, Frames-on-Demand](https://aclanthology.org/2026.emnlp-main.422.pdf) | EMNLP 2026 | Cache captions once; fetch bounded pixels only when confidence is low. |
+
+The specification also cites ESOM (WACV 2026) for streaming object memory and
+hand-object contact research (WACV 2024) for contact-triggered interaction.
+
+### Perception and semantic methods
+
+| Work | Venue | What Chronicle uses |
+| --- | --- | --- |
+| [YOLO-World](https://arxiv.org/abs/2401.17270) | CVPR 2024 | Real-time open-vocabulary object detection with a user-supplied label set. |
+| [Florence-2](https://arxiv.org/abs/2311.06242) | 2023 | Unified vision foundation model for action/caption verification. |
+| [MediaPipe Hands](https://arxiv.org/abs/2006.10214) | 2020 | On-device 21-point hand landmarks. |
+| [ByteTrack](https://arxiv.org/abs/2110.06864) | ECCV 2022 | High/low-confidence association and Hungarian assignment for tracking. |
+| [CLIP](https://arxiv.org/abs/2103.00020) | ICML 2021 | Contrastive image-text representations behind visual re-ID. |
+| [OpenCLIP](https://arxiv.org/abs/2212.07143) | CVPR 2023 | Reproducible CLIP training/scaling; the OpenCLIP implementation used here. |
+| [GraphRAG](https://arxiv.org/abs/2404.16130) | 2024 | Graph-based retrieval and grounded answer generation. |
+| [Qwen2.5](https://arxiv.org/abs/2412.15115) | 2024 | Optional local text model for phrasing verified answers. |
+| [Qwen2.5-VL](https://arxiv.org/abs/2502.13923) | 2025 | Optional local VLM for captions and event-clip verification. |
+| [HoloAssist](https://arxiv.org/abs/2309.17024) | ICCV 2023 | Real HoloLens 2 egocentric interaction dataset used for the demo clip and labels. |
+
+### Open-source projects
+
+| Project | Used for | Licence |
+| --- | --- | --- |
+| [Python](https://www.python.org/) | Runtime | PSF-2.0 |
+| [FastAPI](https://github.com/fastapi/fastapi) | HTTP/JSON API | MIT |
+| [NiceGUI](https://github.com/zauberzeug/nicegui) | Dashboard | MIT |
+| [Uvicorn](https://github.com/encode/uvicorn) | ASGI server | BSD-3-Clause |
+| [Apache ECharts](https://github.com/apache/echarts) | Operator graph/timeline charts | Apache-2.0 |
+| [vis-network](https://github.com/visjs/vis-network) | Zine dashboard memory graph | Apache-2.0 / MIT |
+| [SQLite](https://sqlite.org/) | Episode DB and VFM vault | Public domain |
+| [NetworkX](https://github.com/networkx/networkx) | Dual-graph memory | BSD-3-Clause |
+| [Shapely](https://github.com/shapely/shapely) | IoS and containment geometry | BSD-3-Clause |
+| [NumPy](https://github.com/numpy/numpy) | Numerical arrays | BSD-3-Clause |
+| [SciPy](https://github.com/scipy/scipy) | Optimisation / linear algebra | BSD-3-Clause |
+| [OpenCV](https://github.com/opencv/opencv) | Video I/O and image operations | Apache-2.0 |
+| [Pillow](https://github.com/python-pillow/Pillow) | Image encode/decode | MIT-CMU (HPND) |
+| [PyTorch](https://github.com/pytorch/pytorch) / [torchvision](https://github.com/pytorch/vision) | Model runtime | BSD-3-Clause |
+| [Ultralytics YOLO-World](https://github.com/ultralytics/ultralytics) | Open-vocabulary detection | **AGPL-3.0** (optional) |
+| [MediaPipe](https://github.com/google-ai-edge/mediapipe) | Hand landmarks | Apache-2.0 |
+| [OpenCLIP](https://github.com/mlfoundations/open_clip) | Place recognition and re-ID | MIT |
+| [ByteTrack](https://github.com/ifzhang/ByteTrack) | Tracking design reference | MIT |
+| [Hugging Face Transformers](https://github.com/huggingface/transformers) / [Accelerate](https://github.com/huggingface/accelerate) / [timm](https://github.com/huggingface/pytorch-image-models) / [einops](https://github.com/arogozhnikov/einops) | Florence-2 stack | Apache-2.0 / Apache-2.0 / Apache-2.0 / MIT |
+| [Florence-2-base](https://huggingface.co/microsoft/Florence-2-base) | Action/caption verification | MIT |
+| [Ollama](https://github.com/ollama/ollama) | Local LLM/VLM serving | MIT |
+| [Qwen2.5](https://github.com/QwenLM/Qwen2.5) / [Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL) | Local text/VLM models | Apache-2.0 |
+| [FFmpeg](https://ffmpeg.org/) | Frame extraction for VFM captions | LGPL-2.1+ / GPL-2.0+ (build-dependent) |
+| [pytest](https://github.com/pytest-dev/pytest) / [Ruff](https://github.com/astral-sh/ruff) / [uv](https://github.com/astral-sh/uv) | Tests, lint, environment | MIT / MIT / Apache-2.0 OR MIT |
+
+### Datasets and media
+
+| Asset | Used for | Licence |
+| --- | --- | --- |
+| [HoloAssist](https://holoassist.github.io/) | Real HoloLens 2 egocentric demo clip and action labels | CDLA-Permissive-2.0 |
+| [Meta Project Aria Gen 2](https://www.projectaria.com/datasets/) | Real Aria cook/play/walk research clips | CC BY-NC 4.0 |
+
+The Aria clips are locally trimmed research windows; the full source data
+remains with Meta. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the
+full dependency/licence notes, including the optional AGPL-3.0 YOLO-World
+backend and the model-weight terms.
+
+## License
+
+Chronicle is released under the [MIT License](LICENSE).
+
+Copyright (c) 2026 Chronicle contributors.
+
+The MIT licence covers Chronicle's source code only. Third-party libraries,
+model weights and datasets keep their own licences. In particular, the optional
+Ultralytics YOLO-World backend is **AGPL-3.0**, and the bundled real clips come
+from HoloAssist (**CDLA-Permissive-2.0**) and Meta Aria Gen 2
+(**CC BY-NC 4.0**). Review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+before redistributing Chronicle or using it commercially.

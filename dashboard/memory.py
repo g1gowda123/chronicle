@@ -116,6 +116,12 @@ def resolve(clip: str | None, data_dir: Path | str) -> MemorySource | None:
             return None
         if not video.is_file():
             return None
+        # The player may use a lighter proxy (source.proxy.mp4); its memory is
+        # compiled under the original file (source.mp4), so resolve that.
+        if video.stem.endswith(".proxy"):
+            original = video.with_name(video.stem[: -len(".proxy")] + video.suffix)
+            if original.is_file():
+                video = original
         source = _registered_source(root, video)
         if source is not None:
             db = source.db_path(root)
@@ -128,7 +134,7 @@ def resolve(clip: str | None, data_dir: Path | str) -> MemorySource | None:
         # Uploaded clips: only compile if a graph DB already sits beside them.
         db = video.parent / "chronicle.db"
         return MemorySource(
-            key="video:" + rel,
+            key="video:" + video.relative_to(root).as_posix(),
             label=clip_title(video),
             db=db if db.is_file() else None,
             video=video,

@@ -1084,7 +1084,13 @@
     async exportGraphs() {
       this.flash("packing graphs…");
       try {
-        const response = await fetch("/api/export/graphs.zip", { cache: "no-store" });
+        const clip = byId("chron-clip");
+        const value = clip ? clip.value : "";
+        // The server needs the active clip to attach its compiled VFM vault.
+        const endpoint =
+          "/api/export/graphs.zip" +
+          (value ? "?clip=" + encodeURIComponent(value) : "");
+        const response = await fetch(endpoint, { cache: "no-store" });
         if (!response.ok) {
           const detail = await response.text();
           throw new Error(detail || "export failed (" + response.status + ")");
@@ -1386,7 +1392,7 @@
       row.innerHTML =
         '<div>' +
           '<div class="bub">' + escapeHtml(question) + "</div>" +
-          '<div class="msg-meta right">you · ' + escapeHtml(fmtTime(this.playhead)) + "</div>" +
+          '<div class="msg-meta right">you · t=' + escapeHtml(fmtTime(this.playhead)) + "s</div>" +
         "</div>";
       const thinking = document.createElement("div");
       thinking.className = "think-row";

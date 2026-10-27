@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "dataset": "chronicle-internal-example",
+  "description": "Small Ego4D-shaped QA fixture for the headless evaluation harness. Replace with a QAEgo4D-Closed export for paper runs.",
+  "video_id": "aria_cook_45s",
+  "questions": [
+    {
+      "video_id": "aria_cook_45s",
+      "query": "where is the cup?",
+      "answer": "The cup is in the Kitchen.",
+      "timestamp": 42.5
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "when did I first touch the cup?",
+      "answer": "4.5 seconds",
+      "timestamp": 4.5
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "where did the plate go?",
+      "answer": "The plate was placed in the bowl in the Kitchen.",
+      "timestamp": 43.4
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "how many bowls are in the memory?",
+      "answer": "There are no physical bowls; the tracker split the plates into bowl-labelled duplicates.",
+      "timestamp": 43.4
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "where are my keys?",
+      "answer": "I don't have that in my memory.",
+      "timestamp": 44.0
+    }
+  ]
+}

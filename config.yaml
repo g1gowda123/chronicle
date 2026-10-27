@@ -1,0 +1,84 @@
+# Chronicle evaluation configuration.
+#
+# All paths are resolved relative to the repository root (the directory that
+# contains eval_pipeline.py), so a checkout can be moved without edits.
+#
+# Model loading is intentionally opt-in:
+#   * detector.backend: auto | yolo-world | color
+#   * hands.backend:    auto | mediapipe | hybrid | color | off
+#   * embedder.backend: auto | openclip | color
+#   * semantic.captioner_backend: auto | florence | stub
+#
+# Use the "offline" profile (eval_pipeline.py --offline) to reproduce the
+# harness without downloading weights or starting Ollama.
+
+project:
+  name: chronicle-eval
+
+paths:
+  data_dir: data
+  model_dir: models
+  out_dir: runs/eval
+  db_path: runs/eval/chronicle.db
+  vocabulary_file: null
+
+video:
+  path: data/real/cook/aria_cook_45s.mp4
+  fps_override: null
+  max_frames: null
+
+qa:
+  path: data/qa/ego4d_example.json
+  format: ego4d
+
+perception:
+  detector_backend: auto
+  detector_model: yolov8s-worldv2.pt
+  detector_confidence: 0.30
+  detector_imgsz: 640
+  hands_backend: auto
+  hands_model: hand_landmarker.task
+  embedder_backend: auto
+  embedder_model: ViT-B-32
+  embedder_pretrained: laion2b_s34b_b79k
+  device: auto
+  frame_stride: 1
+  motion_enabled: true
+  clip_enabled: true
+  # Empty list keeps the PerceptionConfig default vocabulary. The engine also
+  # adds object nouns found in the QA file, because YOLO-World is prompt driven.
+  vocabulary: []
+
+semantic:
+  enabled: true
+  captioner_backend: auto
+  embedder_backend: auto
+  device: auto
+  florence_model_id: microsoft/Florence-2-base
+  florence_max_new_tokens: 128
+  florence_num_beams: 3
+  action_task: "<MORE_DETAILED_CAPTION>"
+  action_min_confidence: 0.45
+  llm_backend: template       # template | none | ollama | transformers | auto
+  llm_model: qwen2.5:7b-instruct
+  ollama_url: http://127.0.0.1:11434
+  require_citations: true
+  lenient_citations: true
+  max_facts: 40
+
+runtime:
+  zone_label: null
+  zone_id: null
+  reset_db: true
+  # "none" is the safe default for offline reporting; "baseline" uses the
+  # bundled YOLO/MediaPipe/Florence stack from the config above.
+  profile: baseline
+
+metrics:
+  # Per-frame latency percentiles reported in metrics.json.
+  percentiles: [50, 95, 99]
+  # The first frames include lazy model loading; report both all-frame and
+  # steady-state latency so short smoke clips do not mislead.
+  warmup_frames: 1
+  # Read torch.cuda.max_memory_allocated() when CUDA is available.
+  track_vram: true

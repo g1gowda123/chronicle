@@ -420,6 +420,36 @@ class ChronicleRuntime:
             self._transitions += len(transitions)
             self._detections += len(result.detections)
 
+    # ------------------------------------------------------ headless ingestion API
+    # These are the small, UI-free seams used by the research harness
+    # (eval_pipeline.py) when it owns the frame loop instead of calling
+    # ingest_video(). They do not change any lifecycle/gating behaviour.
+    def attach_pipeline(self, pipeline: PerceptionPipeline) -> None:
+        """Give the runtime the pipeline that will feed :meth:`observe_frame`."""
+        self._pipeline = pipeline
+
+    def detach_pipeline(self) -> None:
+        self._pipeline = None
+
+    def observe_frame(self, result: FrameResult) -> None:
+        """Apply one post-perception frame to the lifecycle and dual graphs."""
+        self._observe_result(result)
+        with self._lock:
+            self._frames += 1
+            self._last_timestamp = result.timestamp
+
+    def submit_clip(self, clip: InteractionClip) -> None:
+        """Queue an interaction clip for semantic verification."""
+        self._queue_clip(clip)
+
+    def publish_perception_event(self, event: PerceptionTelemetryEvent) -> None:
+        """Forward a Role A telemetry event onto the runtime bus (no UI needed)."""
+        self._on_perception_event(event)
+
+    def drain_verifications(self) -> None:
+        """Verify every queued clip on the calling thread."""
+        self._drain_clips()
+
     def _queue_clip(self, clip: InteractionClip) -> None:
         self._clip_queue.submit(clip)
 

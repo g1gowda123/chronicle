@@ -421,7 +421,7 @@ def build_dashboard() -> None:
         vfm_source = memory.resolve(active_clip, default_data_dir())
         vfm_ready = (
             vfm_source is not None
-            and vfm_source.db is not None
+            and (vfm_source.db is not None or vfm_source.video is not None)
             and memory.enabled()
             and memory.manager(default_data_dir()).has_memory(vfm_source)
         )

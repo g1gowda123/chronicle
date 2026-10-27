@@ -22,7 +22,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from .compact import StringTable, compress_json, pack_events
+from .compact import StringTable, compress_json, encode_events
+from .config import DEFAULT_COMPILE_CONFIG, DEFAULT_NOISE_REASONS, CompileConfig
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 SCHEMA = PACKAGE_DIR / "schema_v2.sql"
@@ -30,16 +31,8 @@ SCHEMA_V3 = PACKAGE_DIR / "schema_v3.sql"
 WINDOW_S = 30.0
 COMPILER = "vfm-v3"
 
-#: Transition reasons that are visibility noise, not memory-worthy events.
-NOISE_REASONS = {
-    "camera_pan",
-    "occluder_overlap",
-    "line_of_sight_lost",
-    "reacquired_without_support_geometry",
-    "resting_no_surface_detector",
-    "independent_motion",
-    "independent_motion_relaxed",
-}
+#: Backwards-compatible alias; new code should use ``CompileConfig``.
+NOISE_REASONS = DEFAULT_NOISE_REASONS
 
 #: Coalesce repeated touches of the same object closer than this.
 INTERACTION_GAP_S = 6.0
@@ -143,7 +136,9 @@ def _center_distance(
 
 
 def visibility_counts(
-    source: sqlite3.Connection, entities: list[sqlite3.Row]
+    source: sqlite3.Connection,
+    entities: list[sqlite3.Row],
+    config: CompileConfig = DEFAULT_COMPILE_CONFIG,
 ) -> dict[str, dict[str, Any]]:
     """Per-label track count, peak visibility and cross-label duplicates.
 
@@ -273,10 +268,23 @@ def visibility_counts(
             "transient": transient,
             "merged_into": dict(sorted(merged_into.items())),
         }
+
+    if config.counts_mode == "tracks":
+        # Raw upper bound: the tracker's track count, no reconciliation.
+        for data in counts.values():
+            data.update(physical=data["tracks"], duplicates=0, transient=0, merged_into={})
+    elif config.counts_mode == "peak":
+        # Lower bound: how many same-label tracks were co-visible at once.
+        for data in counts.values():
+            data.update(physical=data["peak"], duplicates=0, transient=0, merged_into={})
     return counts
 
 
-def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, Any]]:
+def build_events(
+    source: sqlite3.Connection,
+    duration: float,
+    config: CompileConfig = DEFAULT_COMPILE_CONFIG,
+) -> list[dict[str, Any]]:
     entities = _rows(source, "select id, label, state, zone_id, first_seen, last_seen from entities")
     zones = _rows(source, "select id, label from zones")
     furniture = _rows(source, "select id, label from furniture")
@@ -302,32 +310,37 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
 
     # 1. First appearance, one per tracked entity. Track fragmentation means several
     #    rows can share a label; keep them as distinct tracks and say so in the answer.
-    for row in entities:
-        first_seen = row["first_seen"]
-        if first_seen is None:
-            continue
-        events.append(
-            _event(
-                first_seen,
-                "state",
-                str(row["label"]),
-                "APPEARED",
-                str(row["label"]),
-                entity_zone.get(str(row["id"])),
-                None,
-                "lifecycle",
-                {"track": str(row["id"])},
+    if config.include_appearances:
+        for row in entities:
+            first_seen = row["first_seen"]
+            if first_seen is None:
+                continue
+            events.append(
+                _event(
+                    first_seen,
+                    "state",
+                    str(row["label"]),
+                    "APPEARED",
+                    str(row["label"]),
+                    entity_zone.get(str(row["id"])),
+                    None,
+                    "lifecycle",
+                    {"track": str(row["id"])},
+                )
             )
-        )
 
     # 2. Salient lifecycle changes. The source DB tags every transition with a
     #    physical reason; drop camera/occlusion flicker and keep contact events.
-    transition_rows = _rows(
-        source,
-        """
-        select s.entity_id, e.label, s.from_state, s.to_state, s.t_event, s.evidence
-        from state_transitions s left join entities e on e.id = s.entity_id
-        """,
+    transition_rows = (
+        _rows(
+            source,
+            """
+            select s.entity_id, e.label, s.from_state, s.to_state, s.t_event, s.evidence
+            from state_transitions s left join entities e on e.id = s.entity_id
+            """,
+        )
+        if config.include_lifecycle
+        else []
     )
     by_entity: dict[str, list[sqlite3.Row]] = defaultdict(list)
     for row in transition_rows:
@@ -347,7 +360,7 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
             evidence = _transition_evidence(row)
             reason = str(evidence.get("reason") or "")
 
-            if reason in NOISE_REASONS:
+            if config.drop_noise_reasons and reason in config.noise_reasons:
                 continue
 
             kind = "state"
@@ -357,9 +370,10 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
                 if label.lower() in {"person", "agent", "user"}:
                     continue
                 if (
-                    last_state in {"INTERACTED", "HELD"}
+                    config.interaction_gap_s > 0
+                    and last_state in {"INTERACTED", "HELD"}
                     and last_emit_t is not None
-                    and t - last_emit_t < INTERACTION_GAP_S
+                    and t - last_emit_t < config.interaction_gap_s
                 ):
                     continue
                 kind, relation, obj = "interaction", "TOUCHED", "person"
@@ -377,7 +391,11 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
                 if last_state not in {"INTERACTED", "HELD", "CONTAINED"}:
                     continue
                 support = _node_label(str(evidence.get("support_id") or ""), labels)
-                if support == last_placement and t - last_placement_t < PLACEMENT_GAP_S:
+                if (
+                    config.placement_gap_s > 0
+                    and support == last_placement
+                    and t - last_placement_t < config.placement_gap_s
+                ):
                     continue
                 kind, relation, obj = "anchor", "PLACED_ON", support or "surface"
                 last_placement = support
@@ -409,13 +427,17 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
             last_emit_t = t
 
     # 3. One anchor per (entity, relation, target): terminal/preferred latest.
-    anchor_rows = _rows(
-        source,
-        """
-        select a.entity_id, e.label, a.anchor_id, a.relation, a.t_start, a.is_terminal, a.confidence
-        from anchors a left join entities e on e.id = a.entity_id
-        order by a.is_terminal desc, a.t_start desc
-        """,
+    anchor_rows = (
+        _rows(
+            source,
+            """
+            select a.entity_id, e.label, a.anchor_id, a.relation, a.t_start, a.is_terminal, a.confidence
+            from anchors a left join entities e on e.id = a.entity_id
+            order by a.is_terminal desc, a.t_start desc
+            """,
+        )
+        if config.include_anchors
+        else []
     )
     seen_anchor: set[tuple[str, str, str]] = set()
     for row in anchor_rows:
@@ -441,7 +463,12 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
 
     # 4. Non-spatial graph relations (IN_ZONE is implied by the entity/zone table).
     #    ACTION edges duplicate hand-contact lifecycle events, so they are skipped.
-    for row in _rows(source, "select src, dst, relation, t_start from edges"):
+    relation_rows = (
+        _rows(source, "select src, dst, relation, t_start from edges")
+        if config.include_relations
+        else []
+    )
+    for row in relation_rows:
         relation = str(row["relation"] or "")
         if relation.upper() in {"IN_ZONE", "RESTING_ON", "INSIDE", "ON", "CONTAINED_IN", "ACTION"}:
             continue
@@ -463,16 +490,24 @@ def build_events(source: sqlite3.Connection, duration: float) -> list[dict[str, 
 
     # 5. Periodic scene anchors so quiet periods are not invisible.
     total = max(0.0, float(duration))
-    step = WINDOW_S
-    tick = 0.0
-    while tick < total:
-        events.append(_event(tick, "keyframe", "", "ANCHOR", "", "", None, "periodic"))
-        tick += step
+    if config.include_periodic_anchors:
+        step = config.periodic_step
+        tick = 0.0
+        while tick < total:
+            events.append(_event(tick, "keyframe", "", "ANCHOR", "", "", None, "periodic"))
+            tick += step
 
     return _dedupe(events)
 
 
-def build_captions(events: list[dict[str, Any]], window_s: float = WINDOW_S) -> list[dict[str, Any]]:
+def build_captions(
+    events: list[dict[str, Any]],
+    window_s: float = WINDOW_S,
+    *,
+    enabled: bool = True,
+) -> list[dict[str, Any]]:
+    if not enabled:
+        return []
     buckets: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for event in events:
         if event["kind"] == "keyframe":
@@ -542,7 +577,9 @@ def compile_vault(
     *,
     title: str | None = None,
     episode_id: str | None = None,
+    config: CompileConfig | None = None,
 ) -> dict[str, Any]:
+    config = config or DEFAULT_COMPILE_CONFIG
     if not source_db.is_file():
         raise SystemExit(f"source database not found: {source_db}")
     out_db.parent.mkdir(parents=True, exist_ok=True)
@@ -560,7 +597,7 @@ def compile_vault(
         zone_labels = {str(row["id"]): str(row["label"]) for row in zones}
         last_t = _rows(source, "select max(t) as last_t from observations")
         duration = float(last_t[0]["last_t"] or 0.0) if last_t else 0.0
-        counts = visibility_counts(source, entities)
+        counts = visibility_counts(source, entities, config)
     finally:
         source.close()
 
@@ -568,7 +605,7 @@ def compile_vault(
     source = sqlite3.connect(str(source_db))
     source.row_factory = sqlite3.Row
     try:
-        events = build_events(source, duration)
+        events = build_events(source, duration, config)
     finally:
         source.close()
 
@@ -582,9 +619,13 @@ def compile_vault(
         table.add(event["relation"])
         table.add(event["object"])
         table.add(event["zone"])
-    blob = pack_events(events, table)
+    blob = encode_events(events, table, config.compression)
 
-    captions = build_captions(events)
+    captions = build_captions(
+        events,
+        config.window_s,
+        enabled=config.include_caption_windows,
+    )
     captions_blob = compress_json(captions)
 
     vault = sqlite3.connect(str(out_db))
@@ -636,12 +677,16 @@ def compile_vault(
             "insert or replace into meta(key, value) values (?, ?)",
             [
                 ("schema_version", COMPILER),
-                ("event_policy", "salience-coalesce-v1"),
+                ("event_policy", config.name),
+                ("compile_config", json.dumps(config.to_dict(), sort_keys=True)),
                 ("compiled_at", str(now)),
                 ("event_count", str(len(events))),
                 ("caption_windows", str(len(captions))),
                 ("event_blob_bytes", str(len(blob))),
                 ("caption_blob_bytes", str(len(captions_blob))),
+                ("event_compression", config.compression),
+                ("counts_mode", config.counts_mode),
+                ("window_s", str(config.window_s)),
                 ("counts", json.dumps(counts, sort_keys=True, separators=(",", ":"))),
                 ("video_retained", "0"),
             ],
@@ -660,6 +705,7 @@ def compile_vault(
             "duration_s": round(duration, 3),
             "bytes_per_event": round(len(blob) / len(events), 2) if events else 0,
             "counts": counts,
+            "config": config.to_dict(),
         }
     finally:
         vault.close()

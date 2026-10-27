@@ -18,6 +18,11 @@ from typing import Any
 
 MAX_IMPORT_BYTES = 256 * 1024 * 1024
 
+#: The media cut is evidence, not a graph, so it stays out of the graph ZIP.
+#: SQLite ``-wal``/``-shm`` sidecars are kept beside ``vault.db`` so the vault
+#: opens with every committed transaction.
+EVENT_CLIP_SKIP = frozenset({"clip.mp4"})
+
 
 def _event_row(event: Any) -> dict[str, Any]:
     return {
@@ -80,25 +85,56 @@ def _csv(rows: list[dict[str, Any]], columns: list[str]) -> str:
     return buffer.getvalue()
 
 
+def _replay(events: list[Any]) -> Any:
+    """Build the graph at the end of the full timeline, not at the playhead."""
+
+    from .store import MemoryStore
+
+    store = MemoryStore(max_events=max(len(events), 1))
+    for event in events:
+        store.apply(event)
+    return store
+
+
+def _write_event_clips(archive: zipfile.ZipFile, root: Path) -> None:
+    """Add the per-event graphs/timelines produced by the ✂ events action."""
+
+    base = (root / "event_clips").resolve()
+    if not base.is_dir():
+        return
+    for path in sorted(base.rglob("*")):
+        if not path.is_file() or path.name in EVENT_CLIP_SKIP:
+            continue
+        try:
+            relative = path.resolve().relative_to(root)
+        except (OSError, ValueError):
+            continue
+        archive.write(path, arcname=relative.as_posix())
+
+
 def build_export_zip(
     runtime: Any,
     data_dir: Path | str,
     *,
     vfm_dir: Path | str | None = None,
 ) -> bytes:
-    """Return a ZIP with the current graph, all replay timelines and VFM files."""
+    """Return a ZIP with the full current graph, all timelines and VFM files."""
 
     root = Path(data_dir).expanduser().resolve()
     store = runtime.store
     events = list(getattr(runtime, "demo_events", None) or list(store.events))
-    snapshot = _snapshot(store, events)
+    # ``runtime.store`` only contains events up to the playhead in demo mode,
+    # while ``events`` is the whole timeline. Replay it so the snapshot and CSVs
+    # describe the same graph the event count in the manifest promises.
+    snapshot_store = _replay(events)
+    snapshot = _snapshot(snapshot_store, events)
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("manifest.json", json.dumps(
             {
                 "version": 1,
                 "created_at": time.time(),
-                "title": store.session.get("title") or "Chronicle episode",
+                "title": snapshot_store.session.get("title") or "Chronicle episode",
                 "events": len(events),
                 "format": "chronicle-graph-zip",
             },
@@ -124,6 +160,8 @@ def build_export_zip(
                 continue
             for path in sorted(folder.glob("*.events.jsonl")):
                 archive.write(path, arcname=f"clips/{path.name}")
+        # Per-event cuts: index, replay, graph snapshot, VLM record and vault.
+        _write_event_clips(archive, root)
         # Optional VFM memory for the active clip.
         if vfm_dir is not None:
             vfm = Path(vfm_dir)

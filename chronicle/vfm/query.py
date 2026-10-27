@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .compact import StringTable, decompress_json, unpack_events
+from .compact import StringTable, decode_events, decompress_json
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 _NUMBER = re.compile(
@@ -82,7 +82,7 @@ _STOPWORDS = {
     "first", "before", "after", "then", "tell", "show", "memory",
 }
 #: Bump when answer wording or canonicalisation changes, so stale answers miss.
-CACHE_VERSION = "v3.8"
+CACHE_VERSION = "v4.0"
 
 
 @dataclass
@@ -173,7 +173,7 @@ def load_store(con: sqlite3.Connection) -> EventStore:
     try:
         row = con.execute("select blob from event_pack where id=1").fetchone()
         if row is not None:
-            events = unpack_events(bytes(row["blob"]), table)
+            events = decode_events(bytes(row["blob"]), table)
     except sqlite3.Error:
         events = []
     if not events:
@@ -536,9 +536,11 @@ def answer_where(
             for item in _evidence_list(store, evidence_t)
             if float(item.get("distance_s", 999.0)) <= 8.0
         ]
+        went = bool(re.search(r"\b(go|gone|went|disappear\w*|missing)\b", query.lower()))
         return Answer(
             query,
-            f"At t={now_t:.1f}s, the {label.lower()} is visible"
+            ("It hasn't gone anywhere yet: " if went else "")
+            + f"at t={now_t:.1f}s the {label.lower()} is visible"
             + (f" in the {zone}" if zone else "")
             + ".",
             citations=citations,
@@ -646,7 +648,14 @@ def answer_where(
     )
 
 
-def answer_when(store: EventStore, query: str, entity: dict[str, Any], action: str) -> Answer:
+def answer_when(
+    store: EventStore,
+    query: str,
+    entity: dict[str, Any],
+    action: str,
+    *,
+    now: float | None = None,
+) -> Answer:
     label = str(entity["label"])
     # "When was the cup last seen?" is a first/last-seen question. The salience
     # ledger may only contain the appearance event, so use the entity bounds that
@@ -657,6 +666,39 @@ def answer_when(store: EventStore, query: str, entity: dict[str, Any], action: s
         if value is not None:
             seen_t = float(value)
             zone = str(entity.get("zone") or "")
+            now_t = float(now) if now is not None else None
+            first_t = float(entity.get("first_seen") or 0.0)
+            # The vault covers the whole episode. A question asked at an earlier
+            # playhead must not claim the object's future last-seen time.
+            if now_t is not None and seen_t > now_t + 0.05:
+                if now_t + 0.05 < first_t:
+                    return Answer(
+                        query,
+                        f"At t={now_t:.1f}s, the {label.lower()} has not appeared yet.",
+                        method="vault-when-current",
+                        confidence=0.7,
+                    )
+                known = [
+                    event
+                    for event in _events_for(store, label)
+                    if float(event["t"]) <= now_t + 0.05
+                ]
+                latest_known = _latest(known)
+                citations = [_citation(latest_known)] if latest_known is not None else [{
+                    "t": round(first_t, 3),
+                    "kind": "seen",
+                    "caption": f"{label} first seen at t={first_t:.1f}s",
+                }]
+                return Answer(
+                    query,
+                    f"At t={now_t:.1f}s, the {label.lower()} is still visible"
+                    + (f" in the {zone}" if zone else "")
+                    + "; there is no disappearance recorded before then.",
+                    citations=citations,
+                    evidence=_evidence_list(store, now_t),
+                    confidence=0.8,
+                    method="vault-when-current",
+                )
             window = _window_caption(store, seen_t)
             frame = None
             if window is not None:
@@ -673,14 +715,21 @@ def answer_when(store: EventStore, query: str, entity: dict[str, Any], action: s
                 + (f" in the {zone}" if zone else "")
                 + "."
             )
-            if frame is not None and abs(frame_t - seen_t) <= 8.0:
-                text += f" Nearest caption frame at t={frame_t:.1f}s: {frame.get('caption') or ''}"
+            frame_caption = str(frame.get("caption") or "") if frame is not None else ""
+            frame_ok = bool(
+                frame is not None
+                and abs(frame_t - seen_t) <= 8.0
+                and frame_t <= seen_t + 0.05
+                and label.lower() in frame_caption.lower()
+            )
+            if frame_ok:
+                text += f" Nearest caption frame at t={frame_t:.1f}s: {frame_caption}"
             citations = [{
                 "t": round(seen_t, 3),
                 "kind": "seen",
                 "caption": f"{label} {prefix} seen at t={seen_t:.1f}s",
             }]
-            if frame is not None:
+            if frame_ok:
                 citations.append({
                     "t": round(frame_t, 3),
                     "kind": "frame",
@@ -1176,12 +1225,23 @@ def answer_holding(
     )
 
 
+_GENERIC_KEYWORD_TOKENS = {
+    "person", "people", "man", "woman", "men", "women", "group", "someone",
+    "somebody", "guy", "girl", "boy", "lady", "individual", "wearing", "wear",
+    "wears", "scene", "video", "memory", "street", "city", "building",
+}
+
+
 def answer_keyword(store: EventStore, query: str) -> Answer:
     tokens = sorted(
         _normal_tokens(query) - _STOPWORDS
     )
     if not tokens:
         return Answer(query, "I don't have that in my memory.", method="no-match")
+    # "red cap", "blue coat", "yellow shirt": the attribute words must actually
+    # occur in the caption. Without this, a question about an absent red cap is
+    # answered with every caption that mentions "person".
+    required = [token for token in tokens if token not in _GENERIC_KEYWORD_TOKENS]
     scored: list[tuple[int, dict[str, Any]]] = []
     for caption in store.ledger_windows:
         text = " ".join(
@@ -1192,11 +1252,15 @@ def answer_keyword(store: EventStore, query: str) -> Answer:
                 " ".join(str(tag) for tag in caption.get("actions") or []),
             ]
         ).lower()
+        if required and not all(token in text for token in required):
+            continue
         hits = sum(1 for token in tokens if token in text)
         if hits:
             scored.append((hits * 2, caption))
     for caption in store.captions:
         text = str(caption.get("text") or "").lower()
+        if required and not all(token in text for token in required):
+            continue
         hits = sum(1 for token in tokens if token in text)
         if hits:
             scored.append((hits, caption))
@@ -1204,12 +1268,37 @@ def answer_keyword(store: EventStore, query: str) -> Answer:
         # Fall back to structured events only when the dense ledger has no hit.
         for event in store.events:
             text = caption_for(event).lower()
+            if required and not all(token in text for token in required):
+                continue
             hits = sum(1 for token in tokens if token in text)
             if hits:
                 scored.append((hits, {**event, "caption": caption_for(event)}))
     if not scored:
+        if required:
+            phrase = " ".join(required)
+            return Answer(
+                query,
+                f"I don't have anything about {phrase} in this memory.",
+                method="no-match",
+            )
         return Answer(query, "I don't have that in my memory.", method="no-match")
     scored.sort(key=lambda item: (item[0], float(item[1].get("t_start", item[1].get("t", 0.0)))), reverse=True)
+    if required:
+        _, row = scored[0]
+        text = str(row.get("caption") or row.get("text") or caption_for(row)).strip()
+        t = float(row.get("t_start", row.get("t", 0.0)))
+        return Answer(
+            query,
+            f"At t={t:.1f}s, " + (text[:1].lower() + text[1:] if text else ""),
+            citations=[{
+                "t": round(t, 3),
+                "kind": str(row.get("kind") or "caption"),
+                "caption": text[:500],
+            }],
+            evidence=([e for e in _nearest_evidence(store, t) if e] or []),
+            confidence=0.7,
+            method="vault-keyword-match",
+        )
     rows = scored[:5]
     lines = ["Here is what the memory contains:"]
     citations: list[dict[str, Any]] = []
@@ -1404,7 +1493,7 @@ def answer(
 
     intent, entity, t, action = classify(store, query)
     key = canonical_key(intent, entity, t, action, store, query)
-    if now is not None and intent == "where":
+    if now is not None and intent in {"where", "when"}:
         key += f":now={round(float(now), 1)}"
     if use_cache:
         cached = _cache_get(store.con, key, query)
@@ -1435,7 +1524,7 @@ def answer(
         if entity is None:
             result = Answer(query, "I don't have that in my memory.", method="no-match")
         else:
-            result = answer_when(store, query, entity, action)
+            result = answer_when(store, query, entity, action, now=now)
     elif intent == "yesno":
         result = answer_yesno(store, query, entity, action)
     elif intent == "history":
