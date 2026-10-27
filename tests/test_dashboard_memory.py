@@ -79,3 +79,18 @@ def test_compile_endpoint_rejects_unknown_clip() -> None:
     client = TestClient(module.app)
     response = client.post("/api/vfm/compile", params={"clip": "video:nope/missing.mp4"})
     assert response.status_code == 400
+
+
+def test_auto_compile_skips_cached_clip(monkeypatch, tmp_path: Path) -> None:
+    _fake_data(tmp_path)
+    clip = "events:demo_events.jsonl"
+
+    class _Cached:
+        def has_memory(self, source):
+            return True
+
+        def submit(self, *args, **kwargs):
+            raise AssertionError("cached clip must not be recompiled")
+
+    monkeypatch.setattr(memory, "manager", lambda root: _Cached())
+    assert memory.auto_compile(clip, tmp_path) is None
