@@ -480,48 +480,93 @@ def answer_where(store: EventStore, query: str, entity: dict[str, Any]) -> Answe
     ]
     last_place = _latest(placements)
     zone = str(entity["zone"] or "")
-    last_seen = entity.get("last_seen")
 
     if latest is None:
         return Answer(query, f"I don't have a location for the {label.lower()}.", method="no-match")
 
-    parts: list[str] = []
+    latest_t = float(latest["t"])
+    seen_value = entity.get("last_seen")
+    seen_t = float(seen_value) if seen_value is not None else latest_t
+    seen_t = max(seen_t, latest_t)
+    # The entity bounds come from observations and can outlive the last salient
+    # event (for example, an object stays visible after it was picked up). Keep
+    # the two times distinct so the answer and its citation agree.
+    seen_is_later = seen_t > latest_t + 0.05
     latest_is_held = str(latest["kind"]) == "interaction" and str(latest["relation"]).upper() == "HELD"
+
+    parts: list[str] = []
     if latest_is_held:
         parts.append(
-            f"The {label.lower()} was last held at t={float(latest['t']):.1f}s"
+            f"The {label.lower()} was last held at t={latest_t:.1f}s"
             + (f" in the {zone}" if zone else "")
             + "."
         )
+        if seen_is_later:
+            parts.append(f"It was last observed at t={seen_t:.1f}s.")
     else:
-        last_seen = entity.get("last_seen")
-        seen_t = float(last_seen) if last_seen is not None else float(latest["t"])
-        seen_t = max(seen_t, float(latest["t"]))
         parts.append(
             f"The {label.lower()} was last seen at t={seen_t:.1f}s"
             + (f" in the {zone}" if zone else "")
             + "."
         )
+
     if last_place is not None:
         parts.append(
             f"Last recorded placement: {caption_for(last_place).rstrip('.')}."
         )
-    elif latest is not None:
-        parts.append(f"Last recorded event: {caption_for(latest).rstrip('.')}.")
+    elif not latest_is_held:
+        if seen_is_later and str(latest["kind"]) == "interaction":
+            parts.append(f"Last interaction: {caption_for(latest).rstrip('.')}.")
+        elif not seen_is_later:
+            parts.append(f"Last recorded event: {caption_for(latest).rstrip('.')}.")
 
-    citations = [
-        cite
-        for cite in (
-            _citation(last_place) if last_place is not None else None,
-            _citation(latest),
+    citations: list[dict[str, Any]] = []
+    if seen_is_later:
+        citations.append(
+            {
+                "t": round(seen_t, 3),
+                "kind": "seen",
+                "subject": label,
+                "relation": "SEEN",
+                "object": "",
+                "zone": zone,
+                "caption": (
+                    f"{label.capitalize()} last seen at t={seen_t:.1f}s"
+                    + (f" in the {zone}" if zone else "")
+                    + "."
+                ),
+            }
         )
-        if cite
+    for citation in (
+        _citation(last_place) if last_place is not None else None,
+        _citation(latest),
+    ):
+        if citation is None:
+            continue
+        if any(
+            item["t"] == citation["t"] and item["kind"] == citation["kind"]
+            for item in citations
+        ):
+            continue
+        citations.append(citation)
+
+    # Prefer a still near the claim being made. If the nearest stored still is
+    # more than 8 s away, return none rather than showing unrelated evidence.
+    evidence_t = (
+        seen_t
+        if seen_is_later
+        else float(last_place["t"]) if last_place is not None else latest_t
+    )
+    evidence = [
+        item
+        for item in _evidence_list(store, evidence_t)
+        if float(item.get("distance_s", 999.0)) <= 8.0
     ]
     return Answer(
         query,
         " ".join(parts),
         citations=citations,
-        evidence=_evidence_list(store, float(latest["t"])),
+        evidence=evidence,
         confidence=0.82,
         method="vault-where",
     )

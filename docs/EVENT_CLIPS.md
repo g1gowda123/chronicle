@@ -29,10 +29,11 @@ curl -s -X POST http://127.0.0.1:8082/api/event-clips \
 curl -s 'http://127.0.0.1:8082/api/event-clips?clip=events:replays/cslab.events.jsonl'
 ```
 
-Every generated clip is added to the clip switcher as an `events:` option, so
-selecting it replays the event window and the live graph/boxes/timeline follow
-that window. The dashboard button verifies the first four clips by default so
-the demo gets semantic captions without waiting for a long queue.
+Generated clips live under `<data-dir>/event_clips/` and are **not** added to
+the main clip picker. The picker stays limited to real sources/replays; event
+artifacts are available through the API and the folder above. The dashboard
+button verifies the first four clips by default so the demo gets semantic
+captions without waiting for a long queue.
 
 ## VLM verification (3 frames per event)
 

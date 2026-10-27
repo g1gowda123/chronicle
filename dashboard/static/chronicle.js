@@ -1060,34 +1060,18 @@
           throw new Error((data && data.error) || "event clipping failed");
         }
         const clips = Array.isArray(data.clips) ? data.clips : [];
-        let first = null;
-        clips.forEach((entry) => {
-          if (!clip || !entry.play) return;
-          let option = Array.from(clip.options).find((item) => item.value === entry.play);
-          if (!option) {
-            option = document.createElement("option");
-            option.value = entry.play;
-            clip.appendChild(option);
-          }
-          const nodes = entry.graph_nodes || 0;
-          const action = entry.action ? " · " + entry.action : "";
-          const vlm = entry.vlm || {};
-          const mark =
-            vlm.status === "ok" ? (vlm.accepted ? " ✓" : " ⚠") : "";
-          option.textContent =
-            (entry.title || "event clip") + action + " · " + nodes + " nodes" + mark;
-          if (!first) first = entry.play;
-        });
-        if (first) {
-          clip.value = first;
-          if (window.emitEvent) emitEvent("chron-replay", first);
-        }
         const verified = data.verified || 0;
+        if (clips.length) {
+          console.info(
+            "event clips written to data/event_clips",
+            clips.map((entry) => entry.events),
+          );
+        }
         this.flash(
           clips.length +
             " event clips · " +
             verified +
-            " VLM-verified · snapshot + vault each",
+            " VLM-verified · saved under data/event_clips",
         );
       } catch (error) {
         this.flash("event clips failed · " + (error.message || error));

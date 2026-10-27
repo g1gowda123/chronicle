@@ -357,9 +357,8 @@ switcher. Endpoints: `GET /api/export/graphs.zip`, `POST /api/import/graphs`.
 active timeline into bounded event windows (3 s pre + 3 s post by default):
 state transitions, interactions, low-confidence/rejected actions and label
 conflicts become short `clip.mp4` files, a rebased `events.jsonl` replay and a
-`graph.json` snapshot with entity/zone/edge nodes at the trigger time. Each cut
-is added to the clip switcher, so the graph, boxes and timeline replay that
-event in isolation. The first four cuts are then verified by **Qwen2.5-VL**
+`graph.json` snapshot with entity/zone/edge nodes at the trigger time. The first
+four cuts are then verified by **Qwen2.5-VL**
 (Ollama) or **Florence-2**: three frames (pre/contact/post) identify the event,
 the result is appended to the timeline as a `vlm-event` interaction, one
 `frames/snapshot.jpg` is kept, and a queryable per-event `vault.db` is compiled

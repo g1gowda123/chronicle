@@ -18,7 +18,7 @@ from urllib.parse import quote
 
 from nicegui import run, ui
 
-from .. import event_clips, memory
+from .. import memory
 from ..replay_db import events_from_db, has_memory, write_events
 from ..runtime import Runtime, clip_title, default_data_dir, probe_duration, runtime
 from ..store import STATE_COLORS, MemoryStore
@@ -95,19 +95,6 @@ def _clip_options() -> list[dict[str, str]]:
             {"value": "events:demo_events.jsonl", "title": _session_title(demo) or "Synthetic demo"}
         )
         seen.add("demo_events.jsonl")
-
-    # Generated event clips persist across restarts; keep them in the switcher.
-    for entry in event_clips.list_event_clips(base):
-        rel = str(entry.get("events") or "")
-        if not rel or rel in seen:
-            continue
-        options.append(
-            {
-                "value": "events:" + rel,
-                "title": str(entry.get("title") or "event clip"),
-            }
-        )
-        seen.add(rel)
 
     registered: set[Path] = set()
     try:
