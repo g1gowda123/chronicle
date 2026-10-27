@@ -417,7 +417,7 @@
         this.video.muted = true;
         this.video.playsInline = true;
         this.video.loop = true;
-        this.video.preload = "auto";
+        this.video.preload = "metadata";
         this.video.setAttribute("muted", "");
         this.video.setAttribute("playsinline", "");
         this.video.style.pointerEvents = "none";

@@ -621,7 +621,13 @@ def build_dashboard() -> None:
                 return
             if not path.is_file():
                 return
-            runtime.play_video("/media/" + rel, clip_title(path), probe_duration(path))
+            playback = path.with_name(path.stem + ".proxy.mp4")
+            play_rel = (
+                playback.relative_to(default_data_dir()).as_posix()
+                if playback.is_file()
+                else rel
+            )
+            runtime.play_video("/media/" + play_rel, clip_title(path), probe_duration(path))
             ok = True
         else:
             return

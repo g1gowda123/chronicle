@@ -198,7 +198,7 @@ def video_html(snapshot: dict[str, Any], replays: list[dict[str, str]] | None = 
     """The big stage card: video, boxes, HUD, transport, scrub and toolbar."""
     src = snapshot.get("video_url") or ""
     video = (
-        f'<video class="chron-video" src="{_e(src)}" muted playsinline loop preload="auto"></video>'
+        f'<video class="chron-video" src="{_e(src)}" muted playsinline loop preload="metadata"></video>'
         if src
         else '<div class="empty-note" style="color:#f7ead2;padding:24px">no feed attached yet</div>'
     )
