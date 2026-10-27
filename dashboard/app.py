@@ -27,6 +27,7 @@ from nicegui import app, ui
 from starlette.concurrency import run_in_threadpool
 
 from . import event_clips, memory, processing, transfer
+from .bundle import export_bundle, import_bundle
 from .runtime import clip_title, default_data_dir, probe_duration, runtime
 from .ui.page import build_dashboard
 
@@ -119,6 +120,28 @@ async def ingest(request: Request) -> JSONResponse:
             "playhead": round(runtime.playhead, 3),
         }
     )
+
+
+@app.get("/api/export")
+async def export_memory() -> Response:
+    """Download the whole memory (graphs, tables, replay timelines) as a ZIP."""
+    payload = export_bundle(runtime, DATA_DIR)
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="chronicle-memory.zip"'},
+    )
+
+
+@app.post("/api/import")
+async def import_memory(request: Request) -> JSONResponse:
+    """Restore replay timelines from an exported memory bundle."""
+    body = await request.body()
+    try:
+        result = import_bundle(body, DATA_DIR)
+    except ValueError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+    return JSONResponse(result)
 
 
 @app.post("/api/upload")

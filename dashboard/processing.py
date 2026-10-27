@@ -20,6 +20,8 @@ from __future__ import annotations
 import json
 import os
 import queue
+import shutil
+import subprocess
 import threading
 import time
 import traceback
@@ -116,6 +118,60 @@ class UploadJob:
             tmp.replace(target)
         except OSError:
             # A status file must never take the pipeline down.
+            pass
+
+
+def _make_playback_proxy(video: Path, duration: float) -> None:
+    """Build a 480p, fast-start playback proxy for long clips.
+
+    The dashboard keeps the original for perception/VLM. A lighter file keeps
+    browser decoding and seeking cheap on 10+ minute uploads.
+    """
+    if duration < 300.0:
+        return
+    proxy = video.with_name(video.stem + ".proxy.mp4")
+    if proxy.is_file():
+        return
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return
+    tmp = video.with_name(video.stem + ".proxy.tmp.mp4")
+    command = [
+        ffmpeg,
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        str(video),
+        "-vf",
+        "scale=-2:480",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "28",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "96k",
+        "-movflags",
+        "+faststart",
+        str(tmp),
+    ]
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            timeout=1800,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        tmp.replace(proxy)
+    except Exception:
+        try:
+            tmp.unlink()
+        except OSError:
             pass
 
 
@@ -299,6 +355,16 @@ class UploadProcessor:
                 finished_at=_now(),
             )
             job.write()
+
+        # Long clips get a lighter playback file for the browser. This is
+        # best-effort and never blocks the upload job.
+        if duration >= 300.0:
+            threading.Thread(
+                target=_make_playback_proxy,
+                args=(job.video, duration),
+                name=f"proxy-{job.key}",
+                daemon=True,
+            ).start()
 
         # Important events deserve their own clips, 3-frame VLM pass, snapshot
         # and per-event vault. This is independent of the 20 s caption window.

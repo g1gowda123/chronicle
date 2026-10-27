@@ -417,7 +417,7 @@
         this.video.muted = true;
         this.video.playsInline = true;
         this.video.loop = true;
-        this.video.preload = "auto";
+        this.video.preload = "metadata";
         this.video.setAttribute("muted", "");
         this.video.setAttribute("playsinline", "");
         this.video.style.pointerEvents = "none";
@@ -950,6 +950,40 @@
       if (window.emitEvent) emitEvent("chron-replay", String(path));
     },
 
+    importBundle(input) {
+      const file = input && input.files && input.files[0];
+      if (!file) return;
+      const status = byId("chat-status");
+      if (status) status.textContent = "importing " + file.name + "…";
+      fetch("/api/import?name=" + encodeURIComponent(file.name), {
+        method: "POST",
+        headers: { "Content-Type": "application/zip" },
+        body: file,
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (!data || !data.path) throw new Error((data && data.error) || "import failed");
+          const clip = byId("chron-clip");
+          const value = "events:" + data.path;
+          if (clip) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = data.title || file.name.replace(/\.zip$/i, "");
+            clip.appendChild(option);
+            clip.value = value;
+          }
+          if (window.emitEvent) emitEvent("chron-replay", value);
+          if (status) status.textContent = "memory imported · playing";
+        })
+        .catch((error) => {
+          if (status) status.textContent = "import failed";
+          console.error(error);
+        })
+        .finally(() => {
+          input.value = "";
+        });
+    },
+
     uploadClip(input) {
       const file = input && input.files && input.files[0];
       if (!file) return;
@@ -1294,7 +1328,7 @@
       const scroller = host.parentElement;
       if (scroller && !this.dragging) scroller.scrollLeft = scroller.scrollWidth;
       const count = byId("ev-count");
-      if (count) count.textContent = this.markers.length + " events";
+      if (count) count.textContent = this.markers.length + " events so far";
     },
 
     renderActions() {
@@ -1302,7 +1336,7 @@
       if (!host) return;
       const items = this.markers.filter((marker) => marker.kind === "interaction").slice(-7).reverse();
       if (!items.length) {
-        const empty = '<div class="empty-strip"><span class="empty-note">no drama yet — it\u2019s early</span></div>';
+        const empty = '<div class="empty-strip"><span class="empty-note">no interactions at this point in the replay</span></div>';
         if (this.lastHtml.actions !== empty) {
           this.lastHtml.actions = empty;
           host.innerHTML = empty;

@@ -74,6 +74,18 @@ def _clip_entry(video: Path, base: Path) -> dict[str, str]:
     return {"value": "video:" + rel, "title": clip_title(video)}
 
 
+def _video_memory_label(value: str, base: Path) -> str:
+    """Say whether a video-only entry already has a caption vault."""
+
+    try:
+        source = memory.resolve(value, base)
+        if source is not None and memory.manager(base).has_memory(source):
+            return "caption memory"
+    except Exception:
+        pass
+    return "video only"
+
+
 def _clip_options() -> list[dict[str, str]]:
     base = default_data_dir()
     options: list[dict[str, str]] = []
@@ -136,7 +148,9 @@ def _clip_options() -> list[dict[str, str]]:
             if entry["value"].split(":", 1)[1] in seen:
                 continue
             if not entry["value"].startswith("events:"):
-                entry["title"] = source.label + " · video only"
+                entry["title"] = source.label + " · " + _video_memory_label(
+                    entry["value"], base
+                )
             options.append(entry)
             seen.add(entry["value"].split(":", 1)[1])
     except Exception:  # registry must never take the dashboard down
@@ -160,8 +174,19 @@ def _clip_options() -> list[dict[str, str]]:
             if rel in seen or rel == "demo/chronicle_demo.mp4":
                 continue
             if not entry["value"].startswith("events:"):
-                entry["title"] += " · video only"
+                entry["title"] += " · " + _video_memory_label(entry["value"], base)
             options.append(entry)
+            seen.add(rel)
+
+    replays_dir = base / "replays"
+    if replays_dir.is_dir():
+        for events in sorted(replays_dir.rglob("*.events.jsonl")):
+            rel = events.relative_to(base).as_posix()
+            if rel in seen:
+                continue
+            options.append(
+                {"value": "events:" + rel, "title": _session_title(events) or events.stem}
+            )
             seen.add(rel)
 
     options.sort(key=lambda option: not option["value"].startswith("events:"))
@@ -396,14 +421,21 @@ def build_dashboard() -> None:
     # ---- actions ------------------------------------------------------ #
 
     _QUERY_TIME = re.compile(
-        r"(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\b", re.IGNORECASE
+        r"(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours)\b",
+        re.IGNORECASE,
     )
 
     def _question_time(text: str) -> float:
         match = _QUERY_TIME.search(text or "")
         if match is not None:
             try:
-                return max(0.0, float(match.group(1)))
+                value = max(0.0, float(match.group(1)))
+                unit = match.group(2).lower()
+                if unit in {"m", "min", "mins", "minute", "minutes"}:
+                    value *= 60.0
+                elif unit in {"h", "hr", "hrs", "hour", "hours"}:
+                    value *= 3600.0
+                return value
             except ValueError:
                 pass
         return float(runtime.playhead or 0.0)
@@ -589,7 +621,13 @@ def build_dashboard() -> None:
                 return
             if not path.is_file():
                 return
-            runtime.play_video("/media/" + rel, clip_title(path), probe_duration(path))
+            playback = path.with_name(path.stem + ".proxy.mp4")
+            play_rel = (
+                playback.relative_to(default_data_dir()).as_posix()
+                if playback.is_file()
+                else rel
+            )
+            runtime.play_video("/media/" + play_rel, clip_title(path), probe_duration(path))
             ok = True
         else:
             return
@@ -757,6 +795,8 @@ def build_dashboard() -> None:
 
         with ui.element("div").classes("row-status"):
             memory_host = ui.element("div").classes("zcard card-pad rot-r")
+            if memory.enabled():
+                ui.html(theme.benchmark_card_html(), sanitize=False)
 
         ui.html(theme.marquee_html(), sanitize=False)
         ui.html(theme.footer_html(), sanitize=False)

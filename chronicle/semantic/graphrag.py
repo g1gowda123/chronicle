@@ -1076,8 +1076,9 @@ class GraphRAG:
             )
             return template_answer(query, resolved)
 
+        provider = getattr(self.chat_client, "provider", "ollama")
         source_name = (
-            f"ollama:{getattr(self.chat_client, 'active_model', None) or getattr(self.chat_client, 'model', 'local')}"
+            f"{provider}:{getattr(self.chat_client, 'active_model', None) or getattr(self.chat_client, 'model', 'local')}"
             if getattr(self.chat_client, "model", None)
             else "llm"
         )

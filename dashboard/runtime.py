@@ -330,7 +330,9 @@ class Runtime:
             self._reset_demo_session()
             self.demo_idx = 0
             self.playhead = 0.0
-            self.playing = True
+            # Long clips are deliberately paused on load: autoplay + a 250 MB
+            # source can spike memory/decoder use before the user asks for it.
+            self.playing = duration <= 300.0
             self.seek(0.0)
 
     # ------------------------------------------------------------------ #

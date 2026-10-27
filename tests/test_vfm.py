@@ -193,6 +193,14 @@ def test_compile_memory_produces_queryable_video_free_artifacts(tmp_path: Path) 
     assert video.is_file()
 
 
+def test_time_hints_support_minutes() -> None:
+    from dashboard.query import QueryEngine
+
+    assert QueryEngine._time_hint("what happened at 2min") == 120.0
+    assert QueryEngine._time_hint("what happened at 1 hour") == 3600.0
+    assert query._time_hint("what happened at 2min") == 120.0
+
+
 def test_manager_compiles_in_background_and_persists_status(tmp_path: Path) -> None:
     _make_graph_db(tmp_path / "chronicle.db")
     _make_video(tmp_path / "clip.mp4")

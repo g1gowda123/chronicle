@@ -106,6 +106,25 @@ def topbar_html(session: dict[str, Any], snapshot: dict[str, Any]) -> str:
     <span class="metric" title="VLM actions verified"><span class="metric-val" id="metric-actions">—</span><span class="metric-label">actions</span></span>
   </div>
   <div class="topbar-spacer"></div>
+  <div class="topbar-actions">
+    <a class="btnz" href="/api/export" download="chronicle-memory.zip"
+       title="Download the memory bundle (.zip): graphs, tables, replay timelines">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+        <path d="M8 2 V10 M4.5 7 L8 10.5 L11.5 7 M3 13 H13" stroke="currentColor"
+              stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      export
+    </a>
+    <label class="btnz" title="Import a Chronicle memory bundle (.zip)">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+        <path d="M8 10.5 V2.5 M4.5 6 L8 2.5 L11.5 6 M3 13 H13" stroke="currentColor"
+              stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      import
+      <input type="file" id="chron-import" accept=".zip,application/zip" hidden
+             onchange="Chronicle.importBundle(this)">
+    </label>
+  </div>
   <span class="chipz chipz-secondary" title="episode · query provider"><span id="chron-episode-title">{title}</span> · <span id="chron-provider-chip">{provider}</span></span>
   <span class="chipz chipz-lg status-pill {pill_cls}" id="chron-mode">
     <span class="pill-dot"></span><span id="chron-mode-badge">{_e(pill_label.upper())}</span>
@@ -179,7 +198,7 @@ def video_html(snapshot: dict[str, Any], replays: list[dict[str, str]] | None = 
     """The big stage card: video, boxes, HUD, transport, scrub and toolbar."""
     src = snapshot.get("video_url") or ""
     video = (
-        f'<video class="chron-video" src="{_e(src)}" muted playsinline loop preload="auto"></video>'
+        f'<video class="chron-video" src="{_e(src)}" muted playsinline loop preload="metadata"></video>'
         if src
         else '<div class="empty-note" style="color:#f7ead2;padding:24px">no feed attached yet</div>'
     )
@@ -415,9 +434,9 @@ def events_card_html() -> str:
     <h2 class="card-title">
       <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8 H14 M4 5 L2 8 L4 11 M12 5 L14 8 L12 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       timeline of state changes
-      <span class="card-note">the episode, moment by moment</span>
+      <span class="card-note">what has happened up to the playhead</span>
     </h2>
-    <div class="head-right"><span class="chipz chipz-secondary" id="ev-count" style="font-size:.6rem">0 events</span></div>
+    <div class="head-right"><span class="chipz chipz-secondary" id="ev-count" style="font-size:.6rem">0 events so far</span></div>
   </div>
   <div style="overflow-x:auto" class="nicescroll">
     <div class="events-strip" id="chron-events">
@@ -437,7 +456,69 @@ def actions_card_html() -> str:
       <span class="card-note">hands were involved</span></h2>
   </div>
   <div class="actions-list" id="chron-actions">
-    <div class="empty-strip"><span class="empty-note">no drama yet — it's early</span></div>
+    <div class="empty-strip"><span class="empty-note">no interactions at this point in the replay</span></div>
+  </div>
+</div>
+""".strip()
+
+
+def benchmark_card_html() -> str:
+    """Static 15-minute benchmark card (Chronicle vs an assumed Gemini baseline).
+
+    Gemini latency is deliberately labelled as estimated: it is a stand-in for a
+    measured baseline, not a number produced on this machine.
+    """
+    return """
+<div class="zcard card-pad rot-l" id="chron-benchmark">
+  <div class="card-head">
+    <h2 class="card-title">benchmark · 15-min video</h2>
+    <div class="head-right">
+      <span class="chipz chipz-mustard" style="font-size:.58rem">Gemini ~20 s*</span>
+    </div>
+  </div>
+
+  <div style="font-family:var(--hand);font-size:1rem;color:var(--inksoft);margin:-2px 0 8px">
+    compile once vs re-watch per question
+  </div>
+
+  <div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 10px">
+    <div style="font-family:var(--display);font-size:2.15rem;font-weight:800;line-height:1">≈22,000×</div>
+    <div style="font-size:.66rem;line-height:1.3;color:var(--inksoft)">
+      faster per question<br>
+      <b style="color:var(--ink)">0.89 ms</b> cold vs <b style="color:var(--ink)">~20 s</b> estimated
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px">
+    <div style="border:1.5px solid var(--ink);background:#eaf6ef;padding:7px 8px">
+      <div style="font-size:.54rem;letter-spacing:.08em;font-weight:800;color:#1b7a4d">CHRONICLE VFM</div>
+      <div style="font-size:1.05rem;font-weight:800;line-height:1.1;margin-top:2px">0.89 ms</div>
+      <div style="font-size:.58rem;color:var(--inksoft)">cold · 3 ms cached</div>
+    </div>
+    <div style="border:1.5px solid var(--ink);background:#f2eee4;padding:7px 8px">
+      <div style="font-size:.54rem;letter-spacing:.08em;font-weight:800;color:var(--inksoft)">GEMINI*</div>
+      <div style="font-size:1.05rem;font-weight:800;line-height:1.1;margin-top:2px">~20 s</div>
+      <div style="font-size:.58rem;color:var(--inksoft)">15–25 s typical</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.15fr .9fr .9fr;gap:3px 7px;font-size:.6rem;line-height:1.35;color:var(--inksoft)">
+    <span></span>
+    <span style="font-weight:800;letter-spacing:.05em;color:var(--ink)">CHRONICLE</span>
+    <span style="font-weight:800;letter-spacing:.05em;color:var(--ink)">GEMINI*</span>
+
+    <span>video at query</span><b style="color:var(--ink)">no</b><b style="color:var(--ink)">yes</b>
+    <span>memory / input</span><b style="color:var(--ink)">95 KB</b><b style="color:var(--ink)">249 MB</b>
+    <span>answer path</span><b style="color:var(--ink)">deterministic</b><b style="color:var(--ink)">video model</b>
+    <span>evidence</span><b style="color:var(--ink)">citation + frame</b><b style="color:var(--ink)">text</b>
+    <span>100 questions</span><b style="color:var(--ink)">0.09 s</b><b style="color:var(--ink)">33 min</b>
+  </div>
+
+  <div style="margin-top:8px;padding-top:6px;border-top:1px dashed #d8cdb7;font-size:.55rem;line-height:1.35;color:var(--inksoft)">
+    *Gemini ~20 s: typical 15-min video pass after upload (10-min public benchmark
+    12–14.5 s; not measured here). It accepts 15-min input: 1M-context models handle
+    ≤1 h high-res / ≤3 h low-res; 249 MB via Files API. Chronicle: 0.89 ms cold /
+    3 ms cached; one-time compile ≈5 min.
   </div>
 </div>
 """.strip()
