@@ -359,9 +359,16 @@ state transitions, interactions, low-confidence/rejected actions and label
 conflicts become short `clip.mp4` files, a rebased `events.jsonl` replay and a
 `graph.json` snapshot with entity/zone/edge nodes at the trigger time. Each cut
 is added to the clip switcher, so the graph, boxes and timeline replay that
-event in isolation. Endpoints: `POST /api/event-clips`, `GET /api/event-clips`.
-See [`docs/EVENT_CLIPS.md`](docs/EVENT_CLIPS.md) for the salience table and
-artifact layout.
+event in isolation. The first four cuts are then verified by **Qwen2.5-VL**
+(Ollama) or **Florence-2**: three frames (pre/contact/post) identify the event,
+the result is appended to the timeline as a `vlm-event` interaction, one
+`frames/snapshot.jpg` is kept, and a queryable per-event `vault.db` is compiled
+from the caption ledger. If no VLM is available the clip still gets frames,
+snapshot, rule-based action and vault. Strong graph states are never overwritten
+by a disagreeing VLM answer; the disagreement is flagged for review.
+Endpoints: `POST /api/event-clips`, `GET /api/event-clips`.
+See [`docs/EVENT_CLIPS.md`](docs/EVENT_CLIPS.md) for the salience table,
+reconciliation policy and artifact layout.
 
 **Memory card / VLM answers.** When the active clip has a graph DB, the zine
 chat uses the compiled VFM vault: dense VLM caption windows + event ledger +

@@ -564,6 +564,11 @@ def build_event_clips(
     limit: int = DEFAULT_LIMIT,
     min_score: float = DEFAULT_MIN_SCORE,
     cut: bool = True,
+    verify: bool = False,
+    verify_limit: int = 12,
+    vlm_model: str | None = None,
+    vlm_host: str | None = None,
+    vlm_timeout: float = 180.0,
 ) -> dict[str, Any]:
     """Build event clips for *clip* and return a UI-ready index.
 
@@ -610,6 +615,11 @@ def build_event_clips(
     output_root.mkdir(parents=True, exist_ok=True)
 
     source_title = str(session.get("title") or source_key)
+    if vlm_model is None or vlm_host is None:
+        from chronicle.vfm import caption_ledger
+
+        vlm_model = vlm_model or caption_ledger.DEFAULT_MODEL
+        vlm_host = vlm_host or caption_ledger.DEFAULT_HOST
     manifest_clips: list[dict[str, Any]] = []
     for index, plan in enumerate(plans, start=1):
         anchor_t = round(float(plan.anchor.t), 3)
@@ -652,6 +662,47 @@ def build_event_clips(
         replay_path = folder / "events.jsonl"
         _write_events(replay_path, replay_session, window_events, offset=plan.start)
 
+        vlm: dict[str, Any] | None = None
+        if verify and video_info and len(manifest_clips) < max(0, int(verify_limit)):
+            try:
+                from chronicle.vfm.event_verify import verify_event
+
+                anchor_data = dict(plan.anchor.data or {})
+                hint = {
+                    "label": plan.label,
+                    "subject": (
+                        anchor_data.get("entity_id")
+                        or anchor_data.get("id")
+                        or anchor_data.get("label")
+                        or plan.label
+                    ),
+                    "entity_id": anchor_data.get("entity_id") or anchor_data.get("id"),
+                    "object_label": anchor_data.get("label") or anchor_data.get("entity_id"),
+                    "state": anchor_data.get("to") if plan.anchor.kind == "state" else "",
+                    "action": anchor_data.get("action") if plan.anchor.kind == "interaction" else "",
+                    "zone": anchor_data.get("zone_id") or anchor_data.get("zone") or "",
+                    "evidence": anchor_data.get("caption") or "",
+                }
+                vlm = verify_event(
+                    clip_video,
+                    anchor_rel=anchor_t - plan.start,
+                    duration=window,
+                    hint=hint,
+                    frames_dir=folder / "frames",
+                    replay_path=replay_path,
+                    out_dir=folder,
+                    title=title,
+                    model=str(vlm_model),
+                    host=str(vlm_host),
+                    timeout=float(vlm_timeout),
+                )
+            except Exception as error:  # verification must not lose the clip
+                vlm = {
+                    "status": "error",
+                    "error": f"{type(error).__name__}: {error}",
+                    "provider": "none",
+                }
+
         graph = _graph_at(events, anchor_t)
         graph_payload = {
             "version": 1,
@@ -667,6 +718,7 @@ def build_event_clips(
                 "t": anchor_t,
                 "data": dict(plan.anchor.data or {}),
             },
+            "vlm": vlm,
             "graph": graph,
         }
         graph_path = folder / "graph.json"
@@ -692,6 +744,11 @@ def build_event_clips(
             "graph_nodes": len(graph.get("nodes") or []),
             "graph_edges": len(graph.get("edges") or []),
             "events_in_window": len(window_events),
+            "vlm": vlm,
+            "action": (vlm or {}).get("action"),
+            "caption": (vlm or {}).get("caption"),
+            "snapshot": (vlm or {}).get("snapshot"),
+            "vault": (vlm or {}).get("vault"),
         }
         (folder / "event.json").write_text(
             json.dumps(entry, indent=2, default=str) + "\n", encoding="utf-8"
@@ -707,6 +764,13 @@ def build_event_clips(
         "post_s": round(max(0.0, float(post)), 3),
         "cooldown_s": round(max(0.0, float(cooldown)), 3),
         "limit": int(limit),
+        "verify": bool(verify),
+        "vlm_model": str(vlm_model or ""),
+        "verified": sum(
+            1
+            for entry in manifest_clips
+            if (entry.get("vlm") or {}).get("status") == "ok"
+        ),
         "duration": round(duration, 3),
         "clips": manifest_clips,
     }

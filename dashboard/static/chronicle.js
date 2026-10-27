@@ -1047,13 +1047,13 @@
         this.flash("pick a clip first — event clipping needs its timeline");
         return;
       }
-      this.flash("cutting event clips · 3s pre / 3s post…");
+      this.flash("cutting + VLM verifying events · 3 frames each…");
       if (button) button.disabled = true;
       try {
         const response = await fetch("/api/event-clips", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clip: value }),
+          body: JSON.stringify({ clip: value, verify: true, verify_limit: 4 }),
         });
         const data = await response.json();
         if (!response.ok || !data || data.error) {
@@ -1070,21 +1070,24 @@
             clip.appendChild(option);
           }
           const nodes = entry.graph_nodes || 0;
+          const action = entry.action ? " · " + entry.action : "";
+          const vlm = entry.vlm || {};
+          const mark =
+            vlm.status === "ok" ? (vlm.accepted ? " ✓" : " ⚠") : "";
           option.textContent =
-            (entry.title || "event clip") + " · " + nodes + " nodes";
+            (entry.title || "event clip") + action + " · " + nodes + " nodes" + mark;
           if (!first) first = entry.play;
         });
         if (first) {
           clip.value = first;
           if (window.emitEvent) emitEvent("chron-replay", first);
         }
+        const verified = data.verified || 0;
         this.flash(
           clips.length +
-            " event clips · one graph each · " +
-            (data.pre_s || 3) +
-            "s pre / " +
-            (data.post_s || 3) +
-            "s post",
+            " event clips · " +
+            verified +
+            " VLM-verified · snapshot + vault each",
         );
       } catch (error) {
         this.flash("event clips failed · " + (error.message || error));

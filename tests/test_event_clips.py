@@ -256,3 +256,11 @@ def test_event_clips_api_builds_and_lists(tmp_path: Path, monkeypatch) -> None:
     missing = client.get("/api/event-clips", params={"clip": "events:nope.events.jsonl"})
     assert missing.status_code == 200
     assert missing.json()["clips"] == []
+
+    artifact = data / "event_clips" / "fixture" / "snapshot.jpg"
+    artifact.write_bytes(b"jpeg")
+    served = client.get("/api/event-clips/artifact", params={"path": "event_clips/fixture/snapshot.jpg"})
+    assert served.status_code == 200
+    assert served.content == b"jpeg"
+    denied = client.get("/api/event-clips/artifact", params={"path": "fixture.events.jsonl"})
+    assert denied.status_code == 400

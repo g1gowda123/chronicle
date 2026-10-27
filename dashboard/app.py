@@ -299,6 +299,11 @@ async def build_event_clips(request: Request) -> JSONResponse:
     limit = int(_clamp_float(payload.get("limit"), 12.0, 1.0, 40.0))
     min_score = _clamp_float(payload.get("min_score"), 0.28, 0.0, 1.0)
     cut_video = payload.get("cut", True) is not False
+    verify = payload.get("verify", False) is True
+    verify_limit = int(_clamp_float(payload.get("verify_limit"), 4.0, 0.0, 40.0))
+    vlm_model = str(payload.get("vlm_model") or "").strip() or None
+    vlm_host = str(payload.get("vlm_host") or "").strip() or None
+    vlm_timeout = _clamp_float(payload.get("vlm_timeout"), 180.0, 5.0, 600.0)
     if not clip:
         return JSONResponse({"error": "clip is required"}, status_code=400)
     try:
@@ -312,6 +317,11 @@ async def build_event_clips(request: Request) -> JSONResponse:
             limit=limit,
             min_score=min_score,
             cut=cut_video,
+            verify=verify,
+            verify_limit=verify_limit,
+            vlm_model=vlm_model,
+            vlm_host=vlm_host,
+            vlm_timeout=vlm_timeout,
         )
     except ValueError as error:
         return JSONResponse({"error": str(error)}, status_code=400)
@@ -333,6 +343,24 @@ async def get_event_clips(request: Request) -> JSONResponse:
             return JSONResponse({"source": clip, "clips": []})
         return JSONResponse(index)
     return JSONResponse({"clips": event_clips.list_event_clips(DATA_DIR)})
+
+
+@app.get("/api/event-clips/artifact")
+async def event_clip_artifact(request: Request) -> Any:
+    """Serve a generated event artifact (snapshot, vault, ledger, clip)."""
+
+    rel = str(request.query_params.get("path") or "").strip()
+    if not rel:
+        return JSONResponse({"error": "path is required"}, status_code=400)
+    base = (DATA_DIR / event_clips.OUTPUT_DIR).resolve()
+    target = (DATA_DIR / rel).resolve()
+    try:
+        target.relative_to(base)
+    except ValueError:
+        return JSONResponse({"error": "artifact must stay inside event_clips"}, status_code=400)
+    if not target.is_file():
+        return JSONResponse({"error": "artifact not found"}, status_code=404)
+    return FileResponse(target)
 
 
 # --------------------------------------------------------------------------- #
