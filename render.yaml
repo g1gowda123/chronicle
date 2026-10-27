@@ -1,0 +1,39 @@
+# Render Blueprint for the Chronicle hosted demo.
+#
+# New > Blueprint in the Render dashboard, pick this repo and branch, then apply.
+# The one-box ask page is at https://<service>.onrender.com/ask
+# The full mission-control dashboard is at https://<service>.onrender.com/
+services:
+  - type: web
+    name: chronicle-vfm
+    runtime: python
+    plan: free
+    buildCommand: pip install -e ".[ui]"
+    startCommand: python run_dashboard.py --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # Replay the bundled synthetic timeline; do not run perception here.
+      - key: CHRONICLE_SOURCE
+        value: demo
+      # Serve the compiled vault; never kick off a compile on Render.
+      - key: CHRONICLE_VFM
+        value: "1"
+      - key: CHRONICLE_VFM_AUTO
+        value: "0"
+      # Deterministic answers only: no Ollama, Gemini or other model calls.
+      - key: CHRONICLE_LLM_BACKEND
+        value: template
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+      # To keep uploads/vaults across deploys you need a paid instance + disk.
+      # Uncomment these two lines and add the disk block below the env vars.
+      # - key: CHRONICLE_DATA_DIR
+      #   value: /var/data
+
+    # Paid plans only. Free instances cannot attach a disk.
+    # disk:
+    #   name: chronicle-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

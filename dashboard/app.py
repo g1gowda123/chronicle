@@ -48,6 +48,12 @@ def index() -> None:
     build_dashboard()
 
 
+@app.get("/ask", include_in_schema=False)
+async def ask_landing() -> FileResponse:
+    """Minimal one-box landing page for hosted demos (e.g. Render)."""
+    return FileResponse(STATIC_DIR / "ask.html", media_type="text/html")
+
+
 # --------------------------------------------------------------------------- #
 # API helpers
 # --------------------------------------------------------------------------- #
