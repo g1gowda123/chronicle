@@ -52,6 +52,7 @@ jobs:
               names = set(archive.namelist())
           required = {
               "chronicle/demo_data/demo.db",
+              "chronicle/evaluation_data/demo_questions.jsonl",
               "chronicle/storage/schema.sql",
               "chronicle/vfm/schema_v2.sql",
               "chronicle/vfm/schema_v3.sql",

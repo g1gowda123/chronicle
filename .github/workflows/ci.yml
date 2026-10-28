@@ -50,11 +50,12 @@ jobs:
           chronicle demo --json > demo.json
           chronicle doctor --json > doctor.json
           chronicle ask "where is my cup?" --llm template > answer.json
-          chronicle ask "where are my keys?" --llm template > unknown.json
+          chronicle ask "where are my keys?" --llm template > keys.json
+          chronicle ask "where is my toaster?" --llm template > unknown.json
           chronicle ask "what did I do?" --llm template > event.json
           chronicle ask "how many cups are there?" --llm template > count.json
           chronicle ask "how many objects are there?" --llm template > objects.json
-          python -c "import json, pathlib; demo=json.loads(pathlib.Path('demo.json').read_text()); answer=json.loads(pathlib.Path('answer.json').read_text()); unknown=json.loads(pathlib.Path('unknown.json').read_text()); event=json.loads(pathlib.Path('event.json').read_text()); count=json.loads(pathlib.Path('count.json').read_text()); objects=json.loads(pathlib.Path('objects.json').read_text()); assert demo['restored_answer']; assert answer['entity']=='cup'; assert 'kitchen counter' in answer['answer']; assert unknown['entity'] is None; assert unknown['answer'] == \"I don't have that in my memory.\"; assert event['method']=='graph-template-event'; assert 'picked up the cup' in event['answer']; assert count['method']=='graph-count'; assert count['answer']=='There is 1 cup in this memory.'; assert objects['answer']=='There is 1 object in this memory.'; print('model-free smoke test passed')"
+          python -c "import json, pathlib; demo=json.loads(pathlib.Path('demo.json').read_text()); answer=json.loads(pathlib.Path('answer.json').read_text()); keys=json.loads(pathlib.Path('keys.json').read_text()); unknown=json.loads(pathlib.Path('unknown.json').read_text()); event=json.loads(pathlib.Path('event.json').read_text()); count=json.loads(pathlib.Path('count.json').read_text()); objects=json.loads(pathlib.Path('objects.json').read_text()); assert demo['restored_answer']; assert answer['entity']=='cup'; assert 'kitchen counter' in answer['answer']; assert keys['entity']=='keys'; assert 'dining table' in keys['answer']; assert unknown['entity'] is None; assert unknown['answer'] == \"I don't have that in my memory.\"; assert event['method']=='graph-template-event'; assert 'picked up the cup' in event['answer']; assert count['method']=='graph-count'; assert count['answer']=='There is 1 cup in this memory.'; assert objects['answer']=='There are 4 objects in this memory.'; print('model-free smoke test passed')"
 
   package:
     name: Build and install distributions
@@ -84,6 +85,7 @@ jobs:
               names = set(archive.namelist())
           required = {
               "chronicle/demo_data/demo.db",
+              "chronicle/evaluation_data/demo_questions.jsonl",
               "chronicle/storage/schema.sql",
               "chronicle/vfm/schema_v2.sql",
               "chronicle/vfm/schema_v3.sql",
@@ -101,7 +103,8 @@ jobs:
           /tmp/chronicle-wheel/bin/chronicle demo --json > /tmp/wheel-demo.json
           /tmp/chronicle-wheel/bin/chronicle ask "where is my cup?" --llm template > /tmp/wheel-ask.json
           /tmp/chronicle-wheel/bin/chronicle doctor --json > /tmp/wheel-doctor.json
-          /tmp/chronicle-wheel/bin/python -c "import json, pathlib; demo=json.loads(pathlib.Path('/tmp/wheel-demo.json').read_text()); ask=json.loads(pathlib.Path('/tmp/wheel-ask.json').read_text()); doctor=json.loads(pathlib.Path('/tmp/wheel-doctor.json').read_text()); assert demo['restored_answer']; assert ask['entity']=='cup'; assert 'kitchen counter' in ask['answer']; assert doctor['demo_memory']['query_ok']; print('wheel install passed')"
+          /tmp/chronicle-wheel/bin/chronicle eval --json > /tmp/wheel-eval.json
+          /tmp/chronicle-wheel/bin/python -c "import json, pathlib; demo=json.loads(pathlib.Path('/tmp/wheel-demo.json').read_text()); ask=json.loads(pathlib.Path('/tmp/wheel-ask.json').read_text()); doctor=json.loads(pathlib.Path('/tmp/wheel-doctor.json').read_text()); report=json.loads(pathlib.Path('/tmp/wheel-eval.json').read_text()); assert demo['restored_answer']; assert ask['entity']=='cup'; assert 'kitchen counter' in ask['answer']; assert doctor['demo_memory']['query_ok']; assert report['total'] >= 30 and report['passed'] == report['total']; print('wheel install passed')"
       - name: Install sdist in a clean environment
         run: |
           python -m venv /tmp/chronicle-sdist
@@ -109,4 +112,5 @@ jobs:
           /tmp/chronicle-sdist/bin/pip install dist/*.tar.gz
           /tmp/chronicle-sdist/bin/chronicle demo --json > /tmp/sdist-demo.json
           /tmp/chronicle-sdist/bin/chronicle doctor --json > /tmp/sdist-doctor.json
-          /tmp/chronicle-sdist/bin/python -c "import json, pathlib; demo=json.loads(pathlib.Path('/tmp/sdist-demo.json').read_text()); doctor=json.loads(pathlib.Path('/tmp/sdist-doctor.json').read_text()); assert demo['restored_answer']; assert doctor['demo_memory']['query_ok']; print('sdist install passed')"
+          /tmp/chronicle-sdist/bin/chronicle eval --json > /tmp/sdist-eval.json
+          /tmp/chronicle-sdist/bin/python -c "import json, pathlib; demo=json.loads(pathlib.Path('/tmp/sdist-demo.json').read_text()); doctor=json.loads(pathlib.Path('/tmp/sdist-doctor.json').read_text()); report=json.loads(pathlib.Path('/tmp/sdist-eval.json').read_text()); assert demo['restored_answer']; assert doctor['demo_memory']['query_ok']; assert report['total'] >= 30 and report['passed'] == report['total']; print('sdist install passed')"
