@@ -65,6 +65,7 @@ from chronicle.semantic.engine import SemanticEngine
 from chronicle.semantic.graphrag import Fact, GraphContext, QueryAnswer
 from chronicle.semantic.queue import VerificationQueue
 from chronicle.telemetry import EventBus, TelemetryTag
+from chronicle.text import content_tokens, singular
 from chronicle.types import (
     FrameResult,
     InteractionClip,
@@ -600,13 +601,119 @@ class ChronicleRuntime:
             last_seen=newest_t,
         )
 
+    def _count_answer(self, query: str, started: float) -> RuntimeAnswer | None:
+        """Answer explicit object-count questions from tracked entities."""
+
+        match = re.search(
+            r"\bhow many\s+(.+?)(?:\s+(?:are|is|were|was|do|does|did|can|have|has)\b|\?|$)",
+            query,
+            re.IGNORECASE,
+        )
+        if match is None:
+            match = re.search(
+                r"\b(?:count|number of)\s+(?:the\s+)?(.+?)(?:\?|$)",
+                query,
+                re.IGNORECASE,
+            )
+        if match is None:
+            return None
+        phrase = match.group(1).strip()
+        tokens = content_tokens(phrase)
+        if not tokens or tokens == {"time"}:
+            return None
+
+        matches = []
+        for entity in self.memory.foreground.entities():
+            label = str(entity.get("label") or "")
+            label_tokens = content_tokens(label)
+            if label_tokens and (
+                label_tokens == tokens
+                or label_tokens <= tokens
+                or tokens <= label_tokens
+            ):
+                matches.append(entity)
+        if not matches:
+            return RuntimeAnswer(
+                query=query,
+                answer=f"I don't have any {phrase} in my memory.",
+                source="graph",
+                grounded=False,
+                method="graph-count",
+                elapsed=time.monotonic() - started,
+            )
+
+        matches.sort(key=lambda entity: float(entity.get("last_seen", 0.0) or 0.0))
+        latest = matches[-1]
+        count = len(matches)
+        noun = singular(str(latest.get("label") or phrase))
+        plural = "" if count == 1 else "s"
+        zone = self.memory.background.zone_label(
+            str(latest.get("zone_id") or self.memory.active_zone or "")
+        )
+        last_seen = float(latest.get("last_seen", 0.0) or 0.0)
+        return RuntimeAnswer(
+            query=query,
+            answer=f"There {'is' if count == 1 else 'are'} {count} {noun}{plural} in this memory.",
+            citations=(
+                {
+                    "timestamp": last_seen,
+                    "relation": "COUNT",
+                    "zone": zone,
+                },
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-count",
+            elapsed=time.monotonic() - started,
+            entity=noun,
+            state=str(latest.get("state") or ""),
+            zone=zone,
+            last_seen=last_seen,
+        )
+
+    def _event_overview(self, query: str, started: float) -> RuntimeAnswer | None:
+        """Answer a generic 'what happened?' question from the busiest entity."""
+
+        entities = sorted(
+            self.memory.foreground.entities(),
+            key=lambda entity: float(entity.get("last_seen", 0.0) or 0.0),
+            reverse=True,
+        )
+        for entity in entities:
+            result = self.memory.query_entity(
+                str(entity.get("node_id", "")),
+                question=query,
+            )
+            summary = result.event_summary() if result is not None else None
+            if summary:
+                return RuntimeAnswer(
+                    query=query,
+                    answer=summary,
+                    source="graph",
+                    grounded=True,
+                    method="graph-template-event",
+                    elapsed=time.monotonic() - started,
+                    entity=result.label,
+                    state=result.state,
+                    zone=result.zone_label,
+                    last_seen=result.last_seen,
+                )
+        return None
+
     def _ask_impl(self, query: str) -> RuntimeAnswer:
         started = time.monotonic()
         colour_answer = self._colour_inventory_answer(query, started)
         if colour_answer is not None:
             return colour_answer
+        count_answer = self._count_answer(query, started)
+        if count_answer is not None:
+            return count_answer
         result = self.memory.query(query)
         if result is None:
+            if is_event_query(query):
+                event_answer = self._event_overview(query, started)
+                if event_answer is not None:
+                    return event_answer
             # Check for inventory / overview queries like "what did I see?", "what was tracked?"
             q_lower = query.lower()
             all_entities = list(self.memory.foreground.entities())

@@ -18,6 +18,10 @@ All notable changes to Chronicle are documented here. The format follows
 - `chronicle doctor` opens the bundled memory and runs a real graph query, so a
   corrupt or incomplete package install is reported instead of only checking
   that the database file exists.
+- Object-count questions such as `how many cups are there?` are answered from
+  tracked entities, including an explicit unknown-object answer.
+- Generic episode questions such as `what did I do?` return the recorded
+  pick-up/placement narrative instead of an abstention.
 - `chronicle --version` reports the installed distribution version.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
   contributor documentation.

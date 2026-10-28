@@ -80,6 +80,8 @@ pip install "git+https://github.com/g1gowda123/chronicle.git@main"
 chronicle doctor
 chronicle demo
 chronicle ask "where is my cup?"
+chronicle ask "what did I do?"
+chronicle ask "how many cups are there?"
 ```
 
 Until the first PyPI release, install the current release from `main`. To work

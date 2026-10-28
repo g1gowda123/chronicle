@@ -127,6 +127,40 @@ class AskDefaultTest(unittest.TestCase):
         self.assertIn("dining table", payload["answer"])
         self.assertIn("kitchen counter", payload["answer"])
 
+    def test_ask_generic_event_uses_overview(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(["ask", "what did I do?", "--llm", "template"])
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-template-event")
+        self.assertIn("picked up the cup", payload["answer"])
+        self.assertIn("kitchen counter", payload["answer"])
+
+    def test_ask_count_uses_tracked_entities(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(["ask", "how many cups are there?", "--llm", "template"])
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-count")
+        self.assertTrue(payload["grounded"])
+        self.assertEqual(payload["entity"], "cup")
+        self.assertEqual(payload["answer"], "There is 1 cup in this memory.")
+
+    def test_ask_count_unknown_object_abstains(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(["ask", "how many elephants?", "--llm", "template"])
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-count")
+        self.assertFalse(payload["grounded"])
+        self.assertIn("don't have any elephants", payload["answer"])
+
     def test_ask_unknown_entity_abstains(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
