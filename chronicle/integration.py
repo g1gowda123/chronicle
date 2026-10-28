@@ -57,7 +57,7 @@ from chronicle.frames import (
 )
 from chronicle.graph.ids import raw_entity_id
 from chronicle.graph.memory import ChronicleMemory
-from chronicle.graph.query import QueryResult
+from chronicle.graph.query import QueryResult, is_event_query
 from chronicle.perception.config import PerceptionConfig
 from chronicle.perception.pipeline import PerceptionPipeline
 from chronicle.semantic.config import SemanticConfig
@@ -697,6 +697,21 @@ class ChronicleRuntime:
                 zone=result.zone_label,
                 last_seen=result.last_seen,
             )
+        if engine.chat_client is None and is_event_query(query):
+            summary = result.event_summary()
+            if summary:
+                return RuntimeAnswer(
+                    query=query,
+                    answer=summary,
+                    source="graph",
+                    grounded=True,
+                    method="graph-template-event",
+                    elapsed=time.monotonic() - started,
+                    entity=result.label,
+                    state=result.state,
+                    zone=result.zone_label,
+                    last_seen=result.last_seen,
+                )
         try:
             answer: QueryAnswer = engine.answer_query(query, context)
             return RuntimeAnswer(

@@ -56,6 +56,10 @@ _PREVIOUS_RE = re.compile(
     r"\b(?:previously|earlier|before that|before then|prior location|former location|previous location)\b",
     re.IGNORECASE,
 )
+_EVENT_RE = re.compile(
+    r"\b(?:what happened|what did i do|what was i doing|tell me what happened)\b",
+    re.IGNORECASE,
+)
 _PRONOUN_CLAUSES = {"that", "this", "then", "now", "it", "they", "them", "that event", "that time"}
 _STOPWORDS = {
     "a", "an", "and", "are", "at", "did", "do", "does", "for", "from", "i",
@@ -68,6 +72,11 @@ def is_temporal_multihop_query(query: str) -> bool:
     """Return True if query asks about a previous state, location, or action."""
     query_lower = query.lower()
     return bool(_BEFORE_RE.search(query_lower) or _PREVIOUS_RE.search(query_lower))
+
+
+def is_event_query(query: str) -> bool:
+    """Return True if the query asks for a narrative event summary."""
+    return bool(_EVENT_RE.search(query)) and not is_temporal_multihop_query(query)
 
 
 @dataclass
@@ -291,11 +300,83 @@ class QueryResult:
 
         return prior_edge, ref_edge, ref_label, True
 
+    def event_summary(self) -> str | None:
+        """Summarize the recorded pick-up/placement sequence for this entity."""
+
+        timeline = self.timeline()
+        placements = [
+            edge
+            for edge in timeline
+            if edge.get("relation") in {Relation.RESTING_ON.value, Relation.INSIDE.value}
+        ]
+        if not placements:
+            return None
+
+        labels = {
+            str(node["node_id"]): str(node.get("label") or _short_node(str(node["node_id"])))
+            for node in self.nodes
+        }
+        labels[self.node_id] = self.label
+
+        def destination(edge: dict[str, Any]) -> str:
+            return labels.get(str(edge.get("dst", "")), _short_node(str(edge.get("dst", ""))))
+
+        def preposition(edge: dict[str, Any]) -> str:
+            return "inside" if edge.get("relation") == Relation.INSIDE.value else "on"
+
+        first = placements[0]
+        last = placements[-1]
+        first_label = destination(first)
+        last_label = destination(last)
+        first_t = float(first.get("t_start", 0.0))
+        last_t = float(last.get("t_start", 0.0))
+        pickup = next(
+            (
+                edge
+                for edge in timeline
+                if edge.get("relation") == Relation.STATE_TRANSITION.value
+                and edge.get("to_state") == "HELD"
+            ),
+            None,
+        )
+        pickup_t = float(pickup.get("t_start", 0.0)) if pickup else None
+
+        if first_label == last_label:
+            if pickup_t is None:
+                return (
+                    f"The {self.label} stayed {preposition(last)} the {last_label}; "
+                    f"no pick-up was recorded."
+                )
+            if self.state == "HELD":
+                return (
+                    f"You picked up the {self.label} at t={pickup_t:.1f}s "
+                    f"and are still holding it."
+                )
+            return (
+                f"You picked up the {self.label} at t={pickup_t:.1f}s and put it back "
+                f"{preposition(last)} the {last_label} at t={last_t:.1f}s."
+            )
+
+        if pickup_t is None:
+            return (
+                f"The {self.label} moved from the {first_label} to the {last_label} "
+                f"at t={last_t:.1f}s; no pick-up was recorded."
+            )
+        return (
+            f"You picked up the {self.label} at t={pickup_t:.1f}s and placed it "
+            f"{preposition(last)} the {last_label} at t={last_t:.1f}s. "
+            f"It had been {preposition(first)} the {first_label} at t={first_t:.1f}s."
+        )
+
     def fallback_answer(self) -> str:
         """Deterministic answer used when no local LLM is configured."""
 
         label = self.label
         query_text = (self.query or "").strip()
+        if is_event_query(query_text):
+            summary = self.event_summary()
+            if summary:
+                return summary
         field = attribute_query_field(query_text)
         if field:
             if not self.attributes:
