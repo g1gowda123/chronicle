@@ -160,6 +160,26 @@ class TemplateAnswerTest(unittest.TestCase):
         self.assertIn("keys", answer.answer.lower())
         self.assertIn("[t=", answer.answer)
 
+    def test_where_query_without_location_facts_abstains(self) -> None:
+        context = GraphContext.from_mapping(
+            {
+                "entity": {"id": "keys", "label": "keys", "zone": "work desk"},
+                "facts": [
+                    {
+                        "subject": "keys",
+                        "relation": "ACTION",
+                        "object": "user",
+                        "timestamp": 2.8,
+                        "zone": "work desk",
+                    }
+                ],
+            }
+        )
+        answer = template_answer("Where are my keys?", context)
+        self.assertIn("don't have a recorded location", answer.answer)
+        self.assertIn("[t=2.8s]", answer.answer)
+        self.assertFalse(answer.grounded)
+
     def test_unknown_entity(self) -> None:
         answer = template_answer("Where is my passport?", GraphContext.from_mapping({"entity": "passport"}))
         self.assertEqual(answer.answer, "I don't have that in my memory.")

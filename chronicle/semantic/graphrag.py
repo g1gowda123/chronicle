@@ -954,12 +954,37 @@ def template_answer(query: str, context: GraphContext) -> QueryAnswer:
     if _is_before_query(query):
         return _before_answer(query, context, entity_facts, label)
 
-    if any(word in query_lower for word in ("where", "location", "find", "lost")):
-        pool = [
+    location_query = any(
+        word in query_lower for word in ("where", "location", "find", "lost")
+    )
+    if location_query:
+        location_facts = [
             fact
             for fact in entity_facts
             if fact.relation.upper() in _LOCATION_RELATIONS
-        ] or entity_facts
+        ]
+        action_facts = [
+            fact
+            for fact in entity_facts
+            if fact.relation.upper() in _ACTION_RELATIONS
+            and fact.object_label
+            and fact.object_label.casefold() not in {"user", "person", label.casefold()}
+        ]
+        if not location_facts and not action_facts:
+            when = (
+                f" It was last observed at [t={format_timestamp(context.last_seen)}s]."
+                if context.last_seen is not None
+                else ""
+            )
+            return QueryAnswer(
+                query=query,
+                answer=f"I don't have a recorded location for {label}.{when}",
+                citations=(),
+                grounded=False,
+                source="template",
+                context=context,
+            )
+        pool = location_facts or action_facts
         best = max(
             pool,
             key=lambda fact: (
