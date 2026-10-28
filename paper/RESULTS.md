@@ -329,3 +329,37 @@ python eval_pipeline.py \
   --captioner florence --llm-backend template \
   --caption-stride 0 --out runs/research/budget_cook_s0 --evaluate
 ```
+
+## Long-video diagnostic (HoloAssist z210, 257 s)
+
+A separate 40-question suite tests whether the graph survives a video roughly
+7.5x longer than the 34 s HoloAssist clip. Questions are asked at t=250 s (and
+t=256 s for final-state cases), so the answer must be retrieved from the full
+history. Ground truth comes from human fine-grained annotations; the scene
+vocabulary is fixed and not derived from the questions.
+
+**Result: 5/40 (12.5%)**, with 54 VLM calls over 2,565 frames (97.9% fewer than
+one call per frame), 1,960.7 MB peak VRAM, and 30.4 ms average query latency.
+
+| Category | Correct | Total |
+|---|---:|---:|
+| object identity | 0 | 8 |
+| object location | 2 | 6 |
+| counting | 1 | 6 |
+| temporal order | 1 | 6 |
+| activity | 1 | 6 |
+| error/correction | 0 | 8 |
+
+The failure is structural, not a QA-format artifact. The detector grounds only
+13 entities (four joy-con tracks, one Switch, one comfort grip, seven person
+tracks); wrist straps, game cards, SD cards, the kickstand and the power button
+are never grounded. Action edges collapse to coarse pick-up/interaction events,
+and the template falls back to the last recorded event for broad questions.
+Three of the five passes are that fallback matching a location token. Counting
+reports four tracked joy-cons although the session uses two physical
+controllers.
+
+This diagnostic is intentionally kept on the research branch and is not used to
+claim general long-video competence. It motivates higher-resolution small-object
+grounding, explicit action supervision, and a temporal event store that can
+answer interval questions. See `benchmarks/long_video/README.md`.

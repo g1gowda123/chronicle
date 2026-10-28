@@ -1,0 +1,20 @@
+{
+  "benchmark": "holoassist-z210-long-video",
+  "video_id": "z210-sep-29-22-switch",
+  "duration_s": 256.988,
+  "resolution": "454x256",
+  "video_sha256": "aff54884393f73b73be87efadf1a5010ebb4c00a80efbbe3d67c996d18e51f6a",
+  "qa_file": "data/qa/holoassist_z210_40q.json",
+  "question_count": 40,
+  "answer_timestamps_s": [250.0, 256.0],
+  "ground_truth": "HoloAssist human fine-grained action annotations",
+  "result": {
+    "recall_at_1": 0.125,
+    "correct": 5,
+    "total": 40,
+    "vlm_calls": 54,
+    "frames_processed": 2565,
+    "peak_vram_mb": 1960.66,
+    "avg_query_latency_ms": 30.4455
+  }
+}

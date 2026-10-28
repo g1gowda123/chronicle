@@ -1,0 +1,357 @@
+{
+  "version": "1.0",
+  "dataset": "holoassist-z210",
+  "description": "40-question long-video QA over the full 257 s HoloAssist z210 session. Ground truth comes from the human action annotations; questions are asked at t=250 s so answers require long-range graph retrieval.",
+  "video_id": "holoassist_z210_257s",
+  "zone_label": "Work Table",
+  "vocabulary": [
+    "nintendo switch",
+    "joy-con",
+    "comfort grip",
+    "joy-con strap",
+    "game card",
+    "sd card",
+    "kickstand",
+    "power button",
+    "table",
+    "person",
+    "hand"
+  ],
+  "questions": [
+    {
+      "query": "What did the person attach the blue controller to first?",
+      "answer": "comfort grip",
+      "timestamp": 250.0,
+      "category": "object_identity"
+    },
+    {
+      "query": "What did the person attach the controllers to after the comfort grip?",
+      "answer": "Nintendo Switch",
+      "answers": [
+        "Nintendo Switch",
+        "switch console",
+        "switch"
+      ],
+      "timestamp": 250.0,
+      "category": "object_identity"
+    },
+    {
+      "query": "What did the person attach after the Nintendo Switch?",
+      "answer": "wrist straps",
+      "answers": [
+        "wrist straps",
+        "joy-con straps",
+        "straps"
+      ],
+      "timestamp": 250.0,
+      "category": "object_identity"
+    },
+    {
+      "query": "What did the instructor open on the back of the Switch?",
+      "answer": "kickstand",
+      "timestamp": 250.0,
+      "category": "object_identity"
+    },
+    {
+      "query": "What did the person remove from the game card slot?",
+      "answer": "old game card",
+      "answers": [
+        "old game card",
+        "game card"
+      ],
+      "timestamp": 250.0,
+      "category": "object_identity"
+    },
+    {
+      "query": "What did the person insert after removing the old game card?",
+      "answer": "new game card",
+      "answers": [
+        "new game card",
+        "game card"
+      ],
+      "timestamp": 250.0,
+      "category": "object_identity"
+    },
+    {
+      "query": "What did the person replace in the kickstand compartment?",
+      "answer": "SD card",
+      "answers": [
+        "SD card",
+        "memory card"
+      ],
+      "timestamp": 250.0,
+      "category": "object_identity"
+    },
+    {
+      "query": "What did the person press to turn on the Switch?",
+      "answer": "power button",
+      "timestamp": 250.0,
+      "category": "object_identity"
+    },
+    {
+      "query": "Where did the person put the joy-con controllers at the start?",
+      "answer": "comfort grip",
+      "timestamp": 250.0,
+      "category": "object_location"
+    },
+    {
+      "query": "Where was the Nintendo Switch placed after the kickstand was opened?",
+      "answer": "Work Table",
+      "answers": [
+        "Work Table",
+        "table"
+      ],
+      "timestamp": 250.0,
+      "category": "object_location"
+    },
+    {
+      "query": "Where is the game card slot?",
+      "answer": "back of the Nintendo Switch",
+      "answers": [
+        "back",
+        "back of the Nintendo Switch"
+      ],
+      "timestamp": 250.0,
+      "category": "object_location"
+    },
+    {
+      "query": "Where is the SD card slot?",
+      "answer": "kickstand compartment",
+      "answers": [
+        "kickstand compartment",
+        "kickstand"
+      ],
+      "timestamp": 250.0,
+      "category": "object_location"
+    },
+    {
+      "query": "Where are the joy-con controllers at the end?",
+      "answer": "wrist straps",
+      "answers": [
+        "wrist straps",
+        "joy-con straps",
+        "straps"
+      ],
+      "timestamp": 256.0,
+      "category": "object_location"
+    },
+    {
+      "query": "Where is the Nintendo Switch at the end?",
+      "answer": "Work Table",
+      "answers": [
+        "Work Table",
+        "table"
+      ],
+      "timestamp": 256.0,
+      "category": "object_location"
+    },
+    {
+      "query": "How many joy-con controllers did the person use?",
+      "answer": "2",
+      "timestamp": 250.0,
+      "category": "counting"
+    },
+    {
+      "query": "How many comfort grips did the person use?",
+      "answer": "1",
+      "timestamp": 250.0,
+      "category": "counting"
+    },
+    {
+      "query": "How many wrist straps did the person attach?",
+      "answer": "2",
+      "timestamp": 250.0,
+      "category": "counting"
+    },
+    {
+      "query": "How many game cards did the person handle?",
+      "answer": "2",
+      "timestamp": 250.0,
+      "category": "counting"
+    },
+    {
+      "query": "How many SD cards did the person handle?",
+      "answer": "2",
+      "timestamp": 250.0,
+      "category": "counting"
+    },
+    {
+      "query": "How many times did the person press the power button?",
+      "answer": "1",
+      "timestamp": 250.0,
+      "category": "counting"
+    },
+    {
+      "query": "What happened first, attaching the controllers to the comfort grip or to the wrist straps?",
+      "answer": "comfort grip",
+      "timestamp": 250.0,
+      "category": "temporal_order"
+    },
+    {
+      "query": "What happened after the person removed the old game card?",
+      "answer": "inserted the new game card",
+      "answers": [
+        "inserted the new game card",
+        "new game card"
+      ],
+      "timestamp": 250.0,
+      "category": "temporal_order"
+    },
+    {
+      "query": "What happened before the instructor opened the kickstand?",
+      "answer": "attached the wrist straps",
+      "answers": [
+        "attached the wrist straps",
+        "wrist straps"
+      ],
+      "timestamp": 250.0,
+      "category": "temporal_order"
+    },
+    {
+      "query": "Which came first, the game card replacement or the SD card replacement?",
+      "answer": "game card",
+      "timestamp": 250.0,
+      "category": "temporal_order"
+    },
+    {
+      "query": "Which came last, opening the kickstand or pressing the power button?",
+      "answer": "power button",
+      "timestamp": 250.0,
+      "category": "temporal_order"
+    },
+    {
+      "query": "What did the person do between removing the old game card and inserting the new one?",
+      "answer": "rotated the new game card",
+      "answers": [
+        "rotated the new game card",
+        "rotated the game card"
+      ],
+      "timestamp": 250.0,
+      "category": "temporal_order"
+    },
+    {
+      "query": "What did the person do at the beginning?",
+      "answer": "picked up the comfort grip",
+      "answers": [
+        "picked up the comfort grip",
+        "grab the comfort grip"
+      ],
+      "timestamp": 250.0,
+      "category": "activity"
+    },
+    {
+      "query": "What did the person do after attaching the blue controller?",
+      "answer": "attached the red controller",
+      "answers": [
+        "attached the red controller",
+        "red controller"
+      ],
+      "timestamp": 250.0,
+      "category": "activity"
+    },
+    {
+      "query": "What did the person do at 67 seconds?",
+      "answer": "grabbed the Nintendo Switch",
+      "answers": [
+        "grabbed the Nintendo Switch",
+        "grab the Nintendo Switch"
+      ],
+      "timestamp": 250.0,
+      "category": "activity"
+    },
+    {
+      "query": "What did the person do at 166 seconds?",
+      "answer": "opened the kickstand",
+      "timestamp": 250.0,
+      "category": "activity"
+    },
+    {
+      "query": "What did the person do at 194 seconds?",
+      "answer": "inserted the new game card",
+      "answers": [
+        "inserted the new game card",
+        "inserted the game card"
+      ],
+      "timestamp": 250.0,
+      "category": "activity"
+    },
+    {
+      "query": "What did the person do at the end?",
+      "answer": "turned on the Nintendo Switch",
+      "answers": [
+        "turned on the Nintendo Switch",
+        "turned on the Switch"
+      ],
+      "timestamp": 256.0,
+      "category": "activity"
+    },
+    {
+      "query": "What mistake did the person make with the blue controller at 25 seconds?",
+      "answer": "inserted it through the middle",
+      "answers": [
+        "inserted it through the middle",
+        "inserted through the middle"
+      ],
+      "timestamp": 250.0,
+      "category": "error_correction"
+    },
+    {
+      "query": "How was the person corrected at 25 seconds?",
+      "answer": "verbally",
+      "timestamp": 250.0,
+      "category": "error_correction"
+    },
+    {
+      "query": "What did the person do wrong at 106 seconds?",
+      "answer": "inserted the red controller",
+      "answers": [
+        "inserted the red controller",
+        "inserted the red joy-con"
+      ],
+      "timestamp": 250.0,
+      "category": "error_correction"
+    },
+    {
+      "query": "What did the instructor say at 42 seconds?",
+      "answer": "No, top, very very top",
+      "timestamp": 250.0,
+      "category": "error_correction"
+    },
+    {
+      "query": "What did the person do after the instructor said no, top, very very top?",
+      "answer": "slid the blue controller",
+      "answers": [
+        "slid the blue controller",
+        "slide the blue controller"
+      ],
+      "timestamp": 250.0,
+      "category": "error_correction"
+    },
+    {
+      "query": "How many actions were corrected by the instructor verbally?",
+      "answer": "10",
+      "timestamp": 250.0,
+      "category": "error_correction"
+    },
+    {
+      "query": "What was the last wrong action?",
+      "answer": "inserted the new game card",
+      "answers": [
+        "inserted the new game card",
+        "inserted the game card"
+      ],
+      "timestamp": 250.0,
+      "category": "error_correction"
+    },
+    {
+      "query": "What was the first wrong action?",
+      "answer": "slid the blue controller",
+      "answers": [
+        "slid the blue controller",
+        "slide the blue controller"
+      ],
+      "timestamp": 250.0,
+      "category": "error_correction"
+    }
+  ]
+}
