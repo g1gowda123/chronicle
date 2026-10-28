@@ -7,6 +7,7 @@ import io
 import zipfile
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 import dashboard.app as app_module
@@ -16,12 +17,17 @@ from dashboard.store import MemoryStore
 from dashboard.ui import theme
 
 ROOT = Path(__file__).resolve().parents[1]
+WALKING_REPLAY = ROOT / "data" / "replays" / "walking.events.jsonl"
+pytestmark = pytest.mark.skipif(
+    not WALKING_REPLAY.is_file(),
+    reason="walking replay fixture is not tracked in a clean checkout",
+)
 
 
 class _FakeRuntime:
     def __init__(self) -> None:
         self.store = MemoryStore()
-        self.demo_events, _, _ = load_demo_events(ROOT / "data" / "replays" / "walking.events.jsonl")
+        self.demo_events, _, _ = load_demo_events(WALKING_REPLAY)
         for event in self.demo_events:
             self.store.apply(event)
 

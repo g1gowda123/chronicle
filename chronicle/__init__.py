@@ -7,6 +7,8 @@ perception records are available from :mod:`chronicle.types`; the live event-bus
 
 __version__ = "0.1.0"
 
+from typing import Any
+
 from chronicle.config import DEFAULT_THRESHOLDS, Thresholds
 from chronicle.geometry import (
     bbox_to_polygon,
@@ -19,7 +21,6 @@ from chronicle.graph.adapter import frame_context_from_result
 from chronicle.graph.consolidation import GraphConsolidator, MergeCandidate, MergeReport
 from chronicle.graph.memory import ChronicleMemory
 from chronicle.graph.query import QueryResult
-from chronicle.integration import ChronicleRuntime, RuntimeAnswer
 from chronicle.state_machine import LifecycleEngine
 from chronicle.telemetry import EventBus, TelemetryEvent, TelemetryTag
 from chronicle.types import (
@@ -34,6 +35,27 @@ from chronicle.types import (
     StateTransition,
     SupportSurface,
 )
+
+
+def __getattr__(name: str) -> Any:
+    """Load the integrated runtime only when it is actually requested.
+
+    ``ChronicleMemory`` and the graph primitives are useful on their own; the
+    full runtime pulls in the perception and semantic layers.  Keeping this
+    import lazy means ``chronicle demo`` and ``chronicle doctor`` stay fast and
+    do not initialize optional model code.
+    """
+
+    if name in {"ChronicleRuntime", "RuntimeAnswer"}:
+        from chronicle.integration import ChronicleRuntime, RuntimeAnswer
+
+        value = {
+            "ChronicleRuntime": ChronicleRuntime,
+            "RuntimeAnswer": RuntimeAnswer,
+        }[name]
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "DEFAULT_THRESHOLDS",

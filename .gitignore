@@ -59,6 +59,8 @@ logs/
 *.db
 *.db-shm
 *.db-wal
+# The model-free demo memory is a small, intentional package asset.
+!chronicle/demo_data/demo.db
 *.sqlite
 *.sqlite3
 data/*.db

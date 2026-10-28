@@ -63,26 +63,58 @@ flowchart LR
 | Query | Deterministic planner, 2-hop GraphRAG retrieval, alias-aware entity resolution, explicit abstention |
 | Interface | CLI, Python API, NiceGUI dashboard, JSON/CSV/ZIP exports |
 
-## Quickstart
+## Try it in 60 seconds
 
-Requires Python 3.11–3.13 (3.12 recommended).
+The first-run path is deliberately model-free. You do **not** need a GPU, a
+video file, YOLO weights, Florence-2, or the dashboard:
 
 ```bash
 git clone https://github.com/g1gowda123/chronicle.git
 cd chronicle
-uv sync
-python -m pytest
-python scripts/demo_role_b.py
+python -m venv .venv
+source .venv/bin/activate
+pip install .
+chronicle doctor
+chronicle demo
+chronicle ask "where is my cup?"
 ```
 
-`demo_role_b.py` is model-free: it creates a synthetic pick-up-and-place scene,
-prints state/graph telemetry, runs 2-hop retrieval, and reopens SQLite to answer
-from persisted memory.
+`chronicle demo` generates a 4.6-second synthetic pick-and-place scene, compiles
+it into SQLite, runs location/event queries, and reopens the database to prove
+that the answer survives a process restart. `chronicle ask` without `--db`
+loads the same memory bundled with the package.
+
+`chronicle doctor` checks the core install, optional feature layers, CUDA, model
+weights, and the bundled memory. It exits non-zero only when something required
+is missing.
+
+| Command | Models required | Purpose |
+|---|---|---|
+| `chronicle demo` | none | Generate and query a synthetic memory |
+| `chronicle ask` | none (template answerer) | Query the bundled or persisted memory |
+| `chronicle doctor` | none | Diagnose install, CUDA, weights, demo data |
+| `chronicle sources` | none | List bundled/demo video sources |
+| `chronicle run` | perception extra | Ingest a real video |
+| `chronicle serve` | UI extra | Launch the optional dashboard |
+
+### Optional feature layers
+
+The core install contains the memory, graph, query engine, CLI, and demo. Add
+only the layer you need:
+
+```bash
+pip install ".[perception]"       # YOLO-World, MediaPipe, OpenCLIP, torch
+pip install ".[semantic-models]"  # Florence-2 / local transformer models
+pip install ".[ui]"               # NiceGUI dashboard (`chronicle serve`)
+```
+
+The UI is intentionally not a core dependency. `chronicle run`, `ask`, `demo`,
+`sources`, and `doctor` all work without NiceGUI, FastAPI, or a browser.
 
 ### Perception demo
 
 ```bash
-uv sync --extra perception --torch-backend cpu
+pip install ".[perception]"
 python scripts/fetch_assets.py
 python scripts/make_demo.py
 python -m chronicle.perception data/demo/chronicle_demo.mp4 \
@@ -90,10 +122,10 @@ python -m chronicle.perception data/demo/chronicle_demo.mp4 \
   --jsonl runs/demo.jsonl --clips-dir runs/demo_clips
 ```
 
-### Dashboard
+### Dashboard (optional)
 
 ```bash
-uv sync --extra ui
+pip install ".[ui]"
 ./chronicle.sh preflight
 chronicle serve --source synthetic --auto-run
 # open http://127.0.0.1:8080
@@ -102,10 +134,17 @@ chronicle serve --source synthetic --auto-run
 ### Semantic + GraphRAG evaluation
 
 ```bash
-uv sync --extra semantic-models
+pip install ".[semantic-models]"
 ollama pull qwen2.5:7b-instruct
 python -m chronicle.semantic.evaluation
 python scripts/benchmark_llm.py --backend all
+```
+
+### Development
+
+```bash
+pip install -e ".[dev]"
+python -m pytest
 ```
 
 ## Benchmarks
@@ -151,7 +190,10 @@ chronicle/
   graph/          lifecycle, dual graph, planner, query, memory
   semantic/       verification, calibration, GraphRAG, evaluation
   storage/        SQLite schema + persistence
-  ui/             NiceGUI dashboard
+  ui/             NiceGUI dashboard (optional extra)
+  demo.py         model-free synthetic scene and bundled-memory generator
+  demo_data/      bundled SQLite memory used by `chronicle ask`
+  doctor.py       environment diagnostics (`chronicle doctor`)
 docs/             architecture, contracts, benchmarks, calibration
 scripts/          demos, asset fetch, LLM benchmark, evidence fixtures
 tests/            model-free unit + integration suite

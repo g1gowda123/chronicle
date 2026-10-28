@@ -4,15 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from dashboard.query import QueryEngine
 from dashboard.runtime import load_demo_events
 from dashboard.store import MemoryStore
 
 ROOT = Path(__file__).resolve().parents[1]
-
+WALKING_REPLAY = ROOT / "data" / "replays" / "walking.events.jsonl"
+pytestmark = pytest.mark.skipif(
+    not WALKING_REPLAY.is_file(),
+    reason="walking replay fixture is not tracked in a clean checkout",
+)
 
 def _walking_engine() -> QueryEngine:
-    events, _, _ = load_demo_events(ROOT / "data" / "replays" / "walking.events.jsonl")
+    events, _, _ = load_demo_events(WALKING_REPLAY)
     store = MemoryStore()
     for event in events:
         store.apply(event)

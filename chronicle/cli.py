@@ -17,18 +17,33 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from chronicle.integration import ChronicleRuntime
-from chronicle.perception.config import PerceptionConfig
-from chronicle.semantic.config import SemanticConfig
-from chronicle.sources import (
-    DEFAULT_DATA_DIR,
-    SOURCES,
-    ClipSource,
-    default_source,
-    source_for_key,
-    source_for_video,
-)
+from chronicle.sources import DEFAULT_DATA_DIR
+
+if TYPE_CHECKING:
+    from chronicle.perception.config import PerceptionConfig
+    from chronicle.semantic.config import SemanticConfig
+    from chronicle.sources import ClipSource
+
+
+def _runtime_class():
+    """Resolve the runtime lazily, while leaving it patchable in tests."""
+
+    runtime = globals().get("ChronicleRuntime")
+    if runtime is not None:
+        return runtime
+    from chronicle.integration import ChronicleRuntime
+
+    return ChronicleRuntime
+
+
+def __getattr__(name: str):
+    if name == "ChronicleRuntime":
+        from chronicle.integration import ChronicleRuntime
+
+        return ChronicleRuntime
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _resolve_source(
@@ -38,6 +53,14 @@ def _resolve_source(
     video: str | None = None,
 ) -> tuple[ClipSource, Path]:
     """Resolve a source key or explicit video path to a source + path."""
+
+    from chronicle.perception.config import PerceptionConfig
+    from chronicle.sources import (
+        ClipSource,
+        default_source,
+        source_for_key,
+        source_for_video,
+    )
 
     if video:
         path = Path(video).expanduser().resolve()
@@ -73,6 +96,8 @@ def _resolve_source(
 def _perception_config(
     args: argparse.Namespace, source: ClipSource | None = None
 ) -> PerceptionConfig:
+    from chronicle.perception.config import PerceptionConfig
+
     config = PerceptionConfig()
     config.detector.backend = args.detector
     config.hands.backend = args.hands
@@ -88,17 +113,34 @@ def _perception_config(
     return config
 
 
-def _semantic_config(args: argparse.Namespace) -> SemanticConfig:
+def _semantic_config(
+    args: argparse.Namespace, *, default_llm: str | None = None
+) -> SemanticConfig:
+    from chronicle.semantic.config import SemanticConfig
+
     config = SemanticConfig.from_env()
     changes = {}
     if getattr(args, "llm", None) is not None:
         changes["llm_backend"] = args.llm
+    elif default_llm is not None:
+        changes["llm_backend"] = default_llm
     if getattr(args, "llm_model", None) is not None:
         changes["llm_model"] = args.llm_model
     return config.replace(**changes) if changes else config
 
 
+def _ensure_ollama(config: SemanticConfig) -> None:
+    """Start Ollama only when the selected answer path can actually use it."""
+
+    if getattr(config, "llm_backend", "auto") in {"auto", "ollama"}:
+        from chronicle.semantic.llm import ensure_local_ollama
+
+        ensure_local_ollama(config)
+
+
 def cmd_sources(args: argparse.Namespace) -> int:
+    from chronicle.sources import SOURCES
+
     data_dir = Path(args.data_dir).expanduser().resolve()
     rows = []
     for source in SOURCES:
@@ -117,6 +159,8 @@ def cmd_sources(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    runtime_cls = _runtime_class()
+
     data_dir = Path(args.data_dir).expanduser().resolve()
     source, video = _resolve_source(
         data_dir,
@@ -125,9 +169,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
     db_path = Path(args.db).expanduser() if args.db else source.db_path(data_dir)
     sem_cfg = _semantic_config(args)
-    from chronicle.semantic.llm import ensure_local_ollama
-    ensure_local_ollama(sem_cfg)
-    runtime = ChronicleRuntime(
+    _ensure_ollama(sem_cfg)
+    runtime = runtime_cls(
         db_path,
         perception_config=_perception_config(args, source),
         semantic_config=sem_cfg,
@@ -155,11 +198,25 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_ask(args: argparse.Namespace) -> int:
-    sem_cfg = _semantic_config(args)
-    from chronicle.semantic.llm import ensure_local_ollama
-    ensure_local_ollama(sem_cfg)
-    runtime = ChronicleRuntime(
-        args.db,
+    from chronicle.demo_data import demo_db_path
+
+    runtime_cls = _runtime_class()
+
+    if args.db:
+        db_path = Path(args.db).expanduser()
+        if not db_path.is_file():
+            raise SystemExit(
+                f"memory database not found: {db_path}\n"
+                "Run `chronicle demo` first or pass --db to an existing memory."
+            )
+    else:
+        db_path = demo_db_path()
+        print(f"using bundled demo memory: {db_path}", file=sys.stderr)
+
+    sem_cfg = _semantic_config(args, default_llm="template")
+    _ensure_ollama(sem_cfg)
+    runtime = runtime_cls(
+        db_path,
         semantic_config=sem_cfg,
         load=True,
     )
@@ -168,6 +225,25 @@ def cmd_ask(args: argparse.Namespace) -> int:
         return 0
     finally:
         runtime.close()
+
+
+def cmd_demo(args: argparse.Namespace) -> int:
+    from chronicle.demo import main as demo_main
+
+    argv: list[str] = []
+    if args.db:
+        argv.extend(["--db", args.db])
+    if args.force:
+        argv.append("--force")
+    if args.json:
+        argv.append("--json")
+    return demo_main(argv)
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from chronicle.doctor import main as doctor_main
+
+    return doctor_main(["--json"] if args.json else [])
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -180,8 +256,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         ) from exc
 
     sem_cfg = _semantic_config(args)
-    from chronicle.semantic.llm import ensure_local_ollama
-    ensure_local_ollama(sem_cfg)
+    _ensure_ollama(sem_cfg)
 
     create_app(
         data_dir=args.data_dir,
@@ -223,6 +298,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    demo = subparsers.add_parser(
+        "demo", help="run the zero-model synthetic demo (no video or weights needed)"
+    )
+    demo.add_argument("--db", help="persist the demo memory to this SQLite path")
+    demo.add_argument(
+        "--force", action="store_true", help="overwrite --db if it already exists"
+    )
+    demo.add_argument("--json", action="store_true", help="emit JSON instead of a report")
+    demo.set_defaults(func=cmd_demo)
+
+    doctor = subparsers.add_parser(
+        "doctor", help="check core, optional, CUDA and demo-memory availability"
+    )
+    doctor.add_argument("--json", action="store_true", help="emit a machine-readable report")
+    doctor.set_defaults(func=cmd_doctor)
+
     sources = subparsers.add_parser("sources", help="list bundled/demo video sources")
     sources.set_defaults(func=cmd_sources)
 
@@ -246,7 +337,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     ask = subparsers.add_parser("ask", help="ask a persisted memory a question")
     ask.add_argument("question")
-    ask.add_argument("--db", required=True)
+    ask.add_argument(
+        "--db",
+        help="SQLite memory path (default: the bundled demo memory)",
+    )
     _add_backend_flags(ask)
     ask.set_defaults(func=cmd_ask)
 

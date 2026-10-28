@@ -24,7 +24,11 @@ def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
 
     from chronicle.ui.app import create_app
 
-    # Keep the test isolated if another dashboard test created the app first.
+    # Keep the test isolated if another test/application has already
+    # registered routes on NiceGUI's process-global app.  Restore them in the
+    # finally block: clearing alone makes later tests (e.g. dashboard upload)
+    # see 404s for routes that were registered before this module ran.
+    saved_routes = list(app.router.routes)
     app.router.routes.clear()
 
     state = create_app(
@@ -131,3 +135,5 @@ def test_dashboard_headless_routes_and_exports(tmp_path: Path) -> None:
         assert res_video.status_code == 404
     finally:
         state.close()
+        # Put back anything that was registered before this isolated app.
+        app.router.routes[:] = saved_routes

@@ -8,7 +8,8 @@ version = "0.1.0"
 description = "Egocentric episodic memory: motion-gated perception, nine-state lifecycle, dual temporal graphs, and semantic verification."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "numpy>=1.26,<3",
     "opencv-python>=4.10",
@@ -48,6 +49,7 @@ semantic-models = [
 dev = [
     "pytest>=8",
     "ruff>=0.5",
+    "httpx>=0.27",
 ]
 
 [project.scripts]
@@ -62,7 +64,9 @@ chronicle-semantic-eval = "chronicle.semantic.evaluation:main"
 include = ["chronicle*"]
 
 [tool.setuptools.package-data]
+"chronicle.storage" = ["*.sql"]
 "chronicle.vfm" = ["*.sql"]
+"chronicle.demo_data" = ["*.db"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
