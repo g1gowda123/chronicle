@@ -12,7 +12,8 @@ Two modes:
 
 The download mode writes exactly the paths used by ``config.yaml``:
 
-    models/yolov8s-worldv2.pt
+    models/yolov8l-worldv2.pt   # default detector
+    models/yolov8s-worldv2.pt   # efficiency ablation / optional ensemble
     models/hand_landmarker.task
     models/Florence-2-base/
 """
@@ -33,6 +34,10 @@ ASSETS: dict[str, str] = {
     "yolov8s-worldv2.pt": (
         "https://github.com/ultralytics/assets/releases/download/v8.3.0/"
         "yolov8s-worldv2.pt"
+    ),
+    "yolov8l-worldv2.pt": (
+        "https://github.com/ultralytics/assets/releases/download/v8.4.0/"
+        "yolov8l-worldv2.pt"
     ),
     "hand_landmarker.task": (
         "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
@@ -101,9 +106,10 @@ def check_assets(models_dir: Path, *, only: Sequence[str] | None = None) -> list
     selected = set(only or ("yolo", "hands", "florence"))
     problems: list[str] = []
     if "yolo" in selected:
-        path = models_dir / "yolov8s-worldv2.pt"
-        if not path.is_file() or path.stat().st_size == 0:
-            problems.append(f"missing or empty: {path}")
+        for name in ("yolov8s-worldv2.pt", "yolov8l-worldv2.pt"):
+            path = models_dir / name
+            if not path.is_file() or path.stat().st_size == 0:
+                problems.append(f"missing or empty: {path}")
     if "hands" in selected:
         path = models_dir / "hand_landmarker.task"
         if not path.is_file() or path.stat().st_size == 0:
@@ -149,13 +155,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.download:
         if "yolo" in selected:
-            name = "yolov8s-worldv2.pt"
-            path = models / name
-            if path.exists() and not args.force:
-                print(f"skip {path} (already present)")
-            else:
-                print(f"fetching {name} -> {path}")
-                _download(ASSETS[name], path)
+            for name in ("yolov8s-worldv2.pt", "yolov8l-worldv2.pt"):
+                path = models / name
+                if path.exists() and not args.force:
+                    print(f"skip {path} (already present)")
+                else:
+                    print(f"fetching {name} -> {path}")
+                    _download(ASSETS[name], path)
         if "hands" in selected:
             name = "hand_landmarker.task"
             path = models / name
@@ -186,7 +192,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"All model assets present under {models}")
     print(f"  Florence: {models / FLORENCE_DIRNAME}")
-    print(f"  YOLO:     {models / 'yolov8s-worldv2.pt'}")
+    print(f"  YOLO-S:   {models / 'yolov8s-worldv2.pt'}")
+    print(f"  YOLO-L:   {models / 'yolov8l-worldv2.pt'}")
     print(f"  Hands:    {models / 'hand_landmarker.task'}")
     print("\nFor a strictly offline run:")
     print("  export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1")

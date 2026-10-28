@@ -57,6 +57,7 @@ from chronicle.frames import (
 )
 from chronicle.graph.ids import raw_entity_id
 from chronicle.graph.memory import ChronicleMemory
+from chronicle.graph.planner import answer_query_plan
 from chronicle.graph.query import QueryResult
 from chronicle.perception.config import PerceptionConfig
 from chronicle.perception.pipeline import PerceptionPipeline
@@ -630,6 +631,21 @@ class ChronicleRuntime:
         colour_answer = self._colour_inventory_answer(query, started)
         if colour_answer is not None:
             return colour_answer
+        planned = answer_query_plan(query, engine=self.memory.query_engine)
+        if planned is not None:
+            return RuntimeAnswer(
+                query=query,
+                answer=planned.answer,
+                citations=planned.citations,
+                source="graph",
+                grounded=planned.grounded,
+                method=planned.method,
+                elapsed=time.monotonic() - started,
+                entity=planned.entity,
+                state=planned.state,
+                zone=planned.zone,
+                last_seen=planned.last_seen,
+            )
         result = self.memory.query(query)
         if result is None:
             # Check for inventory / overview queries like "what did I see?", "what was tracked?"

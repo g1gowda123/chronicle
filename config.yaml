@@ -33,7 +33,13 @@ qa:
 
 perception:
   detector_backend: auto
-  detector_model: yolov8s-worldv2.pt
+  # The large YOLO-World scale is the primary detector: it grounds flat objects
+  # (cutting board) and appliances that the small model misses.  A two-scale
+  # ``detector_models`` ensemble was also evaluated (see paper/RESULTS.md); it
+  # raised Cook recall but destabilised HoloAssist instance counting, so it is
+  # not the default.  Leave ``detector_models`` empty to run one model.
+  detector_model: yolov8l-worldv2.pt
+  detector_models: []
   detector_confidence: 0.30
   detector_imgsz: 640
   hands_backend: auto
@@ -45,13 +51,34 @@ perception:
   frame_stride: 1
   motion_enabled: true
   clip_enabled: true
-  # Empty list keeps the selected preset. The engine also adds object nouns and
-  # short noun phrases found in the QA file, because YOLO-World is prompt driven.
-  vocabulary_preset: broad    # default | broad | none
+  # Empty list keeps the selected preset.  The evaluation uses the fixed scene
+  # vocabulary declared in the QA metadata: broad prompts dilute YOLO-World
+  # (111 classes) and ground fewer target objects than a 12-15 class scene list.
+  # "none" is an evaluation setting; for a new video without scene metadata,
+  # use "default" or list the classes under ``vocabulary`` below.
+  vocabulary_preset: none    # default | broad | none
   vocabulary: []
+  # Fixed prompt ensembles for open-vocabulary detection.  YOLO-World often
+  # responds to a synonym more strongly than to the evaluation label; these
+  # prompts are renamed back to the canonical term before tracking.  The set is
+  # fixed a priori (common household synonyms), not derived from questions.
+  prompt_aliases:
+    cup: [mug, coffee cup]
+    cutting board: [chopping board, wooden cutting board, cutting board wooden]
+    rice cooker: [instant pot, rice pot]
+    bowl: [white bowl, ceramic bowl]
+  # Research integrity: deriving detector prompts from the questions leaks the
+  # evaluation set into perception.  Off by default; enable only for the
+  # explicit leakage ablation.
+  derive_vocabulary_from_qa: false
 
 semantic:
   enabled: true
+  # VLM budget: caption every Nth event trigger.  The budget sweep in
+  # paper/RESULTS.md is flat from zero to every-trigger on the grounded QA
+  # suite, so stride 4 keeps captions for salient events at ~1/4 the calls.
+  # Set to 1 to caption every trigger, or 0 to disable captions entirely.
+  caption_stride: 4
   # Fail fast instead of silently using StubCaptioner. The local path is
   # prepared by scripts/fetch_models.py and is resolved from the repo root.
   require_florence: true

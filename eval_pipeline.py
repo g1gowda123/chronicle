@@ -217,6 +217,7 @@ class MetricsTracker:
         self.vlm_calls = 0
         self.vlm_model_calls = 0
         self.vlm_stub_calls = 0
+        self.vlm_skips = 0
         self.vlm_latencies_ms: list[float] = []
         self.vlm_backends: dict[str, int] = {}
         self.vlm_triggers: dict[str, int] = {}
@@ -308,6 +309,11 @@ class MetricsTracker:
             self.vlm_latencies_ms.append(max(0.0, float(latency_ms)))
         self.vlm_backends[backend] = self.vlm_backends.get(backend, 0) + 1
         self.vlm_triggers[trigger] = self.vlm_triggers.get(trigger, 0) + 1
+
+    def record_vlm_skip(self, *, trigger: str = "caption") -> None:
+        """Count an event trigger whose caption call was skipped by a budget."""
+
+        self.vlm_skips += 1
 
     def record_llm_call(
         self,
@@ -402,6 +408,7 @@ class MetricsTracker:
             "vlm_calls": self.vlm_calls,
             "vlm_model_calls": self.vlm_model_calls,
             "vlm_stub_calls": self.vlm_stub_calls,
+            "vlm_skips": self.vlm_skips,
             "vlm_calls_per_100_frames": round(100.0 * self.vlm_calls / frames, 3) if frames else None,
             "vlm_call_reduction_pct": reduction,
             "vlm_model_call_reduction_pct": effective_reduction,
@@ -446,8 +453,19 @@ class MetricsTracker:
         return payload
 
 
-def instrument_captioner(captioner: Any, metrics: MetricsTracker, *, trigger: str = "semantic") -> bool:
+def instrument_captioner(
+    captioner: Any,
+    metrics: MetricsTracker,
+    *,
+    trigger: str = "semantic",
+    stride: int = 1,
+) -> bool:
     """Wrap ``captioner.caption`` so every Florence-2 trigger is counted.
+
+    ``stride`` implements a VLM-budget ablation: only every ``stride``-th event
+    trigger invokes the captioner (``0`` disables captions entirely).  Skipped
+    triggers return an empty caption and are counted separately, so the
+    accuracy/call curve uses measured model calls rather than inferred ones.
 
     Returns ``True`` when the captioner was instrumented.  The wrapper is
     idempotent, so `ChronicleEngine` can call it in tests more than once.
@@ -458,12 +476,19 @@ def instrument_captioner(captioner: Any, metrics: MetricsTracker, *, trigger: st
     original = getattr(captioner, "caption", None)
     if not callable(original):
         return False
+    stride = int(stride)
+    seen = [0]
 
     def _backend_name() -> str:
         impl = getattr(captioner, "_impl", None) or captioner
         return type(impl).__name__
 
     def counted(image: Any, task: Any = None) -> Any:
+        index = seen[0]
+        seen[0] += 1
+        if stride <= 0 or (stride > 1 and index % stride != 0):
+            metrics.record_vlm_skip(trigger=trigger)
+            return ""
         started = time.perf_counter()
         try:
             if task is None:
@@ -698,8 +723,25 @@ class ChronicleEngine:
         cfg.max_frames = None if max_frames in (None, "", 0) else int(max_frames)
         cfg.detector.backend = str(section.get("detector_backend", cfg.detector.backend))
         cfg.detector.model = str(section.get("detector_model", cfg.detector.model))
+        raw_models = section.get("detector_models") or []
+        if isinstance(raw_models, str):
+            raw_models = [item.strip() for item in raw_models.split(",") if item.strip()]
+        cfg.detector.models = tuple(
+            dict.fromkeys(str(model).strip() for model in raw_models if str(model).strip())
+        )
         cfg.detector.confidence = float(section.get("detector_confidence", cfg.detector.confidence))
         cfg.detector.imgsz = int(section.get("detector_imgsz", cfg.detector.imgsz))
+        raw_prompt_aliases = section.get("prompt_aliases") or {}
+        if isinstance(raw_prompt_aliases, dict):
+            cfg.detector.prompt_aliases = {
+                str(label).strip().lower(): (
+                    tuple(str(v).strip() for v in values if str(v).strip())
+                    if isinstance(values, (list, tuple))
+                    else (str(values).strip(),)
+                )
+                for label, values in raw_prompt_aliases.items()
+                if str(label).strip()
+            }
         cfg.hands.backend = str(section.get("hands_backend", cfg.hands.backend))
         cfg.hands.model = str(section.get("hands_model", cfg.hands.model))
         cfg.embedder.backend = str(section.get("embedder_backend", cfg.embedder.backend))
@@ -718,9 +760,22 @@ class ChronicleEngine:
         if isinstance(vocab, str):
             vocab = [item.strip() for item in vocab.split(",") if item.strip()]
         cfg.vocabulary = tuple(dict.fromkeys([*cfg.vocabulary, *[str(item) for item in vocab]]))
-        # QA nouns are useful YOLO-World prompts; the detector ignores unknown
-        # labels, so over-including them only costs a little compute.
-        cfg.vocabulary = tuple(dict.fromkeys([*cfg.vocabulary, *_qa_vocabulary(self.qa_pairs)]))
+        # Dataset metadata may declare a fixed scene vocabulary (the objects a
+        # deployment cares about).  This is *not* derived from the questions.
+        scene_vocab = self.qa_metadata.get("vocabulary") or []
+        if isinstance(scene_vocab, str):
+            scene_vocab = [item.strip() for item in scene_vocab.split(",") if item.strip()]
+        if isinstance(scene_vocab, Sequence):
+            cfg.vocabulary = tuple(
+                dict.fromkeys([*cfg.vocabulary, *[str(item) for item in scene_vocab]])
+            )
+        # Prompt leakage ablation: optionally feed question nouns to the
+        # open-vocabulary detector.  Off by default because a published
+        # evaluation must not let test questions shape perception.
+        if bool(section.get("derive_vocabulary_from_qa", False)):
+            cfg.vocabulary = tuple(
+                dict.fromkeys([*cfg.vocabulary, *_qa_vocabulary(self.qa_pairs)])
+            )
         return cfg
 
     def _semantic_config(self) -> Any:
@@ -863,7 +918,15 @@ class ChronicleEngine:
                     semantic.captioner,
                     str(semantic_section.get("captioner_backend", "auto")),
                 )
-            instrument_captioner(semantic.captioner, self.metrics)
+            instrument_captioner(
+                semantic.captioner,
+                self.metrics,
+                stride=int(
+                    0
+                    if semantic_section.get("caption_stride", 1) == 0
+                    else semantic_section.get("caption_stride", 1) or 1
+                ),
+            )
             instrument_chat_client(semantic.chat_client, self.metrics)
         self.semantic = semantic
 
@@ -1565,6 +1628,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--db", type=Path, default=None, help="SQLite path for this run")
     parser.add_argument("--max-frames", type=int, default=None, help="stop after N processed frames")
     parser.add_argument("--fps", type=float, default=None, help="override video FPS for sampling")
+    parser.add_argument(
+        "--vocabulary-preset",
+        choices=("default", "broad", "none"),
+        default=None,
+        help="detector prompt set; scene metadata vocabulary is always added",
+    )
     parser.add_argument("--offline", action="store_true", help="colour backends + stub Florence (no weights)")
     parser.add_argument(
         "--captioner",
@@ -1573,6 +1642,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="semantic captioner backend; qwen uses Ollama qwen2.5vl:3b",
     )
     parser.add_argument("--no-semantic", action="store_true", help="disable VLM verification entirely")
+    parser.add_argument(
+        "--caption-stride",
+        type=int,
+        default=None,
+        help="VLM budget ablation: caption every Nth event trigger (0 disables captions)",
+    )
     parser.add_argument(
         "--evaluate",
         action="store_true",
@@ -1603,10 +1678,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         overrides["runtime"] = {"profile": "offline"}
     if args.no_semantic:
         overrides.setdefault("semantic", {})["enabled"] = False
+    if args.caption_stride is not None:
+        overrides.setdefault("semantic", {})["caption_stride"] = int(args.caption_stride)
     if args.max_frames is not None:
         overrides.setdefault("perception", {})["max_frames"] = int(args.max_frames)
     if args.fps is not None:
         overrides.setdefault("video", {})["fps_override"] = float(args.fps)
+    if args.vocabulary_preset is not None:
+        overrides.setdefault("perception", {})["vocabulary_preset"] = args.vocabulary_preset
     if args.llm_backend is not None:
         overrides.setdefault("semantic", {})["llm_backend"] = args.llm_backend
     if args.llm_model is not None:

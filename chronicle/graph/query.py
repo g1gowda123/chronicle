@@ -63,6 +63,58 @@ _STOPWORDS = {
     "where", "what", "when", "which", "with",
 }
 
+# A question names its target object after a determiner/possessive.  Keeping
+# the phrase (instead of the whole sentence) stops the *subject* ("the person")
+# from outranking the object the user actually asked about.
+_FOCUS_TERMINATORS = (
+    "in|on|at|with|from|to|before|after|by|inside|near|under|behind|during|for|of|"
+    "go|went|going|gone|end|ended|up|disappear|disappeared|do|did|does|doing|"
+    "is|are|was|were|be|being|been|have|has|had|first|last|just|then|now|"
+    "pick|picked|grab|grabbed|touch|touched|hold|held|place|placed|put|insert|"
+    "remove|withdraw|open|close|slice|cut|stir|pour|move|align|slide"
+)
+_FOCUS_RE = re.compile(
+    r"\b(?:the|a|an|this|that|these|those|my|your|our|their|his|her)\s+"
+    r"([a-z0-9][a-z0-9 _-]*?)"
+    rf"(?=\s+(?:{_FOCUS_TERMINATORS})\b|[?.!,;]|$)",
+    re.IGNORECASE,
+)
+_PERSON_LABELS = {
+    "person",
+    "people",
+    "man",
+    "woman",
+    "human",
+    "user",
+    "chef",
+    "patient",
+    "someone",
+    "friend",
+    "colleague",
+    "pedestrian",
+}
+
+
+def focus_phrases(text: str) -> list[str]:
+    """Return noun phrases introduced by determiners, in question order.
+
+    Later phrases are usually the grammatical object of the question, while an
+    earlier phrase is usually the subject (``What did **the person** do with
+    **the joy-con**?``).  The resolver uses that ordering as a weak prior.
+    """
+
+    phrases: list[str] = []
+    for match in _FOCUS_RE.finditer(text or ""):
+        phrase = re.sub(r"\s+", " ", match.group(1)).strip(" _-")
+        if phrase:
+            phrases.append(phrase)
+    return phrases
+
+
+def _is_person_label(label: str) -> bool:
+    tokens = set(re.findall(r"[a-z0-9]+", label.lower()))
+    return bool(tokens & _PERSON_LABELS)
+
 
 def is_temporal_multihop_query(query: str) -> bool:
     """Return True if query asks about a previous state, location, or action."""
@@ -500,6 +552,7 @@ class GraphQuery:
                 self.bus.query("text embedder failed", entity=text, error=repr(exc))
 
         candidates: list[dict[str, Any]] = []
+        focus = focus_phrases(text)
         for attrs in self.foreground.entities():
             label = str(attrs.get("label", ""))
             score, reason = match_details(text, label)
@@ -508,6 +561,35 @@ class GraphQuery:
                 if similarity > score:
                     score = similarity
                     reason = "embedding similarity"
+
+            # Object-focus prior.  A phrase match is weighted by its position
+            # in the question (the last determiner phrase is usually the
+            # target) and the subject noun "person" is discounted when a later
+            # phrase names a different object.
+            best_focus = 0.0
+            best_index = -1
+            for index, phrase in enumerate(focus):
+                phrase_score, _ = match_details(phrase, label)
+                weighted = phrase_score * (1.0 + 0.15 * index)
+                if weighted > best_focus:
+                    best_focus = weighted
+                    best_index = index
+            if best_focus > 0.0:
+                if score <= 0.0 or best_focus > score + 1e-6:
+                    score = best_focus
+                    reason = "entity focus"
+                else:
+                    score += 0.10 * best_focus
+            if (
+                _is_person_label(label)
+                and best_index >= 0
+                and any(
+                    not _is_person_label(phrase)
+                    for phrase in focus[best_index + 1 :]
+                )
+            ):
+                score -= 0.35
+
             if score <= 0.0:
                 continue
 

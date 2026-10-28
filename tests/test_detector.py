@@ -3,9 +3,10 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from chronicle.perception.config import DetectorConfig
+from chronicle.perception.config import DetectorConfig, PerceptionConfig
 from chronicle.perception.detector import (
     ColorDetector,
+    YoloWorldDetector,
     deduplicate_detections,
     filter_min_area,
 )
@@ -81,3 +82,29 @@ def test_color_detector_ignores_objects_outside_vocabulary() -> None:
     cv2.rectangle(frame, (20, 20), (80, 80), PALETTE["backpack"], -1)
     detector = ColorDetector(DetectorConfig(confidence=0.3), vocabulary=["keys"])
     assert detector.detect(frame) == []
+
+
+def test_yolo_prompt_aliases_expand_and_canonicalise() -> None:
+    root = PerceptionConfig(vocabulary=("cup", "plate"))
+    root.detector.prompt_aliases = {"cup": ("mug", "coffee cup")}
+    detector = YoloWorldDetector(root.detector, root)
+    assert detector._prompts == ("cup", "mug", "coffee cup", "plate")
+    assert detector._aliases["mug"] == "cup"
+    assert detector._aliases["coffee cup"] == "cup"
+
+    detector.set_vocabulary(("cup",))
+    assert detector._prompts == ("cup", "mug", "coffee cup")
+    assert detector._labels == {"cup"}
+
+
+def test_yolo_model_ensemble_is_configured_without_loading_weights() -> None:
+    root = PerceptionConfig(vocabulary=("cup", "cutting board"))
+    root.detector.model = "yolov8s-worldv2.pt"
+    root.detector.models = ("yolov8s-worldv2.pt", "yolov8l-worldv2.pt")
+    detector = YoloWorldDetector(root.detector, root)
+    assert detector._model_names == ("yolov8s-worldv2.pt", "yolov8l-worldv2.pt")
+    assert detector.name == "yolo-world-ensemble"
+
+    single = YoloWorldDetector(DetectorConfig(model="yolov8s-worldv2.pt"), root)
+    assert single._model_names == ("yolov8s-worldv2.pt",)
+    assert single.name == "yolo-world"

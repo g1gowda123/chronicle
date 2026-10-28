@@ -7,6 +7,7 @@ from pathlib import Path
 from eval_pipeline import (
     ChronicleEngine,
     MetricsTracker,
+    instrument_captioner,
     load_qa_pairs,
     parse_timestamp,
 )
@@ -131,3 +132,22 @@ def test_headless_research_imports_do_not_touch_ui() -> None:
         import chronicle.vfm.query  # noqa: F401
     finally:
         sys.meta_path[:] = previous
+
+
+def test_caption_budget_stride_counts_only_calls() -> None:
+    from chronicle.semantic.florence import StubCaptioner
+
+    metrics = MetricsTracker(track_vram=False)
+    captioner = StubCaptioner(default_caption="a cup on a table")
+    assert instrument_captioner(captioner, metrics, stride=2)
+    outputs = [captioner.caption(None) for _ in range(5)]
+    assert outputs == ["a cup on a table", "", "a cup on a table", "", "a cup on a table"]
+    assert metrics.vlm_calls == 3
+    assert metrics.vlm_skips == 2
+
+    never = MetricsTracker(track_vram=False)
+    captioner = StubCaptioner(default_caption="unused")
+    assert instrument_captioner(captioner, never, stride=0)
+    assert captioner.caption(None) == ""
+    assert never.vlm_calls == 0
+    assert never.vlm_skips == 1

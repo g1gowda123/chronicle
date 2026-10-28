@@ -1,3 +1,10 @@
+> **Status: legacy matrix.** These 16 runs come from the original pipeline,
+> before the prompt-leakage fix, the deterministic event planner, strict entity
+> resolution and the detector upgrade.  They are kept to document the
+> captioner/answerer swap and are not directly comparable with the corrected
+> results in `paper/RESULTS.md`; see `paper/table_research_ablation.md` for the
+> audited ablation.
+
 | Dataset | System | Captioner | Answerer | Recall@1 | VLM Calls | Latency (ms) | VRAM (MB) |
 |---|---|---|---|---:|---:|---:|---:|
 | Cook 45 s | Chronicle | Florence-2 | Qwen2.5 | 40.0% | 53 | 21.1 | 3312.3 |

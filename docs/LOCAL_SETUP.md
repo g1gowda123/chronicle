@@ -64,7 +64,8 @@ Expected: `cuda True`, GPU name `NVIDIA GeForce RTX 4060`, ~8192 MB.
 
 ```text
 models/
-├── yolov8s-worldv2.pt
+├── yolov8l-worldv2.pt   # default detector
+├── yolov8s-worldv2.pt   # efficiency ablation / optional S+L ensemble
 ├── hand_landmarker.task
 └── Florence-2-base/
     ├── config.json
@@ -81,7 +82,8 @@ python scripts/fetch_models.py --download
 
 This downloads:
 
-- `yolov8s-worldv2.pt` from the Ultralytics release;
+- `yolov8l-worldv2.pt` (default) and `yolov8s-worldv2.pt` (ablation) from the
+  Ultralytics releases;
 - `hand_landmarker.task` from the MediaPipe model storage;
 - `microsoft/Florence-2-base` into `models/Florence-2-base/`.
 

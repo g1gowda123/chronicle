@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from functools import lru_cache
 
 _PUNCT = re.compile(r"[^a-z0-9\s]+")
 _WS = re.compile(r"\s+")
@@ -146,6 +147,60 @@ def canonical_label(label: str) -> str:
     return " ".join(canonical_token(tok) for tok in normalize(label).split())
 
 
+@lru_cache(maxsize=512)
+def _alias_components() -> dict[str, str]:
+    """Map every normalized alias surface form to a class representative."""
+
+    parent: dict[str, str] = {}
+
+    def find(node: str) -> str:
+        parent.setdefault(node, node)
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    def union(left: str, right: str) -> None:
+        a, b = find(left), find(right)
+        if a != b:
+            parent[max(a, b)] = min(a, b)
+
+    for key, values in _LABEL_ALIASES.items():
+        key_norm = normalize(key)
+        find(key_norm)
+        for value in values:
+            union(key_norm, normalize(value))
+
+    components: dict[str, list[str]] = {}
+    for node in parent:
+        components.setdefault(find(node), []).append(node)
+    mapping: dict[str, str] = {}
+    for members in components.values():
+        representative = min(members)
+        for node in members:
+            mapping[node] = representative
+    return mapping
+
+
+def canonical_phrase(label: str) -> str:
+    """Canonical class for a whole label, including multi-word aliases.
+
+    ``canonical_label`` works token by token and therefore cannot see that the
+    multi-word label ``joy-con`` is an alias of ``controller``.  This helper
+    resolves the complete normalized phrase first, then falls back to the
+    token-wise canonical form for ordinary labels.
+    """
+
+    normalized = normalize(label)
+    if not normalized:
+        return ""
+    components = _alias_components()
+    if normalized in components:
+        return components[normalized]
+    # Token-wise fallback still lets "red mug" and "mug" share a class.
+    return canonical_label(normalized)
+
+
 def _match(query: str, label: str) -> tuple[float, str]:
     q_norm = normalize(query)
     l_norm = normalize(label)
@@ -174,11 +229,13 @@ def _match(query: str, label: str) -> tuple[float, str]:
     intersection = q_tokens & l_tokens
     if intersection:
         return 0.5 + 0.3 * (len(intersection) / len(q_tokens)), "token overlap"
-    # token-level fuzzy prefix match ("keychain" vs "keys")
+    # token-level fuzzy prefix match ("keychain" vs "keys").  Require at least
+    # four characters: a three-letter prefix such as ``con`` -> ``console``
+    # otherwise makes "switch console" resolve to a "joy-con".
     for q_tok in q_tokens:
         for l_tok in l_tokens:
             short, long = sorted((q_tok, l_tok), key=len)
-            if len(short) >= 3 and long.startswith(short):
+            if len(short) >= 4 and long.startswith(short):
                 return 0.6, "fuzzy prefix"
     return 0.0, "miss"
 

@@ -51,7 +51,10 @@
     {
       "video_id": "holoassist_switch_34s",
       "query": "What colour is the joy-con?",
-      "answers": ["cyan", "blue"],
+      "answers": [
+        "cyan",
+        "blue"
+      ],
       "answer": "cyan",
       "timestamp": 9.0,
       "category": "attribute"
@@ -64,5 +67,17 @@
       "category": "unknown",
       "kind": "unknown"
     }
+  ],
+  "vocabulary": [
+    "joy-con",
+    "switch console",
+    "comfort grip",
+    "table",
+    "person",
+    "plate",
+    "laptop",
+    "monitor",
+    "curtain",
+    "controller"
   ]
 }

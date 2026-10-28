@@ -228,6 +228,9 @@ def test_label_aliases_are_symmetric_and_plural_aware() -> None:
     # Deliberately not aliases: the existing retrieval contract treats these
     # as different object categories.
     assert match_score("cup", "coffee mug") == 0.0
+    # Short prefixes must not make unrelated nouns match: "con" in
+    # "joy-con" is not evidence for "console".
+    assert match_score("where is the switch console?", "joy-con") == 0.0
 
 
 def test_multihop_temporal_query_fallback(memory: ChronicleMemory) -> None:

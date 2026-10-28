@@ -1,49 +1,257 @@
-# Chronicle evaluation results
+# Chronicle evaluation results (corrected)
 
-All numbers below were produced locally on an NVIDIA RTX 4060 (8 GB) with the
-final scorer and with Ollama models unloaded before each run. Raw outputs live
-in `runs/bench/` (Cook) and `runs/bench_holo/` (HoloAssist); paper tables are in
-`paper/`.
+All numbers below were produced locally on an NVIDIA RTX 4060 Laptop (8 GB)
+with the corrected, leak-free pipeline. Raw outputs live in `runs/research/`;
+the statistical reports are `runs/research/stats_*/stats.md`. The earlier
+model-swap matrix is retained in `paper/table_matrix.md` with a clear legacy
+warning.
 
-## Setup
+## Headline
+
+| System | Cook 45 s | HoloAssist 34 s | Pooled 18 q | VLM calls (C/H) | Peak VRAM |
+|---|---:|---:|---:|---:|---:|
+| Chronicle (final, stride 4) | **80.0%** (8/10) | **87.5%** (7/8) | **83.3%** (15/18) | 26 / 13 | 1960 MB |
+| Dense 1 FPS baseline | 40.0% (4/10) | 12.5% (1/8) | 27.8% (5/18) | 45 / 34 | 819 MB |
+| Leak-free Chronicle baseline | 40.0% (4/10) | 62.5% (5/8) | 50.0% (9/18) | 53 / 35 | 1830 MB |
+
+The final system uses **fewer VLM calls than the dense baseline** and is
++33.3 points on the pooled suite. The improvement is largest on event-centric
+questions (temporal, counting, inventory, activity): 8/10 vs 4/10 pooled.
+Location questions are discussed separately in **Metric audit** below because
+the official matcher credits zone names.
+
+Two caveats are important and are not hidden:
+
+1. The suites are tiny (10 and 8 questions). Per-dataset differences of one
+   question move Recall@1 by 10-12.5 points. The pooled McNemar test is
+   p = 0.070 before the faithfulness audit and p = 0.016 after it (see
+   **Statistical analysis**).
+2. The official matcher accepts zone aliases ("Kitchen", "Work Table"). Under a
+   strict support check, Cook location accuracy is 1/6, not 6/6. The reliable
+   gains are in event questions, not in support grounding.
+
+## Final configuration
 
 | Item | Value |
 |---|---|
-| Chronicle | event-gated state machine, tracker and graph unchanged |
-| Captioners | `microsoft/Florence-2-base`; Ollama `qwen2.5vl:3b` |
-| Answer backends | deterministic template GraphRAG; Ollama `qwen2.5:1.5b` |
-| Cook clip | 45 s, 450 frames, 10 questions, silver labels from the Qwen2.5-VL ledger |
-| HoloAssist clip | 34 s, 1019 frames, 8 questions, gold human annotations |
-| Baseline | dense captioning at 1 FPS (45 and 34 captions) |
-| Matcher | deterministic token/number matching; `tolerance_s` on temporal rows |
+| Detector | YOLO-World-L (`yolov8l-worldv2.pt`), confidence 0.30 |
+| Detector vocabulary | fixed scene list from QA metadata (12-15 classes); **not** derived from questions |
+| Prompt synonyms | fixed a priori: `cup`←mug/coffee cup; `cutting board`←chopping board/wooden cutting board/cutting board wooden; `rice cooker`←instant pot/rice pot; `bowl`←white bowl/ceramic bowl |
+| Tracker / graph | ByteTrack + lifecycle state machine, unchanged |
+| Captioner | Florence-2-base, caption every 4th event trigger (`caption_stride: 4`) |
+| Answer backend | deterministic template / planner (no text LLM at answer time) |
+| QA suites | Cook 45 s (10 silver questions); HoloAssist 34 s (8 gold questions) |
+| Matcher | deterministic token/number matching, `tolerance_s` for temporal rows |
 
-`semantic.action_llm_enabled: false`, so during ingestion the text LLM is not
-used for action verification. Text-LLM call counts in the tables are answer
-calls only.
+`semantic.action_llm_enabled: false`; the text LLM is not on the ingestion or
+answer path.
 
-## Primary comparison: Florence-2 + template answers
+## Research-integrity fixes
 
-### Cook 45 s
+The original pipeline had three weaknesses that inflated or obscured results.
+All are now fixed by default, with explicit ablations where useful.
 
-| Method | Recall@1 | VLM Calls | Avg Latency (ms) | Peak VRAM (MB) |
+1. **Question leakage into perception.** The detector vocabulary used to be
+   derived from QA nouns. It is now off (`derive_vocabulary_from_qa: false`);
+   the scene vocabulary is declared in the QA metadata, independently of the
+   questions. The leakage path is kept only as an ablation and is *worse*
+   (see below).
+2. **Primitive query answering.** A deterministic planner
+   (`chronicle/graph/planner.py`) answers `when did ... first ...`,
+   `how many ...`, `where did ... go`, and activity questions from timestamped
+   action/placement edges instead of returning the latest entity state.
+3. **Unfaithful entity resolution.** Fuzzy matching used a 3-character prefix;
+   "switch console" resolved to `joy-con` and scored a false pass. The resolver
+   now requires a 4-character prefix and returns an explicit
+   "I don't have that in my memory." when a specific object is absent.
+4. **Counting.** Instances are counted by union-find over near-duplicate CLIP
+   crop embeddings (`INSTANCE_SIMILARITY = 0.90`), with alias-aware grouping
+   (`controller` and `joy-con` are one class). The answer reports both the
+   resolved count and the raw track count, so the reader can see the merge.
+5. **Prompt dilution.** Broad 111-class prompts were replaced by a scene list;
+   YOLO-World grounds more target objects with 12-15 prompts than with 111.
+6. **Statistical reporting.** Exact/Wilson intervals, paired bootstrap and
+   exact McNemar are produced by `scripts/analyze_results.py`; a strict
+   location audit is produced by `scripts/audit_location.py`.
+
+## Cumulative ablation
+
+Each row adds one change to the previous row. `*` marks the two pre-fix
+HoloAssist 100% rows: they include the false "switch console → joy-con" pass
+that strict resolution later removed. The final row is the configuration in
+`config.yaml`.
+
+| Stage | Detector | Planner | Scene vocab | Strict resolution | Cook | Holo |
+|---|---|:--:|:--:|:--:|---:|---:|
+| Leak-free baseline | S | no | no | no | 4/10 (40.0%) | 5/8 (62.5%) |
+| + deterministic planner | S | yes | no | no | 4/10 (40.0%) | 8/8* (100%) |
+| + scene vocabulary | S | yes | yes | no | 5/10 (50.0%) | 8/8* (100%) |
+| + strict resolution, fixed synonyms, bowl alias | S | yes | yes | yes | 7/10 (70.0%) | 7/8 (87.5%) |
+| + large detector (final) | L | yes | yes | yes | 8/10 (80.0%) | 7/8 (87.5%) |
+| + two-scale ensemble (rejected) | S+L | yes | yes | yes | 8/10 (80.0%) | 5/8 (62.5%) |
+
+The largest single gain is the planner on HoloAssist (5/8 → 8/8 before the
+strict-resolution correction; 7/8 after). The large detector adds the cutting
+board on Cook, but that answer is a zone-token pass, not a support-grounded
+one; see the strict audit.
+
+The early rows ran at caption stride 1; the final rows use stride 4. This does
+not confound the comparison because the budget curve below shows recall is
+identical at strides 0, 2, 4, 8 and 1 on both suites.
+
+## Detector-scale ablation (final synonyms, stride 4)
+
+| Detector | Cook | Holo | Pooled | VLM calls (C/H) | Wall time (C/H) | Peak VRAM | Strict Cook location |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| YOLO-World-S | 7/10 (70.0%) | 7/8 (87.5%) | 14/18 (77.8%) | 25 / 9 | 27.5 / 25.2 s | 1830 MB | 2/6 |
+| YOLO-World-L (final) | 8/10 (80.0%) | 7/8 (87.5%) | 15/18 (83.3%) | 26 / 13 | 35.8 / 38.5 s | 1960 MB | 1/6 |
+| S + L ensemble | 8/10 (80.0%) | 5/8 (62.5%) | 13/18 (72.2%) | 30 / 14 | 43.7 / 46.3 s | 2009 MB | 1/6 |
+
+The large model is the best official-recall choice, but it costs ~130 MB and
+~8-13 s of wall time, and its extra Cook pass is a zone-token location answer.
+The small model is the efficient choice (25/9 VLM calls) and has slightly
+better strict support grounding. The ensemble is rejected: extra detections
+destabilise HoloAssist instance counting (5 joy-con tracks sometimes collapse
+to one instance) and attribute resolution (the red rather than cyan controller
+is selected). The ensemble code remains available via `detector_models` for
+reproduction, but it is not the default.
+
+## Question-leakage ablation
+
+Running the same final config with `derive_vocabulary_from_qa: true` adds QA
+nouns ("keys", "switch console", "colour", "person", ...) to the detector
+vocabulary:
+
+| Detector vocabulary | Cook | Holo | Observed failure |
+|---|---:|---:|---|
+| Scene vocabulary (final) | 8/10 | 7/8 | — |
+| QA-derived vocabulary | 7/10 | 5/8 | corrupted classes such as "person joy-con" and "colour joy-con"; Holo count becomes "6 person joy-con" from 13 tracks |
+
+Leakage is therefore not only methodologically invalid here; it also *lowers*
+accuracy by diluting the prompt set and creating spurious classes. This is a
+useful negative result for the paper.
+
+## VLM budget curve
+
+`--caption-stride N` captions every Nth event trigger; 0 disables captions.
+The curve is flat: on these grounded questions the captions are not on the
+critical path, because action/placement edges come from the deterministic
+geometry and tracker.
+
+| Dataset | off | every 8th | every 4th | every 2nd | every trigger |
+|---|---:|---:|---:|---:|---:|
+| Cook 45 s | 80.0% (0 calls) | 80.0% (13) | 80.0% (26) | 80.0% (51) | 80.0% (102) |
+| HoloAssist 34 s | 87.5% (0 calls) | 87.5% (7) | 87.5% (13) | 87.5% (26) | 87.5% (51) |
+
+The recommended default is stride 4 (26/13 calls): it preserves a caption for
+salient events at roughly one quarter of the every-trigger cost and stays below
+the dense baseline's 45/34 calls. The flat curve is evidence for the paper's
+efficiency claim on *grounded* questions; open-ended caption QA is not covered
+by these suites. Full table: `paper/table_budget.md`.
+
+## Statistical analysis
+
+Exact (Clopper-Pearson) 95% intervals. Paired bootstrap resamples questions;
+McNemar uses only discordant questions. With 18 pooled questions the intervals
+are still wide.
+
+| Comparison | Baseline | Final | Delta | Bootstrap 95% CI | Discordant (final only / baseline only) | McNemar p |
+|---|---:|---:|---:|---:|---:|---:|
+| Cook | 40.0% (4/10) | 80.0% (8/10) | +40.0 | [10.0, 70.0] | 4 / 0 | 0.125 |
+| HoloAssist | 62.5% (5/8) | 87.5% (7/8) | +25.0 | [-25.0, 75.0] | 3 / 1 | 0.625 |
+| Pooled (official) | 50.0% (9/18) | 83.3% (15/18) | +33.3 | [5.6, 61.1] | 7 / 1 | 0.070 |
+| Pooled (faithfulness-corrected) | 44.4% (8/18) | 83.3% (15/18) | +38.9 | [16.7, 61.1] | 7 / 0 | **0.016** |
+
+The one baseline-only pooled question is "Where is the switch console?".
+The baseline answered **"Joy-con was last seen resting on the floor in the Work
+Table"** and was scored correct because "Work Table" is an accepted alias. The
+console is a different object and the answer is wrong; the final system returns
+"I don't have that in my memory." because the console is not detected. The
+faithfulness-corrected row removes that one demonstrably wrong pass. Both rows
+are reported; the correction is documented rather than silently applied.
+
+The event-centric subset (activity, attribute, counting, inventory, temporal,
+unknown) is 8/10 for the final system vs 4/10 for the baseline, with all four
+discordant questions favoring the final system (McNemar p = 0.125). This is the
+most defensible capability gain because it does not depend on zone aliases.
+
+## Metric audit: location answers
+
+The official matcher accepts every alias in the QA file. For Cook, the aliases
+for a "countertop" question include "Kitchen", so a sentence that only names
+the zone passes. `scripts/audit_location.py` adds a strict check: when the gold
+answer is not the zone itself, the prediction must contain the gold support
+noun.
+
+| Run | Official Cook location | Strict Cook location | Official Holo location | Strict Holo location |
 |---|---:|---:|---:|---:|
-| Chronicle (event-gated) | 40.0% | 53 | 21.2 | 2071.2 |
-| Dense 1 FPS | 40.0% | 45 | 262.9 | 819.2 |
+| Leak-free baseline | 3/6 | 2/6 | 2/2 | 2/2 |
+| Final | 6/6 | 1/6 | 1/2 | 1/2 |
 
-### HoloAssist Joy-Con 34 s
+The final system's extra official location passes are:
+"rice cooker … OUT_OF_VIEW in the Kitchen", "cutting board … INTERACTED in the
+Kitchen", and "knife … inside the cabinet in the Kitchen". These name the zone
+or a state, not the queried support. The baseline's two strict passes are the
+knife and rice cooker "resting on the countertop" answers; the final system
+answers them with states because the large detector's state transitions differ.
+**Support grounding remains the bottleneck**, and the paper should not claim
+that location QA is solved. The gold labels themselves are coarse: at t=12 the
+knife is being used to slice, and the cup is in the cabinet, so "countertop"
+is not always the visually correct answer.
 
-| Method | Recall@1 | VLM Calls | Avg Latency (ms) | Peak VRAM (MB) |
-|---|---:|---:|---:|---:|
-| Chronicle (event-gated) | **62.5%** | 37 | 17.7 | 2095.2 |
-| Dense 1 FPS | 12.5% | 34 | 228.8 | 817.2 |
+The HoloAssist gold location is the zone ("Work Table"), so the strict audit
+cannot distinguish a correct zone answer from a wrong entity that happens to
+mention the zone. The switch-console row above is exactly that failure in the
+baseline.
 
-Chronicle matches the dense baseline on Cook and improves HoloAssist from
-1/8 to 5/8 correct, using 3 more VLM calls (37 vs 34).
+## Failure analysis
 
-## Full model matrix
+### Cook 45 s (8/10)
 
-`paper/table_matrix.tex` and `paper/table_matrix.md` contain all 16 runs.
-Summary of Recall@1:
+- **"What is the person slicing?"** fails. The interaction recogniser emits
+  `PICK_UP` edges only; there are no `SLICE`/`CUT` edges. The tomato in the
+  person's hand at t=12 is not tracked as an entity, and the three tomato
+  tracks are on the counter. Tool-target inference (instrument + co-visible
+  food) is future work, not implemented.
+- **"When did the person first touch the cup?"** fails. The graph reports the
+  first `PICK_UP` action at t=0.1 s (large model) or 0.8 s (small model); the
+  silver ledger's `TOUCHED` event is at 4.5 s (tolerance 1.0 s). The first cup
+  tracks are mugs inside the cabinet; the fingertip/IoS gate fires while the
+  cabinet is open. This is an action-grounding/label disagreement, not a query
+  planning error.
+- **Counting cups** passes (2 from 6 tracks) but is fragile. The identical
+  white mugs merge at cosine similarity 0.97; the two round bread rolls at
+  t=27 are sometimes detected as mugs. The gold count (2) comes from two
+  ledger appearances, not a physical inventory. Lowering
+  `INSTANCE_SIMILARITY` to 0.88 would force this case to 2 but was rejected as
+  overfitting the gold label.
+- **Locations** pass officially but not strictly (see Metric audit).
+
+### HoloAssist 34 s (7/8)
+
+- **"Where is the switch console?"** is the intended failure: the console is
+  not detected, so the system abstains. The baseline's "joy-con on the floor"
+  answer was wrong but scored; the final system is more faithful and scores
+  one point lower on the official metric.
+- **Colour** passes ("cyan"), but the clip contains one red and one cyan
+  Joy-Con. The question is ambiguous; which controller is resolved depends on
+  the detector/tracker run. The ensemble picked the red one and failed. This is
+  not a stable capability.
+- **Counting** passes (2 joy-con from 5-7 tracks). The ensemble over-merged to
+  one instance and failed; this is why the ensemble is not the default.
+- **Activity/temporal** pass ("picked up" at 3.8 s in the final run, 5.0 s in an
+  earlier run, vs gold 4.2 s and tolerance 1.5 s). The planner returns the
+  dominant action for the object, not an arbitrary action at an arbitrary time;
+  the latter remains a limitation. The small timing jitter between identical
+  configs is model/tracker nondeterminism, not a different answer path.
+
+## Legacy model matrix
+
+`paper/table_matrix.md` and `paper/table_matrix.tex` contain the original
+16-run captioner/answerer matrix. Those runs predate the leakage fix, the
+planner, strict resolution and the detector upgrade, so they are **not**
+comparable with the corrected numbers above. They are retained to document the
+Florence-2 vs Qwen2.5-VL and template vs Qwen2.5 swaps:
 
 | Captioner / answerer | Cook Chronicle | Cook dense | Holo Chronicle | Holo dense |
 |---|---:|---:|---:|---:|
@@ -52,121 +260,72 @@ Summary of Recall@1:
 | Qwen2.5-VL / template | 40.0% | 30.0% | 62.5% | 12.5% |
 | Qwen2.5-VL / Qwen2.5 | 40.0% | 20.0% | 62.5% | 12.5% |
 
-## What happened to Qwen
-
-Qwen appears in two independent roles:
-
-1. **Qwen2.5-VL (`qwen2.5vl:3b`) as the captioner.** Implemented in
-   `chronicle/semantic/qwen_vl.py` and selectable with `--captioner qwen`. It
-   is a drop-in replacement for Florence-2, so the state machine is unchanged.
-   - Cook: identical 40% recall for Chronicle, but the dense baseline drops
-     from 40% (Florence) to 30% (Qwen-VL).
-   - HoloAssist: identical 62.5% for Chronicle, same 12.5% for dense.
-   - Cost: ~5.5 GB device-wide instead of ~2.1 GB, and roughly 2x the wall time.
-   - Conclusion: no accuracy gain on this suite, a clear memory/time cost. It is
-     a valid swap-in when a natural-language captioner is preferred or Florence-2
-     is unavailable.
-
-2. **Qwen2.5 (`qwen2.5:1.5b`) as the answer/GraphRAG backend.** Selected with
-   `--llm-backend ollama --llm-model qwen2.5:1.5b`.
-   - Cook Chronicle: 40%, unchanged from template; dense drops 40% -> 30%.
-   - Holo Chronicle: 62.5% -> 50%; dense rises 12.5% -> 25%.
-   - Qwen answers are fluent but sometimes add unsupported detail, e.g. it
-     claimed "10 joy-con controllers" and "first picked up at t=4.1" from
-     context that did not support either. The deterministic template backend is
-     more conservative and scores higher on this suite.
-   - `qwen2.5:7b-instruct` was tested first but was too slow and left too little
-     VRAM beside the captioner on 8 GB, so the reported runs use the 1.5B model.
-
-Qwen is therefore fully wired in, but the evidence here does not justify making
-it the default. Florence-2 + template remains the primary configuration.
-
-## Cost analysis (honest version)
-
-- **VLM calls:** Chronicle is *not* cheaper than a 1 FPS baseline on these
-  clips. It makes 53 vs 45 calls on Cook (+18%) and 37 vs 34 on HoloAssist
-  (+9%). The `vlm_call_reduction_pct` field (88% and 96%) compares against
-  captioning *every decoded frame*, not against the 1 FPS baseline, and should
-  not be read as a saving over that baseline.
-- **Wall time:** Chronicle processes every frame (detection, hands, tracking),
-  so it is slower end-to-end: 38.4 s vs 15.0 s on Cook and 40.3 s vs 10.9 s on
-  HoloAssist. It sustains 11.7 FPS (Cook) and 25.3 FPS (HoloAssist) on the
-  4060; the dense pipeline sustains ~3 FPS because it captions every sampled
-  frame.
-- **Latency column:** the reported average is per processed sample, so the two
-  systems have different denominators (decoded frame vs 1 FPS caption). The
-  ~12x gap measures per-sample cost, not end-to-end speed. Actual GraphRAG
-  query latency is sub-millisecond for Chronicle (0.6-0.9 ms) and ~1.1 ms for
-  the dense baseline.
-- **VRAM:** Chronicle costs ~2.5x the dense baseline with the same captioner
-  (2.1 GB vs 0.8 GB) because it keeps detector, hands, embedder and captioner
-  resident. Qwen-VL raises this to 5.5 GB (template) or 6.8 GB (Qwen text),
-  still inside 8 GB but with little headroom.
-
-The defensible claim is **accuracy at a similar VLM-call budget**, not compute
-savings: on HoloAssist, Chronicle gets 5/8 vs 1/8 correct for 3 extra captions.
-
-## Failure analysis
-
-Cook 45 s (both systems miss the same four questions):
-
-- The cup and cutting board are not grounded as entities at the QA timestamp,
-  so both return "I don't have that in my memory."
-- "What is the person slicing?" expects `tomatoes`; neither system binds the
-  knife/board activity to that noun.
-- "When did the person first touch the cup?" expects 4.5 s; Chronicle reports
-  the last cup event (41.4 s). The memory supports "last seen", not "first
-  seen".
-- "Where did the plate go?" expects `bowl` (silver label). Chronicle answers
-  `countertop`, which matches the ledger but not the silver label.
-- The unknown question is handled correctly by both.
-
-HoloAssist 34 s:
-
-- Chronicle answers activity questions with tracker states (`OCCLUDED`,
-  `VISIBLE_MOVING`) rather than the annotated verb (`picked up`).
-- Temporal "first pick up" expects 4.2 s, but the answer reports the last
-  `pick joy-con` event at 33.9 s.
-- Counting "2 joy-con controllers" is not answered from a verified count; the
-  template returns an event sentence, and Qwen hallucinated 10.
-- Dense 1 FPS fails almost everything because 34 independent captions do not
-  bind objects to zones or preserve event identity across seconds.
+Qwen2.5-VL remains a drop-in captioner with no accuracy gain on this suite and
+a large memory/time cost (~5.5 GB device-wide, ~2x wall time). The
+deterministic template answerer is more conservative than Qwen2.5 and scores
+higher; Qwen sometimes invents counts ("10 joy-con controllers").
 
 ## Limitations
 
-- **Tiny suites:** 10 and 8 questions over one clip each. Differences of one
-  question move Recall@1 by 10-12.5 points; treat the matrix as a sanity check,
-  not a leaderboard.
-- **Silver Cook labels:** Cook answers are derived from a Qwen2.5-VL event
-  ledger, so the Qwen-VL captioner is partly evaluated against labels from the
-  same model family. HoloAssist uses human annotations and is the stronger
-  evidence.
-- **Zone-label location answers:** HoloAssist location questions expect the zone
-  name (`Work Table`). An answer that names the zone passes even if it anchors
-  the wrong tracked object; both HoloAssist location questions pass this way.
-- **Answer style:** template answers are terse and match short gold strings;
-  Qwen answers are verbose and can fail token recall even when semantically
-  close (e.g. colour "red" vs gold "cyan"/"blue").
-- **Scoring fix:** a bare numeric answer no longer matches a digit inside a
-  timestamp. Before this fix one HoloAssist counting question was marked
-  correct for the wrong reason; the reported 62.5% already reflects the fix.
+- **Tiny suites:** 10 and 8 questions over one clip each; pooled n=18. The
+  intervals are wide by construction and the per-dataset McNemar tests are not
+  significant at 0.05.
+- **Silver Cook labels:** Cook answers come from a Qwen2.5-VL event ledger;
+  HoloAssist uses human annotations and is the stronger evidence.
+- **Lenient official matcher:** zone aliases inflate location scores; strict
+  support accuracy is low (1/6 Cook). The paper reports both.
+- **Action recognition is coarse:** only `PICK_UP`/placement transitions are
+  emitted reliably; slicing/cutting and first-touch semantics are not solved.
+- **Instance counting is appearance-based:** identical objects merge and
+  cross-category false positives (bread → mug) can enter the count.
+- **VLM budget result is for grounded QA:** the flat curve does not show that
+  captions are useless for open-ended or attribute-rich questions outside this
+  suite.
+- **One clip per domain:** no cross-video or cross-session generalisation is
+  measured.
+- **Large detector cost:** +130 MB and ~8-13 s wall time vs the small model;
+  the small model is a better efficiency/grounding trade-off.
 
 ## Reproduction
 
 ```bash
 export PATH=/home/g1/projects/chronicle/.venv/bin:$PATH
 
-for cfg in "florence template _ft" "florence ollama _fq" \
-           "qwen template _qt" "qwen ollama _qq"; do
-  set -- $cfg
-  ollama stop qwen2.5vl:3b >/dev/null 2>&1 || true
-  ollama stop qwen2.5:1.5b >/dev/null 2>&1 || true
-  CAPTIONER=$1 LLM_BACKEND=$2 LLM_MODEL=qwen2.5:1.5b SUFFIX=$3 \
-    scripts/run_paper_eval.sh \
-    data/real/cook/aria_cook_45s.mp4 data/qa/cook_45s.json runs/bench
-done
+# Final runs (config.yaml: YOLO-World-L, scene vocab, fixed synonyms,
+# deterministic planner, strict resolution, caption_stride: 4)
+python eval_pipeline.py \
+  --video data/real/cook/aria_cook_45s.mp4 \
+  --qa data/qa/cook_45s.json --config config.yaml \
+  --captioner florence --llm-backend template \
+  --out runs/research/final_cook --evaluate
 
-python generate_matrix_table.py \
-  --run-dir runs/bench --run-dir runs/bench_holo \
-  --out paper/table_matrix.tex
+python eval_pipeline.py \
+  --video data/real/holoassist_switch_34s.mp4 \
+  --qa data/qa/holoassist_switch.json --config config.yaml \
+  --captioner florence --llm-backend template \
+  --out runs/research/final_holo --evaluate
+
+# Statistics and audits
+python scripts/pool_results.py \
+  --run runs/research/leakfree_cook/results.json \
+  --run runs/research/leakfree_holo/results.json \
+  --out runs/research/pooled/baseline.json --name pooled
+python scripts/pool_results.py \
+  --run runs/research/final_cook/results.json \
+  --run runs/research/final_holo/results.json \
+  --out runs/research/pooled/final.json --name pooled
+python scripts/analyze_results.py \
+  --run baseline=runs/research/pooled/baseline.json \
+  --run final=runs/research/pooled/final.json \
+  --compare-to baseline --out runs/research/stats_pooled
+python scripts/audit_location.py \
+  --run runs/research/final_cook/results.json \
+  --qa data/qa/cook_45s.json --out runs/research/audit_final_cook.md
+
+# VLM budget curve (one command per stride; see paper/table_budget.md)
+python eval_pipeline.py \
+  --video data/real/cook/aria_cook_45s.mp4 \
+  --qa data/qa/cook_45s.json --config config.yaml \
+  --captioner florence --llm-backend template \
+  --caption-stride 0 --out runs/research/budget_cook_s0 --evaluate
 ```
