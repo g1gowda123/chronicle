@@ -65,7 +65,7 @@ from chronicle.semantic.engine import SemanticEngine
 from chronicle.semantic.graphrag import Fact, GraphContext, QueryAnswer
 from chronicle.semantic.queue import VerificationQueue
 from chronicle.telemetry import EventBus, TelemetryTag
-from chronicle.text import content_tokens, singular
+from chronicle.text import content_tokens, expand_token, singular
 from chronicle.types import (
     FrameResult,
     InteractionClip,
@@ -623,16 +623,25 @@ class ChronicleRuntime:
             return None
 
         generic = tokens <= {"object", "objects", "thing", "things", "item", "items"}
+        query_variants = {
+            variant for token in tokens for variant in expand_token(token)
+        }
         matches = []
         for entity in self.memory.foreground.entities():
             label = str(entity.get("label") or "")
             label_tokens = content_tokens(label)
+            label_variants = {
+                variant
+                for token in label_tokens
+                for variant in expand_token(token)
+            }
             if generic or (
                 label_tokens
                 and (
                     label_tokens == tokens
                     or label_tokens <= tokens
                     or tokens <= label_tokens
+                    or query_variants & label_variants
                 )
             ):
                 matches.append(entity)

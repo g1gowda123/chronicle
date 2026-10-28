@@ -5,6 +5,8 @@ from __future__ import annotations
 import csv
 import io
 import json
+import time
+from types import SimpleNamespace
 
 from conftest import DT, TABLE_POLY, cup, feed, hand_at, make_frame, run_lift_scene
 
@@ -334,6 +336,36 @@ def test_runtime_exports_actions_csv() -> None:
         assert rows[0]["caption"] == "the hand picks up the cup"
     finally:
         runtime.close()
+
+
+def test_count_groups_detector_label_aliases() -> None:
+    runtime = ChronicleRuntime.__new__(ChronicleRuntime)
+    runtime.memory = SimpleNamespace(
+        foreground=SimpleNamespace(
+            entities=lambda: [
+                {
+                    "label": "joy-con",
+                    "state": "VISIBLE_STATIC",
+                    "zone_id": "zone:living_room",
+                    "last_seen": 3.0,
+                },
+                {
+                    "label": "controller",
+                    "state": "VISIBLE_STATIC",
+                    "zone_id": "zone:living_room",
+                    "last_seen": 4.0,
+                },
+            ]
+        ),
+        background=SimpleNamespace(zone_label=lambda zone: "living room"),
+        active_zone=None,
+    )
+
+    answer = runtime._count_answer("how many controllers are there?", time.monotonic())
+
+    assert answer is not None
+    assert answer.answer == "There are 2 controllers in this memory."
+    assert answer.grounded is True
 
 
 def test_perception_telemetry_merges_duplicate_frame_index() -> None:

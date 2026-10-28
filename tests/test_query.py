@@ -225,6 +225,7 @@ def test_label_aliases_are_symmetric_and_plural_aware() -> None:
     assert match_details("tv", "television")[1] == "label alias"
     assert canonical_label("tv") == canonical_label("television")
     assert canonical_label("purses") == canonical_label("wallet")
+    assert canonical_label("joy-con") == canonical_label("controller")
     # Deliberately not aliases: the existing retrieval contract treats these
     # as different object categories.
     assert match_score("cup", "coffee mug") == 0.0

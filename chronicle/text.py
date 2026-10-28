@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-_PUNCT = re.compile(r"[^a-z0-9\s]+")
+_PUNCT = re.compile(r"[^a-z0-9\s-]+")
 _WS = re.compile(r"\s+")
 
 STOPWORDS: frozenset[str] = frozenset(

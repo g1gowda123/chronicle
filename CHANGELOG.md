@@ -35,6 +35,8 @@ All notable changes to Chronicle are documented here. The format follows
 
 - Location questions without a recorded spatial fact now abstain explicitly
   instead of presenting an unrelated action or state as a location.
+- Hyphenated detector labels such as `joy-con` now canonicalize with
+  `controller`, so count questions group detector aliases correctly.
 - `chronicle ask` and `chronicle doctor` open bundled or user-provided memories
   read-only, so they work from read-only site-packages and cannot accidentally
   mutate an existing memory during a query.
