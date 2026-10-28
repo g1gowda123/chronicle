@@ -1,0 +1,32 @@
+{
+  "caption": "Episodic memory QA under a fixed local model budget.",
+  "label": "tab:chronicle-vs-dense",
+  "rows": [
+    {
+      "avg_latency_ms": 17.6644,
+      "frames_processed": 1019,
+      "method": "Chronicle (florence, template)",
+      "peak_vram_mb": 2095.19,
+      "recall_at_1": 0.625,
+      "source": "/home/g1/projects/chronicle-vfm/data/real/holoassist_switch_34s.mp4",
+      "vlm_call_reduction_pct": 96.369,
+      "vlm_calls": 37,
+      "vlm_model_calls": 37
+    },
+    {
+      "avg_latency_ms": 228.7574,
+      "frames_processed": 34,
+      "method": "Dense 1 FPS (florence, template)",
+      "peak_vram_mb": 817.19,
+      "recall_at_1": 0.125,
+      "source": "/home/g1/projects/chronicle-vfm/data/real/holoassist_switch_34s.mp4",
+      "vlm_call_reduction_pct": 0.0,
+      "vlm_calls": 34,
+      "vlm_model_calls": 34
+    }
+  ],
+  "sources": {
+    "baseline": "/home/g1/projects/chronicle-vfm/runs/bench_holo/baseline_holoassist_switch_34s_ft/baseline_results.json",
+    "chronicle": "/home/g1/projects/chronicle-vfm/runs/bench_holo/holoassist_switch_34s_ft/results.json"
+  }
+}

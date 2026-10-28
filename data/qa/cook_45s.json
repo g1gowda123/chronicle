@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "dataset": "chronicle-cook-silver",
+  "description": "Temporal QA over the 45 s Aria kitchen clip. Questions and timestamps are derived from the Qwen2.5-VL event ledger in data/vfm/events-cook (silver labels), not from the system under test.",
+  "video_id": "aria_cook_45s",
+  "zone_label": "Kitchen",
+  "questions": [
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the knife?",
+      "answer": "countertop",
+      "timestamp": 12.0,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "kitchen",
+        "counter"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the rice cooker?",
+      "answer": "countertop",
+      "timestamp": 12.0,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "kitchen",
+        "counter"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the toaster?",
+      "answer": "countertop",
+      "timestamp": 12.0,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "kitchen",
+        "counter"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the cutting board?",
+      "answer": "countertop",
+      "timestamp": 12.0,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "kitchen",
+        "counter"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the cup?",
+      "answer": "countertop",
+      "timestamp": 20.0,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "kitchen",
+        "counter"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "What is the person slicing?",
+      "answer": "tomatoes",
+      "timestamp": 12.0,
+      "category": "activity"
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "When did the person first touch the cup?",
+      "answer": "4.5 seconds",
+      "timestamp": 44.8,
+      "category": "temporal",
+      "tolerance_s": 1.0
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where did the plate go?",
+      "answer": "bowl",
+      "timestamp": 44.8,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "How many cups are in the memory?",
+      "answer": "2",
+      "timestamp": 44.8,
+      "category": "counting"
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where are my keys?",
+      "answer": "I don't have that in my memory.",
+      "timestamp": 20.0,
+      "category": "unknown",
+      "kind": "unknown"
+    }
+  ]
+}

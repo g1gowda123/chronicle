@@ -8,7 +8,10 @@ torchvision>=0.18
 open_clip_torch>=2.24
 
 # Florence-2-base captioning
-transformers>=4.44
+# Pin <5: the official Florence-2 remote code relies on config attributes that
+# Transformers 5.x removed (forced_bos_token_id). 4.46.3 is the tested version.
+transformers>=4.44,<5
 accelerate>=0.30
 timm>=0.9
 einops>=0.7
+sentencepiece>=0.2

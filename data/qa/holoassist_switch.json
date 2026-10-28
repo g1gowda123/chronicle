@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "dataset": "holoassist-switch-gold",
+  "description": "Temporal QA over the HoloAssist Joy-Con assembly clip. Answers and timestamps come from the human action annotations shipped with data/real/holoassist_switch_34s.json (CDLA-Permissive-2.0).",
+  "video_id": "holoassist_switch_34s",
+  "zone_label": "Work Table",
+  "questions": [
+    {
+      "video_id": "holoassist_switch_34s",
+      "query": "Where is the joy-con?",
+      "answer": "Work Table",
+      "timestamp": 9.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "holoassist_switch_34s",
+      "query": "What did the person do with the joy-con?",
+      "answer": "picked up",
+      "timestamp": 9.0,
+      "category": "activity"
+    },
+    {
+      "video_id": "holoassist_switch_34s",
+      "query": "Where is the switch console?",
+      "answer": "Work Table",
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "holoassist_switch_34s",
+      "query": "When did the person first pick up the joy-con?",
+      "answer": "4.2 seconds",
+      "timestamp": 33.9,
+      "category": "temporal",
+      "tolerance_s": 1.5
+    },
+    {
+      "video_id": "holoassist_switch_34s",
+      "query": "How many joy-con controllers are in the memory?",
+      "answer": "2",
+      "timestamp": 33.9,
+      "category": "counting"
+    },
+    {
+      "video_id": "holoassist_switch_34s",
+      "query": "What objects are on the work table?",
+      "answer": "joy-con",
+      "timestamp": 20.0,
+      "category": "inventory"
+    },
+    {
+      "video_id": "holoassist_switch_34s",
+      "query": "What colour is the joy-con?",
+      "answers": ["cyan", "blue"],
+      "answer": "cyan",
+      "timestamp": 9.0,
+      "category": "attribute"
+    },
+    {
+      "video_id": "holoassist_switch_34s",
+      "query": "Where are my keys?",
+      "answer": "I don't have that in my memory.",
+      "timestamp": 20.0,
+      "category": "unknown",
+      "kind": "unknown"
+    }
+  ]
+}

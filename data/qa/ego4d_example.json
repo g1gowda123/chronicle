@@ -3,6 +3,7 @@
   "dataset": "chronicle-internal-example",
   "description": "Small Ego4D-shaped QA fixture for the headless evaluation harness. Replace with a QAEgo4D-Closed export for paper runs.",
   "video_id": "aria_cook_45s",
+  "zone_label": "Kitchen",
   "questions": [
     {
       "video_id": "aria_cook_45s",

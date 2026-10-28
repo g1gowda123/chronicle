@@ -55,6 +55,11 @@ class SemanticConfig:
     florence_model_id: str = "microsoft/Florence-2-base"
     florence_max_new_tokens: int = 128
     florence_num_beams: int = 3
+    # Local Ollama vision captioner (same interface as Florence-2).
+    qwen_vl_model: str = "qwen2.5vl:3b"
+    qwen_vl_host: str = "http://127.0.0.1:11434"
+    qwen_vl_timeout_s: float = 120.0
+    qwen_vl_max_side: int = 448
     action_min_confidence: float = 0.45
     action_task: str = "<MORE_DETAILED_CAPTION>"
     action_reject_ambiguous: bool = True
@@ -68,6 +73,9 @@ class SemanticConfig:
     # --- Local LLM (Ollama by default, transformers optional) -------------
     llm_backend: str = "auto"  # auto | ollama | transformers | template | none
     llm_model: str = "qwen2.5:7b-instruct"
+    # Use the text LLM for per-clip action verification as well as GraphRAG.
+    # Disable it to keep ingestion deterministic and reserve the LLM for QA.
+    action_llm_enabled: bool = True
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_bin: str | None = None
     hf_llm_model: str = "Qwen/Qwen2.5-1.5B-Instruct"

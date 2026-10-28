@@ -209,7 +209,10 @@ def build_captioner(
     *,
     channel_order: str = "bgr",
 ) -> Any:
-    """``auto``/``florence`` return a lazy model, ``stub`` is fully offline."""
+    """``auto``/``florence`` return a lazy model, ``stub`` is fully offline.
+
+    ``qwen``/``qwen-vl`` select the local Ollama Qwen2.5-VL captioner.
+    """
     config = config or SemanticConfig()
     if backend == "stub":
         return StubCaptioner()
@@ -219,6 +222,16 @@ def build_captioner(
             device=config.device,
             max_new_tokens=config.florence_max_new_tokens,
             num_beams=config.florence_num_beams,
+            channel_order=channel_order,
+        )
+    if backend in {"qwen", "qwen-vl", "qwen2.5vl", "qwen_vl"}:
+        from .qwen_vl import QwenVLCaptioner
+
+        return QwenVLCaptioner(
+            config.qwen_vl_model,
+            host=config.qwen_vl_host,
+            timeout_s=config.qwen_vl_timeout_s,
+            max_side=config.qwen_vl_max_side,
             channel_order=channel_order,
         )
     if backend != "auto":

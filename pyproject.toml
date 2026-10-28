@@ -41,10 +41,11 @@ semantic-models = [
   "open-clip-torch>=2.26",
   "torch>=2.2",
   "torchvision>=0.17",
-  "transformers>=4.44",
+  "transformers>=4.44,<5",
   "accelerate>=0.30",
   "timm>=0.9",
   "einops>=0.7",
+  "sentencepiece>=0.2",
 ]
 dev = [
     "pytest>=8",

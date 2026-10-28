@@ -1,0 +1,182 @@
+{
+  "caption": "Model matrix: event-gated Chronicle versus dense 1 FPS captions.",
+  "label": "tab:model-matrix",
+  "rows": [
+    {
+      "dataset": "Cook 45 s",
+      "system": "Chronicle",
+      "captioner": "Florence-2",
+      "answerer": "Qwen2.5",
+      "recall_at_1": 0.4,
+      "vlm_calls": 53,
+      "avg_latency_ms": 21.0753,
+      "peak_vram_mb": 3312.31,
+      "frames": 450
+    },
+    {
+      "dataset": "Cook 45 s",
+      "system": "Dense 1 FPS",
+      "captioner": "Florence-2",
+      "answerer": "Qwen2.5",
+      "recall_at_1": 0.3,
+      "vlm_calls": 45,
+      "avg_latency_ms": 257.5842,
+      "peak_vram_mb": 2060.31,
+      "frames": 45
+    },
+    {
+      "dataset": "Cook 45 s",
+      "system": "Chronicle",
+      "captioner": "Florence-2",
+      "answerer": "template",
+      "recall_at_1": 0.4,
+      "vlm_calls": 53,
+      "avg_latency_ms": 21.2419,
+      "peak_vram_mb": 2071.19,
+      "frames": 450
+    },
+    {
+      "dataset": "Cook 45 s",
+      "system": "Dense 1 FPS",
+      "captioner": "Florence-2",
+      "answerer": "template",
+      "recall_at_1": 0.4,
+      "vlm_calls": 45,
+      "avg_latency_ms": 262.9122,
+      "peak_vram_mb": 819.19,
+      "frames": 45
+    },
+    {
+      "dataset": "Cook 45 s",
+      "system": "Chronicle",
+      "captioner": "Qwen2.5-VL",
+      "answerer": "Qwen2.5",
+      "recall_at_1": 0.4,
+      "vlm_calls": 53,
+      "avg_latency_ms": 26.0277,
+      "peak_vram_mb": 6755.44,
+      "frames": 450
+    },
+    {
+      "dataset": "Cook 45 s",
+      "system": "Dense 1 FPS",
+      "captioner": "Qwen2.5-VL",
+      "answerer": "Qwen2.5",
+      "recall_at_1": 0.2,
+      "vlm_calls": 45,
+      "avg_latency_ms": 1019.0359,
+      "peak_vram_mb": 5385.44,
+      "frames": 45
+    },
+    {
+      "dataset": "Cook 45 s",
+      "system": "Chronicle",
+      "captioner": "Qwen2.5-VL",
+      "answerer": "template",
+      "recall_at_1": 0.4,
+      "vlm_calls": 53,
+      "avg_latency_ms": 25.1345,
+      "peak_vram_mb": 5514.31,
+      "frames": 450
+    },
+    {
+      "dataset": "Cook 45 s",
+      "system": "Dense 1 FPS",
+      "captioner": "Qwen2.5-VL",
+      "answerer": "template",
+      "recall_at_1": 0.3,
+      "vlm_calls": 45,
+      "avg_latency_ms": 1021.4585,
+      "peak_vram_mb": 4144.31,
+      "frames": 45
+    },
+    {
+      "dataset": "HoloAssist 34 s",
+      "system": "Chronicle",
+      "captioner": "Florence-2",
+      "answerer": "Qwen2.5",
+      "recall_at_1": 0.5,
+      "vlm_calls": 37,
+      "avg_latency_ms": 17.3422,
+      "peak_vram_mb": 3336.31,
+      "frames": 1019
+    },
+    {
+      "dataset": "HoloAssist 34 s",
+      "system": "Dense 1 FPS",
+      "captioner": "Florence-2",
+      "answerer": "Qwen2.5",
+      "recall_at_1": 0.25,
+      "vlm_calls": 34,
+      "avg_latency_ms": 232.3715,
+      "peak_vram_mb": 2062.31,
+      "frames": 34
+    },
+    {
+      "dataset": "HoloAssist 34 s",
+      "system": "Chronicle",
+      "captioner": "Florence-2",
+      "answerer": "template",
+      "recall_at_1": 0.625,
+      "vlm_calls": 37,
+      "avg_latency_ms": 17.6644,
+      "peak_vram_mb": 2095.19,
+      "frames": 1019
+    },
+    {
+      "dataset": "HoloAssist 34 s",
+      "system": "Dense 1 FPS",
+      "captioner": "Florence-2",
+      "answerer": "template",
+      "recall_at_1": 0.125,
+      "vlm_calls": 34,
+      "avg_latency_ms": 228.7574,
+      "peak_vram_mb": 817.19,
+      "frames": 34
+    },
+    {
+      "dataset": "HoloAssist 34 s",
+      "system": "Chronicle",
+      "captioner": "Qwen2.5-VL",
+      "answerer": "Qwen2.5",
+      "recall_at_1": 0.625,
+      "vlm_calls": 37,
+      "avg_latency_ms": 19.4623,
+      "peak_vram_mb": 6761.44,
+      "frames": 1019
+    },
+    {
+      "dataset": "HoloAssist 34 s",
+      "system": "Dense 1 FPS",
+      "captioner": "Qwen2.5-VL",
+      "answerer": "Qwen2.5",
+      "recall_at_1": 0.125,
+      "vlm_calls": 34,
+      "avg_latency_ms": 1541.9226,
+      "peak_vram_mb": 5383.44,
+      "frames": 34
+    },
+    {
+      "dataset": "HoloAssist 34 s",
+      "system": "Chronicle",
+      "captioner": "Qwen2.5-VL",
+      "answerer": "template",
+      "recall_at_1": 0.625,
+      "vlm_calls": 37,
+      "avg_latency_ms": 19.3345,
+      "peak_vram_mb": 5522.31,
+      "frames": 1019
+    },
+    {
+      "dataset": "HoloAssist 34 s",
+      "system": "Dense 1 FPS",
+      "captioner": "Qwen2.5-VL",
+      "answerer": "template",
+      "recall_at_1": 0.125,
+      "vlm_calls": 34,
+      "avg_latency_ms": 1530.8403,
+      "peak_vram_mb": 4144.31,
+      "frames": 34
+    }
+  ]
+}

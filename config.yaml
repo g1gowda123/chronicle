@@ -45,26 +45,48 @@ perception:
   frame_stride: 1
   motion_enabled: true
   clip_enabled: true
-  # Empty list keeps the PerceptionConfig default vocabulary. The engine also
-  # adds object nouns found in the QA file, because YOLO-World is prompt driven.
+  # Empty list keeps the selected preset. The engine also adds object nouns and
+  # short noun phrases found in the QA file, because YOLO-World is prompt driven.
+  vocabulary_preset: broad    # default | broad | none
   vocabulary: []
 
 semantic:
   enabled: true
-  captioner_backend: auto
+  # Fail fast instead of silently using StubCaptioner. The local path is
+  # prepared by scripts/fetch_models.py and is resolved from the repo root.
+  require_florence: true
+  captioner_backend: auto      # auto | florence | qwen | stub
   embedder_backend: auto
   device: auto
-  florence_model_id: microsoft/Florence-2-base
+  florence_model_id: models/Florence-2-base
   florence_max_new_tokens: 128
   florence_num_beams: 3
+  # Alternative local VLM: Ollama qwen2.5vl:3b. Select with --captioner qwen.
+  # No download is performed at run time; the model must already be pulled.
+  qwen_vl_model: qwen2.5vl:3b
+  qwen_vl_host: http://127.0.0.1:11434
+  qwen_vl_timeout_s: 120.0
+  qwen_vl_max_side: 448
   action_task: "<MORE_DETAILED_CAPTION>"
   action_min_confidence: 0.45
   llm_backend: template       # template | none | ollama | transformers | auto
   llm_model: qwen2.5:7b-instruct
+  # Keep clip verification deterministic; the local LLM is used for QA only.
+  action_llm_enabled: false
   ollama_url: http://127.0.0.1:11434
   require_citations: true
   lenient_citations: true
   max_facts: 40
+
+baseline:
+  sample_fps: 1.0
+  captioner_backend: florence   # florence | stub (stub is only for harness tests)
+  llm_backend: template         # template | ollama | none
+  max_captions: null
+
+evaluation:
+  answer_matcher: token         # deterministic token/number matcher
+  query_tolerance_s: 0.5
 
 runtime:
   zone_label: null

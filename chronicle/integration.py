@@ -1150,7 +1150,11 @@ class ChronicleRuntime:
         return {
             "detector": getattr(pipeline.detector, "name", self.perception_config.detector.backend),
             "hands": getattr(pipeline.hands, "name", self.perception_config.hands.backend),
-            "embedder": getattr(pipeline.embedder, "name", self.perception_config.embedder.backend),
+            "embedder": getattr(
+                pipeline.embedder,
+                "backend",
+                getattr(pipeline.embedder, "name", self.perception_config.embedder.backend),
+            ),
             "attributes": getattr(
                 pipeline.attributes,
                 "name",

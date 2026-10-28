@@ -1,0 +1,30 @@
+% Requires \usepackage{booktabs}
+\begin{table*}[t]
+  \centering
+  \caption{Model matrix: event-gated Chronicle versus dense 1 FPS captions.}
+  \label{tab:model-matrix}
+  \small
+  \begin{tabular}{llllcccr}
+    \toprule
+    Dataset & System & Captioner & Answerer & Recall@1 & VLM Calls & Latency (ms) & VRAM (MB) \\
+    \midrule
+    Cook 45 s & Chronicle & Florence-2 & Qwen2.5 & 40.0\% & 53 & 21.1 & 3312.3 \\
+    Cook 45 s & Dense 1 FPS & Florence-2 & Qwen2.5 & 30.0\% & 45 & 257.6 & 2060.3 \\
+    Cook 45 s & Chronicle & Florence-2 & template & 40.0\% & 53 & 21.2 & 2071.2 \\
+    Cook 45 s & Dense 1 FPS & Florence-2 & template & 40.0\% & 45 & 262.9 & 819.2 \\
+    Cook 45 s & Chronicle & Qwen2.5-VL & Qwen2.5 & 40.0\% & 53 & 26.0 & 6755.4 \\
+    Cook 45 s & Dense 1 FPS & Qwen2.5-VL & Qwen2.5 & 20.0\% & 45 & 1019.0 & 5385.4 \\
+    Cook 45 s & Chronicle & Qwen2.5-VL & template & 40.0\% & 53 & 25.1 & 5514.3 \\
+    Cook 45 s & Dense 1 FPS & Qwen2.5-VL & template & 30.0\% & 45 & 1021.5 & 4144.3 \\
+    \midrule
+    HoloAssist 34 s & Chronicle & Florence-2 & Qwen2.5 & 50.0\% & 37 & 17.3 & 3336.3 \\
+    HoloAssist 34 s & Dense 1 FPS & Florence-2 & Qwen2.5 & 25.0\% & 34 & 232.4 & 2062.3 \\
+    HoloAssist 34 s & Chronicle & Florence-2 & template & 62.5\% & 37 & 17.7 & 2095.2 \\
+    HoloAssist 34 s & Dense 1 FPS & Florence-2 & template & 12.5\% & 34 & 228.8 & 817.2 \\
+    HoloAssist 34 s & Chronicle & Qwen2.5-VL & Qwen2.5 & 62.5\% & 37 & 19.5 & 6761.4 \\
+    HoloAssist 34 s & Dense 1 FPS & Qwen2.5-VL & Qwen2.5 & 12.5\% & 34 & 1541.9 & 5383.4 \\
+    HoloAssist 34 s & Chronicle & Qwen2.5-VL & template & 62.5\% & 37 & 19.3 & 5522.3 \\
+    HoloAssist 34 s & Dense 1 FPS & Qwen2.5-VL & template & 12.5\% & 34 & 1530.8 & 4144.3 \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

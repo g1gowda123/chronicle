@@ -1,0 +1,14 @@
+% Requires \usepackage{booktabs}
+\begin{table}[t]
+  \centering
+  \caption{HoloAssist Joy-Con 34 s: event-gated Chronicle vs dense 1 FPS with gold human annotations. Latency is per processed sample (decoded frame for Chronicle, 1 FPS caption for dense).}
+  \label{tab:chronicle-vs-dense-holo}
+  \begin{tabular}{lcccc}
+    \toprule
+    Method & Recall@1 & VLM Calls & Avg Latency (ms) & Peak VRAM (MB) \\
+    \midrule
+    Chronicle (event-gated) & 62.5\% & 37 & 17.7 & 2095.2 \\
+    Dense 1 FPS & 12.5\% & 34 & 228.8 & 817.2 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

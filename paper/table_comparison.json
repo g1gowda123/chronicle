@@ -1,0 +1,32 @@
+{
+  "caption": "Cook 45 s: event-gated Chronicle vs dense 1 FPS, both using Florence-2 and template answers. Latency is per processed sample (decoded frame for Chronicle, 1 FPS caption for dense).",
+  "label": "tab:chronicle-vs-dense",
+  "rows": [
+    {
+      "avg_latency_ms": 21.2419,
+      "frames_processed": 450,
+      "method": "Chronicle (event-gated)",
+      "peak_vram_mb": 2071.19,
+      "recall_at_1": 0.4,
+      "source": "/home/g1/projects/chronicle-vfm/data/real/cook/aria_cook_45s.mp4",
+      "vlm_call_reduction_pct": 88.222,
+      "vlm_calls": 53,
+      "vlm_model_calls": 53
+    },
+    {
+      "avg_latency_ms": 262.9122,
+      "frames_processed": 45,
+      "method": "Dense 1 FPS",
+      "peak_vram_mb": 819.19,
+      "recall_at_1": 0.4,
+      "source": "/home/g1/projects/chronicle-vfm/data/real/cook/aria_cook_45s.mp4",
+      "vlm_call_reduction_pct": 0.0,
+      "vlm_calls": 45,
+      "vlm_model_calls": 45
+    }
+  ],
+  "sources": {
+    "baseline": "/home/g1/projects/chronicle-vfm/runs/bench/baseline_aria_cook_45s_ft/baseline_results.json",
+    "chronicle": "/home/g1/projects/chronicle-vfm/runs/bench/aria_cook_45s_ft/results.json"
+  }
+}
