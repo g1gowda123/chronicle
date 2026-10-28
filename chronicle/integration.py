@@ -182,6 +182,21 @@ class RuntimeSummary:
         }
 
 
+_LAST_SEEN_RE = re.compile(
+    r"\b(?:when|what time)\b.*\b(?:last\s+)?(?:see|saw|seen|observed|spotted)\b",
+    re.IGNORECASE,
+)
+
+
+def _zone_phrase(zone: str) -> str:
+    zone = zone.strip()
+    if not zone:
+        return "the scene"
+    if zone.lower().startswith("the "):
+        return zone
+    return f"the {zone}"
+
+
 class ChronicleRuntime:
     """One façade for ingestion, semantic verification and GraphRAG queries."""
 
@@ -741,6 +756,55 @@ class ChronicleRuntime:
         if count_answer is not None:
             return count_answer
         result = self.memory.query(query)
+        if result is not None and _LAST_SEEN_RE.search(query):
+            first = bool(re.search(r"\bfirst\b", query, re.IGNORECASE))
+            if first:
+                attrs = self.memory.foreground.get_entity(result.entity_id) or {}
+                first_seen = attrs.get("first_seen")
+                timestamp = float(
+                    result.last_seen if first_seen is None else first_seen
+                )
+                return RuntimeAnswer(
+                    query=query,
+                    answer=f"You first saw the {result.label} at t={timestamp:.1f}s.",
+                    citations=(
+                        {"timestamp": timestamp, "relation": "FIRST_SEEN"},
+                    ),
+                    source="graph",
+                    grounded=True,
+                    method="graph-first-seen",
+                    elapsed=time.monotonic() - started,
+                    entity=result.label,
+                    state=result.state,
+                    zone=result.zone_label,
+                    last_seen=timestamp,
+                )
+            zone = result.zone_label or self.memory.background.zone_label(
+                str(result.zone_id or "")
+            ) or ""
+            zone_phrase = _zone_phrase(zone)
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"You last saw the {result.label} at t={result.last_seen:.1f}s "
+                    f"in {zone_phrase}."
+                ),
+                citations=(
+                    {
+                        "timestamp": result.last_seen,
+                        "relation": "LAST_SEEN",
+                        "zone": zone,
+                    },
+                ),
+                source="graph",
+                grounded=True,
+                method="graph-last-seen",
+                elapsed=time.monotonic() - started,
+                entity=result.label,
+                state=result.state,
+                zone=zone,
+                last_seen=result.last_seen,
+            )
         if result is None:
             if is_event_query(query):
                 event_answer = self._event_overview(query, started)
@@ -791,9 +855,13 @@ class ChronicleRuntime:
                         elapsed=time.monotonic() - started,
                         zone=zone,
                     )
+                entity_word = "entity" if len(all_entities) == 1 else "entities"
                 return RuntimeAnswer(
                     query=query,
-                    answer=f"The episodic memory tracked {len(all_entities)} entities across {zone}: {items_str}.",
+                    answer=(
+                        f"The episodic memory tracked {len(all_entities)} "
+                        f"{entity_word} across the scene: {items_str}."
+                    ),
                     source="graph",
                     grounded=True,
                     method="inventory",

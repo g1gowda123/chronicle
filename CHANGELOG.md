@@ -26,6 +26,9 @@ All notable changes to Chronicle are documented here. The format follows
   pick-up/placement narrative instead of an abstention. If a clip ends before a
   placement is confirmed, the answer reports the interaction honestly; up to
   three recent interactions are included when several objects were handled.
+- `when did I last see X?` and `when did I first see X?` are answered from the
+  graph with a timestamp; the inventory answer now uses singular grammar for a
+  one-entity memory.
 - `chronicle --version` reports the installed distribution version, and
   `chronicle doctor` includes it in both text and JSON reports.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and

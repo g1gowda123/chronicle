@@ -206,6 +206,33 @@ def test_template_runtime_does_not_build_the_semantic_engine(monkeypatch) -> Non
         runtime.close()
 
 
+def test_runtime_answers_when_an_object_was_last_seen() -> None:
+    runtime = ChronicleRuntime(
+        ":memory:",
+        semantic_enabled=False,
+        zone_label="kitchen",
+        reset=True,
+    )
+    try:
+        for index in range(30):
+            runtime.memory.observe(
+                make_frame(index * DT, objects=[cup()], zone_label="kitchen")
+            )
+
+        answer = runtime.ask("when did I last see the cup?")
+        assert answer.method == "graph-last-seen"
+        assert answer.grounded is True
+        assert "cup" in answer.answer.lower()
+        assert "t=" in answer.answer
+        assert answer.last_seen is not None
+
+        first = runtime.ask("when did I first see the cup?")
+        assert first.method == "graph-first-seen"
+        assert "first saw" in first.answer
+    finally:
+        runtime.close()
+
+
 def test_runtime_normalizes_role_b_edges_for_role_c() -> None:
     runtime = ChronicleRuntime(":memory:", semantic_enabled=False)
     try:
