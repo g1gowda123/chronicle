@@ -111,6 +111,10 @@ pip install ".[ui]"               # NiceGUI dashboard (`chronicle serve`)
 The UI is intentionally not a core dependency. `chronicle run`, `ask`, `demo`,
 `sources`, and `doctor` all work without NiceGUI, FastAPI, or a browser.
 
+Event-clip verification additionally uses `ffmpeg` to extract the pre/contact/
+post audit frames. Install it at the system level; `chronicle demo` does not
+need it.
+
 ### Perception demo
 
 ```bash
