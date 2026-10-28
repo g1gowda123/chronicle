@@ -21,7 +21,9 @@ All notable changes to Chronicle are documented here. The format follows
 - Object-count questions such as `how many cups are there?` are answered from
   tracked entities, including an explicit unknown-object answer.
 - Generic episode questions such as `what did I do?` return the recorded
-  pick-up/placement narrative instead of an abstention.
+  pick-up/placement narrative instead of an abstention. If a clip ends before a
+  placement is confirmed, the answer reports the interaction honestly; up to
+  three recent interactions are included when several objects were handled.
 - `chronicle --version` reports the installed distribution version.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
   contributor documentation.

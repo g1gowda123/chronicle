@@ -310,7 +310,35 @@ class QueryResult:
             if edge.get("relation") in {Relation.RESTING_ON.value, Relation.INSIDE.value}
         ]
         if not placements:
-            return None
+            # A short clip may contain an interaction without a confirmed
+            # placement (for example the object is picked up but the clip ends
+            # before it is put down).  Still report the interaction rather than
+            # claiming that nothing happened.
+            interaction = next(
+                (
+                    edge
+                    for edge in timeline
+                    if edge.get("relation") == Relation.ACTION.value
+                ),
+                None,
+            )
+            if interaction is None:
+                interaction = next(
+                    (
+                        edge
+                        for edge in timeline
+                        if edge.get("relation") == Relation.STATE_TRANSITION.value
+                        and edge.get("to_state") == "INTERACTED"
+                    ),
+                    None,
+                )
+            if interaction is None:
+                return None
+            interaction_t = float(interaction.get("t_start", 0.0))
+            return (
+                f"You interacted with the {self.label} at t={interaction_t:.1f}s; "
+                "no placement was recorded."
+            )
 
         labels = {
             str(node["node_id"]): str(node.get("label") or _short_node(str(node["node_id"])))

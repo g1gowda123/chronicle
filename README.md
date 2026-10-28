@@ -97,6 +97,17 @@ loads the same memory bundled with the package.
 weights, and the bundled memory. It exits non-zero only when something required
 is missing.
 
+The same memory is available as a Python object:
+
+```python
+from chronicle import ChronicleMemory
+from chronicle.demo_data import demo_db_path
+
+with ChronicleMemory(demo_db_path(), read_only=True) as memory:
+    result = memory.query("where is my cup?")
+    print(result.fallback_answer())
+```
+
 | Command | Models required | Purpose |
 |---|---|---|
 | `chronicle demo` | none | Generate and query a synthetic memory |

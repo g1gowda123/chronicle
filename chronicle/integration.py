@@ -672,33 +672,52 @@ class ChronicleRuntime:
         )
 
     def _event_overview(self, query: str, started: float) -> RuntimeAnswer | None:
-        """Answer a generic 'what happened?' question from the busiest entity."""
+        """Summarize the most recent recorded interactions for a generic event query."""
 
         entities = sorted(
             self.memory.foreground.entities(),
             key=lambda entity: float(entity.get("last_seen", 0.0) or 0.0),
             reverse=True,
         )
+        summaries: list[str] = []
+        results: list[QueryResult] = []
         for entity in entities:
             result = self.memory.query_entity(
                 str(entity.get("node_id", "")),
                 question=query,
             )
             summary = result.event_summary() if result is not None else None
-            if summary:
-                return RuntimeAnswer(
-                    query=query,
-                    answer=summary,
-                    source="graph",
-                    grounded=True,
-                    method="graph-template-event",
-                    elapsed=time.monotonic() - started,
-                    entity=result.label,
-                    state=result.state,
-                    zone=result.zone_label,
-                    last_seen=result.last_seen,
-                )
-        return None
+            if not summary or summary in summaries:
+                continue
+            if "picked up" not in summary and "interacted with" not in summary:
+                continue
+            summaries.append(summary)
+            results.append(result)
+            if len(summaries) == 3:
+                break
+        if not results:
+            return None
+        first = results[0]
+        return RuntimeAnswer(
+            query=query,
+            answer=" ".join(summaries),
+            citations=tuple(
+                {
+                    "timestamp": result.last_seen,
+                    "relation": "EVENT",
+                    "zone": result.zone_label,
+                }
+                for result in results
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-template-event",
+            elapsed=time.monotonic() - started,
+            entity=first.label,
+            state=first.state,
+            zone=first.zone_label,
+            last_seen=first.last_seen,
+        )
 
     def _ask_impl(self, query: str) -> RuntimeAnswer:
         started = time.monotonic()
