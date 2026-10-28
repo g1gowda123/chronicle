@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use Chronicle in research, please cite this repository."
+title: "Chronicle: Grounded Egocentric Episodic Memory"
+abstract: "An event-gated, auditable episodic memory framework for egocentric video, with a nine-state object lifecycle, dual temporal graphs, deterministic query planning, and optional vision-language verification."
+type: software
+authors:
+  - name: "Chronicle contributors"
+version: 0.1.0
+date-released: 2026-10-28
+url: "https://github.com/g1gowda123/chronicle"
+repository-code: "https://github.com/g1gowda123/chronicle"
+license: MIT
+keywords:
+  - egocentric video
+  - episodic memory
+  - scene graph
+  - video question answering
+  - GraphRAG
