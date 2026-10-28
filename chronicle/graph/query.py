@@ -34,7 +34,7 @@ from chronicle.graph.ids import (
 from chronicle.storage.records import AnchorRecord
 from chronicle.storage.sqlite_store import SQLiteStore
 from chronicle.telemetry import EventBus
-from chronicle.text import match_details
+from chronicle.text import is_plural, match_details
 from chronicle.types import Relation
 
 Embedder = Callable[[str], Sequence[float]]
@@ -189,9 +189,22 @@ class QueryResult:
         )
 
     def timeline(self) -> list[dict[str, Any]]:
-        """Chronologically sorted list of timestamped edges."""
+        """Chronologically sorted list of edges incident on this entity.
+
+        The retrieved subgraph also contains edges belonging to entities that
+        share an anchor surface (for example two cups resting on the same
+        table).  Keeping those edges here makes event summaries report another
+        object's placement as this object's last move, so filter to the entity
+        node and its own incident edges.
+        """
+
         return sorted(
-            (e for e in self.edges if e.get("t_start") is not None),
+            (
+                e
+                for e in self.edges
+                if e.get("t_start") is not None
+                and (e.get("src") == self.node_id or e.get("dst") == self.node_id)
+            ),
             key=lambda e: (float(e["t_start"]), str(e.get("relation"))),
         )
 
@@ -233,7 +246,25 @@ class QueryResult:
         )
 
         clause = (m_before.group(1) or "").strip() if m_before else None
-        if clause and clause.lower() not in _PRONOUN_CLAUSES:
+        pickup_ref = bool(
+            clause
+            and re.search(
+                r"\b(?:pick(?:ed)?\s*up|pickup|lift(?:ed)?(?:\s+up)?)\b",
+                clause,
+                re.IGNORECASE,
+            )
+        )
+        held_edges = [
+            edge
+            for edge in entity_edges
+            if edge.get("relation") == Relation.STATE_TRANSITION.value
+            and edge.get("to_state") == "HELD"
+        ]
+        if pickup_ref and held_edges:
+            ref_edge = held_edges[0]
+            t_ref = float(ref_edge["t_start"])
+            ref_label = "pick-up"
+        elif clause and clause.lower() not in _PRONOUN_CLAUSES:
             m_ts = re.fullmatch(r"(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*s?", clause, re.IGNORECASE)
             if m_ts:
                 t_ref = float(m_ts.group(1))
@@ -368,6 +399,8 @@ class QueryResult:
             None,
         )
         pickup_t = float(pickup.get("t_start", 0.0)) if pickup else None
+        pronoun = "them" if is_plural(self.label) else "it"
+        subject = "They" if is_plural(self.label) else "It"
 
         if first_label == last_label:
             if pickup_t is None:
@@ -378,10 +411,10 @@ class QueryResult:
             if self.state == "HELD":
                 return (
                     f"You picked up the {self.label} at t={pickup_t:.1f}s "
-                    f"and are still holding it."
+                    f"and are still holding {pronoun}."
                 )
             return (
-                f"You picked up the {self.label} at t={pickup_t:.1f}s and put it back "
+                f"You picked up the {self.label} at t={pickup_t:.1f}s and put {pronoun} back "
                 f"{preposition(last)} the {last_label} at t={last_t:.1f}s."
             )
 
@@ -391,9 +424,9 @@ class QueryResult:
                 f"at t={last_t:.1f}s; no pick-up was recorded."
             )
         return (
-            f"You picked up the {self.label} at t={pickup_t:.1f}s and placed it "
+            f"You picked up the {self.label} at t={pickup_t:.1f}s and placed {pronoun} "
             f"{preposition(last)} the {last_label} at t={last_t:.1f}s. "
-            f"It had been {preposition(first)} the {first_label} at t={first_t:.1f}s."
+            f"{subject} had been {preposition(first)} the {first_label} at t={first_t:.1f}s."
         )
 
     def fallback_answer(self) -> str:
@@ -417,11 +450,11 @@ class QueryResult:
                 return f"I don't have that attribute recorded for the {label}."
             if field == "all":
                 return (
-                    f"The {label} looks {description} "
+                    f"The {label} {'look' if is_plural(label) else 'looks'} {description} "
                     f"(last observed at t={self.last_seen:.1f}s)."
                 )
             return (
-                f"The {label} is {description} "
+                f"The {label} {'are' if is_plural(label) else 'is'} {description} "
                 f"(last observed at t={self.last_seen:.1f}s)."
             )
         if is_temporal_multihop_query(query_text):
@@ -445,6 +478,8 @@ class QueryResult:
                 if self.zone_label and self.zone_label.lower() != dst_label.lower()
                 else ""
             )
+            subject = f"the {label}"
+            past_be = "were" if is_plural(label) else "was"
 
             if _PREVIOUS_RE.search(query_text.lower()) and not _BEFORE_RE.search(query_text.lower()):
                 prefix = "Previously"
@@ -454,6 +489,11 @@ class QueryResult:
                     prefix = f"Before being placed in the {ref_label}"
                 elif ref_rel == Relation.RESTING_ON.value:
                     prefix = f"Before being placed on the {ref_label}"
+                elif (
+                    ref_rel == Relation.STATE_TRANSITION.value
+                    and str(ref_edge.get("to_state")) == "HELD"
+                ):
+                    prefix = "Before being picked up"
                 elif ref_rel == Relation.ACTION.value and str(ref_edge.get("action")) == "PICK_UP":
                     prefix = "Before being picked up"
                 else:
@@ -462,13 +502,19 @@ class QueryResult:
                 prefix = f"Before {ref_label or 'that'}"
 
             if rel == Relation.RESTING_ON.value:
-                return f"{prefix}, {label} was resting on the {dst_label}{zone} at t={t_start:.1f}s."
+                return (
+                    f"{prefix}, {subject} {past_be} resting on the {dst_label}{zone} "
+                    f"at t={t_start:.1f}s."
+                )
             if rel == Relation.INSIDE.value:
-                return f"{prefix}, {label} was inside the {dst_label}{zone} at t={t_start:.1f}s."
+                return (
+                    f"{prefix}, {subject} {past_be} inside the {dst_label}{zone} "
+                    f"at t={t_start:.1f}s."
+                )
             if rel == Relation.ACTION.value:
                 act = str(prior_edge.get("action", "interacted")).lower().replace("_", " ")
-                return f"{prefix}, {label} was {act} at t={t_start:.1f}s."
-            return f"{prefix}, {label} was at {dst_label}{zone} at t={t_start:.1f}s."
+                return f"{prefix}, {subject} {past_be} {act} at t={t_start:.1f}s."
+            return f"{prefix}, {subject} {past_be} at {dst_label}{zone} at t={t_start:.1f}s."
 
         anchor = self.terminal_anchor
         location = "an unrecorded location"
@@ -480,34 +526,36 @@ class QueryResult:
         else:
             placed_at = None
 
+        be = "are" if is_plural(label) else "is"
         if self.state == "HELD":
             answer = f"You are holding the {label} (state HELD since t={self.state_since:.1f}s)."
         elif self.state == "CONTAINED":
             container = self.container_label or "a container"
             answer = (
-                f"The {label} is inside the {container}"
+                f"The {label} {be} inside the {container}"
                 f"{' in the ' + self.zone_label if self.zone_label else ''} "
                 f"(state CONTAINED since t={self.state_since:.1f}s)."
             )
         elif self.state in {"VISIBLE_STATIC"}:
-            answer = f"The {label} is resting on {location}."
+            answer = f"The {label} {be} resting on {location}."
             if placed_at is not None:
                 answer += f" Last placed at t={placed_at:.1f}s."
         elif self.state in {"VISIBLE_MOVING", "INTERACTED"}:
             answer = (
-                f"The {label} is currently {self.state.lower()} (since t={self.state_since:.1f}s)."
+                f"The {label} {be} currently {self.state.lower()} "
+                f"(since t={self.state_since:.1f}s)."
             )
             if anchor and placed_at is not None:
                 answer += f" It was last placed on {location} at t={placed_at:.1f}s."
         elif self.state in {"OCCLUDED", "OUT_OF_VIEW", "LOST"}:
             answer = (
-                f"The {label} is not currently visible (state {self.state}, "
+                f"The {label} {be} not currently visible (state {self.state}, "
                 f"last seen at t={self.last_seen:.1f}s)."
             )
             if anchor and placed_at is not None:
                 answer += f" Its last known placement was {location} at t={placed_at:.1f}s."
         else:
-            answer = f"The {label} is in state {self.state} as of t={self.last_seen:.1f}s."
+            answer = f"The {label} {be} in state {self.state} as of t={self.last_seen:.1f}s."
 
         if self.last_interaction:
             answer += (

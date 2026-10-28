@@ -5,9 +5,10 @@ torch, YOLO-World, MediaPipe, Florence-2, or the NiceGUI dashboard.  Frames are
 generated geometrically and fed straight into :class:`ChronicleMemory`; no video
 decoder, model weights, GPU, or network access are involved.
 
-The scene is intentionally small: a cup is grasped on a dining table, carried
-to a kitchen counter, and released.  The demo then runs two graph queries and
-reopens the SQLite database to show that the answer survives a process restart.
+The scene is intentionally small: a cup is carried from the dining table to
+the kitchen counter, keys make the reverse trip, a bottle moves to the counter,
+and a notebook never moves.  The demo then runs graph queries and reopens the
+SQLite database to show that the answer survives a process restart.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import argparse
 import json
 import shutil
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -31,8 +33,13 @@ from chronicle.types import (
 
 FPS = 30
 DT = 1.0 / FPS
-SCENE_SECONDS = 4.6
-QUESTIONS = ("where is my cup?", "what happened to my cup?")
+SCENE_SECONDS = 10.6
+QUESTIONS = (
+    "where is my cup?",
+    "what happened to my cup?",
+    "where are my keys?",
+    "where is my bottle?",
+)
 
 TABLE = SupportSurface(
     anchor_id="dining_table",
@@ -57,23 +64,83 @@ def _hand_at(x: float, y: float, size: float = 80.0) -> HandObservation:
     return HandObservation.from_landmarks(points, hand_id="hand:0")
 
 
-def _scene(t: float) -> tuple[tuple[float, float, float, float], HandObservation | None]:
-    """Piecewise cup/hand trajectory: rest, grasp, lift, carry, lower, release."""
+@dataclass(frozen=True)
+class _PickAndPlace:
+    """One rigid-box pick-and-place with a fixed 2.2 s hand trajectory."""
 
-    if t < 1.2:  # rest on the dining table
-        return (100.0, 300.0, 180.0, 380.0), None
-    if t < 1.6:  # hand closes on the cup: INTERACTED after a short dwell
-        return (100.0, 300.0, 180.0, 380.0), _hand_at(100.0, 300.0)
-    if t < 2.2:  # lift 120 px while the hand stays locked to the cup
-        dy = (t - 1.6) / 0.6 * 120.0
-        return (100.0, 300.0 - dy, 180.0, 380.0 - dy), _hand_at(100.0, 300.0 - dy)
-    if t < 2.8:  # carry 400 px to the right, still held
-        dx = (t - 2.2) / 0.6 * 400.0
-        return (100.0 + dx, 180.0, 180.0 + dx, 260.0), _hand_at(100.0 + dx, 180.0)
-    if t < 3.4:  # lower onto the kitchen counter
-        dy = (t - 2.8) / 0.6 * 120.0
-        return (500.0, 180.0 + dy, 580.0, 260.0 + dy), _hand_at(500.0, 180.0 + dy)
-    return (500.0, 300.0, 580.0, 380.0), None
+    entity_id: str
+    label: str
+    start: tuple[float, float, float, float]
+    end: tuple[float, float, float, float]
+    grasp_at: float
+
+    def pose(self, t: float) -> tuple[tuple[float, float, float, float], HandObservation | None]:
+        x0, y0, x1, y1 = self.start
+        ex0, ey0, ex1, ey1 = self.end
+        if t < self.grasp_at:
+            return self.start, None
+        if t < self.grasp_at + 0.4:  # dwell on the object before lifting
+            return self.start, _hand_at(x0, y0)
+        if t < self.grasp_at + 1.0:  # lift 120 px in lockstep with the hand
+            dy = (t - self.grasp_at - 0.4) / 0.6 * 120.0
+            return (x0, y0 - dy, x1, y1 - dy), _hand_at(x0, y0 - dy)
+        if t < self.grasp_at + 1.6:  # carry horizontally while held
+            progress = (t - self.grasp_at - 1.0) / 0.6
+            dx = (ex0 - x0) * progress
+            dy = (ey0 - y0) * progress
+            return (
+                x0 + dx,
+                y0 - 120.0 + dy,
+                x1 + dx,
+                y1 - 120.0 + dy,
+            ), _hand_at(x0 + dx, y0 - 120.0 + dy)
+        if t < self.grasp_at + 2.2:  # lower onto the destination support
+            progress = (t - self.grasp_at - 1.6) / 0.6
+            dy = 120.0 * (1.0 - progress)
+            return (ex0, ey0 - dy, ex1, ey1 - dy), _hand_at(ex0, ey0 - dy)
+        return self.end, None
+
+
+CUP = _PickAndPlace(
+    "cup", "cup", (100.0, 300.0, 180.0, 380.0), (500.0, 300.0, 580.0, 380.0), 1.2
+)
+KEYS = _PickAndPlace(
+    "keys", "keys", (600.0, 300.0, 680.0, 380.0), (300.0, 300.0, 380.0, 380.0), 4.4
+)
+BOTTLE = _PickAndPlace(
+    "bottle", "bottle", (200.0, 300.0, 280.0, 380.0), (400.0, 300.0, 480.0, 380.0), 7.6
+)
+NOTEBOOK = _PickAndPlace(
+    "notebook", "notebook", (20.0, 300.0, 100.0, 380.0), (20.0, 300.0, 100.0, 380.0), 99.9
+)
+MOTIONS = (CUP, KEYS, BOTTLE, NOTEBOOK)
+
+APPEARANCE: dict[str, dict[str, Any]] = {
+    "cup": {"colour": "white", "shape": "round", "size": "small"},
+    "keys": {"colour": "grey", "shape": "flat", "size": "small"},
+    "bottle": {"colour": "blue", "shape": "tall", "size": "medium"},
+    "notebook": {"colour": "red", "shape": "rectangular", "size": "medium"},
+}
+
+
+def _scene(t: float) -> tuple[list[ObjectObservation], list[HandObservation]]:
+    """All four objects are observed every frame; only the active one moves."""
+
+    objects: list[ObjectObservation] = []
+    hands: list[HandObservation] = []
+    for motion in MOTIONS:
+        bbox, hand = motion.pose(t)
+        objects.append(
+            ObjectObservation(
+                entity_id=motion.entity_id,
+                label=motion.label,
+                bbox=bbox,
+                attributes=APPEARANCE.get(motion.entity_id, {}),
+            )
+        )
+        if hand is not None:
+            hands.append(hand)
+    return objects, hands
 
 
 def _frame(
@@ -118,9 +185,7 @@ def run_demo(db_path: Path | str) -> dict[str, Any]:
     with ChronicleMemory(path, load=False) as memory:
         for index in range(round(SCENE_SECONDS / DT)):
             t = index * DT
-            bbox, hand = _scene(t)
-            objects = [ObjectObservation(entity_id="cup", label="cup", bbox=bbox)]
-            hands = [hand] if hand is not None else []
+            objects, hands = _scene(t)
             transitions += len(memory.observe(_frame(t, objects, hands)))
             frames += 1
 

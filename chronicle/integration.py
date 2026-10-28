@@ -115,6 +115,33 @@ _ACTION_CSV_COLUMNS = (
     "caption",
 )
 
+_EVENT_TARGET_RE = re.compile(
+    r"\b(?:what\s+(?:happened|occurred)\s+to"
+    r"|what\s+did\s+i\s+do\s+(?:with|to))\s+"
+    r"(?:(?:the|my|our|your|a|an)\s+)?([a-z][a-z0-9_-]*)",
+    re.IGNORECASE,
+)
+_EVENT_PRONOUN_TARGETS = {
+    "it",
+    "them",
+    "that",
+    "this",
+    "those",
+    "these",
+    "everything",
+    "anything",
+}
+
+
+def _event_target(query: str) -> str | None:
+    """Return the named object in an event question, if there is one."""
+
+    match = _EVENT_TARGET_RE.search(query)
+    if match is None:
+        return None
+    target = match.group(1).lower()
+    return None if target in _EVENT_PRONOUN_TARGETS else target
+
 
 @dataclass(frozen=True)
 class RuntimeAnswer:
@@ -699,6 +726,94 @@ class ChronicleRuntime:
             last_seen=last_seen,
         )
 
+    def _surface_inventory_answer(
+        self, query: str, started: float
+    ) -> RuntimeAnswer | None:
+        """Answer "what is on the kitchen counter?" from terminal anchors."""
+
+        match = re.search(
+            r"\b(?:what(?:'s| is)|list|show|name)\b[^?]*?\bon\s+"
+            r"(?:(?:the|my|our)\s+)?([a-z][a-z0-9 _-]*?)\s*\??$",
+            query,
+            re.IGNORECASE,
+        )
+        if match is None:
+            return None
+        surface = match.group(1).strip()
+        surface_tokens = content_tokens(surface)
+        if not surface_tokens:
+            return None
+
+        found: list[tuple[str, str, float, str, str]] = []
+        for entity in self.memory.foreground.entities():
+            result = self.memory.query_entity(
+                str(entity.get("node_id", "")), question=query
+            )
+            anchor = (result.terminal_anchor if result is not None else None) or {}
+            anchor_label = str(anchor.get("label") or anchor.get("anchor_id") or "")
+            anchor_tokens = content_tokens(anchor_label)
+            if not anchor_tokens or not (
+                surface_tokens <= anchor_tokens or anchor_tokens <= surface_tokens
+            ):
+                continue
+            timestamp = float(
+                anchor.get("t_start")
+                if anchor.get("t_start") is not None
+                else entity.get("last_seen", 0.0) or 0.0
+            )
+            found.append(
+                (
+                    str(entity.get("label") or "object"),
+                    anchor_label,
+                    timestamp,
+                    str(result.zone_label or "") if result is not None else "",
+                    str(result.state or "") if result is not None else "",
+                )
+            )
+        if not found:
+            return RuntimeAnswer(
+                query=query,
+                answer=f"I don't see anything on the {surface} in this memory.",
+                source="graph",
+                grounded=False,
+                method="graph-inventory",
+                elapsed=time.monotonic() - started,
+            )
+
+        found.sort(key=lambda item: item[2])
+        labels = [item[0] for item in found]
+        if len(labels) == 1:
+            listed = f"the {labels[0]}"
+        else:
+            listed = "the " + ", ".join(labels[:-1]) + f" and the {labels[-1]}"
+        newest = found[-1]
+        zone = newest[3] or self.memory.background.zone_label(
+            str(self.memory.active_zone or "")
+        )
+        return RuntimeAnswer(
+            query=query,
+            answer=(
+                f"On the {newest[1]} I can see {listed}. "
+                f"Last seen at t={newest[2]:.1f}s."
+            ),
+            citations=tuple(
+                {
+                    "timestamp": item[2],
+                    "relation": "RESTING_ON",
+                    "zone": item[3] or zone,
+                }
+                for item in found
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-inventory",
+            elapsed=time.monotonic() - started,
+            entity=newest[0],
+            state=newest[4],
+            zone=zone,
+            last_seen=newest[2],
+        )
+
     def _event_overview(self, query: str, started: float) -> RuntimeAnswer | None:
         """Summarize the most recent recorded interactions for a generic event query."""
 
@@ -806,7 +921,21 @@ class ChronicleRuntime:
                 last_seen=result.last_seen,
             )
         if result is None:
+            surface_answer = self._surface_inventory_answer(query, started)
+            if surface_answer is not None:
+                return surface_answer
             if is_event_query(query):
+                # "what happened to the mug?" names a specific object.  If
+                # lookup failed, answer honestly instead of falling back to an
+                # overview of unrelated tracked objects.
+                if _event_target(query) is not None:
+                    return RuntimeAnswer(
+                        query=query,
+                        answer="I don't have that in my memory.",
+                        source="graph",
+                        grounded=False,
+                        elapsed=time.monotonic() - started,
+                    )
                 event_answer = self._event_overview(query, started)
                 if event_answer is not None:
                     return event_answer

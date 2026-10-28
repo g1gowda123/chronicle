@@ -346,7 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluation.add_argument(
         "--suite",
-        help="JSONL question suite (default: the bundled 14-case suite)",
+        help="JSONL question suite (default: the bundled 45-case suite)",
     )
     evaluation.add_argument("--json", action="store_true", help="emit JSON instead of a report")
     evaluation.set_defaults(func=cmd_eval)

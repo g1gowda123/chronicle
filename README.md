@@ -89,7 +89,7 @@ Until the first PyPI release, install the current release from `main`. To work
 on the code, clone the repository and run `pip install -e ".[dev]"` (see
 [Development](#development)).
 
-`chronicle demo` generates a 4.6-second synthetic pick-and-place scene, compiles
+`chronicle demo` generates a 10.6-second synthetic pick-and-place scene, compiles
 it into SQLite, runs location/event queries, and reopens the database to prove
 that the answer survives a process restart. `chronicle ask` without `--db`
 loads the same memory bundled with the package.
@@ -98,8 +98,9 @@ loads the same memory bundled with the package.
 weights, and the bundled memory. It exits non-zero only when something required
 is missing.
 
-`chronicle eval` runs 14 deterministic checks against the bundled demo memory:
-locations, events, first/last-seen timestamps, counts, and honest abstentions.
+`chronicle eval` runs 45 deterministic checks against the bundled demo memory:
+locations, support surfaces, events, first/last-seen timestamps, counts,
+appearance, surface inventories, and honest abstentions.
 It prints a score and exits non-zero on failure. This is a product smoke suite,
 not a research benchmark; it deliberately uses no model, judge, or network.
 
@@ -118,7 +119,7 @@ with ChronicleMemory(demo_db_path(), read_only=True) as memory:
 |---|---|---|
 | `chronicle demo` | none | Generate and query a synthetic memory |
 | `chronicle ask` | none (template answerer) | Query the bundled or persisted memory |
-| `chronicle eval` | none | Run the 14-case deterministic product suite |
+| `chronicle eval` | none | Run the 45-case deterministic product suite |
 | `chronicle doctor` | none | Diagnose install, CUDA, weights, demo data |
 | `chronicle sources` | none | List bundled/demo video sources |
 | `chronicle run` | perception extra | Ingest a real video |

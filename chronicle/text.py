@@ -78,6 +78,29 @@ def singular(word: str) -> str:
     return word
 
 
+_IRREGULAR_PLURALS = frozenset(
+    {"children", "feet", "geese", "men", "mice", "people", "teeth", "women"}
+)
+
+
+def is_plural(label: str) -> bool:
+    """Best-effort agreement for detector labels such as ``keys`` or ``glass``.
+
+    Entity labels are open vocabulary, so this intentionally stays a heuristic:
+    labels ending in ``ss``/``us``/``is`` are treated as singular (glass, bus,
+    analysis) while known irregular plurals and ordinary ``-s`` labels are not.
+    """
+
+    word = (label or "").strip().lower()
+    if not word:
+        return False
+    if word in _IRREGULAR_PLURALS:
+        return True
+    if word.endswith(("ss", "us", "is")):
+        return False
+    return word.endswith("s")
+
+
 def content_tokens(text: str) -> set[str]:
     tokens = {singular(tok) for tok in normalize(text).split()}
     return {tok for tok in tokens if tok and tok not in STOPWORDS}

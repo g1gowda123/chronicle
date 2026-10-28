@@ -21,15 +21,29 @@ class DemoSuiteTest(unittest.TestCase):
             / "evaluation_data"
             / "demo_questions.jsonl"
         )
-        self.assertEqual(len(cases), 14)
-        self.assertEqual(len({case.id for case in cases}), 14)
+        self.assertGreaterEqual(len(cases), 30)
+        self.assertLessEqual(len(cases), 50)
+        self.assertEqual(len({case.id for case in cases}), len(cases))
         categories = {case.category for case in cases}
-        self.assertTrue({"location", "event", "temporal", "counting", "abstention"} <= categories)
+        self.assertTrue(
+            {
+                "location",
+                "support",
+                "temporal-location",
+                "event",
+                "temporal",
+                "counting",
+                "appearance",
+                "inventory",
+                "abstention",
+            }
+            <= categories
+        )
 
     def test_bundled_demo_scores_full_marks(self) -> None:
         report = run_evaluation()
-        self.assertEqual(report["total"], 14)
-        self.assertEqual(report["passed"], 14, report["cases"])
+        self.assertGreaterEqual(report["total"], 30)
+        self.assertEqual(report["passed"], report["total"], report["cases"])
         self.assertEqual(report["failed"], 0)
         self.assertEqual(report["score"], 1.0)
         self.assertEqual(report["kind"], "deterministic product smoke suite")
@@ -68,7 +82,9 @@ class DemoSuiteTest(unittest.TestCase):
         with redirect_stdout(buffer):
             code = main(["eval"])
         self.assertEqual(code, 0)
-        self.assertIn("Score: 14/14 (100.0%)", buffer.getvalue())
+        report = run_evaluation()
+        expected = f"Score: {report['total']}/{report['total']} (100.0%)"
+        self.assertIn(expected, buffer.getvalue())
 
 
 class InvalidSuiteTest(unittest.TestCase):

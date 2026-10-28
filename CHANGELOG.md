@@ -11,8 +11,9 @@ All notable changes to Chronicle are documented here. The format follows
 - Model-free onboarding path: `chronicle demo`, `chronicle ask`, and
   `chronicle doctor` work from a core install with no GPU, model weights, video,
   or dashboard dependencies.
-- Bundled SQLite demo memory generated from a deterministic pick-and-place
-  scene; `chronicle ask` uses it when `--db` is omitted.
+- Bundled SQLite demo memory generated from a 10.6-second deterministic
+  pick-and-place scene with four objects; `chronicle ask` uses it when `--db`
+  is omitted.
 - Lazy imports for the optional perception, semantic-model, and UI layers.
 - Clean-wheel and clean-sdist CI checks, including the bundled demo database.
 - `chronicle doctor` opens the bundled memory and runs a real graph query, so a
@@ -29,9 +30,10 @@ All notable changes to Chronicle are documented here. The format follows
 - `when did I last see X?` and `when did I first see X?` are answered from the
   graph with a timestamp; the inventory answer now uses singular grammar for a
   one-entity memory.
-- `chronicle eval` runs a 14-case deterministic product suite against the
-  bundled memory and prints a score; it covers location, event, first/last-seen,
-  count and abstention behavior without models or a judge.
+- `chronicle eval` runs a 45-case deterministic product suite against the
+  bundled memory and prints a score; it covers location, support surfaces,
+  events, first/last-seen times, temporal-before questions, counts, appearance,
+  surface inventories and abstention behavior without models or a judge.
 - `chronicle --version` reports the installed distribution version, and
   `chronicle doctor` includes it in both text and JSON reports.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
@@ -39,6 +41,16 @@ All notable changes to Chronicle are documented here. The format follows
 
 ### Fixed
 
+- Event timelines are filtered to edges incident on the queried entity, so
+  objects that share a support surface no longer inherit each other's
+  pick-up/placement history.
+- Plural detector labels such as `keys` now use correct agreement and pronouns
+  in location, appearance and event answers.
+- `where was X before it was picked up?` resolves the pick-up event instead of
+  falling back to the latest placement.
+- Event questions about an absent named object abstain instead of summarizing
+  unrelated objects, and `what is on the <surface>?` answers from terminal
+  support anchors.
 - Location questions without a recorded spatial fact now abstain explicitly
   instead of presenting an unrelated action or state as a location.
 - Hyphenated detector labels such as `joy-con` now canonicalize with

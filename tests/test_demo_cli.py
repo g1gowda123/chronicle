@@ -23,10 +23,10 @@ class DemoTest(unittest.TestCase):
             db = Path(tmp) / "demo.db"
             result = run_demo(db)
             self.assertTrue(db.is_file())
-            self.assertEqual(result["stats"]["entities"], 1)
+            self.assertEqual(result["stats"]["entities"], 4)
             self.assertGreater(result["stats"]["observations"], 0)
             self.assertIn("kitchen counter", result["restored_answer"])
-            self.assertEqual(result["restored_entities"], 1)
+            self.assertEqual(result["restored_entities"], 4)
 
     def test_demo_event_answer_is_grounded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -160,7 +160,7 @@ class AskDefaultTest(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["method"], "graph-count")
         self.assertTrue(payload["grounded"])
-        self.assertEqual(payload["answer"], "There is 1 object in this memory.")
+        self.assertEqual(payload["answer"], "There are 4 objects in this memory.")
 
     def test_ask_count_unknown_object_abstains(self) -> None:
         stdout = StringIO()
@@ -177,7 +177,7 @@ class AskDefaultTest(unittest.TestCase):
         stdout = StringIO()
         stderr = StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
-            code = cli.main(["ask", "where are my keys?", "--llm", "template"])
+            code = cli.main(["ask", "where is my toaster?", "--llm", "template"])
         self.assertEqual(code, 0)
         payload = json.loads(stdout.getvalue())
         self.assertIsNone(payload["entity"])
