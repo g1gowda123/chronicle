@@ -44,6 +44,11 @@ docs/*.synctex.gz
 .DS_Store
 Thumbs.db
 
+# Archived workspace exports and vendored wheels
+workspace-*.tar
+*.whl
+data/real/wheels/
+
 # Local artifacts: media, models, databases, logs
 models/
 weights/
@@ -52,6 +57,7 @@ weights/
 *.onnx
 runs/
 logs/
+data/real/*.log
 *.pid
 .chronicle.pid
 .chronicle.port
