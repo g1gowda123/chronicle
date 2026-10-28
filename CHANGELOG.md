@@ -26,7 +26,8 @@ All notable changes to Chronicle are documented here. The format follows
   pick-up/placement narrative instead of an abstention. If a clip ends before a
   placement is confirmed, the answer reports the interaction honestly; up to
   three recent interactions are included when several objects were handled.
-- `chronicle --version` reports the installed distribution version.
+- `chronicle --version` reports the installed distribution version, and
+  `chronicle doctor` includes it in both text and JSON reports.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
   contributor documentation.
 

@@ -61,6 +61,7 @@ class DemoTest(unittest.TestCase):
 class DoctorTest(unittest.TestCase):
     def test_report_contains_core_and_demo(self) -> None:
         report = collect_report()
+        self.assertIn("version", report)
         self.assertIn("core", report)
         self.assertIn("optional", report)
         self.assertTrue(report["demo_memory"]["exists"])

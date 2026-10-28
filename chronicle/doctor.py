@@ -66,6 +66,17 @@ def _package_report(packages: dict[str, str | None]) -> dict[str, dict[str, Any]
     return report
 
 
+def _distribution_version() -> str | None:
+    """Return the installed distribution version, even from an editable install."""
+
+    for name in ("chronicle-memory", "chronicle"):
+        try:
+            return importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            continue
+    return None
+
+
 def _model_weights() -> list[str]:
     roots = []
     configured = os.environ.get("CHRONICLE_MODEL_DIR")
@@ -145,6 +156,7 @@ def collect_report() -> dict[str, Any]:
     core_ok = all(item["installed"] for item in core.values())
     memory_ok = bool(memory["exists"] and memory["query_ok"])
     return {
+        "version": _distribution_version(),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "core": core,
@@ -166,6 +178,7 @@ def _line(name: str, item: dict[str, Any], *, optional: bool = False) -> str:
 def render_report(report: dict[str, Any]) -> str:
     lines = [
         "Chronicle doctor",
+        f"  version: {report.get('version') or 'unknown'}",
         f"  python: {report['python']}",
         f"  platform: {report['platform']}",
         "",
