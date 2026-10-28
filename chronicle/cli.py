@@ -291,11 +291,23 @@ def _add_backend_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--llm-model", default=None, help="Ollama / HF model name (default: qwen2.5:7b-instruct)")
 
 
+def _version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("chronicle-memory")
+    except Exception:  # pragma: no cover - source tree without installed metadata
+        from chronicle import __version__
+
+        return __version__
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="chronicle",
         description="Chronicle egocentric episodic memory: ingest, query, dashboard.",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     subparsers = parser.add_subparsers(dest="command", required=True)
 

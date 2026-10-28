@@ -18,6 +18,7 @@ All notable changes to Chronicle are documented here. The format follows
 - `chronicle doctor` opens the bundled memory and runs a real graph query, so a
   corrupt or incomplete package install is reported instead of only checking
   that the database file exists.
+- `chronicle --version` reports the installed distribution version.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
   contributor documentation.
 

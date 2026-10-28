@@ -50,6 +50,13 @@ class DemoTest(unittest.TestCase):
         self.assertIn("restored_answer", payload)
         self.assertIn("queries", payload)
 
+    def test_cli_version(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout), self.assertRaises(SystemExit) as raised:
+            cli.main(["--version"])
+        self.assertEqual(raised.exception.code, 0)
+        self.assertRegex(stdout.getvalue().strip(), r"^chronicle \d+\.\d+\.\d+")
+
 
 class DoctorTest(unittest.TestCase):
     def test_report_contains_core_and_demo(self) -> None:
