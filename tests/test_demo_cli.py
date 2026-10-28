@@ -150,6 +150,17 @@ class AskDefaultTest(unittest.TestCase):
         self.assertEqual(payload["entity"], "cup")
         self.assertEqual(payload["answer"], "There is 1 cup in this memory.")
 
+    def test_ask_count_all_objects(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(["ask", "how many objects are there?", "--llm", "template"])
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-count")
+        self.assertTrue(payload["grounded"])
+        self.assertEqual(payload["answer"], "There is 1 object in this memory.")
+
     def test_ask_count_unknown_object_abstains(self) -> None:
         stdout = StringIO()
         stderr = StringIO()

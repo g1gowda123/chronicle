@@ -622,14 +622,18 @@ class ChronicleRuntime:
         if not tokens or tokens == {"time"}:
             return None
 
+        generic = tokens <= {"object", "objects", "thing", "things", "item", "items"}
         matches = []
         for entity in self.memory.foreground.entities():
             label = str(entity.get("label") or "")
             label_tokens = content_tokens(label)
-            if label_tokens and (
-                label_tokens == tokens
-                or label_tokens <= tokens
-                or tokens <= label_tokens
+            if generic or (
+                label_tokens
+                and (
+                    label_tokens == tokens
+                    or label_tokens <= tokens
+                    or tokens <= label_tokens
+                )
             ):
                 matches.append(entity)
         if not matches:
@@ -645,7 +649,7 @@ class ChronicleRuntime:
         matches.sort(key=lambda entity: float(entity.get("last_seen", 0.0) or 0.0))
         latest = matches[-1]
         count = len(matches)
-        noun = singular(str(latest.get("label") or phrase))
+        noun = "object" if generic else singular(str(latest.get("label") or phrase))
         plural = "" if count == 1 else "s"
         zone = self.memory.background.zone_label(
             str(latest.get("zone_id") or self.memory.active_zone or "")
