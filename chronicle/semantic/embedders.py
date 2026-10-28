@@ -240,7 +240,8 @@ def build_embedder(
             )
         warn_once(
             "openclip-missing",
-            "torch/open_clip not installed; using deterministic embedder (demo mode).",
+            "OpenCLIP not installed; using the deterministic embedder. "
+            "Install the semantic-models extra for CLIP retrieval.",
         )
         return DeterministicImageEmbedder(channel_order=channel_order)
 

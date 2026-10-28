@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 
-import importlib
-
 from fastapi.testclient import TestClient
 
-from dashboard import memory
 import dashboard.app as app_module
+from dashboard import memory
 
 
 def _fake_data(root: Path) -> None:

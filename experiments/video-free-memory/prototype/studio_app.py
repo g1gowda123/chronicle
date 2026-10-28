@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import shutil
 import sqlite3
 import threading
 import time
@@ -28,15 +27,14 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from fastapi.responses import FileResponse
-from nicegui import app, run, ui
-
 import caption_ledger
 import memory_pack
 import nlq
 import query
 import retention
 import video_vault
+from fastapi.responses import FileResponse
+from nicegui import app, run, ui
 from report import build_report
 
 ROOT = Path(__file__).resolve().parent.parent

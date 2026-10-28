@@ -301,12 +301,12 @@ def _draw_room(img: Image.Image, draw: ImageDraw.ImageDraw, t: float) -> None:
     draw.line([0, 664, SCREEN_W, 664], fill=(92, 69, 47), width=2)
 
     # Shelf.
-    sx1, sy1, sx2, sy2 = 60 - cam, 140, 460 - cam, 300
+    sx1, _, sx2, sy2 = 60 - cam, 140, 460 - cam, 300
     draw.rectangle([sx1, sy2 - 18, sx2, sy2], fill=(96, 71, 47))
     draw.rectangle([sx1, sy2 - 18, sx2, sy2 - 11], fill=(124, 95, 64))
     draw.line([sx1, sy2 - 2, sx2, sy2 - 2], fill=(44, 32, 23), width=2)
     # Jars and greenery.
-    for i, (jx, jw, jh, fill) in enumerate(
+    for _i, (jx, jw, jh, fill) in enumerate(
         ((104, 42, 58, (111, 136, 92)), (156, 34, 44, (128, 92, 61)), (212, 46, 66, (90, 112, 126)))
     ):
         x = _sx(jx, t)
@@ -465,12 +465,11 @@ def _draw_keys(draw: ImageDraw.ImageDraw, t: float) -> None:
     x1, y1, x2, y2 = box
     if x2 < -30 or x1 > SCREEN_W + 30:
         return
-    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
     if not held("keys", t):
         _shadow(draw, box, spread=9, y_offset=5)
     draw.ellipse([x1, y1 + 2, x1 + 34, y1 + 34], outline=(192, 154, 62), width=5)
     draw.ellipse([x1 + 9, y1 + 11, x1 + 25, y1 + 25], outline=(226, 192, 108), width=2)
-    for index, (dy, length) in enumerate(((6, 58), (18, 66), (30, 52))):
+    for _index, (dy, length) in enumerate(((6, 58), (18, 66), (30, 52))):
         draw.rounded_rectangle(
             [x1 + 28, y1 + dy, x1 + 28 + length, y1 + dy + 10],
             radius=4,
@@ -540,7 +539,7 @@ def _draw_hand(img: Image.Image, hand: Hand, t: float) -> None:
             # Draw the keys directly at the palm (bypasses the world bbox).
             x1, y1, x2, y2 = held_bbox("keys", hand)
             draw.ellipse([x1 + 6, y1 + 4, x1 + 42, y1 + 40], outline=(200, 162, 70), width=6)
-            for index, (dy2, length2) in enumerate(((6, 58), (18, 66), (30, 52))):
+            for _index, (dy2, length2) in enumerate(((6, 58), (18, 66), (30, 52))):
                 draw.rounded_rectangle(
                     [x1 + 32, y1 + dy2, x1 + 32 + length2, y1 + dy2 + 10],
                     radius=4,
@@ -675,7 +674,7 @@ def save_strip(t: float, name: str, path: Path) -> None:
     else:
         strip_box = [0, 0, SCREEN_W, SCREEN_H]
 
-    for offset, label in zip((-0.55, 0.0, 0.55), labels):
+    for offset, label in zip((-0.55, 0.0, 0.55), labels, strict=False):
         frame_t = clamp(t + offset, 0, DURATION)
         image = crop_region(frame_t, strip_box, pad=0).convert("RGB")
         image = image.resize((360, 202), Image.Resampling.LANCZOS)

@@ -186,7 +186,7 @@ def test_cross_label_duplicate_tracks_are_counted_once(tmp_path: Path) -> None:
         )
         # Same pixels, two labels: three strong duplicate frames. The plate
         # track lives longer, so it is the canonical label.
-        for index, t in enumerate((1.0, 2.0, 3.0)):
+        for _index, t in enumerate((1.0, 2.0, 3.0)):
             box = json.dumps([10.0, 10.0, 60.0, 60.0])
             con.execute(
                 "insert into observations (entity_id, t, bbox, state) values (?, ?, ?, 'VISIBLE')",

@@ -97,8 +97,7 @@ def _run(cmd: list[str], *, timeout: float = 60.0) -> subprocess.CompletedProces
     return subprocess.run(
         cmd,
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
         timeout=timeout,
     )

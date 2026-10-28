@@ -40,7 +40,7 @@ def _segments(paths: list[Path], target_s: float) -> list[tuple[Path, float, Any
     segments: list[tuple[Path, float, Any]] = []
     offset = 0.0
     while offset < target_s:
-        for path, store, con in loaded:
+        for path, store, _con in loaded:
             duration = max(1.0, float(store.duration))
             segments.append((path, offset, store))
             offset += duration

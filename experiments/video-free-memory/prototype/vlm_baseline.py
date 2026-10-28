@@ -30,11 +30,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
-
 import benchmark
 import caption_ledger
 import query
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 _NUMBERED = re.compile(r"(\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds?)\b", re.IGNORECASE)
 _LOCATION_CUES = {

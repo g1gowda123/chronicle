@@ -1,4 +1,5 @@
 import sys
+
 from projectaria_tools.utils.vrs_to_mp4_utils import convert_vrs_to_mp4
 
 src = sys.argv[1] if len(sys.argv) > 1 else "/data/aria_aea_test.vrs"

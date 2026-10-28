@@ -475,7 +475,6 @@ def apply(
             )
             dedup_dropped = len(dropped)
         selected = _select(candidates, keep_per_hour, duration, dedup=False)
-        selected_ids = {row["id"] for row in selected}
         _apply_prune(con, rows, selected, vacuum=vacuum, drop_cache=drop_cache)
         remaining = _evidence(con)
         referenced = {row["rel_path"] for row in remaining}
