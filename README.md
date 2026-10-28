@@ -11,6 +11,10 @@ event-gated object/state graph with timestamps, spatial relations, lifecycle
 states, and evidence. Questions are answered from that memory, not by
 re-watching the video.
 
+The Python distribution is **`chronicle-memory`**; the import package and
+command remain **`chronicle`**. This avoids the unrelated `chronicle` package
+already on PyPI.
+
 The design goal is **not** another video chatbot. It is a memory substrate that
 can answer grounded questions deterministically, cite its evidence, and call a
 vision-language model only when it adds value.
@@ -69,15 +73,18 @@ The first-run path is deliberately model-free. You do **not** need a GPU, a
 video file, YOLO weights, Florence-2, or the dashboard:
 
 ```bash
-git clone https://github.com/g1gowda123/chronicle.git
-cd chronicle
 python -m venv .venv
 source .venv/bin/activate
-pip install .
+pip install "git+https://github.com/g1gowda123/chronicle.git@main"
+
 chronicle doctor
 chronicle demo
 chronicle ask "where is my cup?"
 ```
+
+Until the first PyPI release, install the current release from `main`. To work
+on the code, clone the repository and run `pip install -e ".[dev]"` (see
+[Development](#development)).
 
 `chronicle demo` generates a 4.6-second synthetic pick-and-place scene, compiles
 it into SQLite, runs location/event queries, and reopens the database to prove
@@ -102,10 +109,19 @@ is missing.
 The core install contains the memory, graph, query engine, CLI, and demo. Add
 only the layer you need:
 
+From a source checkout:
+
 ```bash
 pip install ".[perception]"       # YOLO-World, MediaPipe, OpenCLIP, torch
 pip install ".[semantic-models]"  # Florence-2 / local transformer models
 pip install ".[ui]"               # NiceGUI dashboard (`chronicle serve`)
+```
+
+If you installed the package from GitHub instead, use the same extras on the
+distribution name, for example:
+
+```bash
+pip install "chronicle-memory[perception] @ git+https://github.com/g1gowda123/chronicle.git@main"
 ```
 
 The UI is intentionally not a core dependency. `chronicle run`, `ask`, `demo`,

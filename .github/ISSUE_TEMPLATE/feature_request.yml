@@ -1,0 +1,46 @@
+name: Feature or research proposal
+description: Propose a capability, benchmark, or integration
+title: "[proposal] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can a user or researcher not do today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful version and any alternatives.
+    validations:
+      required: true
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      options:
+        - perception
+        - graph / memory
+        - query / GraphRAG
+        - semantic verification
+        - CLI / packaging
+        - dashboard (optional)
+        - benchmarks / evaluation
+        - documentation
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence or evaluation plan
+      description: How would we know this works? Link a paper, benchmark, or metric.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and documentation.
+          required: true
+        - label: This proposal does not require redistributing restricted data.
+          required: true

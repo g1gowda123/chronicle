@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage and installation questions
+    url: https://github.com/g1gowda123/chronicle/blob/main/README.md
+    about: Start with the 60-second model-free path and chronicle doctor.
+  - name: Security report
+    url: https://github.com/g1gowda123/chronicle/security/advisories/new
+    about: Please report vulnerabilities privately, not in a public issue.

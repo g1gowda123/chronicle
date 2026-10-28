@@ -3,13 +3,34 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "chronicle"
+name = "chronicle-memory"
 version = "0.1.0"
-description = "Egocentric episodic memory: motion-gated perception, nine-state lifecycle, dual temporal graphs, and semantic verification."
+description = "Grounded, auditable episodic memory for egocentric video: event-gated perception, a nine-state lifecycle, dual temporal graphs, and optional semantic verification."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
 license-files = ["LICENSE"]
+authors = [{ name = "Chronicle contributors" }]
+keywords = [
+    "egocentric video",
+    "episodic memory",
+    "video question answering",
+    "scene graph",
+    "GraphRAG",
+    "vision-language",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "numpy>=1.26,<3",
     "opencv-python>=4.10",
@@ -60,6 +81,14 @@ chronicle-semantic-calibrate = "chronicle.semantic.calibration:main"
 chronicle-semantic-timeline = "chronicle.semantic.timeline:main"
 chronicle-semantic-eval = "chronicle.semantic.evaluation:main"
 
+[project.urls]
+Homepage = "https://github.com/g1gowda123/chronicle"
+Repository = "https://github.com/g1gowda123/chronicle"
+Issues = "https://github.com/g1gowda123/chronicle/issues"
+Documentation = "https://github.com/g1gowda123/chronicle/tree/main/docs"
+Changelog = "https://github.com/g1gowda123/chronicle/blob/main/CHANGELOG.md"
+Research = "https://github.com/g1gowda123/chronicle/blob/main/docs/RESEARCH_RESULTS.md"
+
 [tool.setuptools.packages.find]
 include = ["chronicle*"]
 
@@ -76,7 +105,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
