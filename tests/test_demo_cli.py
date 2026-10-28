@@ -55,6 +55,8 @@ class DoctorTest(unittest.TestCase):
         self.assertIn("core", report)
         self.assertIn("optional", report)
         self.assertTrue(report["demo_memory"]["exists"])
+        self.assertTrue(report["demo_memory"]["query_ok"])
+        self.assertIn("kitchen counter", report["demo_memory"]["answer"])
         self.assertIn("Status:", render_report(report))
 
     def test_cli_doctor_json(self) -> None:

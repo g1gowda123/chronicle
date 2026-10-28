@@ -104,22 +104,52 @@ def _cuda_report() -> dict[str, Any]:
         return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
 
 
+def _demo_memory_report() -> dict[str, Any]:
+    """Open the bundled memory and prove that it can answer a graph query."""
+
+    try:
+        path = demo_db_path()
+    except FileNotFoundError as exc:
+        return {
+            "path": str(exc),
+            "exists": False,
+            "query_ok": False,
+            "answer": None,
+        }
+
+    report: dict[str, Any] = {
+        "path": str(path),
+        "exists": path.is_file(),
+        "query_ok": False,
+        "answer": None,
+    }
+    if not report["exists"]:
+        return report
+
+    try:
+        from chronicle.graph.memory import ChronicleMemory
+
+        with ChronicleMemory(path) as memory:
+            result = memory.query("where is my cup?")
+            report["answer"] = result.fallback_answer() if result is not None else None
+            report["query_ok"] = bool(result is not None and report["answer"])
+    except Exception as exc:  # pragma: no cover - corrupt/partial package data
+        report["error"] = f"{type(exc).__name__}: {exc}"
+    return report
+
+
 def collect_report() -> dict[str, Any]:
     core = _package_report(CORE_PACKAGES)
     optional = _package_report(OPTIONAL_PACKAGES)
-    try:
-        memory = str(demo_db_path())
-        memory_ok = True
-    except FileNotFoundError as exc:
-        memory = str(exc)
-        memory_ok = False
+    memory = _demo_memory_report()
     core_ok = all(item["installed"] for item in core.values())
+    memory_ok = bool(memory["exists"] and memory["query_ok"])
     return {
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "core": core,
         "optional": optional,
-        "demo_memory": {"path": memory, "exists": memory_ok},
+        "demo_memory": memory,
         "model_weights": _model_weights(),
         "cuda": _cuda_report(),
         "ok": core_ok and memory_ok,
@@ -147,15 +177,21 @@ def render_report(report: dict[str, Any]) -> str:
         _line(name, item, optional=True) for name, item in report["optional"].items()
     )
     memory = report["demo_memory"]
+    memory_state = "ok" if memory["exists"] else "missing"
+    query_state = "ok" if memory.get("query_ok") else "failed"
     lines.extend(
         [
             "",
             "Demo memory",
-            f"  [{'ok' if memory['exists'] else 'missing'}] {memory['path']}",
-            "",
-            "Model weights",
+            f"  [{memory_state}] {memory['path']}",
+            f"  [{query_state}] query engine",
         ]
     )
+    if memory.get("answer"):
+        lines.append(f"       {memory['answer']}")
+    if memory.get("error"):
+        lines.append(f"       {memory['error']}")
+    lines.extend(["", "Model weights"])
     if report["model_weights"]:
         lines.extend(f"  [ok] {path}" for path in report["model_weights"])
     else:
@@ -167,14 +203,13 @@ def render_report(report: dict[str, Any]) -> str:
         lines.append(f"  [ok] CUDA: {cuda.get('device')}")
     else:
         lines.append(f"  [--] CUDA: {cuda.get('reason', 'not available')}")
-    lines.extend(
-        [
-            "",
-            "Status: ready for model-free use"
-            if report["ok"]
-            else "Status: core installation is incomplete",
-        ]
-    )
+    if report["ok"]:
+        status = "Status: ready for model-free use"
+    elif all(item["installed"] for item in report["core"].values()):
+        status = "Status: demo memory is not usable"
+    else:
+        status = "Status: core installation is incomplete"
+    lines.extend(["", status])
     return "\n".join(lines)
 
 

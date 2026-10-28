@@ -15,6 +15,9 @@ All notable changes to Chronicle are documented here. The format follows
   scene; `chronicle ask` uses it when `--db` is omitted.
 - Lazy imports for the optional perception, semantic-model, and UI layers.
 - Clean-wheel and clean-sdist CI checks, including the bundled demo database.
+- `chronicle doctor` opens the bundled memory and runs a real graph query, so a
+  corrupt or incomplete package install is reported instead of only checking
+  that the database file exists.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
   contributor documentation.
 

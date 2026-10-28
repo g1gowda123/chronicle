@@ -96,11 +96,13 @@ jobs:
           /tmp/chronicle-wheel/bin/pip install dist/*.whl
           /tmp/chronicle-wheel/bin/chronicle demo --json > /tmp/wheel-demo.json
           /tmp/chronicle-wheel/bin/chronicle ask "where is my cup?" --llm template > /tmp/wheel-ask.json
-          /tmp/chronicle-wheel/bin/python -c "import json, pathlib; demo=json.loads(pathlib.Path('/tmp/wheel-demo.json').read_text()); ask=json.loads(pathlib.Path('/tmp/wheel-ask.json').read_text()); assert demo['restored_answer']; assert ask['entity']=='cup'; assert 'kitchen counter' in ask['answer']; print('wheel install passed')"
+          /tmp/chronicle-wheel/bin/chronicle doctor --json > /tmp/wheel-doctor.json
+          /tmp/chronicle-wheel/bin/python -c "import json, pathlib; demo=json.loads(pathlib.Path('/tmp/wheel-demo.json').read_text()); ask=json.loads(pathlib.Path('/tmp/wheel-ask.json').read_text()); doctor=json.loads(pathlib.Path('/tmp/wheel-doctor.json').read_text()); assert demo['restored_answer']; assert ask['entity']=='cup'; assert 'kitchen counter' in ask['answer']; assert doctor['demo_memory']['query_ok']; print('wheel install passed')"
       - name: Install sdist in a clean environment
         run: |
           python -m venv /tmp/chronicle-sdist
           /tmp/chronicle-sdist/bin/pip install --upgrade pip
           /tmp/chronicle-sdist/bin/pip install dist/*.tar.gz
           /tmp/chronicle-sdist/bin/chronicle demo --json > /tmp/sdist-demo.json
-          /tmp/chronicle-sdist/bin/python -c "import json, pathlib; demo=json.loads(pathlib.Path('/tmp/sdist-demo.json').read_text()); assert demo['restored_answer']; print('sdist install passed')"
+          /tmp/chronicle-sdist/bin/chronicle doctor --json > /tmp/sdist-doctor.json
+          /tmp/chronicle-sdist/bin/python -c "import json, pathlib; demo=json.loads(pathlib.Path('/tmp/sdist-demo.json').read_text()); doctor=json.loads(pathlib.Path('/tmp/sdist-doctor.json').read_text()); assert demo['restored_answer']; assert doctor['demo_memory']['query_ok']; print('sdist install passed')"
