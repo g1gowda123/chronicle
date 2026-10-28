@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
+import pytest
 from conftest import DT, cup, feed, run_lift_scene
 
 from chronicle.graph.foreground import ForegroundGraph
@@ -253,6 +255,23 @@ def test_persistence_round_trip(tmp_path: Path) -> None:
         assert second.store.count("entities") == 1
     finally:
         second.close()
+
+
+def test_read_only_memory_can_query_but_not_write(tmp_path: Path) -> None:
+    path = tmp_path / "chronicle.db"
+    writer = ChronicleMemory(path)
+    run_lift_scene(writer)
+    writer.close()
+
+    reader = ChronicleMemory(path, read_only=True)
+    try:
+        result = reader.query("where did I leave the cup?")
+        assert result is not None
+        assert "dining table" in result.fallback_answer()
+        with pytest.raises(sqlite3.OperationalError):
+            reader.store.upsert_zone("zone:readonly", "readonly", 1.0)
+    finally:
+        reader.close()
 
 
 def test_reopen_repairs_duplicate_terminal_placement_rows(tmp_path: Path) -> None:

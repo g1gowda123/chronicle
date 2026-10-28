@@ -21,6 +21,12 @@ All notable changes to Chronicle are documented here. The format follows
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
   contributor documentation.
 
+### Fixed
+
+- `chronicle ask` and `chronicle doctor` open bundled or user-provided memories
+  read-only, so they work from read-only site-packages and cannot accidentally
+  mutate an existing memory during a query.
+
 ### Changed
 
 - The Python distribution is now **`chronicle-memory`**; the import package and

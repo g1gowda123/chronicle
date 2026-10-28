@@ -82,6 +82,7 @@ class ChronicleMemory:
         observation_interval_s: float = 0.10,
         persistence_interval_s: float = 0.50,
         load: bool = True,
+        read_only: bool = False,
     ) -> None:
         self.thresholds = thresholds or DEFAULT_THRESHOLDS
         self.bus = bus or EventBus()
@@ -90,7 +91,7 @@ class ChronicleMemory:
             0.0, float(persistence_interval_s)
         )
         self.furniture = FurnitureRegistry(furniture_config, labels=furniture_labels)
-        self.store = SQLiteStore(db_path, bus=self.bus)
+        self.store = SQLiteStore(db_path, bus=self.bus, read_only=read_only)
         self.background = BackgroundGraph(self.thresholds, bus=self.bus)
         self.foreground = ForegroundGraph(self.thresholds, bus=self.bus)
         self.engine = LifecycleEngine(

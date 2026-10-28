@@ -92,20 +92,37 @@ class SQLiteStore:
         *,
         bus: EventBus | None = None,
         initialize: bool = True,
+        read_only: bool = False,
     ) -> None:
         self.path = str(path)
         self.bus = bus or EventBus()
+        self.read_only = bool(read_only)
         self._lock = threading.RLock()
+        if self.read_only and self.path == ":memory:":
+            raise ValueError("read_only requires a file-backed SQLite database")
         if self.path != ":memory:":
-            Path(self.path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self.path, check_same_thread=False, timeout=5.0)
+            resolved = Path(self.path).expanduser().resolve()
+            if not self.read_only:
+                resolved.parent.mkdir(parents=True, exist_ok=True)
+            uri = f"file:{resolved.as_posix()}?mode=ro" if self.read_only else None
+        else:
+            uri = None
+        self._conn = sqlite3.connect(
+            uri or self.path,
+            uri=bool(uri),
+            check_same_thread=False,
+            timeout=5.0,
+        )
         self._conn.row_factory = sqlite3.Row
         with self._lock:
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA synchronous=NORMAL")
+            if self.read_only:
+                self._conn.execute("PRAGMA query_only=ON")
+            else:
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.execute("PRAGMA synchronous=NORMAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
             self._conn.execute("PRAGMA busy_timeout=5000")
-        if initialize:
+        if initialize and not self.read_only:
             self.initialize()
 
     # ------------------------------------------------------------------ plumbing

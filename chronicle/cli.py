@@ -219,6 +219,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
         db_path,
         semantic_config=sem_cfg,
         load=True,
+        read_only=True,
     )
     try:
         print(json.dumps(runtime.ask(args.question).to_dict(), indent=2))

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from chronicle import cli
 from chronicle.demo import run_demo
@@ -68,6 +70,16 @@ class DoctorTest(unittest.TestCase):
         self.assertIn("cuda", payload)
         self.assertIn("model_weights", payload)
 
+    def test_doctor_reads_a_read_only_bundled_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "demo.db"
+            shutil.copy2(demo_db_path(), path)
+            path.chmod(0o444)
+            with patch("chronicle.demo_data.demo_db_path", return_value=path):
+                report = collect_report()
+        self.assertTrue(report["demo_memory"]["query_ok"])
+        self.assertIn("kitchen counter", report["demo_memory"]["answer"])
+
 
 class AskDefaultTest(unittest.TestCase):
     def test_ask_without_db_uses_bundled_memory(self) -> None:
@@ -79,6 +91,21 @@ class AskDefaultTest(unittest.TestCase):
         self.assertIn("using bundled demo memory", stderr.getvalue())
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["entity"], "cup")
+        self.assertIn("kitchen counter", payload["answer"])
+
+    def test_ask_reads_a_read_only_bundled_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "demo.db"
+            shutil.copy2(demo_db_path(), path)
+            path.chmod(0o444)
+            stdout = StringIO()
+            stderr = StringIO()
+            with patch("chronicle.demo_data.demo_db_path", return_value=path):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", "where is my cup?", "--llm", "template"])
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "template")
         self.assertIn("kitchen counter", payload["answer"])
 
     def test_ask_event_uses_event_summary(self) -> None:

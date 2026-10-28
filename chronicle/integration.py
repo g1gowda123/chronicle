@@ -200,8 +200,10 @@ class ChronicleRuntime:
         zone_id: str | None = None,
         load: bool = True,
         reset: bool = False,
+        read_only: bool = False,
     ) -> None:
         self.db_path = str(db_path)
+        self.read_only = bool(read_only)
         self.bus = bus or EventBus()
         self.thresholds = thresholds or DEFAULT_THRESHOLDS
         self.furniture_config = furniture_config
@@ -213,6 +215,8 @@ class ChronicleRuntime:
         self._semantic = semantic
         self.perception_config = copy.deepcopy(perception_config or PerceptionConfig())
 
+        if reset and read_only:
+            raise ValueError("read_only and reset are mutually exclusive")
         if reset:
             _remove_database(self.db_path)
 
@@ -223,6 +227,7 @@ class ChronicleRuntime:
             furniture_labels=self.furniture_labels,
             furniture_config=self.furniture_config,
             load=load,
+            read_only=read_only,
         )
 
         self._clip_queue = VerificationQueue(

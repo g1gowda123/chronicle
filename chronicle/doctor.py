@@ -129,7 +129,7 @@ def _demo_memory_report() -> dict[str, Any]:
     try:
         from chronicle.graph.memory import ChronicleMemory
 
-        with ChronicleMemory(path) as memory:
+        with ChronicleMemory(path, read_only=True) as memory:
             result = memory.query("where is my cup?")
             report["answer"] = result.fallback_answer() if result is not None else None
             report["query_ok"] = bool(result is not None and report["answer"])
