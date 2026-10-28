@@ -51,7 +51,10 @@ jobs:
           chronicle doctor --json > doctor.json
           chronicle ask "where is my cup?" --llm template > answer.json
           chronicle ask "where are my keys?" --llm template > unknown.json
-          python -c "import json, pathlib; demo=json.loads(pathlib.Path('demo.json').read_text()); answer=json.loads(pathlib.Path('answer.json').read_text()); unknown=json.loads(pathlib.Path('unknown.json').read_text()); assert demo['restored_answer']; assert answer['entity']=='cup'; assert 'kitchen counter' in answer['answer']; assert unknown['entity'] is None; assert unknown['answer'] == \"I don't have that in my memory.\"; print('model-free smoke test passed')"
+          chronicle ask "what did I do?" --llm template > event.json
+          chronicle ask "how many cups are there?" --llm template > count.json
+          chronicle ask "how many objects are there?" --llm template > objects.json
+          python -c "import json, pathlib; demo=json.loads(pathlib.Path('demo.json').read_text()); answer=json.loads(pathlib.Path('answer.json').read_text()); unknown=json.loads(pathlib.Path('unknown.json').read_text()); event=json.loads(pathlib.Path('event.json').read_text()); count=json.loads(pathlib.Path('count.json').read_text()); objects=json.loads(pathlib.Path('objects.json').read_text()); assert demo['restored_answer']; assert answer['entity']=='cup'; assert 'kitchen counter' in answer['answer']; assert unknown['entity'] is None; assert unknown['answer'] == \"I don't have that in my memory.\"; assert event['method']=='graph-template-event'; assert 'picked up the cup' in event['answer']; assert count['method']=='graph-count'; assert count['answer']=='There is 1 cup in this memory.'; assert objects['answer']=='There is 1 object in this memory.'; print('model-free smoke test passed')"
 
   package:
     name: Build and install distributions

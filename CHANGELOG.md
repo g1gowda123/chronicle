@@ -19,7 +19,9 @@ All notable changes to Chronicle are documented here. The format follows
   corrupt or incomplete package install is reported instead of only checking
   that the database file exists.
 - Object-count questions such as `how many cups are there?` are answered from
-  tracked entities, including an explicit unknown-object answer.
+  tracked entities, including an explicit unknown-object answer. Generic
+  questions such as `how many objects are there?` count every tracked
+  foreground entity.
 - Generic episode questions such as `what did I do?` return the recorded
   pick-up/placement narrative instead of an abstention. If a clip ends before a
   placement is confirmed, the answer reports the interaction honestly; up to

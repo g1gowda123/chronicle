@@ -53,7 +53,8 @@ jobs:
           required = {
               "chronicle/demo_data/demo.db",
               "chronicle/storage/schema.sql",
-              "chronicle/vfm/schema.sql",
+              "chronicle/vfm/schema_v2.sql",
+              "chronicle/vfm/schema_v3.sql",
           }
           missing = required - names
           if missing:
