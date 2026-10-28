@@ -1,0 +1,14 @@
+{"id":"location-current","category":"location","question":"where is my cup?","expect_all":["kitchen counter","t=4.2"],"expect_method":"template","tests":"current location and last placement timestamp"}
+{"id":"location-put","category":"location","question":"where did I put the cup?","expect_all":["kitchen counter"],"expect_method":"template","tests":"placement question maps to the same grounded location"}
+{"id":"location-before","category":"temporal-location","question":"where was the cup before?","expect_all":["dining table"],"expect_method":"template","tests":"previous support surface before the move"}
+{"id":"support-current","category":"support","question":"what is the cup on?","expect_all":["kitchen counter"],"expect_method":"template","tests":"support-surface relation"}
+{"id":"event-object","category":"event","question":"what happened to my cup?","expect_all":["picked up","placed","kitchen counter"],"expect_method":"graph-template-event","tests":"object-specific pick-and-place narrative"}
+{"id":"event-overview","category":"event","question":"what happened?","expect_all":["picked up","placed"],"expect_method":"graph-template-event","tests":"generic episode summary"}
+{"id":"event-action","category":"event","question":"what did I do with the cup?","expect_all":["picked up","placed"],"expect_method":"graph-template-event","tests":"action question about a named object"}
+{"id":"event-generic-action","category":"event","question":"what did I do?","expect_all":["picked up"],"expect_method":"graph-template-event","tests":"generic action question"}
+{"id":"first-seen","category":"temporal","question":"when did I first see the cup?","expect_all":["t=0.0"],"expect_method":"graph-first-seen","tests":"first observation timestamp"}
+{"id":"last-seen","category":"temporal","question":"when did I last see the cup?","expect_all":["t=4.2"],"expect_method":"graph-last-seen","tests":"last observation timestamp"}
+{"id":"count-cups","category":"counting","question":"how many cups are there?","expect_all":["1 cup"],"expect_method":"graph-count","tests":"instance count for a named class"}
+{"id":"count-objects","category":"counting","question":"how many objects are there?","expect_all":["1 object"],"expect_method":"graph-count","tests":"generic object count and singular grammar"}
+{"id":"unknown-location","category":"abstention","question":"where is the toaster?","expect_all":["don't have"],"expect_method":"template","tests":"honest abstention for an absent object"}
+{"id":"unknown-count","category":"abstention","question":"how many toasters are there?","expect_all":["don't have any"],"expect_method":"graph-count","tests":"honest zero for an absent class"}

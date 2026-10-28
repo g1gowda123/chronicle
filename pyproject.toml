@@ -96,6 +96,7 @@ include = ["chronicle*"]
 "chronicle.storage" = ["*.sql"]
 "chronicle.vfm" = ["*.sql"]
 "chronicle.demo_data" = ["*.db"]
+"chronicle.evaluation_data" = ["*.jsonl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

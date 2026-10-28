@@ -228,6 +228,21 @@ def cmd_ask(args: argparse.Namespace) -> int:
         runtime.close()
 
 
+def cmd_eval(args: argparse.Namespace) -> int:
+    from chronicle.evaluation import format_report, run_evaluation
+
+    try:
+        report = run_evaluation(args.db, args.suite)
+    except (FileNotFoundError, ValueError) as exc:
+        raise SystemExit(str(exc)) from exc
+
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(format_report(report))
+    return 0 if report["failed"] == 0 else 1
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     from chronicle.demo import main as demo_main
 
@@ -320,6 +335,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     demo.add_argument("--json", action="store_true", help="emit JSON instead of a report")
     demo.set_defaults(func=cmd_demo)
+
+    evaluation = subparsers.add_parser(
+        "eval",
+        help="run the deterministic model-free product smoke suite",
+    )
+    evaluation.add_argument(
+        "--db",
+        help="SQLite memory path (default: the bundled demo memory)",
+    )
+    evaluation.add_argument(
+        "--suite",
+        help="JSONL question suite (default: the bundled 14-case suite)",
+    )
+    evaluation.add_argument("--json", action="store_true", help="emit JSON instead of a report")
+    evaluation.set_defaults(func=cmd_eval)
 
     doctor = subparsers.add_parser(
         "doctor", help="check core, optional, CUDA and demo-memory availability"

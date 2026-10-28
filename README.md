@@ -82,6 +82,7 @@ chronicle demo
 chronicle ask "where is my cup?"
 chronicle ask "what did I do?"
 chronicle ask "how many cups are there?"
+chronicle eval
 ```
 
 Until the first PyPI release, install the current release from `main`. To work
@@ -96,6 +97,11 @@ loads the same memory bundled with the package.
 `chronicle doctor` checks the core install, optional feature layers, CUDA, model
 weights, and the bundled memory. It exits non-zero only when something required
 is missing.
+
+`chronicle eval` runs 14 deterministic checks against the bundled demo memory:
+locations, events, first/last-seen timestamps, counts, and honest abstentions.
+It prints a score and exits non-zero on failure. This is a product smoke suite,
+not a research benchmark; it deliberately uses no model, judge, or network.
 
 The same memory is available as a Python object:
 
@@ -112,6 +118,7 @@ with ChronicleMemory(demo_db_path(), read_only=True) as memory:
 |---|---|---|
 | `chronicle demo` | none | Generate and query a synthetic memory |
 | `chronicle ask` | none (template answerer) | Query the bundled or persisted memory |
+| `chronicle eval` | none | Run the 14-case deterministic product suite |
 | `chronicle doctor` | none | Diagnose install, CUDA, weights, demo data |
 | `chronicle sources` | none | List bundled/demo video sources |
 | `chronicle run` | perception extra | Ingest a real video |
@@ -226,6 +233,7 @@ chronicle/
   ui/             NiceGUI dashboard (optional extra)
   demo.py         model-free synthetic scene and bundled-memory generator
   demo_data/      bundled SQLite memory used by `chronicle ask`
+  evaluation_data/ deterministic product suite used by `chronicle eval`
   doctor.py       environment diagnostics (`chronicle doctor`)
 docs/             architecture, contracts, benchmarks, calibration
 scripts/          demos, asset fetch, LLM benchmark, evidence fixtures

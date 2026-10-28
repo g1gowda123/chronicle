@@ -29,6 +29,9 @@ All notable changes to Chronicle are documented here. The format follows
 - `when did I last see X?` and `when did I first see X?` are answered from the
   graph with a timestamp; the inventory answer now uses singular grammar for a
   one-entity memory.
+- `chronicle eval` runs a 14-case deterministic product suite against the
+  bundled memory and prints a score; it covers location, event, first/last-seen,
+  count and abstention behavior without models or a judge.
 - `chronicle --version` reports the installed distribution version, and
   `chronicle doctor` includes it in both text and JSON reports.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
