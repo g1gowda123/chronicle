@@ -13,6 +13,7 @@ from conftest import DT, TABLE_POLY, cup, feed, hand_at, make_frame, run_lift_sc
 from chronicle.graph.memory import ChronicleMemory
 from chronicle.graph.query import QueryResult
 from chronicle.integration import ChronicleRuntime
+from chronicle.semantic.config import SemanticConfig
 from chronicle.telemetry import TelemetryTag
 from chronicle.types import CameraMotion, EventCategory, ObjectState, SupportSurface, TelemetryEvent
 
@@ -177,6 +178,30 @@ def test_runtime_facade_answers_from_the_team_graph() -> None:
         assert answer.method == "graph-template"
         assert answer.entity == "cup"
         assert answer.zone == "kitchen"
+    finally:
+        runtime.close()
+
+
+def test_template_runtime_does_not_build_the_semantic_engine(monkeypatch) -> None:
+    runtime = ChronicleRuntime(
+        ":memory:",
+        semantic_config=SemanticConfig(llm_backend="template"),
+        zone_label="kitchen",
+        reset=True,
+    )
+    try:
+        for index in range(30):
+            runtime.memory.observe(
+                make_frame(index * DT, objects=[cup()], zone_label="kitchen")
+            )
+
+        def fail():
+            raise AssertionError("template answers must not construct the semantic engine")
+
+        monkeypatch.setattr(runtime, "_ensure_semantic", fail)
+        answer = runtime.ask("where is my cup?")
+        assert answer.method == "template"
+        assert "cup" in answer.answer.lower()
     finally:
         runtime.close()
 

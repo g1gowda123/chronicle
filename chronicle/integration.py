@@ -816,7 +816,29 @@ class ChronicleRuntime:
                     elapsed=time.monotonic() - started,
                 )
         context = self.graph_context(result)
-        engine = self._ensure_semantic()
+        # The deterministic backends answer entirely from the graph.  Do not
+        # construct the semantic engine just to discover that it has no chat
+        # client: model imports dominate CLI latency on the demo memory.
+        template_only = bool(
+            self._semantic_config
+            and self._semantic_config.llm_backend in {"template", "none"}
+        )
+        engine = None if template_only else self._ensure_semantic()
+        if (engine is None or engine.chat_client is None) and is_event_query(query):
+            summary = result.event_summary()
+            if summary:
+                return RuntimeAnswer(
+                    query=query,
+                    answer=summary,
+                    source="graph",
+                    grounded=True,
+                    method="graph-template-event",
+                    elapsed=time.monotonic() - started,
+                    entity=result.label,
+                    state=result.state,
+                    zone=result.zone_label,
+                    last_seen=result.last_seen,
+                )
         if engine is None:
             answer = result.fallback_answer()
             citations: tuple[dict[str, Any], ...] = ()
@@ -834,28 +856,13 @@ class ChronicleRuntime:
                 citations=citations,
                 source="graph",
                 grounded=True,
-                method="graph-template",
+                method="template" if template_only else "graph-template",
                 elapsed=time.monotonic() - started,
                 entity=result.label,
                 state=result.state,
                 zone=result.zone_label,
                 last_seen=result.last_seen,
             )
-        if engine.chat_client is None and is_event_query(query):
-            summary = result.event_summary()
-            if summary:
-                return RuntimeAnswer(
-                    query=query,
-                    answer=summary,
-                    source="graph",
-                    grounded=True,
-                    method="graph-template-event",
-                    elapsed=time.monotonic() - started,
-                    entity=result.label,
-                    state=result.state,
-                    zone=result.zone_label,
-                    last_seen=result.last_seen,
-                )
         try:
             answer: QueryAnswer = engine.answer_query(query, context)
             return RuntimeAnswer(

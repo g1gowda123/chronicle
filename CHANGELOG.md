@@ -49,6 +49,9 @@ All notable changes to Chronicle are documented here. The format follows
 - The public `main` branch is the stable framework entry point. Research and
   benchmark harnesses live on `research/*` and `experiment/*` branches until
   validated.
+- Template-only queries no longer construct the semantic engine. On the bundled
+  demo memory, `chronicle ask "where is my cup?"` dropped from ~4.4 s to ~0.5 s
+  while keeping the same graph answer.
 
 ### Known limitations
 
