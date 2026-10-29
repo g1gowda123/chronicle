@@ -597,6 +597,14 @@ class AskDefaultTest(unittest.TestCase):
                 "how many objects did I place after 5 seconds?",
                 "You placed 2 objects after t=5.0s.",
             ),
+            (
+                "how many objects did I pick up from 5 seconds?",
+                "You picked up 2 objects after t=5.0s.",
+            ),
+            (
+                "how many objects did I place until 8 seconds?",
+                "You placed 2 objects before t=8.0s.",
+            ),
         )
         for question, expected in cases:
             with self.subTest(question=question):
