@@ -63,6 +63,11 @@ All notable changes to Chronicle are documented here. The format follows
   touch?`, count only entities with a recorded interaction.
 - `what did I pick up?`, `what did I put down?`, and `what did I interact
   with?` summarize the objects that share the requested interaction.
+- Count and interaction questions can be scoped to a surface or room, such as
+  `how many objects are on the kitchen counter?` or `what did I place on the
+  kitchen counter?`.
+- Interaction overviews support `first`/`last`, such as
+  `which object did I put down last?`.
 - Location questions without a recorded spatial fact now abstain explicitly
   instead of presenting an unrelated action or state as a location.
 - Hyphenated detector labels such as `joy-con` now canonicalize with

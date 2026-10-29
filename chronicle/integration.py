@@ -687,17 +687,47 @@ class ChronicleRuntime:
                 re.IGNORECASE,
             )
         )
+        surface_match = re.search(
+            r"\b(on|in|at)\s+(?:(?:the|my|our)\s+)?"
+            r"([a-z][a-z0-9 _-]*?)\s*\??$",
+            query,
+            re.IGNORECASE,
+        )
+        surface_tokens: set[str] = set()
+        surface_phrase = ""
+        preposition = "in"
+        if surface_match is not None:
+            preposition = surface_match.group(1).lower()
+            surface_phrase = surface_match.group(2).strip()
+            surface_tokens = content_tokens(surface_phrase)
         query_variants = {
             variant for token in tokens for variant in expand_token(token)
         }
         matches = []
         for entity in self.memory.foreground.entities():
-            if interaction_only:
+            result = None
+            if interaction_only or surface_tokens:
                 result = self.memory.query_entity(
                     str(entity.get("node_id", "")), question=query
                 )
-                if result is None or result.last_interaction is None:
+                if interaction_only and (
+                    result is None or result.last_interaction is None
+                ):
                     continue
+                if surface_tokens:
+                    anchor = (result.terminal_anchor if result is not None else None) or {}
+                    anchor_label = str(
+                        anchor.get("label") or anchor.get("anchor_id") or ""
+                    )
+                    zone_label = str(result.zone_label or "") if result is not None else ""
+                    candidate_tokens = content_tokens(zone_label) | content_tokens(
+                        anchor_label
+                    )
+                    if not (
+                        surface_tokens <= candidate_tokens
+                        or candidate_tokens <= surface_tokens
+                    ):
+                        continue
             label = str(entity.get("label") or "")
             label_tokens = content_tokens(label)
             label_variants = {
@@ -716,12 +746,17 @@ class ChronicleRuntime:
             ):
                 matches.append(entity)
         if not matches:
+            where = (
+                f" {preposition} the {surface_phrase}"
+                if surface_tokens
+                else " in my memory"
+            )
             if interaction_only:
                 return RuntimeAnswer(
                     query=query,
                     answer=(
-                        f"I don't have any recorded interactions with {phrase} "
-                        "in my memory."
+                        f"I don't have any recorded interactions with {phrase}"
+                        f"{where}."
                     ),
                     source="graph",
                     grounded=False,
@@ -730,7 +765,7 @@ class ChronicleRuntime:
                 )
             return RuntimeAnswer(
                 query=query,
-                answer=f"I don't have any {phrase} in my memory.",
+                answer=f"I don't have any {phrase}{where}.",
                 source="graph",
                 grounded=False,
                 method="graph-count",
@@ -746,14 +781,17 @@ class ChronicleRuntime:
             str(latest.get("zone_id") or self.memory.active_zone or "")
         )
         last_seen = float(latest.get("last_seen", 0.0) or 0.0)
+        place = (
+            f" {preposition} the {surface_phrase}"
+            if surface_tokens
+            else " in this memory"
+        )
         if interaction_only:
-            answer = (
-                f"You interacted with {count} {noun}{plural} in this memory."
-            )
+            answer = f"You interacted with {count} {noun}{plural}{place}."
         else:
             answer = (
                 f"There {'is' if count == 1 else 'are'} {count} "
-                f"{noun}{plural} in this memory."
+                f"{noun}{plural}{place}."
             )
         return RuntimeAnswer(
             query=query,
@@ -836,7 +874,10 @@ class ChronicleRuntime:
         if len(labels) == 1:
             listed = f"the {labels[0]}"
         else:
-            listed = "the " + ", ".join(labels[:-1]) + f" and the {labels[-1]}"
+            listed = (
+                ", ".join(f"the {label}" for label in labels[:-1])
+                + f" and the {labels[-1]}"
+            )
         newest = found[-1]
         zone = newest[4] or self.memory.background.zone_label(
             str(self.memory.active_zone or "")
@@ -870,17 +911,32 @@ class ChronicleRuntime:
         """Summarize which objects share a requested interaction verb."""
 
         query_lower = query.lower()
+        prefix = r"\b(?:what|which)(?:\s+(?:object|thing))?\s+did\s+i\s+"
         action = ""
-        if re.search(r"\bwhat did i (?:pick\s*up|pickup|grab)\b", query_lower):
+        if re.search(prefix + r"(?:pick\s*up|pickup|grab)\b", query_lower):
             action = "pickup"
-        elif re.search(r"\bwhat did i (?:put\s*down|place|set\s*down)\b", query_lower):
-            action = "place"
         elif re.search(
-            r"\bwhat did i (?:touch|interact\s+with|handle)\b", query_lower
+            prefix + r"(?:put(?:\s*(?:down|on|in|at))?|place|set\s*down)\b",
+            query_lower,
         ):
+            action = "place"
+        elif re.search(prefix + r"(?:touch|interact\s+with|handle)\b", query_lower):
             action = "interaction"
         if not action:
             return None
+
+        surface_match = re.search(
+            r"\b(on|in|at|from)\s+(?:(?:the|my|our)\s+)?"
+            r"([a-z][a-z0-9 _-]*?)\s*\??$",
+            query_lower,
+        )
+        preposition = ""
+        surface_phrase = ""
+        surface_tokens: set[str] = set()
+        if surface_match is not None:
+            preposition = surface_match.group(1)
+            surface_phrase = surface_match.group(2).strip()
+            surface_tokens = content_tokens(surface_phrase)
 
         entries: list[tuple[QueryResult, float]] = []
         for entity in self.memory.foreground.entities():
@@ -894,13 +950,34 @@ class ChronicleRuntime:
                 continue
             if action == "place" and (not summary or "placed" not in summary):
                 continue
+            if surface_tokens:
+                if action == "place":
+                    anchor = (result.terminal_anchor or {})
+                    anchor_label = str(
+                        anchor.get("label") or anchor.get("anchor_id") or ""
+                    )
+                    if not surface_tokens <= content_tokens(anchor_label):
+                        continue
+                elif not surface_tokens <= content_tokens(summary or ""):
+                    continue
             interaction = result.last_interaction
-            timestamp = float(interaction.get("t", result.last_seen) or 0.0)
+            if action == "place":
+                anchor = (result.terminal_anchor or {})
+                timestamp = float(
+                    anchor.get("t_start")
+                    if anchor.get("t_start") is not None
+                    else result.last_seen
+                )
+            else:
+                timestamp = float(interaction.get("t", result.last_seen) or 0.0)
             entries.append((result, timestamp))
         if not entries:
+            where = (
+                f" {preposition} the {surface_phrase}" if surface_tokens else ""
+            )
             return RuntimeAnswer(
                 query=query,
-                answer=f"I don't have any recorded {action} events in this memory.",
+                answer=f"I don't have any recorded {action} events{where} in this memory.",
                 source="graph",
                 grounded=False,
                 method="graph-action",
@@ -909,6 +986,41 @@ class ChronicleRuntime:
 
         entries.sort(key=lambda item: item[1])
         labels = [result.label for result, _ in entries]
+        order_match = re.search(r"\b(first|last)\b", query_lower)
+        if order_match is not None:
+            chosen, timestamp = (
+                entries[0] if order_match.group(1) == "first" else entries[-1]
+            )
+            verb = {
+                "pickup": "picked up",
+                "place": "put down",
+                "interaction": "interacted with",
+            }[action]
+            where = (
+                f" {preposition} the {surface_phrase}" if surface_tokens else ""
+            )
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"The {order_match.group(1)} object you {verb} was the "
+                    f"{chosen.label} at t={timestamp:.1f}s{where}."
+                ),
+                citations=(
+                    {
+                        "timestamp": timestamp,
+                        "relation": "INTERACTION",
+                        "zone": chosen.zone_label,
+                    },
+                ),
+                source="graph",
+                grounded=True,
+                method="graph-action",
+                elapsed=time.monotonic() - started,
+                entity=chosen.label,
+                state=chosen.state,
+                zone=chosen.zone_label,
+                last_seen=timestamp,
+            )
         if len(labels) == 1:
             listed = f"the {labels[0]}"
         else:
@@ -920,9 +1032,12 @@ class ChronicleRuntime:
             action
         ]
         first = entries[0][0]
+        where = (
+            f" {preposition} the {surface_phrase}" if surface_tokens else ""
+        )
         return RuntimeAnswer(
             query=query,
-            answer=f"You {verb} {listed}.",
+            answer=f"You {verb} {listed}{where}.",
             citations=tuple(
                 {
                     "timestamp": timestamp,

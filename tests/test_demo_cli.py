@@ -224,6 +224,68 @@ class AskDefaultTest(unittest.TestCase):
                     f"You {verb} the cup, the keys and the bottle.",
                 )
 
+    def test_ask_count_scopes_to_a_surface(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                [
+                    "ask",
+                    "how many objects are on the kitchen counter?",
+                    "--llm",
+                    "template",
+                ]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-count")
+        self.assertEqual(payload["answer"], "There are 2 objects on the kitchen counter.")
+
+    def test_ask_action_can_scope_to_a_surface(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                [
+                    "ask",
+                    "what did I place on the kitchen counter?",
+                    "--llm",
+                    "template",
+                ]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-action")
+        self.assertEqual(
+            payload["answer"],
+            "You put down the cup and the bottle on the kitchen counter.",
+        )
+
+    def test_ask_action_can_order_first_and_last(self) -> None:
+        for question, answer in (
+            (
+                "which object did I touch first?",
+                "The first object you interacted with was the cup at t=1.9s.",
+            ),
+            (
+                "which object did I pick up first?",
+                "The first object you picked up was the cup at t=1.9s.",
+            ),
+            (
+                "which object did I put down last?",
+                "The last object you put down was the bottle at t=10.6s.",
+            ),
+        ):
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-action")
+                self.assertEqual(payload["answer"], answer)
+
     def test_ask_inventory_summary_uses_singular_nouns(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
