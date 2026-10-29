@@ -50,6 +50,14 @@ class DemoTest(unittest.TestCase):
         self.assertIn("restored_answer", payload)
         self.assertIn("queries", payload)
 
+    def test_cli_demo_rejects_directory_as_database(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            stderr = StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+                cli.main(["demo", "--db", tmp, "--force"])
+        self.assertIn("is a directory", str(raised.exception.code))
+        self.assertNotIn("Traceback", stderr.getvalue())
+
     def test_cli_version(self) -> None:
         stdout = StringIO()
         with redirect_stdout(stdout), self.assertRaises(SystemExit) as raised:

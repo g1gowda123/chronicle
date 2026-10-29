@@ -19,8 +19,9 @@ All notable changes to Chronicle are documented here. The format follows
 - `chronicle doctor` opens the bundled memory and runs a real graph query, so a
   corrupt or incomplete package install is reported instead of only checking
   that the database file exists.
-- CLI backend flags are validated, empty questions are rejected, and invalid
-  SQLite files produce a concise error instead of a traceback.
+- CLI backend flags are validated, empty questions are rejected, invalid
+  SQLite files produce a concise error instead of a traceback, and `demo --db`
+  rejects a directory path.
 - Object-count questions such as `how many cups are there?` are answered from
   tracked entities, including an explicit unknown-object answer. Generic
   questions such as `how many objects are there?` count every tracked

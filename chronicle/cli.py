@@ -258,6 +258,9 @@ def cmd_eval(args: argparse.Namespace) -> int:
 def cmd_demo(args: argparse.Namespace) -> int:
     from chronicle.demo import main as demo_main
 
+    if args.db and Path(args.db).expanduser().is_dir():
+        raise SystemExit(f"demo database path is a directory: {args.db}")
+
     argv: list[str] = []
     if args.db:
         argv.extend(["--db", args.db])
