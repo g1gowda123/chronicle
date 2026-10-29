@@ -581,10 +581,16 @@ class QueryResult:
             answer = f"The {label} {be} in state {self.state} as of t={self.last_seen:.1f}s."
 
         if self.last_interaction:
-            answer += (
-                f" Last interaction: {self.last_interaction.get('kind')} at "
-                f"t={float(self.last_interaction.get('t', 0.0)):.1f}s."
-            )
+            kind = str(self.last_interaction.get("kind") or "").upper()
+            interaction_verb = {
+                "HELD": "picked up",
+                "INTERACTED": "touched",
+            }.get(kind)
+            timestamp = float(self.last_interaction.get("t", 0.0))
+            if interaction_verb:
+                answer += f" Last {interaction_verb} at t={timestamp:.1f}s."
+            else:
+                answer += f" Last interaction: {kind} at t={timestamp:.1f}s."
         return answer
 
     def as_dict(self) -> dict[str, Any]:

@@ -100,6 +100,7 @@ class AskDefaultTest(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["entity"], "cup")
         self.assertIn("kitchen counter", payload["answer"])
+        self.assertIn("Last picked up at t=1.9s.", payload["answer"])
 
     def test_ask_reads_a_read_only_bundled_memory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

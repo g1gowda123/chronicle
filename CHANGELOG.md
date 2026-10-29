@@ -63,7 +63,9 @@ All notable changes to Chronicle are documented here. The format follows
   objects that share a support surface no longer inherit each other's
   pick-up/placement history.
 - Plural detector labels such as `keys` now use correct agreement and pronouns
-  in location, appearance and event answers.
+  in location, appearance and event answers. Location answers describe the last
+  interaction naturally (`Last picked up at t=1.9s.`) instead of exposing the
+  internal `HELD` state.
 - `where was X before it was picked up?` resolves the pick-up event instead of
   falling back to the latest placement.
 - Pronoun variants such as `where was the cup before I picked it up?` resolve
