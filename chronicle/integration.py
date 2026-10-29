@@ -989,6 +989,60 @@ class ChronicleRuntime:
             )
 
         entries.sort(key=lambda item: item[1])
+        reference = re.search(
+            r"\b(before|after)\s+(?:the\s+|my\s+|our\s+)?"
+            r"([a-z][a-z0-9 _-]*?)\s*\??$",
+            query_lower,
+        )
+        if reference is not None:
+            ref_tokens = content_tokens(reference.group(2))
+            ref_times: list[float] = []
+            for entity in self.memory.foreground.entities():
+                label = str(entity.get("label") or "")
+                if not ref_tokens <= content_tokens(label):
+                    continue
+                ref_result = self.memory.query_entity(
+                    str(entity.get("node_id", "")), question=query
+                )
+                if ref_result is None or ref_result.last_interaction is None:
+                    continue
+                if action == "place":
+                    anchor = ref_result.terminal_anchor or {}
+                    ref_times.append(
+                        float(
+                            anchor.get("t_start")
+                            if anchor.get("t_start") is not None
+                            else ref_result.last_seen
+                        )
+                    )
+                else:
+                    ref_times.append(
+                        float(
+                            ref_result.last_interaction.get(
+                                "t", ref_result.last_seen
+                            )
+                            or 0.0
+                        )
+                    )
+            if ref_times:
+                boundary = max(ref_times)
+                if reference.group(1) == "before":
+                    entries = [item for item in entries if item[1] < boundary]
+                else:
+                    entries = [item for item in entries if item[1] > boundary]
+                if not entries:
+                    return RuntimeAnswer(
+                        query=query,
+                        answer=(
+                            f"I don't have any recorded {action} events "
+                            f"{reference.group(1)} the {reference.group(2)} "
+                            "in this memory."
+                        ),
+                        source="graph",
+                        grounded=False,
+                        method="graph-action",
+                        elapsed=time.monotonic() - started,
+                    )
         labels = [result.label for result, _ in entries]
         order_match = re.search(r"\b(first|last)\b", query_lower)
         if order_match is not None:

@@ -224,6 +224,18 @@ class AskDefaultTest(unittest.TestCase):
                     f"You {verb} the cup, the keys and the bottle.",
                 )
 
+    def test_ask_action_overview_respects_before_reference(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                ["ask", "what did I pick up before the keys?", "--llm", "template"]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-action")
+        self.assertEqual(payload["answer"], "You picked up the cup.")
+
     def test_ask_action_overview_matches_zone_as_well_as_anchor(self) -> None:
         stdout = StringIO()
         stderr = StringIO()

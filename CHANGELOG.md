@@ -37,6 +37,8 @@ All notable changes to Chronicle are documented here. The format follows
 - Action-overview questions can scope by a zone as well as a support surface, so
   `what did I put in the kitchen?` includes objects placed on the dining table
   as well as the counter.
+- Action overviews honor a trailing `before`/`after` object reference, so
+  `what did I pick up before the keys?` returns only earlier pickups.
 - `chronicle --version` reports the installed distribution version, and
   `chronicle doctor` includes it in both text and JSON reports.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
