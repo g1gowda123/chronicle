@@ -192,9 +192,28 @@ pip install -e ".[dev]"
 python -m pytest
 ```
 
+## What the evaluation numbers mean
+
+Chronicle has several different evaluation sets. They are deliberately kept
+separate because they measure different things:
+
+| Suite | Cases | Where it lives | What it measures |
+|---|---:|---|---|
+| `chronicle eval` product suite | 60 | `main` | Deterministic CLI behavior on the bundled 10.6 s demo memory |
+| GraphRAG answer path | 13 | `main` | Citation-grounded answers over handcrafted text contexts |
+| Research video QA | 18 | `research/vfm-merged` | End-to-end questions on two short egocentric clips |
+| HoloAssist long-video diagnostic | 40 | `research/long-video-qa` | One 257 s session; **5/40 (12.5%)**, a diagnostic, not a benchmark result |
+
+The 60-case product suite is a smoke test that we wrote against our own demo.
+A score of 60/60 is useful for catching CLI regressions, but it is **not**
+evidence of general video understanding or reasoning accuracy. The research
+numbers below use separate, much smaller question sets and are reported with
+their limitations. The product suite was last verified at 60/60 on Python 3.12
+and 3.13 from a built wheel on 2026-10-30.
+
 ## Benchmarks
 
-GraphRAG answer path on the repository’s deterministic 13-case evaluation set
+GraphRAG answer path on the repository’s 13 handcrafted text cases
 (location, last-seen time, action, multi-hop, appearance, unknown):
 
 | Answer path | Model | Pass | Citation precision | Latency (mean) | Tokens |

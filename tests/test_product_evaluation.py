@@ -39,6 +39,7 @@ class DemoSuiteTest(unittest.TestCase):
         )
         self.assertEqual(len(cases), EXPECTED_CASE_COUNT)
         self.assertEqual(len({case.id for case in cases}), len(cases))
+        self.assertEqual(len({case.question for case in cases}), len(cases))
         self.assertEqual(
             dict(Counter(case.category for case in cases)),
             EXPECTED_CATEGORY_COUNTS,

@@ -1,5 +1,10 @@
 # Chronicle — hackathon pitch
 
+> **Historical material.** This pitch is kept for context. Its 30-question suite,
+> 95 KB memory, and cost/latency numbers refer to the earlier VFM prototype, not
+> the current `chronicle eval` product suite (60 deterministic checks) or the
+> research results on `research/vfm-merged`.
+
 **Winning frame:** every other team is making video models faster. You made the video
 unnecessary.
 
