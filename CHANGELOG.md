@@ -50,6 +50,9 @@ All notable changes to Chronicle are documented here. The format follows
 - `when did I put/pick up <object>?` uses the same source/destination answer,
   and ordering questions such as `what did I grab first?` stay with the action
   overview instead of being mistaken for a specific-object lookup.
+- Pickup overviews scoped by source surface use the support observed before the
+  pickup, so `what did I pick up from the dining table?` no longer includes
+  objects that were only later placed there.
 - Open-ended sequence questions such as `what did I do before I put down the
   keys?` and `what happened after I picked up the cup?` return the ordered
   actions on either side of the referenced event.

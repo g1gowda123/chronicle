@@ -1237,7 +1237,12 @@ class ChronicleRuntime:
         )
         if match is None:
             return None
-        target_tokens = content_tokens(match.group("phrase"))
+        phrase = match.group("phrase")
+        if re.match(r"^from\b", phrase, re.IGNORECASE):
+            # "what did I pick up from the table?" asks for every pickup from
+            # that surface, not for one named object.
+            return None
+        target_tokens = content_tokens(phrase)
         target_tokens.discard("up")
         target_tokens.discard("from")
         if not target_tokens:
@@ -1352,7 +1357,8 @@ class ChronicleRuntime:
 
         surface_match = re.search(
             r"\b(on|in|at|to|from)\s+(?:(?:the|my|our)\s+)?"
-            r"([a-z][a-z0-9 _-]*?)(?=\s+(?:before|after)\b|\s*\??$)",
+            r"([a-z][a-z0-9 _-]*?)"
+            r"(?=\s+(?:before|after|first|last|next)\b|\s*\??$)",
             query_lower,
         )
         preposition = ""
@@ -1397,6 +1403,10 @@ class ChronicleRuntime:
                         result.zone_label or ""
                     )
                     if not surface_tokens <= candidate_tokens:
+                        continue
+                elif action == "pickup":
+                    support = self._support_before_last_interaction(result)
+                    if not support or not surface_tokens <= content_tokens(support):
                         continue
                 elif not surface_tokens <= content_tokens(summary or ""):
                     continue

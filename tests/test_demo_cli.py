@@ -480,6 +480,27 @@ class AskDefaultTest(unittest.TestCase):
                     "You put down the cup and the bottle on the kitchen counter.",
                 )
 
+    def test_ask_pickup_can_scope_to_source_surface(self) -> None:
+        for question, expected in (
+            (
+                "what did I pick up from the dining table?",
+                "You picked up the cup and the bottle from the dining table.",
+            ),
+            (
+                "what did I grab from the kitchen counter?",
+                "You picked up the keys from the kitchen counter.",
+            ),
+        ):
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-action")
+                self.assertEqual(payload["answer"], expected)
+
     def test_ask_action_can_order_first_and_last(self) -> None:
         for question, answer in (
             (
