@@ -463,24 +463,22 @@ class AskDefaultTest(unittest.TestCase):
         self.assertEqual(payload["answer"], "There are 2 objects on the kitchen counter.")
 
     def test_ask_action_can_scope_to_a_surface(self) -> None:
-        stdout = StringIO()
-        stderr = StringIO()
-        with redirect_stdout(stdout), redirect_stderr(stderr):
-            code = cli.main(
-                [
-                    "ask",
-                    "what did I place on the kitchen counter?",
-                    "--llm",
-                    "template",
-                ]
-            )
-        self.assertEqual(code, 0)
-        payload = json.loads(stdout.getvalue())
-        self.assertEqual(payload["method"], "graph-action")
-        self.assertEqual(
-            payload["answer"],
-            "You put down the cup and the bottle on the kitchen counter.",
-        )
+        for question in (
+            "what did I place on the kitchen counter?",
+            "what did I set on the kitchen counter?",
+        ):
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-action")
+                self.assertEqual(
+                    payload["answer"],
+                    "You put down the cup and the bottle on the kitchen counter.",
+                )
 
     def test_ask_action_can_order_first_and_last(self) -> None:
         for question, answer in (

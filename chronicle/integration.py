@@ -1318,7 +1318,9 @@ class ChronicleRuntime:
         if re.search(prefix + r"(?:pick\s*up|pickup|grab)\b", query_lower):
             action = "pickup"
         elif re.search(
-            prefix + r"(?:put(?:\s*(?:down|on|in|at))?|place|set\s*down)\b",
+            prefix
+            + r"(?:put(?:\s*(?:down|on|in|at))?"
+            + r"|place|set(?:\s*(?:down|on|in|at))?)\b",
             query_lower,
         ):
             action = "place"
