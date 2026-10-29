@@ -382,6 +382,30 @@ class AskDefaultTest(unittest.TestCase):
         self.assertIn("placed the cup on the kitchen counter at t=4.2s", payload["answer"])
         self.assertIn("placed the bottle on the kitchen counter at t=10.6s", payload["answer"])
 
+    def test_ask_action_sequence_accepts_gerund_reference(self) -> None:
+        cases = (
+            (
+                "what did I do before placing the cup?",
+                "Before you placed the cup, you picked up the cup at t=1.9s.",
+            ),
+            (
+                "what did I do after picking up the keys?",
+                "After you picked up the keys, you placed the keys on the "
+                "dining table at t=7.4s, picked up the bottle at t=8.3s, and "
+                "placed the bottle on the kitchen counter at t=10.6s.",
+            ),
+        )
+        for question, answer in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-action-sequence")
+                self.assertEqual(payload["answer"], answer)
+
     def test_ask_action_overview_matches_zone_as_well_as_anchor(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
@@ -472,6 +496,20 @@ class AskDefaultTest(unittest.TestCase):
             (
                 "did I move the notebook?",
                 "No. I don't have a recorded interaction with the notebook.",
+            ),
+            (
+                "did I put the cup on the counter?",
+                "Yes. You picked up the cup at t=1.9s and placed it on the "
+                "kitchen counter at t=4.2s. It had been on the dining table "
+                "at t=0.5s.",
+            ),
+            (
+                "did I put the cup on the dining table?",
+                "No. The cup is on the kitchen counter.",
+            ),
+            (
+                "did I place the keys on the kitchen counter?",
+                "No. The keys are on the dining table.",
             ),
             (
                 "are the keys on the dining table?",

@@ -955,9 +955,11 @@ class ChronicleRuntime:
         """
 
         match = re.search(
-            r"\b(?:what happened|what did i do)\s+(before|after)\s+i\s+"
-            r"(picked\s*up|pick\s*up|grabbed|put\s*down|put|placed|place|"
-            r"touched|touch)\s+(?:(?:the|my|our)\s+)?"
+            r"\b(?:what happened|what did i do)\s+(before|after)\s+"
+            r"(?:i\s+)?"
+            r"(picked\s*up|picking\s*up|pick\s*up|grabbed|grabbing|"
+            r"put\s*down|putting\s*down|put|placed|placing|place|"
+            r"touched|touching|touch)\s+(?:(?:the|my|our)\s+)?"
             r"([a-z][a-z0-9 _-]*?)\s*\??$",
             query.lower(),
         )
@@ -968,7 +970,7 @@ class ChronicleRuntime:
         verb_phrase = re.sub(r"\s+", " ", verb_phrase)
         if verb_phrase.startswith(("pick", "grab")):
             reference_action = "pickup"
-        elif verb_phrase.startswith(("put", "place")):
+        elif verb_phrase.startswith(("put", "plac")):
             reference_action = "place"
         else:
             reference_action = "interaction"
@@ -1057,11 +1059,12 @@ class ChronicleRuntime:
             listed = f"{phrases[0]} and {phrases[1]}"
         else:
             listed = ", ".join(phrases[:-1]) + f", and {phrases[-1]}"
-        ref_verb = {
-            "pickup": "picked up",
-            "place": "put down",
-            "interaction": "touched",
-        }[reference_action]
+        if reference_action == "pickup":
+            ref_verb = "picked up"
+        elif reference_action == "place":
+            ref_verb = "placed" if "plac" in verb_phrase else "put down"
+        else:
+            ref_verb = "touched"
         return RuntimeAnswer(
             query=query,
             answer=(
@@ -1422,7 +1425,7 @@ class ChronicleRuntime:
             )
 
         action_match = re.search(
-            r"^\s*did\s+i\s+(?P<verb>move|pick\s*up|grab|put\s*down|"
+            r"^\s*did\s+i\s+(?P<verb>move|pick\s*up|grab|put\s*down|put|"
             r"set\s*down|place|touch|interact\s+with|handle)\s+"
             r"(?:the|my|our|a|an)?\s*(?P<target>.+?)\s*\?$",
             query,
@@ -1436,6 +1439,7 @@ class ChronicleRuntime:
             "pick up": "pickup",
             "grab": "pickup",
             "put down": "place",
+            "put": "place",
             "set down": "place",
             "place": "place",
         }.get(verb_text, verb_text)
@@ -1542,8 +1546,9 @@ class ChronicleRuntime:
                 or actual_tokens <= destination_tokens
             )
             if not matches:
+                copula = "are" if is_plural(result.label) else "is"
                 answer = (
-                    f"No. The {result.label} is on the {actual}."
+                    f"No. The {result.label} {copula} on the {actual}."
                     if actual
                     else f"No. I don't have a recorded placement for the "
                     f"{result.label}."
