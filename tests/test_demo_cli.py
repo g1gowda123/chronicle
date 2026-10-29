@@ -418,6 +418,18 @@ class AskDefaultTest(unittest.TestCase):
                 "t=1.9s, placed the cup on the kitchen counter at t=4.2s, "
                 "and picked up the keys at t=5.1s.",
             ),
+            (
+                "what happened after the cup?",
+                "After you interacted with the cup, you picked up the keys at "
+                "t=5.1s, placed the keys on the dining table at t=7.4s, "
+                "picked up the bottle at t=8.3s, and placed the bottle on the "
+                "kitchen counter at t=10.6s.",
+            ),
+            (
+                "what happened before the cup?",
+                "I don't have any recorded actions before you interacted with "
+                "the cup in this memory.",
+            ),
         )
         for question, answer in cases:
             with self.subTest(question=question):
@@ -449,6 +461,14 @@ class AskDefaultTest(unittest.TestCase):
                 "I don't have an action at t=99.0s. The closest recorded "
                 "action was at t=10.6s: you placed the bottle on the kitchen "
                 "counter.",
+            ),
+            (
+                "what did I do at the beginning?",
+                "At t=1.9s you picked up the cup.",
+            ),
+            (
+                "what happened at the start?",
+                "At t=1.9s you picked up the cup.",
             ),
         )
         for question, expected in cases:

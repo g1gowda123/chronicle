@@ -33,6 +33,8 @@ All notable changes to Chronicle are documented here. The format follows
 - Movement source/destination questions such as `where did I move the cup to?`
   and `where did I move the cup from?`, plus natural order phrasings such as
   `what was the last thing I touched?`.
+- Object-relative sequence questions such as `what happened after the cup?`
+  and `what did I do at the beginning?`.
 - `when did I last see X?` and `when did I first see X?` are answered from the
   graph with a timestamp; the inventory answer now uses singular grammar for a
   one-entity memory.

@@ -982,57 +982,67 @@ class ChronicleRuntime:
         """
 
         query_text = query.lower()
-        # Particle-separated references first: "picked the cup up",
-        # "picking the cup up", "set the cup down".  Otherwise the
-        # contiguous pattern would swallow the trailing particle into the
-        # object label.
-        match = re.search(
+        implicit = re.search(
             r"\b(?:what happened|what did i do)\s+(before|after)\s+"
-            r"(?:i\s+)?"
-            r"(picked|picking|pick|grabbed|grabbing|put|putting|"
-            r"set|setting|placed|placing|place|moved|moving|move|"
-            r"touched|touching|touch)\s+"
-            r"(?:(?:the|my|our)\s+)?([a-z][a-z0-9 _-]*?)\s+"
-            r"(up|down)\s*\??$",
+            r"(?:the|my|our)\s+([a-z][a-z0-9 _-]*?)\s*\??$",
             query_text,
         )
-        if match is not None:
-            direction, verb, reference_label, particle = match.groups()
-            verb_phrase = f"{verb} {particle}"
+        if implicit is not None:
+            direction, reference_label = implicit.groups()
+            reference_action = "any"
+            ref_verb = "interacted with"
         else:
+            # Particle-separated references first: "picked the cup up",
+            # "picking the cup up", "set the cup down".  Otherwise the
+            # contiguous pattern would swallow the trailing particle into the
+            # object label.
             match = re.search(
                 r"\b(?:what happened|what did i do)\s+(before|after)\s+"
                 r"(?:i\s+)?"
-                r"(picked\s*up|picking\s*up|pick\s*up|grabbed|grabbing|"
-                r"put\s*down|putting\s*down|set\s*down|setting\s*down|put|"
-                r"placed|placing|place|moved|moving|move|"
-                r"touched|touching|touch)\s+(?:(?:the|my|our)\s+)?"
-                r"([a-z][a-z0-9 _-]*?)\s*\??$",
+                r"(picked|picking|pick|grabbed|grabbing|put|putting|"
+                r"set|setting|placed|placing|place|moved|moving|move|"
+                r"touched|touching|touch)\s+"
+                r"(?:(?:the|my|our)\s+)?([a-z][a-z0-9 _-]*?)\s+"
+                r"(up|down)\s*\??$",
                 query_text,
             )
-            if match is None:
-                return None
-            direction, verb_phrase, reference_label = match.groups()
-        verb_phrase = re.sub(r"\s+", " ", verb_phrase)
-        if verb_phrase.startswith(("pick", "grab")):
-            reference_action = "pickup"
-        elif verb_phrase.startswith(("put", "plac", "set", "mov")):
-            reference_action = "place"
-        else:
-            reference_action = "interaction"
-        if reference_action == "pickup":
-            ref_verb = "picked up"
-        elif reference_action == "place":
-            if "mov" in verb_phrase:
-                ref_verb = "moved"
-            elif "plac" in verb_phrase:
-                ref_verb = "placed"
-            elif "set" in verb_phrase:
-                ref_verb = "set down"
+            if match is not None:
+                direction, verb, reference_label, particle = match.groups()
+                verb_phrase = f"{verb} {particle}"
             else:
-                ref_verb = "put down"
-        else:
-            ref_verb = "touched"
+                match = re.search(
+                    r"\b(?:what happened|what did i do)\s+(before|after)\s+"
+                    r"(?:i\s+)?"
+                    r"(picked\s*up|picking\s*up|pick\s*up|grabbed|grabbing|"
+                    r"put\s*down|putting\s*down|set\s*down|setting\s*down|put|"
+                    r"placed|placing|place|moved|moving|move|"
+                    r"touched|touching|touch)\s+(?:(?:the|my|our)\s+)?"
+                    r"([a-z][a-z0-9 _-]*?)\s*\??$",
+                    query_text,
+                )
+                if match is None:
+                    return None
+                direction, verb_phrase, reference_label = match.groups()
+            verb_phrase = re.sub(r"\s+", " ", verb_phrase)
+            if verb_phrase.startswith(("pick", "grab")):
+                reference_action = "pickup"
+            elif verb_phrase.startswith(("put", "plac", "set", "mov")):
+                reference_action = "place"
+            else:
+                reference_action = "interaction"
+            if reference_action == "pickup":
+                ref_verb = "picked up"
+            elif reference_action == "place":
+                if "mov" in verb_phrase:
+                    ref_verb = "moved"
+                elif "plac" in verb_phrase:
+                    ref_verb = "placed"
+                elif "set" in verb_phrase:
+                    ref_verb = "set down"
+                else:
+                    ref_verb = "put down"
+            else:
+                ref_verb = "touched"
         reference_tokens = content_tokens(reference_label)
 
         events: list[tuple[float, str, str, dict[str, Any] | None]] = []
@@ -1075,9 +1085,18 @@ class ChronicleRuntime:
                     if reference_action == "place":
                         reference_times.append(float(anchor_t))
 
+        if implicit is not None:
+            reference_times = [
+                event[0]
+                for event in events
+                if reference_tokens <= content_tokens(event[1])
+            ]
         if not reference_times:
             return None
-        boundary = max(reference_times)
+        if implicit is not None and direction == "before":
+            boundary = min(reference_times)
+        else:
+            boundary = max(reference_times)
         if direction == "before":
             selected = [event for event in events if event[0] < boundary]
         else:
@@ -1372,9 +1391,14 @@ class ChronicleRuntime:
         """Answer "what did I do at 5 seconds?" from the nearest graph event."""
 
         match = _ACTION_AT_RE.search(query)
-        if match is None:
+        beginning = re.search(
+            r"\bwhat\s+(?:did\s+i\s+do|happened)\s+"
+            r"(?:at\s+the\s+)?(?:beginning|start)\b",
+            query,
+            re.IGNORECASE,
+        )
+        if match is None and beginning is None:
             return None
-        target = float(match.group(1))
 
         events: list[tuple[float, str, str, str]] = []
         for entity in self.memory.foreground.entities():
@@ -1433,16 +1457,22 @@ class ChronicleRuntime:
                 elapsed=time.monotonic() - started,
             )
 
-        events.sort(key=lambda event: (abs(event[0] - target), event[0]))
-        timestamp, phrase, label, zone = events[0]
-        delta = abs(timestamp - target)
-        if delta <= 1.0:
+        if beginning is not None:
+            events.sort(key=lambda event: event[0])
+            timestamp, phrase, label, zone = events[0]
             answer = f"At t={timestamp:.1f}s you {phrase}."
         else:
-            answer = (
-                f"I don't have an action at t={target:.1f}s. The closest "
-                f"recorded action was at t={timestamp:.1f}s: you {phrase}."
-            )
+            target = float(match.group(1))
+            events.sort(key=lambda event: (abs(event[0] - target), event[0]))
+            timestamp, phrase, label, zone = events[0]
+            delta = abs(timestamp - target)
+            if delta <= 1.0:
+                answer = f"At t={timestamp:.1f}s you {phrase}."
+            else:
+                answer = (
+                    f"I don't have an action at t={target:.1f}s. The closest "
+                    f"recorded action was at t={timestamp:.1f}s: you {phrase}."
+                )
         return RuntimeAnswer(
             query=query,
             answer=answer,
