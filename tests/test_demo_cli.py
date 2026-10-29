@@ -508,6 +508,18 @@ class AskDefaultTest(unittest.TestCase):
                 "the cup on the kitchen counter at t=4.2s.",
             ),
             (
+                "what did I do from 5 seconds?",
+                "After t=5.0s, you picked up the keys at t=5.1s, placed the "
+                "keys on the dining table at t=7.4s, picked up the bottle at "
+                "t=8.3s, and placed the bottle on the kitchen counter at "
+                "t=10.6s.",
+            ),
+            (
+                "what did I do until 5 seconds?",
+                "Before t=5.0s, you picked up the cup at t=1.9s and placed "
+                "the cup on the kitchen counter at t=4.2s.",
+            ),
+            (
                 "what did I do between 99 and 100 seconds?",
                 "I don't have any recorded actions between t=99.0s and "
                 "t=100.0s.",

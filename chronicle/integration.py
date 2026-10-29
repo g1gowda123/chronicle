@@ -190,12 +190,12 @@ _TIME_RANGE_RE = re.compile(
     re.IGNORECASE,
 )
 _TIME_AFTER_RE = re.compile(
-    r"\bafter\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*"
+    r"\b(?:after|from)\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*"
     r"(?:s|secs?|seconds?)?\b",
     re.IGNORECASE,
 )
 _TIME_BEFORE_RE = re.compile(
-    r"\bbefore\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*"
+    r"\b(?:before|until|till)\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*"
     r"(?:s|secs?|seconds?)?\b",
     re.IGNORECASE,
 )

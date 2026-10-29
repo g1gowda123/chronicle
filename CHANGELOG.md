@@ -31,7 +31,8 @@ All notable changes to Chronicle are documented here. The format follows
   recorded pickup, touch, or placement, with an explicit closest-event fallback
   when there is no action close to the requested time.
 - Time-window questions such as `what did I do between 5 and 8 seconds?`,
-  `what happened from 5 to 8 seconds?`, and `what did I do after/before 5
+  `what happened from 5 to 8 seconds?`, `what did I do after/before 5
+  seconds?`, `what did I do from 5 seconds?`, and `what did I do until 5
   seconds?` return only the actions inside that interval. Counts honor the
   same windows, e.g. `how many objects did I pick up after 5 seconds?`.
 - Temporal location questions such as `where was the cup at 3 seconds?`
