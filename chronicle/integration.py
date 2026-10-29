@@ -1472,12 +1472,15 @@ class ChronicleRuntime:
                 or content_tokens(actual_source) <= source_tokens
             )
             if not source_matches:
+                plural = is_plural(result.label)
+                was = "were" if plural else "was"
+                pronoun = "they" if plural else "it"
                 answer = (
-                    f"No. The {result.label} was on the {actual_source} before "
-                    f"it was picked up."
+                    f"No. The {result.label} {was} on the {actual_source} before "
+                    f"{pronoun} {was} picked up."
                     if actual_source
                     else f"No. I don't have a recorded location for the "
-                    f"{result.label} before it was picked up."
+                    f"{result.label} before {pronoun} {was} picked up."
                 )
                 return RuntimeAnswer(
                     query=query,

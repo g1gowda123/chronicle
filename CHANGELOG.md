@@ -97,6 +97,8 @@ All notable changes to Chronicle are documented here. The format follows
   dining table.
 - Confirmation questions accept natural placement verbs such as `place`, `set
   down`, and `grab`.
+- Pick-up source refusals use correct plural agreement, such as `The keys were on
+  the kitchen counter before they were picked up.`
 - Surface inventories understand `what objects are on …?` / `which objects
   are on …?`.
 - Location questions without a recorded spatial fact now abstain explicitly
