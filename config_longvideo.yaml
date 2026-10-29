@@ -42,10 +42,10 @@ perception:
   detector_models: []
   detector_confidence: 0.30
   detector_imgsz: 640
-  # Multi-scale tiling: run a 2x2 grid for fine objects only, at a lower
-  # confidence than the full-frame pass.  This gives small cards/straps/buttons
-  # roughly 4x more pixels without destabilising large-object tracks.
-  tile_grid: 2
+  # Multi-scale tiling: run a grid for fine objects only, at a lower
+  # confidence than the full-frame pass.  A 2x2 grid was tested and did not
+  # improve this session, so it is off by default; it costs ~4x detector work.
+  tile_grid: 1
   tile_overlap: 0.15
   tile_confidence: 0.10
   tile_labels: [game card, sd card, joy-con strap, kickstand, power button]
