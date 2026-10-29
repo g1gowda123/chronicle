@@ -11,8 +11,8 @@ system. The point is to expose failures that the 34 s HoloAssist clip and the
 - **Questions:** 40, written from the human fine-grained action annotations.
 - **Answer time:** t=250 s for most questions and t=256 s for final-state
   questions. The graph has to retain and retrieve events from the whole video.
-- **Categories:** object identity (8), object location (6), counting (6),
-  temporal order (6), activity (6), error/correction (8).
+- **Categories:** object identity (8), object location (7), counting (9),
+  temporal order (6), activity (10), error/correction (8).
 - **Answering:** deterministic template backend; no text LLM, no judge.
 
 The QA file is `data/qa/holoassist_z210_40q.json`. The scene vocabulary is fixed
@@ -53,11 +53,37 @@ python eval_pipeline.py \
 | Category | Correct | Total |
 |---|---:|---:|
 | object identity | 0 | 8 |
-| object location | 2 | 6 |
-| counting | 1 | 6 |
+| object location | 2 | 7 |
+| counting | 2 | 9 |
 | temporal order | 1 | 6 |
-| activity | 1 | 6 |
+| activity | 2 | 10 |
 | error/correction | 0 | 8 |
+
+## High-resolution and small-object follow-up
+
+The original session video is only 454x256. We repeated the same 40 questions
+with a higher-resolution source (896x504, from HoloAssist's pitch-shifted
+release) and with a 2x2 tiled detector pass restricted to fine objects.
+
+| Variant | Video | Tiling | Recall@1 | VLM calls | Graph entities |
+|---|---|---:|---:|---:|---:|
+| Compressed baseline | 454x256 | no | 5/40 | 54 | 13 |
+| High-resolution | 896x504 | no | 5/40 | 50 | 13 |
+| High-resolution + fine-object tiling | 896x504 | 2x2 | 5/40 | 50 | 13 |
+
+Tiling did not add usable wrist straps, game cards, SD cards, the kickstand, or
+the power button. On this session, resolution and generic open-vocabulary
+tiling are not enough; fine-object evidence and action structure remain the
+bottleneck.
+
+### Strict evidence audit
+
+The 5/40 score uses lenient token matching. A manual audit shows that only one
+of the five passes is a substantive answer (the comfort-grip count); the other
+four are generic `last recorded event ... Work Table` strings that happen to
+contain the expected location token. The strict, evidence-aware score is 1/40.
+The 5/40 number should therefore be reported as a lenient upper bound, never as
+genuine action understanding.
 
 ## Why it fails
 
@@ -71,7 +97,7 @@ This is a real long-video limitation, not a QA-format artifact:
    Fine-grained actions such as "slide the blue controller into the comfort
    grip" are not represented.
 3. Broad questions fall through to the template's "last recorded event"
-   response. Three of the five passes are this fallback matching a location
+   response. Four of the five passes are this fallback matching a location
    token, not evidence of temporal reasoning.
 4. Counting is still track-based: four joy-con tracks are reported as four
    controllers although the session uses two physical controllers. Colour is
@@ -84,6 +110,8 @@ This is a real long-video limitation, not a QA-format artifact:
   annotations) instead of inferring actions from hand motion alone.
 - A temporal event-store query that can answer "what happened between X and Y"
   without collapsing to the last state.
+- Transcript/ASR if questions about instructor speech and verbal corrections
+  are to be answerable at all; the compressed video has no audio stream.
 - A larger, independently written question set; 40 is a diagnostic, not a
   statistically powered benchmark.
 
@@ -93,3 +121,7 @@ The video and annotations come from HoloAssist (Sener et al., 2023). Follow the
 HoloAssist dataset licence; this repository does not redistribute the video.
 The question file is derived from the public human annotations and is included
 for reproducibility.
+
+The high-resolution run used the pitch-shifted HoloAssist release, not the
+compressed 454x256 file. Do not compare its runtime directly with the
+compressed baseline without noting the different input resolution.

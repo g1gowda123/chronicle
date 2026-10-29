@@ -7,6 +7,7 @@ from chronicle.perception.config import DetectorConfig, PerceptionConfig
 from chronicle.perception.detector import (
     ColorDetector,
     YoloWorldDetector,
+    _tile_windows,
     deduplicate_detections,
     filter_min_area,
 )
@@ -108,3 +109,11 @@ def test_yolo_model_ensemble_is_configured_without_loading_weights() -> None:
     single = YoloWorldDetector(DetectorConfig(model="yolov8s-worldv2.pt"), root)
     assert single._model_names == ("yolov8s-worldv2.pt",)
     assert single.name == "yolo-world"
+
+
+def test_tile_windows_cover_the_frame() -> None:
+    windows = _tile_windows(640, 480, 2, 0.15)
+    assert len(windows) == 4
+    assert windows[0][0] == 0 and windows[0][1] == 0
+    assert windows[-1][2] == 640 and windows[-1][3] == 480
+    assert all(x2 > x1 and y2 > y1 for x1, y1, x2, y2 in windows)

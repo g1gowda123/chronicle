@@ -86,4 +86,5 @@ data/replays/
 
 # Long-video diagnostic asset (download separately; see benchmarks/long_video)
 data/real/holoassist_z210_257s.mp4
+data/real/holoassist_z210_hires_pitchshift.mp4
 models
