@@ -1307,6 +1307,29 @@ class ChronicleRuntime:
             last_seen=entries[-1][1],
         )
 
+    def _support_before_last_interaction(self, result: QueryResult) -> str:
+        """Return the support surface an entity occupied before its last interaction."""
+
+        interaction = result.last_interaction or {}
+        interaction_t = interaction.get("t")
+        if interaction_t is None:
+            return ""
+        supports = [
+            edge
+            for edge in result.timeline()
+            if edge.get("relation") in {Relation.RESTING_ON.value, Relation.INSIDE.value}
+            and edge.get("t_start") is not None
+            and float(edge["t_start"]) < float(interaction_t)
+        ]
+        if not supports:
+            return ""
+        edge = max(supports, key=lambda item: float(item["t_start"]))
+        node_labels = {
+            str(node.get("node_id")): str(node.get("label") or "")
+            for node in result.nodes
+        }
+        return node_labels.get(str(edge.get("dst")), str(edge.get("dst") or ""))
+
     def _yes_no_answer(self, query: str, started: float) -> RuntimeAnswer | None:
         """Answer direct yes/no location and interaction questions."""
 
@@ -1380,16 +1403,34 @@ class ChronicleRuntime:
             return None
         target = action_match.group("target").strip()
         verb = action_match.group("verb").lower()
+        source = None
         destination = None
-        if verb in {"move", "put down"}:
-            destination_match = re.search(
-                r"\s+(?:to|onto|on|in|at)\s+(?:the\s+)?(.+?)\s*$",
+        if verb == "pick up":
+            source_match = re.search(
+                r"\s+from\s+(?:the\s+)?(.+?)\s*$", target, re.IGNORECASE
+            )
+            if source_match is not None:
+                source = source_match.group(1).strip()
+                target = target[: source_match.start()].strip()
+        elif verb in {"move", "put down"}:
+            both_match = re.search(
+                r"\s+from\s+(?:the\s+)?(.+?)\s+to\s+(?:the\s+)?(.+?)\s*$",
                 target,
                 re.IGNORECASE,
             )
-            if destination_match is not None:
-                destination = destination_match.group(1).strip()
-                target = target[: destination_match.start()].strip()
+            if both_match is not None:
+                source = both_match.group(1).strip()
+                destination = both_match.group(2).strip()
+                target = target[: both_match.start()].strip()
+            else:
+                destination_match = re.search(
+                    r"\s+(?:to|onto|on|in|at)\s+(?:the\s+)?(.+?)\s*$",
+                    target,
+                    re.IGNORECASE,
+                )
+                if destination_match is not None:
+                    destination = destination_match.group(1).strip()
+                    target = target[: destination_match.start()].strip()
         result = self.memory.query(target)
         if result is None:
             return RuntimeAnswer(
@@ -1416,6 +1457,40 @@ class ChronicleRuntime:
                 zone=result.zone_label,
                 last_seen=result.last_seen,
             )
+        if source is not None:
+            actual_source = self._support_before_last_interaction(result)
+            source_tokens = content_tokens(source)
+            source_matches = bool(actual_source) and (
+                source_tokens <= content_tokens(actual_source)
+                or content_tokens(actual_source) <= source_tokens
+            )
+            if not source_matches:
+                answer = (
+                    f"No. The {result.label} was on the {actual_source} before "
+                    f"it was picked up."
+                    if actual_source
+                    else f"No. I don't have a recorded location for the "
+                    f"{result.label} before it was picked up."
+                )
+                return RuntimeAnswer(
+                    query=query,
+                    answer=answer,
+                    citations=(
+                        {
+                            "timestamp": result.last_seen,
+                            "relation": "INTERACTION_CHECK",
+                            "zone": result.zone_label,
+                        },
+                    ),
+                    source="graph",
+                    grounded=True,
+                    method="graph-confirm",
+                    elapsed=time.monotonic() - started,
+                    entity=result.label,
+                    state=result.state,
+                    zone=result.zone_label,
+                    last_seen=result.last_seen,
+                )
         if destination is not None:
             anchor = result.terminal_anchor or {}
             actual = str(anchor.get("label") or anchor.get("anchor_id") or "")

@@ -92,6 +92,9 @@ All notable changes to Chronicle are documented here. The format follows
 - Movement confirmations check the named destination, so `did I move the cup to
   the dining table?` correctly answers no when the recorded placement is the
   kitchen counter.
+- Pick-up confirmations check the named source, so `did I pick up the cup from
+  the kitchen counter?` answers no when the recorded prior support was the
+  dining table.
 - Surface inventories understand `what objects are on …?` / `which objects
   are on …?`.
 - Location questions without a recorded spatial fact now abstain explicitly

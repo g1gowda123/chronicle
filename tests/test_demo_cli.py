@@ -508,6 +508,28 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertEqual(payload["method"], "graph-confirm")
                 self.assertIn(expected, payload["answer"])
 
+    def test_ask_yes_no_pickup_source(self) -> None:
+        cases = (
+            (
+                "did I pick up the cup from the kitchen counter?",
+                "No. The cup was on the dining table before it was picked up.",
+            ),
+            (
+                "did I pick up the cup from the dining table?",
+                "Yes. You picked up the cup at t=1.9s",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-confirm")
+                self.assertIn(expected, payload["answer"])
+
     def test_ask_temporal_before_move_pronoun(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
