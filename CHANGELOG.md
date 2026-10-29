@@ -53,6 +53,9 @@ All notable changes to Chronicle are documented here. The format follows
 - Pickup overviews scoped by source surface use the support observed before the
   pickup, so `what did I pick up from the dining table?` no longer includes
   objects that were only later placed there.
+- Action-ordering questions accept `second` through `fifth` in addition to
+  `first`/`last`, and out-of-range ordinals abstain instead of listing every
+  event.
 - Open-ended sequence questions such as `what did I do before I put down the
   keys?` and `what happened after I picked up the cup?` return the ordered
   actions on either side of the referenced event.

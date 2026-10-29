@@ -523,6 +523,10 @@ class AskDefaultTest(unittest.TestCase):
                 "what did I grab first?",
                 "The first object you picked up was the cup at t=1.9s.",
             ),
+            (
+                "what did I put down second?",
+                "The second object you put down was the keys at t=7.4s.",
+            ),
         ):
             with self.subTest(question=question):
                 stdout = StringIO()

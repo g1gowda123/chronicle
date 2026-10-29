@@ -128,6 +128,14 @@ _ORDER_ONLY_TOKENS = {
     "latest",
     "next",
     "second",
+    "third",
+    "fourth",
+    "fifth",
+    "sixth",
+    "seventh",
+    "eighth",
+    "ninth",
+    "tenth",
     "thing",
     "things",
     "object",
@@ -1490,11 +1498,38 @@ class ChronicleRuntime:
                         elapsed=time.monotonic() - started,
                     )
         labels = [result.label for result, _ in entries]
-        order_match = re.search(r"\b(first|last)\b", query_lower)
+        order_match = re.search(
+            r"\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|last)\b",
+            query_lower,
+        )
         if order_match is not None:
-            chosen, timestamp = (
-                entries[0] if order_match.group(1) == "first" else entries[-1]
-            )
+            ordinal = order_match.group(1)
+            index = {
+                "first": 0,
+                "second": 1,
+                "third": 2,
+                "fourth": 3,
+                "fifth": 4,
+                "sixth": 5,
+                "seventh": 6,
+                "eighth": 7,
+                "ninth": 8,
+                "tenth": 9,
+                "last": -1,
+            }[ordinal]
+            if not -len(entries) <= index < len(entries):
+                return RuntimeAnswer(
+                    query=query,
+                    answer=(
+                        f"I only have {len(entries)} recorded {action} "
+                        "event(s) in this memory."
+                    ),
+                    source="graph",
+                    grounded=False,
+                    method="graph-action",
+                    elapsed=time.monotonic() - started,
+                )
+            chosen, timestamp = entries[index]
             verb = {
                 "pickup": "picked up",
                 "place": "put down",
@@ -1507,7 +1542,7 @@ class ChronicleRuntime:
             return RuntimeAnswer(
                 query=query,
                 answer=(
-                    f"The {order_match.group(1)} object you {verb} was the "
+                    f"The {ordinal} object you {verb} was the "
                     f"{chosen.label} at t={timestamp:.1f}s{where}."
                 ),
                 citations=(
