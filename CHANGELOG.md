@@ -30,7 +30,7 @@ All notable changes to Chronicle are documented here. The format follows
 - `when did I last see X?` and `when did I first see X?` are answered from the
   graph with a timestamp; the inventory answer now uses singular grammar for a
   one-entity memory.
-- `chronicle eval` runs a 45-case deterministic product suite against the
+- `chronicle eval` runs a 54-case deterministic product suite against the
   bundled memory and prints a score; it covers location, support surfaces,
   events, first/last-seen times, temporal-before questions, counts, appearance,
   surface inventories and abstention behavior without models or a judge.

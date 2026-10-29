@@ -81,6 +81,8 @@ chronicle doctor
 chronicle demo
 chronicle ask "where is my cup?"
 chronicle ask "what did I do?"
+chronicle ask "what did I pick up?"
+chronicle ask "is the cup on the kitchen counter?"
 chronicle ask "how many cups are there?"
 chronicle eval
 ```
@@ -98,9 +100,10 @@ loads the same memory bundled with the package.
 weights, and the bundled memory. It exits non-zero only when something required
 is missing.
 
-`chronicle eval` runs 45 deterministic checks against the bundled demo memory:
+`chronicle eval` runs 54 deterministic checks against the bundled demo memory:
 locations, support surfaces, events, first/last-seen timestamps, counts,
-appearance, surface inventories, and honest abstentions.
+appearance, surface inventories, interaction summaries, yes/no questions, and
+honest abstentions.
 It prints a score and exits non-zero on failure. This is a product smoke suite,
 not a research benchmark; it deliberately uses no model, judge, or network, and
 its score tests CLI behavior rather than perception or reasoning accuracy.
@@ -120,7 +123,7 @@ with ChronicleMemory(demo_db_path(), read_only=True) as memory:
 |---|---|---|
 | `chronicle demo` | none | Generate and query a synthetic memory |
 | `chronicle ask` | none (template answerer) | Query the bundled or persisted memory |
-| `chronicle eval` | none | Run the 45-case deterministic product suite |
+| `chronicle eval` | none | Run the 54-case deterministic product suite |
 | `chronicle doctor` | none | Diagnose install, CUDA, weights, demo data |
 | `chronicle sources` | none | List bundled/demo video sources |
 | `chronicle run` | perception extra | Ingest a real video |
