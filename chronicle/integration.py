@@ -1379,6 +1379,17 @@ class ChronicleRuntime:
         if action_match is None:
             return None
         target = action_match.group("target").strip()
+        verb = action_match.group("verb").lower()
+        destination = None
+        if verb in {"move", "put down"}:
+            destination_match = re.search(
+                r"\s+(?:to|onto|on|in|at)\s+(?:the\s+)?(.+?)\s*$",
+                target,
+                re.IGNORECASE,
+            )
+            if destination_match is not None:
+                destination = destination_match.group(1).strip()
+                target = target[: destination_match.start()].strip()
         result = self.memory.query(target)
         if result is None:
             return RuntimeAnswer(
@@ -1405,6 +1416,43 @@ class ChronicleRuntime:
                 zone=result.zone_label,
                 last_seen=result.last_seen,
             )
+        if destination is not None:
+            anchor = result.terminal_anchor or {}
+            actual = str(anchor.get("label") or anchor.get("anchor_id") or "")
+            actual_tokens = content_tokens(actual) | content_tokens(
+                result.zone_label or ""
+            )
+            destination_tokens = content_tokens(destination)
+            matches = bool(actual_tokens) and (
+                destination_tokens <= actual_tokens
+                or actual_tokens <= destination_tokens
+            )
+            if not matches:
+                answer = (
+                    f"No. The {result.label} is on the {actual}."
+                    if actual
+                    else f"No. I don't have a recorded placement for the "
+                    f"{result.label}."
+                )
+                return RuntimeAnswer(
+                    query=query,
+                    answer=answer,
+                    citations=(
+                        {
+                            "timestamp": result.last_seen,
+                            "relation": "INTERACTION_CHECK",
+                            "zone": result.zone_label,
+                        },
+                    ),
+                    source="graph",
+                    grounded=True,
+                    method="graph-confirm",
+                    elapsed=time.monotonic() - started,
+                    entity=result.label,
+                    state=result.state,
+                    zone=result.zone_label,
+                    last_seen=result.last_seen,
+                )
         summary = result.event_summary()
         return RuntimeAnswer(
             query=query,

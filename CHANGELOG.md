@@ -62,6 +62,8 @@ All notable changes to Chronicle are documented here. The format follows
   falling back to the latest placement.
 - Pronoun variants such as `where was the cup before I picked it up?` resolve
   the same pick-up event.
+- Temporal questions such as `where was the bottle before I moved it?` resolve
+  the placement that completed the move.
 - Event questions about an absent named object abstain instead of summarizing
   unrelated objects, and `what is on the <surface>?` answers from terminal
   support anchors.
@@ -87,6 +89,9 @@ All notable changes to Chronicle are documented here. The format follows
   `which object did I put down last?`.
 - Direct yes/no questions are answered from the graph, such as
   `is the cup on the kitchen counter?` and `did I move the notebook?`.
+- Movement confirmations check the named destination, so `did I move the cup to
+  the dining table?` correctly answers no when the recorded placement is the
+  kitchen counter.
 - Surface inventories understand `what objects are on …?` / `which objects
   are on …?`.
 - Location questions without a recorded spatial fact now abstain explicitly

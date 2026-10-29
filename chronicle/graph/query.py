@@ -259,7 +259,7 @@ class QueryResult:
         placement_ref = bool(
             clause
             and re.search(
-                r"\b(?:place(?:d)?|put|setting|set\s+down)\b",
+                r"\b(?:place(?:d)?|put|setting|set\s+down|move(?:d)?)\b",
                 clause,
                 re.IGNORECASE,
             )

@@ -485,6 +485,46 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertEqual(payload["method"], "graph-confirm")
                 self.assertEqual(payload["answer"], answer)
 
+    def test_ask_yes_no_movement_destination(self) -> None:
+        cases = (
+            (
+                "did I move the cup to the dining table?",
+                "No. The cup is on the kitchen counter.",
+            ),
+            (
+                "did I put down the keys on the dining table?",
+                "Yes. You picked up the keys at t=5.1s and placed them on the "
+                "dining table at t=7.4s.",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-confirm")
+                self.assertIn(expected, payload["answer"])
+
+    def test_ask_temporal_before_move_pronoun(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                [
+                    "ask",
+                    "where was the bottle before I moved it?",
+                    "--llm",
+                    "template",
+                ]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertIn("dining table", payload["answer"])
+        self.assertIn("kitchen counter", payload["answer"])
+
     def test_ask_yes_no_interaction_starts_with_yes(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
