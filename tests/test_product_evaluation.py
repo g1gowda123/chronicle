@@ -13,18 +13,18 @@ from pathlib import Path
 from chronicle.cli import main
 from chronicle.evaluation import load_cases, run_evaluation
 
-EXPECTED_CASE_COUNT = 54
+EXPECTED_CASE_COUNT = 60
 EXPECTED_CATEGORY_COUNTS = {
     "event": 7,
     "appearance": 7,
     "temporal": 6,
-    "counting": 7,
+    "counting": 9,
     "location": 5,
-    "temporal-location": 5,
+    "temporal-location": 6,
     "abstention": 4,
     "inventory": 4,
-    "interaction": 4,
-    "confirmation": 3,
+    "interaction": 6,
+    "confirmation": 4,
     "support": 2,
 }
 
@@ -86,7 +86,7 @@ class DemoSuiteTest(unittest.TestCase):
         with redirect_stdout(buffer):
             code = main(["eval"])
         self.assertEqual(code, 0)
-        self.assertIn("Score: 54/54 (100.0%)", buffer.getvalue())
+        self.assertIn("Score: 60/60 (100.0%)", buffer.getvalue())
 
 
 class InvalidSuiteTest(unittest.TestCase):

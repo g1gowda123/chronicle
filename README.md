@@ -100,7 +100,7 @@ loads the same memory bundled with the package.
 weights, and the bundled memory. It exits non-zero only when something required
 is missing.
 
-`chronicle eval` runs 54 deterministic checks against the bundled demo memory:
+`chronicle eval` runs 60 deterministic checks against the bundled demo memory:
 locations, support surfaces, events, first/last-seen timestamps, counts,
 appearance, surface inventories, interaction summaries, yes/no questions, and
 honest abstentions.
@@ -123,7 +123,7 @@ with ChronicleMemory(demo_db_path(), read_only=True) as memory:
 |---|---|---|
 | `chronicle demo` | none | Generate and query a synthetic memory |
 | `chronicle ask` | none (template answerer) | Query the bundled or persisted memory |
-| `chronicle eval` | none | Run the 54-case deterministic product suite |
+| `chronicle eval` | none | Run the 60-case deterministic product suite |
 | `chronicle doctor` | none | Diagnose install, CUDA, weights, demo data |
 | `chronicle sources` | none | List bundled/demo video sources |
 | `chronicle run` | perception extra | Ingest a real video |
