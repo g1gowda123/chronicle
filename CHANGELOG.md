@@ -68,6 +68,10 @@ All notable changes to Chronicle are documented here. The format follows
   kitchen counter?`.
 - Interaction overviews support `first`/`last`, such as
   `which object did I put down last?`.
+- Direct yes/no questions are answered from the graph, such as
+  `is the cup on the kitchen counter?` and `did I move the notebook?`.
+- Surface inventories understand `what objects are on …?` / `which objects
+  are on …?`.
 - Location questions without a recorded spatial fact now abstain explicitly
   instead of presenting an unrelated action or state as a location.
 - Hyphenated detector labels such as `joy-con` now canonicalize with

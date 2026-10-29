@@ -819,7 +819,8 @@ class ChronicleRuntime:
         """Answer "what is on the kitchen counter?" from terminal anchors."""
 
         match = re.search(
-            r"\b(?:what(?:'s| is)|list|show|name)\b[^?]*?\bon\s+"
+            r"\b(?:what(?:'s| is)|what objects? (?:are|were)|"
+            r"which objects? (?:are|were)|list|show|name)\b[^?]*?\bon\s+"
             r"(?:(?:the|my|our)\s+)?([a-z][a-z0-9 _-]*?)\s*\??$",
             query,
             re.IGNORECASE,
@@ -1056,6 +1057,125 @@ class ChronicleRuntime:
             last_seen=entries[-1][1],
         )
 
+    def _yes_no_answer(self, query: str, started: float) -> RuntimeAnswer | None:
+        """Answer direct yes/no location and interaction questions."""
+
+        location_match = re.search(
+            r"^\s*(?:is|are|was|were)\s+(?:the|my|our|a|an)?\s*"
+            r"(?P<target>.+?)\s+(?P<prep>on|in|at)\s+"
+            r"(?:the\s+)?(?P<surface>.+?)\s*\?$",
+            query,
+            re.IGNORECASE,
+        )
+        if location_match is not None:
+            target = location_match.group("target").strip()
+            surface = location_match.group("surface").strip()
+            surface_tokens = content_tokens(surface)
+            if not surface_tokens:
+                return None
+            result = self.memory.query(target)
+            if result is None:
+                return RuntimeAnswer(
+                    query=query,
+                    answer="I don't have that in my memory.",
+                    source="graph",
+                    grounded=False,
+                    method="graph-confirm",
+                    elapsed=time.monotonic() - started,
+                )
+            anchor = (result.terminal_anchor or {})
+            actual = str(anchor.get("label") or anchor.get("anchor_id") or "")
+            actual_tokens = content_tokens(actual)
+            matches = bool(actual_tokens) and (
+                surface_tokens <= actual_tokens or actual_tokens <= surface_tokens
+            )
+            if not actual:
+                actual = result.zone_label or "the scene"
+                actual_tokens = content_tokens(actual)
+                matches = bool(actual_tokens) and (
+                    surface_tokens <= actual_tokens or actual_tokens <= surface_tokens
+                )
+            preposition = "on" if anchor else "in"
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"{'Yes' if matches else 'No'}. The {result.label} is "
+                    f"{preposition} the {actual}."
+                ),
+                citations=(
+                    {
+                        "timestamp": result.last_seen,
+                        "relation": "LOCATION_CHECK",
+                        "zone": result.zone_label,
+                    },
+                ),
+                source="graph",
+                grounded=True,
+                method="graph-confirm",
+                elapsed=time.monotonic() - started,
+                entity=result.label,
+                state=result.state,
+                zone=result.zone_label,
+                last_seen=result.last_seen,
+            )
+
+        action_match = re.search(
+            r"^\s*did\s+i\s+(?P<verb>move|pick\s*up|put\s*down|touch|"
+            r"interact\s+with|handle)\s+(?:the|my|our|a|an)?\s*"
+            r"(?P<target>.+?)\s*\?$",
+            query,
+            re.IGNORECASE,
+        )
+        if action_match is None:
+            return None
+        target = action_match.group("target").strip()
+        result = self.memory.query(target)
+        if result is None:
+            return RuntimeAnswer(
+                query=query,
+                answer="I don't have that in my memory.",
+                source="graph",
+                grounded=False,
+                method="graph-confirm",
+                elapsed=time.monotonic() - started,
+            )
+        if result.last_interaction is None:
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"No. I don't have a recorded interaction with the "
+                    f"{result.label}."
+                ),
+                source="graph",
+                grounded=True,
+                method="graph-confirm",
+                elapsed=time.monotonic() - started,
+                entity=result.label,
+                state=result.state,
+                zone=result.zone_label,
+                last_seen=result.last_seen,
+            )
+        summary = result.event_summary()
+        return RuntimeAnswer(
+            query=query,
+            answer=f"Yes. {summary}" if summary else "Yes.",
+            citations=(
+                {
+                    "timestamp": result.last_seen,
+                    "relation": "INTERACTION_CHECK",
+                    "zone": result.zone_label,
+                },
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-confirm",
+            elapsed=time.monotonic() - started,
+            entity=result.label,
+            state=result.state,
+            zone=result.zone_label,
+            last_seen=result.last_seen,
+        )
+
     def _event_overview(self, query: str, started: float) -> RuntimeAnswer | None:
         """Summarize the most recent recorded interactions for a generic event query."""
 
@@ -1158,6 +1278,12 @@ class ChronicleRuntime:
         action_answer = self._action_overview(query, started)
         if action_answer is not None:
             return action_answer
+        confirm_answer = self._yes_no_answer(query, started)
+        if confirm_answer is not None:
+            return confirm_answer
+        surface_answer = self._surface_inventory_answer(query, started)
+        if surface_answer is not None:
+            return surface_answer
         result = self.memory.query(query)
         if result is not None and _LAST_SEEN_RE.search(query):
             first = bool(re.search(r"\bfirst\b", query, re.IGNORECASE))
@@ -1209,9 +1335,6 @@ class ChronicleRuntime:
                 last_seen=result.last_seen,
             )
         if result is None:
-            surface_answer = self._surface_inventory_answer(query, started)
-            if surface_answer is not None:
-                return surface_answer
             if is_event_query(query):
                 # "what happened to the mug?" names a specific object.  If
                 # lookup failed, answer honestly instead of falling back to an

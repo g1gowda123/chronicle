@@ -286,6 +286,42 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertEqual(payload["method"], "graph-action")
                 self.assertEqual(payload["answer"], answer)
 
+    def test_ask_yes_no_location_and_interaction(self) -> None:
+        cases = (
+            (
+                "is the cup on the kitchen counter?",
+                "Yes. The cup is on the kitchen counter.",
+            ),
+            (
+                "is the cup on the dining table?",
+                "No. The cup is on the kitchen counter.",
+            ),
+            (
+                "did I move the notebook?",
+                "No. I don't have a recorded interaction with the notebook.",
+            ),
+        )
+        for question, answer in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-confirm")
+                self.assertEqual(payload["answer"], answer)
+
+    def test_ask_yes_no_interaction_starts_with_yes(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(["ask", "did I move the cup?", "--llm", "template"])
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-confirm")
+        self.assertTrue(payload["answer"].startswith("Yes. You picked up the cup"))
+
     def test_ask_inventory_summary_uses_singular_nouns(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
