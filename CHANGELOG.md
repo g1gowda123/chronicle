@@ -30,6 +30,9 @@ All notable changes to Chronicle are documented here. The format follows
 - Timestamp questions such as `what did I do at 5 seconds?` return the nearest
   recorded pickup, touch, or placement, with an explicit closest-event fallback
   when there is no action close to the requested time.
+- Time-window questions such as `what did I do between 5 and 8 seconds?`,
+  `what happened from 5 to 8 seconds?`, and `what did I do after/before 5
+  seconds?` return only the actions inside that interval.
 - Movement source/destination questions such as `where did I move the cup to?`
   and `where did I move the cup from?`, plus natural order phrasings such as
   `what was the last thing I touched?`.

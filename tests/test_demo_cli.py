@@ -483,6 +483,48 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertTrue(payload["grounded"])
                 self.assertEqual(payload["answer"], expected)
 
+    def test_ask_action_time_window(self) -> None:
+        cases = (
+            (
+                "what did I do between 5 and 8 seconds?",
+                "Between t=5.0s and t=8.0s, you picked up the keys at "
+                "t=5.1s and placed the keys on the dining table at t=7.4s.",
+            ),
+            (
+                "what happened from 5 to 8 seconds?",
+                "Between t=5.0s and t=8.0s, you picked up the keys at "
+                "t=5.1s and placed the keys on the dining table at t=7.4s.",
+            ),
+            (
+                "what did I do after 5 seconds?",
+                "After t=5.0s, you picked up the keys at t=5.1s, placed the "
+                "keys on the dining table at t=7.4s, picked up the bottle at "
+                "t=8.3s, and placed the bottle on the kitchen counter at "
+                "t=10.6s.",
+            ),
+            (
+                "what did I do before 5 seconds?",
+                "Before t=5.0s, you picked up the cup at t=1.9s and placed "
+                "the cup on the kitchen counter at t=4.2s.",
+            ),
+            (
+                "what did I do between 99 and 100 seconds?",
+                "I don't have any recorded actions between t=99.0s and "
+                "t=100.0s.",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-action-window")
+                self.assertEqual(payload["grounded"], "99" not in question)
+                self.assertEqual(payload["answer"], expected)
+
     def test_ask_yes_no_temporal_action_order(self) -> None:
         cases = (
             (

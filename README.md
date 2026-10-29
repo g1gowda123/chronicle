@@ -82,6 +82,7 @@ chronicle demo
 chronicle ask "where is my cup?"
 chronicle ask "what did I do?"
 chronicle ask "what did I do at 5 seconds?"
+chronicle ask "what did I do between 5 and 8 seconds?"
 chronicle ask "what did I pick up?"
 chronicle ask "is the cup on the kitchen counter?"
 chronicle ask "how many cups are there?"

@@ -159,6 +159,26 @@ _ACTION_AT_RE = re.compile(
     r"(?:s|secs?|seconds?)?\b",
     re.IGNORECASE,
 )
+_TIME_RANGE_RE = re.compile(
+    r"\b(?:between|from)\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*"
+    r"(?:s|secs?|seconds?)?\s*(?:and|to|until)\s+"
+    r"(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds?)?\b",
+    re.IGNORECASE,
+)
+_TIME_AFTER_RE = re.compile(
+    r"\bafter\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*"
+    r"(?:s|secs?|seconds?)?\b",
+    re.IGNORECASE,
+)
+_TIME_BEFORE_RE = re.compile(
+    r"\bbefore\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*"
+    r"(?:s|secs?|seconds?)?\b",
+    re.IGNORECASE,
+)
+_TIME_WINDOW_QUERY_RE = re.compile(
+    r"\bwhat\s+(?:did\s+i\s+do|happened|was\s+happening)\b",
+    re.IGNORECASE,
+)
 
 
 def _event_target(query: str) -> str | None:
@@ -1387,18 +1407,10 @@ class ChronicleRuntime:
                 best = (score, entity)
         return best[1] if best is not None else None
 
-    def _action_at_answer(self, query: str, started: float) -> RuntimeAnswer | None:
-        """Answer "what did I do at 5 seconds?" from the nearest graph event."""
-
-        match = _ACTION_AT_RE.search(query)
-        beginning = re.search(
-            r"\bwhat\s+(?:did\s+i\s+do|happened)\s+"
-            r"(?:at\s+the\s+)?(?:beginning|start)\b",
-            query,
-            re.IGNORECASE,
-        )
-        if match is None and beginning is None:
-            return None
+    def _timeline_events(
+        self, query: str
+    ) -> list[tuple[float, str, str, str]]:
+        """Build pickup and terminal-placement events for foreground objects."""
 
         events: list[tuple[float, str, str, str]] = []
         for entity in self.memory.foreground.entities():
@@ -1446,6 +1458,104 @@ class ChronicleRuntime:
                         result.zone_label,
                     )
                 )
+        return events
+
+    def _time_window_answer(
+        self, query: str, started: float
+    ) -> RuntimeAnswer | None:
+        """Answer "what did I do between 5 and 8 seconds?" from the timeline."""
+
+        if _TIME_WINDOW_QUERY_RE.search(query) is None:
+            return None
+
+        range_match = _TIME_RANGE_RE.search(query)
+        after_match = _TIME_AFTER_RE.search(query)
+        before_match = _TIME_BEFORE_RE.search(query)
+        lower: float | None
+        upper: float | None
+        if range_match is not None:
+            start = float(range_match.group(1))
+            end = float(range_match.group(2))
+            if end < start:
+                start, end = end, start
+            lower, upper = start, end
+            prefix = f"Between t={start:.1f}s and t={end:.1f}s"
+        elif after_match is not None:
+            lower = float(after_match.group(1))
+            upper = None
+            prefix = f"After t={lower:.1f}s"
+        elif before_match is not None:
+            lower = None
+            upper = float(before_match.group(1))
+            prefix = f"Before t={upper:.1f}s"
+        else:
+            return None
+
+        def in_window(timestamp: float) -> bool:
+            return (lower is None or timestamp >= lower) and (
+                upper is None or timestamp <= upper
+            )
+
+        events = [
+            event for event in self._timeline_events(query) if in_window(event[0])
+        ]
+        if not events:
+            return RuntimeAnswer(
+                query=query,
+                answer=f"I don't have any recorded actions {prefix.lower()}.",
+                source="graph",
+                grounded=False,
+                method="graph-action-window",
+                elapsed=time.monotonic() - started,
+            )
+
+        events.sort(key=lambda event: event[0])
+        phrases = [
+            f"{phrase} at t={timestamp:.1f}s"
+            for timestamp, phrase, _label, _zone in events
+        ]
+        if len(phrases) == 1:
+            actions = phrases[0]
+        elif len(phrases) == 2:
+            actions = f"{phrases[0]} and {phrases[1]}"
+        else:
+            actions = ", ".join(phrases[:-1]) + f", and {phrases[-1]}"
+
+        last_timestamp, _last_phrase, last_label, last_zone = events[-1]
+        return RuntimeAnswer(
+            query=query,
+            answer=f"{prefix}, you {actions}.",
+            citations=tuple(
+                {
+                    "timestamp": timestamp,
+                    "relation": "ACTION_WINDOW",
+                    "zone": zone,
+                }
+                for timestamp, _phrase, _label, zone in events
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-action-window",
+            elapsed=time.monotonic() - started,
+            entity=last_label,
+            zone=last_zone,
+            last_seen=last_timestamp,
+        )
+
+    def _action_at_answer(self, query: str, started: float) -> RuntimeAnswer | None:
+        """Answer "what did I do at 5 seconds?" from the nearest graph event."""
+
+        match = _ACTION_AT_RE.search(query)
+        beginning = re.search(
+            r"\bwhat\s+(?:did\s+i\s+do|happened)\s+"
+            r"(?:at\s+the\s+)?(?:beginning|start)\b",
+            query,
+            re.IGNORECASE,
+        )
+        if match is None and beginning is None:
+            return None
+
+        events = self._timeline_events(query)
 
         if not events:
             return RuntimeAnswer(
@@ -2319,6 +2429,9 @@ class ChronicleRuntime:
         source_answer = self._object_source_answer(query, started)
         if source_answer is not None:
             return source_answer
+        window_answer = self._time_window_answer(query, started)
+        if window_answer is not None:
+            return window_answer
         at_answer = self._action_at_answer(query, started)
         if at_answer is not None:
             return at_answer
