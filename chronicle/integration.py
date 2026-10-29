@@ -1393,26 +1393,33 @@ class ChronicleRuntime:
             )
 
         action_match = re.search(
-            r"^\s*did\s+i\s+(?P<verb>move|pick\s*up|put\s*down|touch|"
-            r"interact\s+with|handle)\s+(?:the|my|our|a|an)?\s*"
-            r"(?P<target>.+?)\s*\?$",
+            r"^\s*did\s+i\s+(?P<verb>move|pick\s*up|grab|put\s*down|"
+            r"set\s*down|place|touch|interact\s+with|handle)\s+"
+            r"(?:the|my|our|a|an)?\s*(?P<target>.+?)\s*\?$",
             query,
             re.IGNORECASE,
         )
         if action_match is None:
             return None
         target = action_match.group("target").strip()
-        verb = action_match.group("verb").lower()
+        verb_text = re.sub(r"\s+", " ", action_match.group("verb").lower())
+        verb = {
+            "pick up": "pickup",
+            "grab": "pickup",
+            "put down": "place",
+            "set down": "place",
+            "place": "place",
+        }.get(verb_text, verb_text)
         source = None
         destination = None
-        if verb == "pick up":
+        if verb == "pickup":
             source_match = re.search(
                 r"\s+from\s+(?:the\s+)?(.+?)\s*$", target, re.IGNORECASE
             )
             if source_match is not None:
                 source = source_match.group(1).strip()
                 target = target[: source_match.start()].strip()
-        elif verb in {"move", "put down"}:
+        elif verb in {"move", "place"}:
             both_match = re.search(
                 r"\s+from\s+(?:the\s+)?(.+?)\s+to\s+(?:the\s+)?(.+?)\s*$",
                 target,

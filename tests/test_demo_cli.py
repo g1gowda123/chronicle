@@ -496,6 +496,18 @@ class AskDefaultTest(unittest.TestCase):
                 "Yes. You picked up the keys at t=5.1s and placed them on the "
                 "dining table at t=7.4s.",
             ),
+            (
+                "did I place the bottle on the dining table?",
+                "No. The bottle is on the kitchen counter.",
+            ),
+            (
+                "did I place the bottle on the kitchen counter?",
+                "Yes. You picked up the bottle at t=8.3s",
+            ),
+            (
+                "did I set down the bottle?",
+                "Yes. You picked up the bottle at t=8.3s",
+            ),
         )
         for question, expected in cases:
             with self.subTest(question=question):
