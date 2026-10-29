@@ -810,9 +810,11 @@ class ChronicleRuntime:
         )
         if interaction_only:
             if re.search(
-                r"\b(?:put\s+down|place(?:d)?|set\s+down)\b", query, re.IGNORECASE
+                r"\b(?:put\s+down|set\s+down)\b", query, re.IGNORECASE
             ):
                 count_verb = "put down"
+            elif re.search(r"\bplace(?:d)?\b", query, re.IGNORECASE):
+                count_verb = "placed"
             elif re.search(r"\bpick(?:ed)?\s+up\b", query, re.IGNORECASE):
                 count_verb = "picked up"
             elif re.search(r"\bmove(?:d)?\b", query, re.IGNORECASE):

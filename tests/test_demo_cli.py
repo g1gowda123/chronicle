@@ -236,6 +236,18 @@ class AskDefaultTest(unittest.TestCase):
         self.assertIn("bottle", payload["answer"])
         self.assertNotIn("keys", payload["answer"])
 
+    def test_ask_count_uses_placement_verb(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                ["ask", "how many objects did I place?", "--llm", "template"]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-count")
+        self.assertEqual(payload["answer"], "You placed 3 objects in this memory.")
+
     def test_ask_temporal_pickup_with_pronoun(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
