@@ -546,6 +546,15 @@ class AskDefaultTest(unittest.TestCase):
                 "last picked up at t=8.3s.",
             ),
             (
+                "where were the keys at 6 seconds?",
+                "At t=6.0s the keys were not resting on a surface; they were "
+                "last picked up at t=5.1s.",
+            ),
+            (
+                "where were the keys at 8 seconds?",
+                "At t=8.0s the keys were on the dining table.",
+            ),
+            (
                 "where was the wallet at 3 seconds?",
                 "I don't have that in my memory.",
             ),

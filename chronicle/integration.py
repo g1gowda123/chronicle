@@ -180,7 +180,7 @@ _TIME_WINDOW_QUERY_RE = re.compile(
     re.IGNORECASE,
 )
 _TIME_LOCATION_RE = re.compile(
-    r"\bwhere\s+(?:was|is)\s+(?:(?:the|my|our)\s+)?"
+    r"\bwhere\s+(?:was|were|is|are)\s+(?:(?:the|my|our)\s+)?"
     r"([a-z][a-z0-9 _-]*?)\s+(?:at|around)\s+"
     r"(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds?)?\b",
     re.IGNORECASE,
@@ -1610,11 +1610,13 @@ class ChronicleRuntime:
                 else "on"
             )
             timestamp = float(location_edge.get("t_start", 0.0))
+            plural = is_plural(label)
+            copula = "were" if plural else "was"
             return RuntimeAnswer(
                 query=query,
                 answer=(
-                    f"At t={target_time:.1f}s the {label} was {preposition} "
-                    f"the {anchor}."
+                    f"At t={target_time:.1f}s the {label} {copula} "
+                    f"{preposition} the {anchor}."
                 ),
                 citations=(
                     {
@@ -1637,11 +1639,15 @@ class ChronicleRuntime:
             timestamp = float(state_edge.get("t_start", 0.0))
             state = str(state_edge.get("to_state") or "")
             verb = "picked up" if state == "HELD" else "touched"
+            plural = is_plural(label)
+            copula = "were" if plural else "was"
+            pronoun = "they" if plural else "it"
             return RuntimeAnswer(
                 query=query,
                 answer=(
-                    f"At t={target_time:.1f}s the {label} was not resting on "
-                    f"a surface; it was last {verb} at t={timestamp:.1f}s."
+                    f"At t={target_time:.1f}s the {label} {copula} not resting "
+                    f"on a surface; {pronoun} {copula} last {verb} at "
+                    f"t={timestamp:.1f}s."
                 ),
                 citations=(
                     {
