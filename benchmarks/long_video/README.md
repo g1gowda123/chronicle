@@ -76,6 +76,12 @@ the power button. On this session, resolution and generic open-vocabulary
 tiling are not enough; fine-object evidence and action structure remain the
 bottleneck.
 
+The high-resolution pitch-shifted release does include an audio track, unlike
+the compressed 454x256 file. A Whisper-small transcript recovers the instructor
+instructions and several verbal corrections, so audio is a viable additional
+evidence source for the error/correction questions. It is not yet wired into
+the graph; the 5/40 result above is video-only.
+
 ### Strict evidence audit
 
 The 5/40 score uses lenient token matching. A manual audit shows that only one
