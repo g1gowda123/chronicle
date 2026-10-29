@@ -679,6 +679,18 @@ class AskDefaultTest(unittest.TestCase):
                 "No. The keys were on the kitchen counter before they were "
                 "picked up.",
             ),
+            (
+                "was the bottle on the dining table before I moved it?",
+                "Yes. The bottle was on the dining table before it was moved.",
+            ),
+            (
+                "was the bottle on the kitchen counter before I moved it?",
+                "No. The bottle was on the dining table before it was moved.",
+            ),
+            (
+                "was the cup on the dining table before I placed it?",
+                "No. The cup is on the kitchen counter.",
+            ),
         )
         for question, answer in cases:
             with self.subTest(question=question):

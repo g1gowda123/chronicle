@@ -1801,16 +1801,19 @@ class ChronicleRuntime:
             target = location_match.group("target").strip()
             surface = location_match.group("surface").strip()
             before_pickup = False
+            before_action = "picked up"
             if " before " in surface.lower():
                 surface_text, _, before_clause = surface.partition(" before ")
-                if re.search(
-                    r"\b(?:pick(?:ed)?|picked\s+up|move(?:d)?|place(?:d)?|"
-                    r"set\s+down)\b",
+                before_match = re.search(
+                    r"\b(pick(?:ed)?|grab(?:bed)?|move(?:d)?)\b",
                     before_clause,
                     re.IGNORECASE,
-                ):
+                )
+                if before_match is not None:
                     surface = surface_text.strip()
                     before_pickup = True
+                    if before_match.group(1).lower().startswith("mov"):
+                        before_action = "moved"
             surface_tokens = content_tokens(surface)
             if not surface_tokens:
                 return None
@@ -1850,7 +1853,7 @@ class ChronicleRuntime:
                 answer = (
                     f"{'Yes' if matches else 'No'}. The {result.label} {copula} "
                     f"{preposition} the {actual} before {pronoun} {copula} "
-                    "picked up."
+                    f"{before_action}."
                 )
             else:
                 copula = "are" if plural else "is"

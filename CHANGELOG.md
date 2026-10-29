@@ -35,6 +35,8 @@ All notable changes to Chronicle are documented here. The format follows
   `what was the last thing I touched?`.
 - Object-relative sequence questions such as `what happened after the cup?`
   and `what did I do at the beginning?`.
+- Historical location confirmations now use the queried movement verb and do
+  not claim a pickup-time surface for placement questions.
 - `when did I last see X?` and `when did I first see X?` are answered from the
   graph with a timestamp; the inventory answer now uses singular grammar for a
   one-entity memory.
