@@ -1,5 +1,5 @@
 {"id":"location-current","category":"location","question":"where is my cup?","expect_all":["kitchen counter","t=4.2"],"expect_method":"template","tests":"current location and last placement timestamp"}
-{"id":"location-put","category":"location","question":"where did I put the cup?","expect_all":["kitchen counter","t=4.2"],"expect_method":"template","tests":"placement question maps to the ground-truth location"}
+{"id":"location-put","category":"location","question":"where did I put the cup?","expect_all":["kitchen counter","t=4.2"],"expect_method":"graph-object-destination","tests":"placement question maps to the ground-truth location"}
 {"id":"location-keys","category":"location","question":"where are my keys?","expect_all":["dining table","t=7.4"],"expect_method":"template","tests":"current location of a second object"}
 {"id":"location-bottle","category":"location","question":"where is my bottle?","expect_all":["kitchen counter","t=10.6"],"expect_method":"template","tests":"current location of the last object moved"}
 {"id":"location-notebook","category":"location","question":"where is my notebook?","expect_all":["dining table","t=0.5"],"expect_method":"template","tests":"stationary object keeps its initial support surface"}

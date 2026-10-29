@@ -40,6 +40,10 @@ All notable changes to Chronicle are documented here. The format follows
 - Action overviews honor a trailing `before`/`after` object reference, so
   `what did I pick up before the keys?` returns only earlier pickups, including
   when the same sentence also names a surface.
+- Object-specific source and destination questions such as
+  `what did I put the keys on?` and `what did I pick the cup up from?` answer
+  from the recorded placement or pre-pickup support instead of listing every
+  interacted object.
 - Open-ended sequence questions such as `what did I do before I put down the
   keys?` and `what happened after I picked up the cup?` return the ordered
   actions on either side of the referenced event.

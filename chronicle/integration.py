@@ -1109,6 +1109,159 @@ class ChronicleRuntime:
             last_seen=selected[-1][0],
         )
 
+    def _object_destination_answer(
+        self, query: str, started: float
+    ) -> RuntimeAnswer | None:
+        """Answer "where/what did I put <object>?" for one tracked object."""
+
+        if re.search(r"\b(?:before|after)\b", query, re.IGNORECASE):
+            return None
+        match = re.match(
+            r"^\s*(?:what|where)\s+did\s+i\s+(?P<verb>put|place|set)\s+"
+            r"(?:down\s+)?(?P<phrase>.+?)\s*(?:(?:on|in|at|to)\s*)?\?\s*$",
+            query,
+            re.IGNORECASE,
+        )
+        if match is None:
+            return None
+        target_tokens = content_tokens(match.group("phrase"))
+        target_tokens.discard("down")
+        if not target_tokens:
+            return None
+        entity = self._entity_matching_tokens(target_tokens)
+        if entity is None:
+            return None
+        node_id = str(entity.get("node_id") or "")
+        result = self.memory.query_entity(node_id, question=query)
+        if result is None:
+            return None
+        anchor = result.terminal_anchor or {}
+        anchor_t = anchor.get("t_start")
+        anchor_label = str(anchor.get("label") or anchor.get("anchor_id") or "").strip()
+        if anchor_t is None or not anchor_label:
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"I don't have a recorded placement for the "
+                    f"{result.label} in this memory."
+                ),
+                source="graph",
+                grounded=False,
+                method="graph-object-destination",
+                elapsed=time.monotonic() - started,
+                entity=result.label,
+            )
+        relation = str(anchor.get("relation") or "")
+        preposition = "inside" if relation.endswith("INSIDE") else "on"
+        verb = {
+            "put": "put",
+            "place": "placed",
+            "set": "set down",
+        }[match.group("verb").lower()]
+        timestamp = float(anchor_t)
+        return RuntimeAnswer(
+            query=query,
+            answer=(
+                f"You {verb} the {result.label} {preposition} the "
+                f"{anchor_label} at t={timestamp:.1f}s."
+            ),
+            citations=(
+                {
+                    "timestamp": timestamp,
+                    "relation": "PLACEMENT",
+                    "zone": result.zone_label,
+                },
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-object-destination",
+            elapsed=time.monotonic() - started,
+            entity=result.label,
+            state=result.state,
+            zone=result.zone_label,
+            last_seen=timestamp,
+        )
+
+    def _object_source_answer(self, query: str, started: float) -> RuntimeAnswer | None:
+        """Answer "where/what did I pick <object> up from?"."""
+
+        if re.search(r"\b(?:before|after)\b", query, re.IGNORECASE):
+            return None
+        match = re.match(
+            r"^\s*(?:what|where)\s+did\s+i\s+(?P<verb>pick|grab)(?:\s+up)?\s+"
+            r"(?P<phrase>.+?)\s*(?:up\s+)?(?:from\s*)?\?\s*$",
+            query,
+            re.IGNORECASE,
+        )
+        if match is None:
+            return None
+        target_tokens = content_tokens(match.group("phrase"))
+        target_tokens.discard("up")
+        target_tokens.discard("from")
+        if not target_tokens:
+            return None
+        entity = self._entity_matching_tokens(target_tokens)
+        if entity is None:
+            return None
+        node_id = str(entity.get("node_id") or "")
+        result = self.memory.query_entity(node_id, question=query)
+        if result is None or result.last_interaction is None:
+            return None
+        support = self._support_before_last_interaction(result)
+        if not support:
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"I don't have a recorded location for the {result.label} "
+                    "before it was picked up."
+                ),
+                source="graph",
+                grounded=False,
+                method="graph-object-source",
+                elapsed=time.monotonic() - started,
+                entity=result.label,
+            )
+        timestamp = float(
+            result.last_interaction.get("t", result.last_seen) or result.last_seen
+        )
+        verb = "grabbed" if match.group("verb").lower() == "grab" else "picked up"
+        return RuntimeAnswer(
+            query=query,
+            answer=(
+                f"You {verb} the {result.label} from the {support} "
+                f"at t={timestamp:.1f}s."
+            ),
+            citations=(
+                {
+                    "timestamp": timestamp,
+                    "relation": "INTERACTION",
+                    "zone": result.zone_label,
+                },
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-object-source",
+            elapsed=time.monotonic() - started,
+            entity=result.label,
+            state=result.state,
+            zone=result.zone_label,
+            last_seen=timestamp,
+        )
+
+    def _entity_matching_tokens(self, tokens: set[str]) -> dict[str, Any] | None:
+        """Find the most specific foreground entity whose label contains tokens."""
+
+        best: tuple[int, dict[str, Any]] | None = None
+        for entity in self.memory.foreground.entities():
+            label = str(entity.get("label") or "")
+            label_tokens = content_tokens(label)
+            if not label_tokens or not label_tokens <= tokens:
+                continue
+            score = len(label_tokens)
+            if best is None or score > best[0]:
+                best = (score, entity)
+        return best[1] if best is not None else None
+
     def _action_overview(self, query: str, started: float) -> RuntimeAnswer | None:
         """Summarize which objects share a requested interaction verb."""
 
@@ -1726,6 +1879,12 @@ class ChronicleRuntime:
         sequence_answer = self._action_sequence_answer(query, started)
         if sequence_answer is not None:
             return sequence_answer
+        destination_answer = self._object_destination_answer(query, started)
+        if destination_answer is not None:
+            return destination_answer
+        source_answer = self._object_source_answer(query, started)
+        if source_answer is not None:
+            return source_answer
         action_answer = self._action_overview(query, started)
         if action_answer is not None:
             return action_answer

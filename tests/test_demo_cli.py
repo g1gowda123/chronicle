@@ -623,6 +623,50 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertEqual(payload["method"], "graph-confirm")
                 self.assertIn(expected, payload["answer"])
 
+    def test_ask_where_a_specific_object_was_put(self) -> None:
+        cases = (
+            (
+                "what did I put the keys on?",
+                "You put the keys on the dining table at t=7.4s.",
+            ),
+            (
+                "where did I place the bottle?",
+                "You placed the bottle on the kitchen counter at t=10.6s.",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-object-destination")
+                self.assertEqual(payload["answer"], expected)
+
+    def test_ask_where_a_specific_object_was_picked_up_from(self) -> None:
+        cases = (
+            (
+                "what did I pick the cup up from?",
+                "You picked up the cup from the dining table at t=1.9s.",
+            ),
+            (
+                "where did I pick up the bottle from?",
+                "You picked up the bottle from the dining table at t=8.3s.",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-object-source")
+                self.assertEqual(payload["answer"], expected)
+
     def test_ask_temporal_before_move_pronoun(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
