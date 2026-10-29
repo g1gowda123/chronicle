@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -218,17 +219,23 @@ def cmd_ask(args: argparse.Namespace) -> int:
 
     sem_cfg = _semantic_config(args, default_llm="template")
     _ensure_ollama(sem_cfg)
-    runtime = runtime_cls(
-        db_path,
-        semantic_config=sem_cfg,
-        load=True,
-        read_only=True,
-    )
+
     try:
-        print(json.dumps(runtime.ask(args.question).to_dict(), indent=2))
-        return 0
-    finally:
-        runtime.close()
+        runtime = runtime_cls(
+            db_path,
+            semantic_config=sem_cfg,
+            load=True,
+            read_only=True,
+        )
+        try:
+            answer = runtime.ask(args.question).to_dict()
+        finally:
+            runtime.close()
+    except sqlite3.DatabaseError as exc:
+        raise SystemExit(f"cannot read memory database {db_path}: {exc}") from exc
+
+    print(json.dumps(answer, indent=2))
+    return 0
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
@@ -236,8 +243,10 @@ def cmd_eval(args: argparse.Namespace) -> int:
 
     try:
         report = run_evaluation(args.db, args.suite)
-    except (FileNotFoundError, ValueError) as exc:
+    except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
+    except (ValueError, sqlite3.DatabaseError) as exc:
+        raise SystemExit(f"cannot evaluate memory database: {exc}") from exc
 
     if args.json:
         print(json.dumps(report, indent=2))

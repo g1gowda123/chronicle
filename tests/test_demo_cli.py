@@ -97,6 +97,35 @@ class AskDefaultTest(unittest.TestCase):
         self.assertEqual(raised.exception.code, "question must not be empty")
         self.assertNotIn("Traceback", stderr.getvalue())
 
+    def test_rejects_non_chronicle_database_cleanly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "not-a-memory.sqlite"
+            path.write_bytes(b"not a sqlite database")
+            stderr = StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+                cli.main(
+                    [
+                        "ask",
+                        "where is my cup?",
+                        "--db",
+                        str(path),
+                        "--llm",
+                        "template",
+                    ]
+                )
+        self.assertIn("cannot read memory database", str(raised.exception.code))
+        self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_eval_rejects_non_chronicle_database_cleanly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "not-a-memory.sqlite"
+            path.write_bytes(b"not a sqlite database")
+            stderr = StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+                cli.main(["eval", "--db", str(path)])
+        self.assertIn("cannot evaluate memory database", str(raised.exception.code))
+        self.assertNotIn("Traceback", stderr.getvalue())
+
     def test_rejects_unknown_backend_cleanly(self) -> None:
         stderr = StringIO()
         with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
