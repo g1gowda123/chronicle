@@ -179,6 +179,12 @@ _TIME_WINDOW_QUERY_RE = re.compile(
     r"\bwhat\s+(?:did\s+i\s+do|happened|was\s+happening)\b",
     re.IGNORECASE,
 )
+_TIME_LOCATION_RE = re.compile(
+    r"\bwhere\s+(?:was|is)\s+(?:(?:the|my|our)\s+)?"
+    r"([a-z][a-z0-9 _-]*?)\s+(?:at|around)\s+"
+    r"(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds?)?\b",
+    re.IGNORECASE,
+)
 
 
 def _event_target(query: str) -> str | None:
@@ -1542,6 +1548,132 @@ class ChronicleRuntime:
             last_seen=last_timestamp,
         )
 
+    def _temporal_location_answer(
+        self, query: str, started: float
+    ) -> RuntimeAnswer | None:
+        """Answer "where was the cup at 3 seconds?" from the state timeline."""
+
+        match = _TIME_LOCATION_RE.search(query)
+        if match is None:
+            return None
+
+        target_tokens = content_tokens(match.group(1))
+        if not target_tokens:
+            return None
+        entity = self._entity_matching_tokens(target_tokens)
+        if entity is None:
+            return RuntimeAnswer(
+                query=query,
+                answer="I don't have that in my memory.",
+                source="graph",
+                grounded=False,
+                method="graph-temporal-location",
+                elapsed=time.monotonic() - started,
+            )
+
+        query_result = self.memory.query_entity(
+            str(entity.get("node_id", "")), question=query
+        )
+        if query_result is None:
+            return None
+        target_time = float(match.group(2))
+        labels = {
+            str(node.get("node_id")): str(
+                node.get("label") or node.get("node_id") or "surface"
+            )
+            for node in query_result.nodes
+        }
+        location_edge: dict[str, Any] | None = None
+        state_edge: dict[str, Any] | None = None
+        for edge in query_result.timeline():
+            if float(edge.get("t_start", 0.0)) > target_time + 1e-6:
+                break
+            relation = str(edge.get("relation") or "")
+            if relation in {Relation.RESTING_ON.value, Relation.INSIDE.value}:
+                location_edge = edge
+                state_edge = None
+            elif relation == Relation.STATE_TRANSITION.value and str(
+                edge.get("to_state") or ""
+            ) in {"HELD", "INTERACTED"}:
+                state_edge = edge
+                location_edge = None
+
+        label = query_result.label
+        if location_edge is not None:
+            anchor = labels.get(
+                str(location_edge.get("dst", "")),
+                str(location_edge.get("dst", "surface")),
+            )
+            preposition = (
+                "inside"
+                if str(location_edge.get("relation")) == Relation.INSIDE.value
+                else "on"
+            )
+            timestamp = float(location_edge.get("t_start", 0.0))
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"At t={target_time:.1f}s the {label} was {preposition} "
+                    f"the {anchor}."
+                ),
+                citations=(
+                    {
+                        "timestamp": timestamp,
+                        "relation": str(location_edge.get("relation")),
+                        "zone": query_result.zone_label,
+                    },
+                ),
+                source="graph",
+                grounded=True,
+                method="graph-temporal-location",
+                elapsed=time.monotonic() - started,
+                entity=label,
+                state="RESTING",
+                zone=query_result.zone_label,
+                last_seen=timestamp,
+            )
+
+        if state_edge is not None:
+            timestamp = float(state_edge.get("t_start", 0.0))
+            state = str(state_edge.get("to_state") or "")
+            verb = "picked up" if state == "HELD" else "touched"
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"At t={target_time:.1f}s the {label} was not resting on "
+                    f"a surface; it was last {verb} at t={timestamp:.1f}s."
+                ),
+                citations=(
+                    {
+                        "timestamp": timestamp,
+                        "relation": "STATE_TRANSITION",
+                        "zone": query_result.zone_label,
+                    },
+                ),
+                source="graph",
+                grounded=True,
+                method="graph-temporal-location",
+                elapsed=time.monotonic() - started,
+                entity=label,
+                state=state,
+                zone=query_result.zone_label,
+                last_seen=timestamp,
+            )
+
+        return RuntimeAnswer(
+            query=query,
+            answer=(
+                f"I don't have a recorded location for the {label} at "
+                f"t={target_time:.1f}s."
+            ),
+            source="graph",
+            grounded=False,
+            method="graph-temporal-location",
+            elapsed=time.monotonic() - started,
+            entity=label,
+            zone=query_result.zone_label,
+        )
+
     def _action_at_answer(self, query: str, started: float) -> RuntimeAnswer | None:
         """Answer "what did I do at 5 seconds?" from the nearest graph event."""
 
@@ -2432,6 +2564,9 @@ class ChronicleRuntime:
         window_answer = self._time_window_answer(query, started)
         if window_answer is not None:
             return window_answer
+        temporal_location = self._temporal_location_answer(query, started)
+        if temporal_location is not None:
+            return temporal_location
         at_answer = self._action_at_answer(query, started)
         if at_answer is not None:
             return at_answer

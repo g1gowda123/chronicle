@@ -33,6 +33,9 @@ All notable changes to Chronicle are documented here. The format follows
 - Time-window questions such as `what did I do between 5 and 8 seconds?`,
   `what happened from 5 to 8 seconds?`, and `what did I do after/before 5
   seconds?` return only the actions inside that interval.
+- Temporal location questions such as `where was the cup at 3 seconds?`
+  reconstruct the object’s state at that time, including whether it was being
+  held rather than resting on a surface.
 - Movement source/destination questions such as `where did I move the cup to?`
   and `where did I move the cup from?`, plus natural order phrasings such as
   `what was the last thing I touched?`.

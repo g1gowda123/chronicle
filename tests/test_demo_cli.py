@@ -525,6 +525,43 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertEqual(payload["grounded"], "99" not in question)
                 self.assertEqual(payload["answer"], expected)
 
+    def test_ask_temporal_location(self) -> None:
+        cases = (
+            (
+                "where was the cup at 3 seconds?",
+                "At t=3.0s the cup was not resting on a surface; it was last "
+                "picked up at t=1.9s.",
+            ),
+            (
+                "where was the cup at 5 seconds?",
+                "At t=5.0s the cup was on the kitchen counter.",
+            ),
+            (
+                "where was the cup at 0.5 seconds?",
+                "At t=0.5s the cup was on the dining table.",
+            ),
+            (
+                "where was the bottle at 9 seconds?",
+                "At t=9.0s the bottle was not resting on a surface; it was "
+                "last picked up at t=8.3s.",
+            ),
+            (
+                "where was the wallet at 3 seconds?",
+                "I don't have that in my memory.",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-temporal-location")
+                self.assertEqual(payload["grounded"], "wallet" not in question)
+                self.assertEqual(payload["answer"], expected)
+
     def test_ask_yes_no_temporal_action_order(self) -> None:
         cases = (
             (
