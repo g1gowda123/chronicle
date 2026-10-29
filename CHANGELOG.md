@@ -43,7 +43,8 @@ All notable changes to Chronicle are documented here. The format follows
 - Object-specific source and destination questions such as
   `what did I put the keys on?` and `what did I pick the cup up from?` answer
   from the recorded placement or pre-pickup support instead of listing every
-  interacted object.
+  interacted object. Stationary or unknown objects now get an explicit
+  no-recorded-pick-up/placement answer rather than a generic interaction list.
 - Open-ended sequence questions such as `what did I do before I put down the
   keys?` and `what happened after I picked up the cup?` return the ordered
   actions on either side of the referenced event.

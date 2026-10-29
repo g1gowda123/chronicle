@@ -1124,21 +1124,47 @@ class ChronicleRuntime:
         )
         if match is None:
             return None
-        target_tokens = content_tokens(match.group("phrase"))
+        phrase = match.group("phrase")
+        if re.match(r"^(?:on|in|at|to)\b", phrase, re.IGNORECASE):
+            # "what did I put on the counter?" asks for every placement, not
+            # for one named object; let the action overview handle it.
+            return None
+        target_tokens = content_tokens(phrase)
         target_tokens.discard("down")
         if not target_tokens:
             return None
         entity = self._entity_matching_tokens(target_tokens)
         if entity is None:
-            return None
+            return RuntimeAnswer(
+                query=query,
+                answer="I don't have that in my memory.",
+                source="graph",
+                grounded=False,
+                method="graph-object-destination",
+                elapsed=time.monotonic() - started,
+            )
         node_id = str(entity.get("node_id") or "")
         result = self.memory.query_entity(node_id, question=query)
         if result is None:
-            return None
+            return RuntimeAnswer(
+                query=query,
+                answer="I don't have that in my memory.",
+                source="graph",
+                grounded=False,
+                method="graph-object-destination",
+                elapsed=time.monotonic() - started,
+            )
         anchor = result.terminal_anchor or {}
         anchor_t = anchor.get("t_start")
         anchor_label = str(anchor.get("label") or anchor.get("anchor_id") or "").strip()
-        if anchor_t is None or not anchor_label:
+        interaction = result.last_interaction or {}
+        interaction_t = interaction.get("t")
+        if (
+            interaction_t is None
+            or anchor_t is None
+            or not anchor_label
+            or float(anchor_t) <= float(interaction_t)
+        ):
             return RuntimeAnswer(
                 query=query,
                 answer=(
@@ -1202,11 +1228,29 @@ class ChronicleRuntime:
             return None
         entity = self._entity_matching_tokens(target_tokens)
         if entity is None:
-            return None
+            return RuntimeAnswer(
+                query=query,
+                answer="I don't have that in my memory.",
+                source="graph",
+                grounded=False,
+                method="graph-object-source",
+                elapsed=time.monotonic() - started,
+            )
         node_id = str(entity.get("node_id") or "")
         result = self.memory.query_entity(node_id, question=query)
         if result is None or result.last_interaction is None:
-            return None
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"I don't have a recorded pick-up for the "
+                    f"{entity.get('label') or 'object'} in this memory."
+                ),
+                source="graph",
+                grounded=False,
+                method="graph-object-source",
+                elapsed=time.monotonic() - started,
+                entity=str(entity.get("label") or ""),
+            )
         support = self._support_before_last_interaction(result)
         if not support:
             return RuntimeAnswer(

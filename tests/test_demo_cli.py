@@ -667,6 +667,36 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertEqual(payload["method"], "graph-object-source")
                 self.assertEqual(payload["answer"], expected)
 
+    def test_ask_object_source_and_destination_abstain_without_events(self) -> None:
+        cases = (
+            (
+                "what did I grab the notebook from?",
+                "graph-object-source",
+                "I don't have a recorded pick-up for the notebook in this memory.",
+            ),
+            (
+                "where did I pick up the notebook?",
+                "graph-object-source",
+                "I don't have a recorded pick-up for the notebook in this memory.",
+            ),
+            (
+                "what did I put the mug on?",
+                "graph-object-destination",
+                "I don't have that in my memory.",
+            ),
+        )
+        for question, method, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], method)
+                self.assertFalse(payload["grounded"])
+                self.assertEqual(payload["answer"], expected)
+
     def test_ask_temporal_before_move_pronoun(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
