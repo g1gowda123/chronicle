@@ -27,6 +27,9 @@ All notable changes to Chronicle are documented here. The format follows
   pick-up/placement narrative instead of an abstention. If a clip ends before a
   placement is confirmed, the answer reports the interaction honestly; up to
   three recent interactions are included when several objects were handled.
+- Timestamp questions such as `what did I do at 5 seconds?` return the nearest
+  recorded pickup, touch, or placement, with an explicit closest-event fallback
+  when there is no action close to the requested time.
 - `when did I last see X?` and `when did I first see X?` are answered from the
   graph with a timestamp; the inventory answer now uses singular grammar for a
   one-entity memory.

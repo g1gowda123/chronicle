@@ -153,6 +153,12 @@ _EVENT_PRONOUN_TARGETS = {
     "everything",
     "anything",
 }
+_ACTION_AT_RE = re.compile(
+    r"\bwhat\s+(?:did\s+i\s+do|happened|was\s+happening)\s+"
+    r"(?:at|around|near)\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*"
+    r"(?:s|secs?|seconds?)\b",
+    re.IGNORECASE,
+)
 
 
 def _event_target(query: str) -> str | None:
@@ -1338,6 +1344,100 @@ class ChronicleRuntime:
                 best = (score, entity)
         return best[1] if best is not None else None
 
+    def _action_at_answer(self, query: str, started: float) -> RuntimeAnswer | None:
+        """Answer "what did I do at 5 seconds?" from the nearest graph event."""
+
+        match = _ACTION_AT_RE.search(query)
+        if match is None:
+            return None
+        target = float(match.group(1))
+
+        events: list[tuple[float, str, str, str]] = []
+        for entity in self.memory.foreground.entities():
+            result = self.memory.query_entity(
+                str(entity.get("node_id", "")), question=query
+            )
+            if result is None:
+                continue
+            label = result.label
+            if label.lower() in {"person", "people", "hand"}:
+                continue
+            interaction = result.last_interaction or {}
+            interaction_t = interaction.get("t")
+            interaction_kind = str(interaction.get("kind") or "")
+            interaction_verb = {
+                "HELD": "picked up",
+                "INTERACTED": "touched",
+            }.get(interaction_kind)
+            if interaction_t is not None and interaction_verb:
+                events.append(
+                    (
+                        float(interaction_t),
+                        f"{interaction_verb} the {label}",
+                        label,
+                        result.zone_label,
+                    )
+                )
+            anchor = result.terminal_anchor or {}
+            anchor_t = anchor.get("t_start")
+            if (
+                anchor_t is not None
+                and interaction_t is not None
+                and float(interaction_t) < float(anchor_t)
+            ):
+                anchor_label = str(
+                    anchor.get("label") or anchor.get("anchor_id") or "surface"
+                )
+                relation = str(anchor.get("relation") or "")
+                preposition = "inside" if relation.endswith("INSIDE") else "on"
+                events.append(
+                    (
+                        float(anchor_t),
+                        f"placed the {label} {preposition} the {anchor_label}",
+                        label,
+                        result.zone_label,
+                    )
+                )
+
+        if not events:
+            return RuntimeAnswer(
+                query=query,
+                answer="I don't have any recorded actions in this memory.",
+                source="graph",
+                grounded=False,
+                method="graph-action-at",
+                elapsed=time.monotonic() - started,
+            )
+
+        events.sort(key=lambda event: (abs(event[0] - target), event[0]))
+        timestamp, phrase, label, zone = events[0]
+        delta = abs(timestamp - target)
+        if delta <= 1.0:
+            answer = f"At t={timestamp:.1f}s you {phrase}."
+        else:
+            answer = (
+                f"I don't have an action at t={target:.1f}s. The closest "
+                f"recorded action was at t={timestamp:.1f}s: you {phrase}."
+            )
+        return RuntimeAnswer(
+            query=query,
+            answer=answer,
+            citations=(
+                {
+                    "timestamp": timestamp,
+                    "relation": "ACTION_AT",
+                    "zone": zone,
+                },
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-action-at",
+            elapsed=time.monotonic() - started,
+            entity=label,
+            zone=zone,
+            last_seen=timestamp,
+        )
+
     def _action_overview(self, query: str, started: float) -> RuntimeAnswer | None:
         """Summarize which objects share a requested interaction verb."""
 
@@ -1995,6 +2095,9 @@ class ChronicleRuntime:
         source_answer = self._object_source_answer(query, started)
         if source_answer is not None:
             return source_answer
+        at_answer = self._action_at_answer(query, started)
+        if at_answer is not None:
+            return at_answer
         action_answer = self._action_overview(query, started)
         if action_answer is not None:
             return action_answer

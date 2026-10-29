@@ -430,6 +430,35 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertEqual(payload["method"], "graph-action-sequence")
                 self.assertEqual(payload["answer"], answer)
 
+    def test_ask_action_at_timestamp(self) -> None:
+        cases = (
+            (
+                "what did I do at 5 seconds?",
+                "At t=5.1s you picked up the keys.",
+            ),
+            (
+                "what was happening at 4.2 seconds?",
+                "At t=4.2s you placed the cup on the kitchen counter.",
+            ),
+            (
+                "what did I do at 99 seconds?",
+                "I don't have an action at t=99.0s. The closest recorded "
+                "action was at t=10.6s: you placed the bottle on the kitchen "
+                "counter.",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-action-at")
+                self.assertTrue(payload["grounded"])
+                self.assertEqual(payload["answer"], expected)
+
     def test_ask_action_overview_matches_zone_as_well_as_anchor(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
