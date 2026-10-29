@@ -136,8 +136,13 @@ class AskDefaultTest(unittest.TestCase):
         self.assertEqual(code, 0)
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["method"], "graph-template-event")
-        self.assertIn("picked up the cup", payload["answer"])
-        self.assertIn("kitchen counter", payload["answer"])
+        answer = payload["answer"]
+        self.assertIn("picked up the cup", answer)
+        self.assertIn("kitchen counter", answer)
+        self.assertLess(answer.index("picked up the cup"), answer.index("picked up the keys"))
+        self.assertLess(
+            answer.index("picked up the keys"), answer.index("picked up the bottle")
+        )
 
     def test_ask_first_and_last_events_are_ordered(self) -> None:
         for question, expected, unexpected in (

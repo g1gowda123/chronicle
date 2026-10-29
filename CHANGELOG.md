@@ -81,6 +81,8 @@ All notable changes to Chronicle are documented here. The format follows
   resolve the placement event instead of abstaining.
 - `what happened first?` and `what happened last?` select the earliest or most
   recent interaction instead of returning the generic newest-first overview.
+- Generic event overviews (`what happened?`, `what did I do?`) list the selected
+  actions chronologically instead of newest-first.
 - Count questions scoped by interaction, such as `how many objects did I
   touch?`, count only entities with a recorded interaction.
 - Count questions about placement or movement require a confirmed terminal

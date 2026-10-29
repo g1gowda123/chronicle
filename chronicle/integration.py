@@ -1652,41 +1652,46 @@ class ChronicleRuntime:
         if not results:
             return None
 
-        if order is not None:
-            def event_time(index: int) -> float:
-                result = results[index]
-                interaction_times = [
-                    float(edge["t_start"])
-                    for edge in result.timeline()
-                    if edge.get("t_start") is not None
-                    and (
-                        edge.get("relation") == Relation.ACTION.value
-                        or (
-                            edge.get("relation") == Relation.STATE_TRANSITION.value
-                            and edge.get("to_state") in {"HELD", "INTERACTED"}
-                        )
+        def event_time(result: QueryResult) -> float:
+            interaction_times = [
+                float(edge["t_start"])
+                for edge in result.timeline()
+                if edge.get("t_start") is not None
+                and (
+                    edge.get("relation") == Relation.ACTION.value
+                    or (
+                        edge.get("relation") == Relation.STATE_TRANSITION.value
+                        and edge.get("to_state") in {"HELD", "INTERACTED"}
                     )
-                ]
-                if interaction_times:
-                    return (
-                        min(interaction_times)
-                        if order == "first"
-                        else max(interaction_times)
-                    )
-                times = [
-                    float(edge["t_start"])
-                    for edge in result.timeline()
-                    if edge.get("t_start") is not None
-                ]
-                if not times:
-                    return float(result.last_seen)
-                return min(times) if order == "first" else max(times)
+                )
+            ]
+            if interaction_times:
+                return max(interaction_times)
+            times = [
+                float(edge["t_start"])
+                for edge in result.timeline()
+                if edge.get("t_start") is not None
+            ]
+            return max(times) if times else float(result.last_seen)
 
-            keep = min(range(len(results)), key=event_time) if order == "first" else max(
-                range(len(results)), key=event_time
+        if order is not None:
+            keep = (
+                min(range(len(results)), key=lambda index: event_time(results[index]))
+                if order == "first"
+                else max(range(len(results)), key=lambda index: event_time(results[index]))
             )
             summaries = [summaries[keep]]
             results = [results[keep]]
+        else:
+            # A generic "what happened?" reads chronologically.  Selection
+            # above used last-seen order to pick the most recent entities;
+            # sort the chosen summaries by their event time for the answer.
+            ordered = sorted(
+                zip(results, summaries, strict=False),
+                key=lambda pair: event_time(pair[0]),
+            )
+            results = [pair[0] for pair in ordered]
+            summaries = [pair[1] for pair in ordered]
 
         first = results[0]
         return RuntimeAnswer(
