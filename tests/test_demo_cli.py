@@ -571,6 +571,33 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertEqual(payload["grounded"], "wallet" not in question)
                 self.assertEqual(payload["answer"], expected)
 
+    def test_ask_time_window_counts(self) -> None:
+        cases = (
+            (
+                "how many objects did I pick up after 5 seconds?",
+                "You picked up 2 objects after t=5.0s.",
+            ),
+            (
+                "how many objects did I pick up between 5 and 8 seconds?",
+                "You picked up 1 object between t=5.0s and t=8.0s.",
+            ),
+            (
+                "how many objects did I place after 5 seconds?",
+                "You placed 2 objects after t=5.0s.",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-count")
+                self.assertTrue(payload["grounded"])
+                self.assertEqual(payload["answer"], expected)
+
     def test_ask_yes_no_temporal_action_order(self) -> None:
         cases = (
             (

@@ -32,7 +32,8 @@ All notable changes to Chronicle are documented here. The format follows
   when there is no action close to the requested time.
 - Time-window questions such as `what did I do between 5 and 8 seconds?`,
   `what happened from 5 to 8 seconds?`, and `what did I do after/before 5
-  seconds?` return only the actions inside that interval.
+  seconds?` return only the actions inside that interval. Counts honor the
+  same windows, e.g. `how many objects did I pick up after 5 seconds?`.
 - Temporal location questions such as `where was the cup at 3 seconds?`
   reconstruct the object’s state at that time, including whether it was being
   held rather than resting on a surface.

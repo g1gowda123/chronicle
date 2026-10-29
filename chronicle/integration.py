@@ -761,6 +761,29 @@ class ChronicleRuntime:
             preposition = surface_match.group(1).lower()
             surface_phrase = surface_match.group(2).strip()
             surface_tokens = content_tokens(surface_phrase)
+        lower: float | None = None
+        upper: float | None = None
+        range_match = _TIME_RANGE_RE.search(query)
+        after_match = _TIME_AFTER_RE.search(query)
+        before_match = _TIME_BEFORE_RE.search(query)
+        if range_match is not None:
+            lower = float(range_match.group(1))
+            upper = float(range_match.group(2))
+            if upper < lower:
+                lower, upper = upper, lower
+        elif after_match is not None:
+            lower = float(after_match.group(1))
+        elif before_match is not None:
+            upper = float(before_match.group(1))
+        if lower is not None and upper is not None:
+            time_suffix = f" between t={lower:.1f}s and t={upper:.1f}s"
+        elif lower is not None:
+            time_suffix = f" after t={lower:.1f}s"
+        elif upper is not None:
+            time_suffix = f" before t={upper:.1f}s"
+        else:
+            time_suffix = ""
+
         query_variants = {
             variant for token in tokens for variant in expand_token(token)
         }
@@ -803,6 +826,25 @@ class ChronicleRuntime:
                         or candidate_tokens <= surface_tokens
                     ):
                         continue
+            if lower is not None or upper is not None:
+                if interaction_only and result is not None:
+                    if placement_only:
+                        anchor = result.terminal_anchor or {}
+                        event_t = anchor.get("t_start")
+                    else:
+                        event_t = (result.last_interaction or {}).get("t")
+                elif surface_tokens and result is not None:
+                    anchor = result.terminal_anchor or {}
+                    event_t = anchor.get("t_start")
+                else:
+                    event_t = entity.get("last_seen")
+                if event_t is None:
+                    continue
+                timestamp = float(event_t)
+                if lower is not None and timestamp < lower:
+                    continue
+                if upper is not None and timestamp > upper:
+                    continue
             label = str(entity.get("label") or "")
             label_tokens = content_tokens(label)
             label_variants = {
@@ -822,9 +864,9 @@ class ChronicleRuntime:
                 matches.append(entity)
         if not matches:
             where = (
-                f" {preposition} the {surface_phrase}"
+                f" {preposition} the {surface_phrase}{time_suffix}"
                 if surface_tokens
-                else " in my memory"
+                else (time_suffix or " in my memory")
             )
             if interaction_only:
                 return RuntimeAnswer(
@@ -857,9 +899,9 @@ class ChronicleRuntime:
         )
         last_seen = float(latest.get("last_seen", 0.0) or 0.0)
         place = (
-            f" {preposition} the {surface_phrase}"
+            f" {preposition} the {surface_phrase}{time_suffix}"
             if surface_tokens
-            else " in this memory"
+            else (f" {time_suffix.strip()}" if time_suffix else " in this memory")
         )
         if interaction_only:
             if re.search(
