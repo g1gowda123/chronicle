@@ -473,6 +473,20 @@ class AskDefaultTest(unittest.TestCase):
                 "did I move the notebook?",
                 "No. I don't have a recorded interaction with the notebook.",
             ),
+            (
+                "are the keys on the dining table?",
+                "Yes. The keys are on the dining table.",
+            ),
+            (
+                "were the keys on the kitchen counter before I picked them up?",
+                "Yes. The keys were on the kitchen counter before they were "
+                "picked up.",
+            ),
+            (
+                "were the keys on the dining table before I picked them up?",
+                "No. The keys were on the kitchen counter before they were "
+                "picked up.",
+            ),
         )
         for question, answer in cases:
             with self.subTest(question=question):

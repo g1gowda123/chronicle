@@ -1343,6 +1343,17 @@ class ChronicleRuntime:
         if location_match is not None:
             target = location_match.group("target").strip()
             surface = location_match.group("surface").strip()
+            before_pickup = False
+            if " before " in surface.lower():
+                surface_text, _, before_clause = surface.partition(" before ")
+                if re.search(
+                    r"\b(?:pick(?:ed)?|picked\s+up|move(?:d)?|place(?:d)?|"
+                    r"set\s+down)\b",
+                    before_clause,
+                    re.IGNORECASE,
+                ):
+                    surface = surface_text.strip()
+                    before_pickup = True
             surface_tokens = content_tokens(surface)
             if not surface_tokens:
                 return None
@@ -1362,6 +1373,12 @@ class ChronicleRuntime:
             matches = bool(actual_tokens) and (
                 surface_tokens <= actual_tokens or actual_tokens <= surface_tokens
             )
+            if before_pickup:
+                actual = self._support_before_last_interaction(result)
+                actual_tokens = content_tokens(actual)
+                matches = bool(actual_tokens) and (
+                    surface_tokens <= actual_tokens or actual_tokens <= surface_tokens
+                )
             if not actual:
                 actual = result.zone_label or "the scene"
                 actual_tokens = content_tokens(actual)
@@ -1369,12 +1386,24 @@ class ChronicleRuntime:
                     surface_tokens <= actual_tokens or actual_tokens <= surface_tokens
                 )
             preposition = "on" if anchor else "in"
+            plural = is_plural(result.label)
+            if before_pickup:
+                copula = "were" if plural else "was"
+                pronoun = "they" if plural else "it"
+                answer = (
+                    f"{'Yes' if matches else 'No'}. The {result.label} {copula} "
+                    f"{preposition} the {actual} before {pronoun} {copula} "
+                    "picked up."
+                )
+            else:
+                copula = "are" if plural else "is"
+                answer = (
+                    f"{'Yes' if matches else 'No'}. The {result.label} {copula} "
+                    f"{preposition} the {actual}."
+                )
             return RuntimeAnswer(
                 query=query,
-                answer=(
-                    f"{'Yes' if matches else 'No'}. The {result.label} is "
-                    f"{preposition} the {actual}."
-                ),
+                answer=answer,
                 citations=(
                     {
                         "timestamp": result.last_seen,

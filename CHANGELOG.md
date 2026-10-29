@@ -99,6 +99,9 @@ All notable changes to Chronicle are documented here. The format follows
   down`, and `grab`.
 - Pick-up source refusals use correct plural agreement, such as `The keys were on
   the kitchen counter before they were picked up.`
+- Location confirmations use plural agreement and understand a preceding
+  `before I picked …` state, such as `were the keys on the kitchen counter
+  before I picked them up?`
 - Surface inventories understand `what objects are on …?` / `which objects
   are on …?`.
 - Location questions without a recorded spatial fact now abstain explicitly
