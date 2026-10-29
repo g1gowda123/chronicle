@@ -250,6 +250,64 @@ class AskDefaultTest(unittest.TestCase):
             payload["answer"], "You put down the keys and the bottle."
         )
 
+    def test_ask_action_overview_supports_surface_and_before_reference(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                [
+                    "ask",
+                    "what did I put on the kitchen counter before the bottle?",
+                    "--llm",
+                    "template",
+                ]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-action")
+        self.assertEqual(payload["answer"], "You put down the cup on the kitchen counter.")
+
+    def test_ask_action_sequence_before_reference(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                [
+                    "ask",
+                    "what did I do before I put down the keys?",
+                    "--llm",
+                    "template",
+                ]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-action-sequence")
+        self.assertEqual(
+            payload["answer"],
+            "Before you put down the keys, you picked up the cup at t=1.9s, "
+            "placed the cup on the kitchen counter at t=4.2s, and picked up "
+            "the keys at t=5.1s.",
+        )
+
+    def test_ask_action_sequence_after_reference(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                [
+                    "ask",
+                    "what happened after I picked up the cup?",
+                    "--llm",
+                    "template",
+                ]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-action-sequence")
+        self.assertTrue(payload["answer"].startswith("After you picked up the cup,"))
+        self.assertIn("placed the cup on the kitchen counter at t=4.2s", payload["answer"])
+        self.assertIn("placed the bottle on the kitchen counter at t=10.6s", payload["answer"])
+
     def test_ask_action_overview_matches_zone_as_well_as_anchor(self) -> None:
         stdout = StringIO()
         stderr = StringIO()

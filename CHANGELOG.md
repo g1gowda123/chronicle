@@ -38,7 +38,11 @@ All notable changes to Chronicle are documented here. The format follows
   `what did I put in the kitchen?` includes objects placed on the dining table
   as well as the counter.
 - Action overviews honor a trailing `before`/`after` object reference, so
-  `what did I pick up before the keys?` returns only earlier pickups.
+  `what did I pick up before the keys?` returns only earlier pickups, including
+  when the same sentence also names a surface.
+- Open-ended sequence questions such as `what did I do before I put down the
+  keys?` and `what happened after I picked up the cup?` return the ordered
+  actions on either side of the referenced event.
 - `chronicle --version` reports the installed distribution version, and
   `chronicle doctor` includes it in both text and JSON reports.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and

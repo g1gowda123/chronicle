@@ -908,6 +908,144 @@ class ChronicleRuntime:
             last_seen=newest[2],
         )
 
+    def _action_sequence_answer(
+        self, query: str, started: float
+    ) -> RuntimeAnswer | None:
+        """Answer "what did I do before/after I <action> <object>?".
+
+        The generic temporal path resolves the referenced object itself and
+        reports that object's earlier state, which reads as a non-answer
+        ("before the keys, the keys were ...").  This handler builds a small
+        ordered action timeline from each entity's latest pickup and terminal
+        placement, then filters it around the referenced action.
+        """
+
+        match = re.search(
+            r"\b(?:what happened|what did i do)\s+(before|after)\s+i\s+"
+            r"(picked\s*up|pick\s*up|grabbed|put\s*down|put|placed|place|"
+            r"touched|touch)\s+(?:(?:the|my|our)\s+)?"
+            r"([a-z][a-z0-9 _-]*?)\s*\??$",
+            query.lower(),
+        )
+        if match is None:
+            return None
+
+        direction, verb_phrase, reference_label = match.groups()
+        verb_phrase = re.sub(r"\s+", " ", verb_phrase)
+        if verb_phrase.startswith(("pick", "grab")):
+            reference_action = "pickup"
+        elif verb_phrase.startswith(("put", "place")):
+            reference_action = "place"
+        else:
+            reference_action = "interaction"
+        reference_tokens = content_tokens(reference_label)
+
+        events: list[tuple[float, str, str, dict[str, Any] | None]] = []
+        reference_times: list[float] = []
+        for entity in self.memory.foreground.entities():
+            result = self.memory.query_entity(
+                str(entity.get("node_id", "")), question=query
+            )
+            if result is None:
+                continue
+            label = result.label
+            interaction = result.last_interaction or {}
+            interaction_t = interaction.get("t")
+            interaction_kind = str(interaction.get("kind") or "")
+            interaction_verb = {
+                "HELD": "picked up",
+                "INTERACTED": "touched",
+            }.get(interaction_kind)
+            if interaction_t is not None and interaction_verb:
+                events.append(
+                    (float(interaction_t), label, interaction_verb, None)
+                )
+                if reference_tokens <= content_tokens(label):
+                    if reference_action == "pickup" and interaction_verb == "picked up":
+                        reference_times.append(float(interaction_t))
+                    elif reference_action == "interaction":
+                        reference_times.append(float(interaction_t))
+            anchor = result.terminal_anchor or {}
+            anchor_t = anchor.get("t_start")
+            # A terminal anchor at t=0.5 is the object's initial resting
+            # place, not an action the user performed.  Only count a
+            # placement when a pickup precedes it.
+            if (
+                anchor_t is not None
+                and interaction_t is not None
+                and float(interaction_t) < float(anchor_t)
+            ):
+                events.append((float(anchor_t), label, "placed", anchor))
+                if reference_tokens <= content_tokens(label):
+                    if reference_action == "place":
+                        reference_times.append(float(anchor_t))
+
+        if not reference_times:
+            return None
+        boundary = max(reference_times)
+        if direction == "before":
+            selected = [event for event in events if event[0] < boundary]
+        else:
+            selected = [event for event in events if event[0] > boundary]
+        selected.sort(key=lambda event: event[0])
+        if not selected:
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    f"I don't have any recorded actions {direction} you "
+                    f"{verb_phrase} the {reference_label} in this memory."
+                ),
+                source="graph",
+                grounded=False,
+                method="graph-action-sequence",
+                elapsed=time.monotonic() - started,
+            )
+
+        phrases: list[str] = []
+        for timestamp, label, kind, anchor in selected:
+            if kind in {"picked up", "touched"}:
+                phrases.append(f"{kind} the {label} at t={timestamp:.1f}s")
+                continue
+            anchor_label = str(
+                (anchor or {}).get("label")
+                or (anchor or {}).get("anchor_id")
+                or "surface"
+            )
+            relation = str((anchor or {}).get("relation") or "")
+            preposition = "inside" if relation.endswith("INSIDE") else "on"
+            phrases.append(
+                f"placed the {label} {preposition} the {anchor_label} "
+                f"at t={timestamp:.1f}s"
+            )
+        if len(phrases) == 1:
+            listed = phrases[0]
+        elif len(phrases) == 2:
+            listed = f"{phrases[0]} and {phrases[1]}"
+        else:
+            listed = ", ".join(phrases[:-1]) + f", and {phrases[-1]}"
+        ref_verb = {
+            "pickup": "picked up",
+            "place": "put down",
+            "interaction": "touched",
+        }[reference_action]
+        return RuntimeAnswer(
+            query=query,
+            answer=(
+                f"{direction.capitalize()} you {ref_verb} the "
+                f"{reference_label}, you {listed}."
+            ),
+            citations=tuple(
+                {"timestamp": round(timestamp, 1), "relation": "ACTION"}
+                for timestamp, _, _, _ in selected
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-action-sequence",
+            elapsed=time.monotonic() - started,
+            entity=reference_label,
+            last_seen=selected[-1][0],
+        )
+
     def _action_overview(self, query: str, started: float) -> RuntimeAnswer | None:
         """Summarize which objects share a requested interaction verb."""
 
@@ -928,7 +1066,7 @@ class ChronicleRuntime:
 
         surface_match = re.search(
             r"\b(on|in|at|from)\s+(?:(?:the|my|our)\s+)?"
-            r"([a-z][a-z0-9 _-]*?)\s*\??$",
+            r"([a-z][a-z0-9 _-]*?)(?=\s+(?:before|after)\b|\s*\??$)",
             query_lower,
         )
         preposition = ""
@@ -1332,6 +1470,9 @@ class ChronicleRuntime:
         count_answer = self._count_answer(query, started)
         if count_answer is not None:
             return count_answer
+        sequence_answer = self._action_sequence_answer(query, started)
+        if sequence_answer is not None:
+            return sequence_answer
         action_answer = self._action_overview(query, started)
         if action_answer is not None:
             return action_answer
