@@ -954,20 +954,38 @@ class ChronicleRuntime:
         placement, then filters it around the referenced action.
         """
 
+        query_text = query.lower()
+        # Particle-separated references first: "picked the cup up",
+        # "picking the cup up", "set the cup down".  Otherwise the
+        # contiguous pattern would swallow the trailing particle into the
+        # object label.
         match = re.search(
             r"\b(?:what happened|what did i do)\s+(before|after)\s+"
             r"(?:i\s+)?"
-            r"(picked\s*up|picking\s*up|pick\s*up|grabbed|grabbing|"
-            r"put\s*down|putting\s*down|set\s*down|setting\s*down|put|"
-            r"placed|placing|place|moved|moving|move|"
-            r"touched|touching|touch)\s+(?:(?:the|my|our)\s+)?"
-            r"([a-z][a-z0-9 _-]*?)\s*\??$",
-            query.lower(),
+            r"(picked|picking|pick|grabbed|grabbing|put|putting|"
+            r"set|setting|placed|placing|place|moved|moving|move|"
+            r"touched|touching|touch)\s+"
+            r"(?:(?:the|my|our)\s+)?([a-z][a-z0-9 _-]*?)\s+"
+            r"(up|down)\s*\??$",
+            query_text,
         )
-        if match is None:
-            return None
-
-        direction, verb_phrase, reference_label = match.groups()
+        if match is not None:
+            direction, verb, reference_label, particle = match.groups()
+            verb_phrase = f"{verb} {particle}"
+        else:
+            match = re.search(
+                r"\b(?:what happened|what did i do)\s+(before|after)\s+"
+                r"(?:i\s+)?"
+                r"(picked\s*up|picking\s*up|pick\s*up|grabbed|grabbing|"
+                r"put\s*down|putting\s*down|set\s*down|setting\s*down|put|"
+                r"placed|placing|place|moved|moving|move|"
+                r"touched|touching|touch)\s+(?:(?:the|my|our)\s+)?"
+                r"([a-z][a-z0-9 _-]*?)\s*\??$",
+                query_text,
+            )
+            if match is None:
+                return None
+            direction, verb_phrase, reference_label = match.groups()
         verb_phrase = re.sub(r"\s+", " ", verb_phrase)
         if verb_phrase.startswith(("pick", "grab")):
             reference_action = "pickup"

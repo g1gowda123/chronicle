@@ -398,6 +398,20 @@ class AskDefaultTest(unittest.TestCase):
                 "what did I do before I moved the cup?",
                 "Before you moved the cup, you picked up the cup at t=1.9s.",
             ),
+            (
+                "what did I do after I picked the cup up?",
+                "After you picked up the cup, you placed the cup on the "
+                "kitchen counter at t=4.2s, picked up the keys at t=5.1s, "
+                "placed the keys on the dining table at t=7.4s, picked up "
+                "the bottle at t=8.3s, and placed the bottle on the kitchen "
+                "counter at t=10.6s.",
+            ),
+            (
+                "what did I do before I put the keys down?",
+                "Before you put down the keys, you picked up the cup at "
+                "t=1.9s, placed the cup on the kitchen counter at t=4.2s, "
+                "and picked up the keys at t=5.1s.",
+            ),
         )
         for question, answer in cases:
             with self.subTest(question=question):
