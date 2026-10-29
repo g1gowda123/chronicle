@@ -57,7 +57,8 @@ _PREVIOUS_RE = re.compile(
     re.IGNORECASE,
 )
 _EVENT_RE = re.compile(
-    r"\b(?:what happened|what did i do|what was i doing|tell me what happened)\b",
+    r"\b(?:what happened|what did i do|what was i doing|tell me what happened|"
+    r"what was the (?:first|last) thing i did)\b",
     re.IGNORECASE,
 )
 _PRONOUN_CLAUSES = {"that", "this", "then", "now", "it", "they", "them", "that event", "that time"}

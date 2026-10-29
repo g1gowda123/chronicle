@@ -679,11 +679,25 @@ class ChronicleRuntime:
             return None
 
         generic = tokens <= {"object", "objects", "thing", "things", "item", "items"}
+        interaction_only = bool(
+            re.search(
+                r"\b(?:touch(?:ed)?|interact(?:ed)?|handle(?:d)?|"
+                r"pick(?:ed)?\s+up|move(?:d)?)\b",
+                query,
+                re.IGNORECASE,
+            )
+        )
         query_variants = {
             variant for token in tokens for variant in expand_token(token)
         }
         matches = []
         for entity in self.memory.foreground.entities():
+            if interaction_only:
+                result = self.memory.query_entity(
+                    str(entity.get("node_id", "")), question=query
+                )
+                if result is None or result.last_interaction is None:
+                    continue
             label = str(entity.get("label") or "")
             label_tokens = content_tokens(label)
             label_variants = {
@@ -702,6 +716,18 @@ class ChronicleRuntime:
             ):
                 matches.append(entity)
         if not matches:
+            if interaction_only:
+                return RuntimeAnswer(
+                    query=query,
+                    answer=(
+                        f"I don't have any recorded interactions with {phrase} "
+                        "in my memory."
+                    ),
+                    source="graph",
+                    grounded=False,
+                    method="graph-count",
+                    elapsed=time.monotonic() - started,
+                )
             return RuntimeAnswer(
                 query=query,
                 answer=f"I don't have any {phrase} in my memory.",
@@ -720,9 +746,18 @@ class ChronicleRuntime:
             str(latest.get("zone_id") or self.memory.active_zone or "")
         )
         last_seen = float(latest.get("last_seen", 0.0) or 0.0)
+        if interaction_only:
+            answer = (
+                f"You interacted with {count} {noun}{plural} in this memory."
+            )
+        else:
+            answer = (
+                f"There {'is' if count == 1 else 'are'} {count} "
+                f"{noun}{plural} in this memory."
+            )
         return RuntimeAnswer(
             query=query,
-            answer=f"There {'is' if count == 1 else 'are'} {count} {noun}{plural} in this memory.",
+            answer=answer,
             citations=(
                 {
                     "timestamp": last_seen,
@@ -831,13 +866,88 @@ class ChronicleRuntime:
             last_seen=newest[2],
         )
 
+    def _action_overview(self, query: str, started: float) -> RuntimeAnswer | None:
+        """Summarize which objects share a requested interaction verb."""
+
+        query_lower = query.lower()
+        action = ""
+        if re.search(r"\bwhat did i (?:pick\s*up|pickup|grab)\b", query_lower):
+            action = "pickup"
+        elif re.search(r"\bwhat did i (?:put\s*down|place|set\s*down)\b", query_lower):
+            action = "place"
+        elif re.search(
+            r"\bwhat did i (?:touch|interact\s+with|handle)\b", query_lower
+        ):
+            action = "interaction"
+        if not action:
+            return None
+
+        entries: list[tuple[QueryResult, float]] = []
+        for entity in self.memory.foreground.entities():
+            result = self.memory.query_entity(
+                str(entity.get("node_id", "")), question=query
+            )
+            if result is None or result.last_interaction is None:
+                continue
+            summary = result.event_summary()
+            if action == "pickup" and (not summary or "picked up" not in summary):
+                continue
+            if action == "place" and (not summary or "placed" not in summary):
+                continue
+            interaction = result.last_interaction
+            timestamp = float(interaction.get("t", result.last_seen) or 0.0)
+            entries.append((result, timestamp))
+        if not entries:
+            return RuntimeAnswer(
+                query=query,
+                answer=f"I don't have any recorded {action} events in this memory.",
+                source="graph",
+                grounded=False,
+                method="graph-action",
+                elapsed=time.monotonic() - started,
+            )
+
+        entries.sort(key=lambda item: item[1])
+        labels = [result.label for result, _ in entries]
+        if len(labels) == 1:
+            listed = f"the {labels[0]}"
+        else:
+            listed = (
+                ", ".join(f"the {label}" for label in labels[:-1])
+                + f" and the {labels[-1]}"
+            )
+        verb = {"pickup": "picked up", "place": "put down", "interaction": "interacted with"}[
+            action
+        ]
+        first = entries[0][0]
+        return RuntimeAnswer(
+            query=query,
+            answer=f"You {verb} {listed}.",
+            citations=tuple(
+                {
+                    "timestamp": timestamp,
+                    "relation": "INTERACTION",
+                    "zone": result.zone_label,
+                }
+                for result, timestamp in entries
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-action",
+            elapsed=time.monotonic() - started,
+            entity=first.label,
+            state=first.state,
+            zone=first.zone_label,
+            last_seen=entries[-1][1],
+        )
+
     def _event_overview(self, query: str, started: float) -> RuntimeAnswer | None:
         """Summarize the most recent recorded interactions for a generic event query."""
 
         order = None
         if re.search(r"\b(?:first|earliest)\b", query, re.IGNORECASE):
             order = "first"
-        elif re.search(r"\b(?:last|latest|most recent)\b", query, re.IGNORECASE):
+        elif re.search(r"\b(?:last|latest|most recent(?:ly)?)\b", query, re.IGNORECASE):
             order = "last"
 
         entities = sorted(
@@ -930,6 +1040,9 @@ class ChronicleRuntime:
         count_answer = self._count_answer(query, started)
         if count_answer is not None:
             return count_answer
+        action_answer = self._action_overview(query, started)
+        if action_answer is not None:
+            return action_answer
         result = self.memory.query(query)
         if result is not None and _LAST_SEEN_RE.search(query):
             first = bool(re.search(r"\bfirst\b", query, re.IGNORECASE))

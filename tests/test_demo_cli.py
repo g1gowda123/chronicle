@@ -142,7 +142,12 @@ class AskDefaultTest(unittest.TestCase):
     def test_ask_first_and_last_events_are_ordered(self) -> None:
         for question, expected, unexpected in (
             ("what happened first?", "picked up the cup", "picked up the bottle"),
+            ("what did I do first?", "picked up the cup", "picked up the bottle"),
+            ("what was the first thing I did?", "picked up the cup", "picked up the bottle"),
             ("what happened last?", "picked up the bottle", "picked up the cup"),
+            ("what did I do last?", "picked up the bottle", "picked up the cup"),
+            ("what was the last thing I did?", "picked up the bottle", "picked up the cup"),
+            ("what happened most recently?", "picked up the bottle", "picked up the cup"),
         ):
             with self.subTest(question=question):
                 stdout = StringIO()
@@ -187,6 +192,37 @@ class AskDefaultTest(unittest.TestCase):
         self.assertEqual(payload["method"], "graph-count")
         self.assertFalse(payload["grounded"])
         self.assertIn("don't have any elephants", payload["answer"])
+
+    def test_ask_count_scopes_to_interacted_objects(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                ["ask", "how many objects did I touch?", "--llm", "template"]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-count")
+        self.assertEqual(payload["answer"], "You interacted with 3 objects in this memory.")
+
+    def test_ask_action_overview_lists_interacted_objects(self) -> None:
+        for question, verb in (
+            ("what did I pick up?", "picked up"),
+            ("what did I put down?", "put down"),
+            ("what did I interact with?", "interacted with"),
+        ):
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-action")
+                self.assertEqual(
+                    payload["answer"],
+                    f"You {verb} the cup, the keys and the bottle.",
+                )
 
     def test_ask_inventory_summary_uses_singular_nouns(self) -> None:
         stdout = StringIO()

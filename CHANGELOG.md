@@ -59,6 +59,10 @@ All notable changes to Chronicle are documented here. The format follows
   resolve the placement event instead of abstaining.
 - `what happened first?` and `what happened last?` select the earliest or most
   recent interaction instead of returning the generic newest-first overview.
+- Count questions scoped by interaction, such as `how many objects did I
+  touch?`, count only entities with a recorded interaction.
+- `what did I pick up?`, `what did I put down?`, and `what did I interact
+  with?` summarize the objects that share the requested interaction.
 - Location questions without a recorded spatial fact now abstain explicitly
   instead of presenting an unrelated action or state as a location.
 - Hyphenated detector labels such as `joy-con` now canonicalize with
