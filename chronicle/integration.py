@@ -42,6 +42,7 @@ from chronicle.attributes import (
     attribute_summary,
     public_attributes,
 )
+from chronicle.audio import TranscriptIndex
 from chronicle.config import (
     DEFAULT_THRESHOLDS,
     STATIC_FURNITURE_LABELS,
@@ -196,6 +197,7 @@ class ChronicleRuntime:
         semantic: SemanticEngine | None = None,
         semantic_config: SemanticConfig | None = None,
         semantic_enabled: bool = True,
+        transcript: TranscriptIndex | None = None,
         perception_config: PerceptionConfig | None = None,
         zone_label: str | None = None,
         zone_id: str | None = None,
@@ -210,6 +212,7 @@ class ChronicleRuntime:
         self.zone_label = zone_label
         self.zone_id = zone_id
         self.semantic_enabled = semantic_enabled
+        self.transcript = transcript
         self._semantic_config = semantic_config
         self._semantic = semantic
         self.perception_config = copy.deepcopy(perception_config or PerceptionConfig())
@@ -626,8 +629,52 @@ class ChronicleRuntime:
             last_seen=newest_t,
         )
 
+    def _transcript_answer(self, query: str, started: float) -> RuntimeAnswer | None:
+        """Answer explicit speech/audio questions from a Whisper transcript."""
+        if self.transcript is None:
+            return None
+        lower = query.lower()
+        if not re.search(r"\b(instructor|teacher|person|someone|they)\b", lower):
+            return None
+        speech_question = bool(re.search(r"\b(say|said|says|tell|told)\b", lower))
+        correction_question = bool(
+            re.search(r"\bhow\s+(?:was|were)\b.*\bcorrected\b", lower)
+        )
+        if not (speech_question or correction_question):
+            return None
+        match = re.search(
+            r"\b(?:at|around|near)\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds?)?",
+            lower,
+        )
+        if match is None:
+            return None
+        timestamp = float(match.group(1))
+        segment = self.transcript.at(timestamp, tolerance=10.0)
+        if segment is None:
+            return None
+        if re.search(r"\b(correct|corrected|correction|wrong|mistake)\b", lower):
+            answer = (
+                f'The person was corrected verbally at t={timestamp:.1f}s: '
+                f'"{segment.text}"'
+            )
+        else:
+            answer = f'At t={segment.start:.1f}s the instructor said: "{segment.text}"'
+        return RuntimeAnswer(
+            query=query,
+            answer=answer,
+            citations=({"timestamp": segment.start, "relation": "TRANSCRIPT"},),
+            source="audio",
+            grounded=True,
+            method="transcript",
+            elapsed=time.monotonic() - started,
+            last_seen=segment.start,
+        )
+
     def _ask_impl(self, query: str) -> RuntimeAnswer:
         started = time.monotonic()
+        transcript_answer = self._transcript_answer(query, started)
+        if transcript_answer is not None:
+            return transcript_answer
         colour_answer = self._colour_inventory_answer(query, started)
         if colour_answer is not None:
             return colour_answer

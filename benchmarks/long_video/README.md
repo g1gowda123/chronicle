@@ -65,11 +65,12 @@ The original session video is only 454x256. We repeated the same 40 questions
 with a higher-resolution source (896x504, from HoloAssist's pitch-shifted
 release) and with a 2x2 tiled detector pass restricted to fine objects.
 
-| Variant | Video | Tiling | Recall@1 | VLM calls | Graph entities |
-|---|---|---:|---:|---:|---:|
-| Compressed baseline | 454x256 | no | 5/40 | 54 | 13 |
-| High-resolution | 896x504 | no | 5/40 | 50 | 13 |
-| High-resolution + fine-object tiling | 896x504 | 2x2 | 5/40 | 50 | 13 |
+| Variant | Video | Tiling | Transcript | Recall@1 | VLM calls | Graph entities |
+|---|---|---:|---:|---:|---:|---:|
+| Compressed baseline | 454x256 | no | no | 5/40 | 54 | 13 |
+| High-resolution | 896x504 | no | no | 5/40 | 50 | 13 |
+| High-resolution + fine-object tiling | 896x504 | 2x2 | no | 5/40 | 50 | 13 |
+| High-resolution + transcript | 896x504 | no | yes | **7/40** | 50 | 17 |
 
 Tiling did not add usable wrist straps, game cards, SD cards, the kickstand, or
 the power button. On this session, resolution and generic open-vocabulary
@@ -77,10 +78,18 @@ tiling are not enough; fine-object evidence and action structure remain the
 bottleneck.
 
 The high-resolution pitch-shifted release does include an audio track, unlike
-the compressed 454x256 file. A Whisper-small transcript recovers the instructor
-instructions and several verbal corrections, so audio is a viable additional
-evidence source for the error/correction questions. It is not yet wired into
-the graph; the 5/40 result above is video-only.
+the compressed 454x256 file. A Whisper-medium transcript recovers the instructor
+instructions and several verbal corrections. The runtime now attaches that
+transcript as a separate evidence source for explicit speech and correction
+questions; it does not override visual or graph questions. This raises the
+lenient score from 5/40 to **7/40 (17.5%)** without changing the video path or
+the question set.
+
+The transcript gain is limited to two questions: `How was the person corrected
+at 25 seconds?` and `What did the instructor say at 42 seconds?`. It cannot
+answer questions about actions or objects that were never perceived. The
+high-resolution run uses `data/qa/holoassist_z210_transcript.json`, generated
+with `openai/whisper-medium.en` (21 timestamped segments).
 
 ### Strict evidence audit
 
@@ -88,8 +97,9 @@ The 5/40 score uses lenient token matching. A manual audit shows that only one
 of the five passes is a substantive answer (the comfort-grip count); the other
 four are generic `last recorded event ... Work Table` strings that happen to
 contain the expected location token. The strict, evidence-aware score is 1/40.
-The 5/40 number should therefore be reported as a lenient upper bound, never as
-genuine action understanding.
+The transcript run adds two genuinely grounded speech answers, so its strict
+score is 3/40. Neither number should be presented as genuine action
+understanding; the lenient scores are upper bounds.
 
 ## Why it fails
 
@@ -116,8 +126,9 @@ This is a real long-video limitation, not a QA-format artifact:
   annotations) instead of inferring actions from hand motion alone.
 - A temporal event-store query that can answer "what happened between X and Y"
   without collapsing to the last state.
-- Transcript/ASR if questions about instructor speech and verbal corrections
-  are to be answerable at all; the compressed video has no audio stream.
+- Transcript/ASR for questions about instructor speech and verbal corrections;
+  the compressed video has no audio stream, so this requires the
+  higher-resolution pitch-shifted release.
 - A larger, independently written question set; 40 is a diagnostic, not a
   statistically powered benchmark.
 

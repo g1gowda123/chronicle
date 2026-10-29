@@ -907,7 +907,15 @@ class ChronicleEngine:
         self.semantic_config = self._semantic_config()
         runtime_section = _section(self.raw_config, "runtime")
         semantic_section = _section(self.raw_config, "semantic")
+        audio_section = _section(self.raw_config, "audio")
         semantic_enabled = bool(semantic_section.get("enabled", True))
+        transcript = None
+        if bool(audio_section.get("enabled", False)):
+            from chronicle.audio import TranscriptIndex
+
+            transcript_path = Path(str(audio_section.get("transcript_path", "")))
+            if transcript_path.exists():
+                transcript = TranscriptIndex.from_json(transcript_path)
 
         semantic = None
         if semantic_enabled:
@@ -944,6 +952,7 @@ class ChronicleEngine:
             semantic=semantic,
             semantic_config=self.semantic_config,
             semantic_enabled=semantic_enabled,
+            transcript=transcript,
             perception_config=self.perception_config,
             zone_label=runtime_section.get("zone_label"),
             zone_id=runtime_section.get("zone_id"),

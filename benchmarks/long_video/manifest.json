@@ -60,6 +60,22 @@
         "frames_processed": 2565,
         "graph_entities": 17
       }
+    },
+    {
+      "variant": "high_resolution_transcript",
+      "resolution": "896x504",
+      "video_sha256": "929486cf901e942b61f2b48cfe8ebacab805d69ec9194d04d9be0eb1b28a8c7f",
+      "transcript": "data/qa/holoassist_z210_transcript.json",
+      "transcript_model": "openai/whisper-medium.en",
+      "result": {
+        "recall_at_1": 0.175,
+        "correct": 7,
+        "total": 40,
+        "vlm_calls": 50,
+        "frames_processed": 2565,
+        "graph_entities": 17,
+        "strict_evidence_correct": 3
+      }
     }
   ]
 }

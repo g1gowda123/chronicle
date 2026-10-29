@@ -83,6 +83,10 @@ perception:
   # explicit leakage ablation.
   derive_vocabulary_from_qa: false
 
+audio:
+  enabled: true
+  transcript_path: data/qa/holoassist_z210_transcript.json
+
 semantic:
   enabled: true
   # VLM budget: caption every Nth event trigger.  The budget sweep in
