@@ -44,7 +44,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,ui]"
       - name: Unit and integration tests
-        run: python -m pytest
+        run: python -m pytest --junitxml=junit.xml
+      - name: Upload pytest results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-${{ matrix.python-version }}
+          path: junit.xml
+          if-no-files-found: ignore
       - name: Model-free smoke test
         run: |
           chronicle demo --json > demo.json
