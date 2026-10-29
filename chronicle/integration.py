@@ -65,7 +65,7 @@ from chronicle.semantic.engine import SemanticEngine
 from chronicle.semantic.graphrag import Fact, GraphContext, QueryAnswer
 from chronicle.semantic.queue import VerificationQueue
 from chronicle.telemetry import EventBus, TelemetryTag
-from chronicle.text import content_tokens, expand_token, singular
+from chronicle.text import content_tokens, expand_token, is_plural, singular
 from chronicle.types import (
     FrameResult,
     InteractionClip,
@@ -222,6 +222,19 @@ def _zone_phrase(zone: str) -> str:
     if zone.lower().startswith("the "):
         return zone
     return f"the {zone}"
+
+
+def _plural_noun(label: str) -> str:
+    """Render a detector label as a plural noun without doubling plurals."""
+
+    word = label.strip()
+    if not word or is_plural(word):
+        return word
+    if word.endswith(("s", "x", "z", "ch", "sh")):
+        return f"{word}es"
+    if word.endswith("y") and len(word) > 1 and word[-2] not in "aeiou":
+        return f"{word[:-1]}ies"
+    return f"{word}s"
 
 
 class ChronicleRuntime:
@@ -946,14 +959,18 @@ class ChronicleRuntime:
             q_lower = query.lower()
             all_entities = list(self.memory.foreground.entities())
             if all_entities and re.search(
-                r"\b(what did i see|what did i observe|what was tracked|summary|overview|what objects|inventory)\b",
+                r"\b(what did i see|what did i observe|what was tracked|summary|overview|"
+                r"what objects|what things|which objects|which things|inventory)\b",
                 q_lower,
             ):
                 counts: dict[str, int] = {}
                 for e in all_entities:
                     label = str(e.get("label", "object"))
                     counts[label] = counts.get(label, 0) + 1
-                items_str = ", ".join(f"{count} {label}{'s' if count > 1 else ''}" for label, count in counts.items())
+                items_str = ", ".join(
+                    f"{count} {singular(label) if count == 1 else _plural_noun(label)}"
+                    for label, count in counts.items()
+                )
                 zone = (
                     self.memory.background.zone_label(self.memory.active_zone)
                     or "the scene"

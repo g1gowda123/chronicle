@@ -53,6 +53,10 @@ All notable changes to Chronicle are documented here. The format follows
   support anchors.
 - Surface-inventory answers report the most recent observation of each tracked
   object instead of the object's original placement time.
+- Episode summaries such as `what did I see?` use singular nouns for one item
+  and also accept `which objects/things did I see?`.
+- Short temporal paraphrases such as `where was the cup before it was placed?`
+  resolve the placement event instead of abstaining.
 - Location questions without a recorded spatial fact now abstain explicitly
   instead of presenting an unrelated action or state as a location.
 - Hyphenated detector labels such as `joy-con` now canonicalize with

@@ -173,6 +173,30 @@ class AskDefaultTest(unittest.TestCase):
         self.assertFalse(payload["grounded"])
         self.assertIn("don't have any elephants", payload["answer"])
 
+    def test_ask_inventory_summary_uses_singular_nouns(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(["ask", "which objects did I see?", "--llm", "template"])
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "inventory")
+        self.assertIn("1 cup", payload["answer"])
+        self.assertIn("1 key", payload["answer"])
+        self.assertNotIn("1 keys", payload["answer"])
+
+    def test_ask_temporal_before_short_placement_clause(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                ["ask", "where was the cup before it was placed?", "--llm", "template"]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertIn("dining table", payload["answer"])
+        self.assertIn("kitchen counter", payload["answer"])
+
     def test_ask_unknown_entity_abstains(self) -> None:
         stdout = StringIO()
         stderr = StringIO()

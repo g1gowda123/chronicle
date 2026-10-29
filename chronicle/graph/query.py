@@ -254,6 +254,14 @@ class QueryResult:
                 re.IGNORECASE,
             )
         )
+        placement_ref = bool(
+            clause
+            and re.search(
+                r"\b(?:place(?:d)?|put|setting|set\s+down)\b",
+                clause,
+                re.IGNORECASE,
+            )
+        )
         held_edges = [
             edge
             for edge in entity_edges
@@ -298,6 +306,19 @@ class QueryResult:
                     ref_edge = best_edge
                     t_ref = float(best_edge["t_start"])
                     dst_id = str(best_edge.get("dst", ""))
+                    ref_label = node_labels.get(dst_id, _short_node(dst_id))
+                elif placement_ref:
+                    placements = [
+                        e
+                        for e in entity_edges
+                        if e.get("relation")
+                        in {Relation.RESTING_ON.value, Relation.INSIDE.value}
+                    ]
+                    if not placements:
+                        return None, None, clause, False
+                    ref_edge = placements[-1]
+                    t_ref = float(ref_edge["t_start"])
+                    dst_id = str(ref_edge.get("dst", ""))
                     ref_label = node_labels.get(dst_id, _short_node(dst_id))
                 else:
                     return None, None, clause, False
