@@ -275,6 +275,10 @@ tests/            model-free unit + integration suite
 - [Action calibration](docs/CALIBRATION.md)
 - [Demo preflight](docs/DEMO_PREFLIGHT.md)
 - [Research results and audit](docs/RESEARCH_RESULTS.md)
+- [Contributing](CONTRIBUTING.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 
 ## Status and limitations
 
