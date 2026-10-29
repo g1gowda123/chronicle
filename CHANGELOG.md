@@ -57,6 +57,8 @@ All notable changes to Chronicle are documented here. The format follows
   and also accept `which objects/things did I see?`.
 - Short temporal paraphrases such as `where was the cup before it was placed?`
   resolve the placement event instead of abstaining.
+- `what happened first?` and `what happened last?` select the earliest or most
+  recent interaction instead of returning the generic newest-first overview.
 - Location questions without a recorded spatial fact now abstain explicitly
   instead of presenting an unrelated action or state as a location.
 - Hyphenated detector labels such as `joy-con` now canonicalize with

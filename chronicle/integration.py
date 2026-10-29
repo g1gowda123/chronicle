@@ -70,6 +70,7 @@ from chronicle.types import (
     FrameResult,
     InteractionClip,
     ObjectState,
+    Relation,
 )
 from chronicle.types import (
     TelemetryEvent as PerceptionTelemetryEvent,
@@ -833,6 +834,12 @@ class ChronicleRuntime:
     def _event_overview(self, query: str, started: float) -> RuntimeAnswer | None:
         """Summarize the most recent recorded interactions for a generic event query."""
 
+        order = None
+        if re.search(r"\b(?:first|earliest)\b", query, re.IGNORECASE):
+            order = "first"
+        elif re.search(r"\b(?:last|latest|most recent)\b", query, re.IGNORECASE):
+            order = "last"
+
         entities = sorted(
             self.memory.foreground.entities(),
             key=lambda entity: float(entity.get("last_seen", 0.0) or 0.0),
@@ -852,10 +859,47 @@ class ChronicleRuntime:
                 continue
             summaries.append(summary)
             results.append(result)
-            if len(summaries) == 3:
+            if len(summaries) == 3 and order is None:
                 break
         if not results:
             return None
+
+        if order is not None:
+            def event_time(index: int) -> float:
+                result = results[index]
+                interaction_times = [
+                    float(edge["t_start"])
+                    for edge in result.timeline()
+                    if edge.get("t_start") is not None
+                    and (
+                        edge.get("relation") == Relation.ACTION.value
+                        or (
+                            edge.get("relation") == Relation.STATE_TRANSITION.value
+                            and edge.get("to_state") in {"HELD", "INTERACTED"}
+                        )
+                    )
+                ]
+                if interaction_times:
+                    return (
+                        min(interaction_times)
+                        if order == "first"
+                        else max(interaction_times)
+                    )
+                times = [
+                    float(edge["t_start"])
+                    for edge in result.timeline()
+                    if edge.get("t_start") is not None
+                ]
+                if not times:
+                    return float(result.last_seen)
+                return min(times) if order == "first" else max(times)
+
+            keep = min(range(len(results)), key=event_time) if order == "first" else max(
+                range(len(results)), key=event_time
+            )
+            summaries = [summaries[keep]]
+            results = [results[keep]]
+
         first = results[0]
         return RuntimeAnswer(
             query=query,

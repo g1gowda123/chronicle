@@ -139,6 +139,21 @@ class AskDefaultTest(unittest.TestCase):
         self.assertIn("picked up the cup", payload["answer"])
         self.assertIn("kitchen counter", payload["answer"])
 
+    def test_ask_first_and_last_events_are_ordered(self) -> None:
+        for question, expected, unexpected in (
+            ("what happened first?", "picked up the cup", "picked up the bottle"),
+            ("what happened last?", "picked up the bottle", "picked up the cup"),
+        ):
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertIn(expected, payload["answer"])
+                self.assertNotIn(unexpected, payload["answer"])
+
     def test_ask_count_uses_tracked_entities(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
