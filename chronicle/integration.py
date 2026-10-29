@@ -682,13 +682,21 @@ class ChronicleRuntime:
         interaction_only = bool(
             re.search(
                 r"\b(?:touch(?:ed)?|interact(?:ed)?|handle(?:d)?|"
-                r"pick(?:ed)?\s+up|move(?:d)?)\b",
+                r"pick(?:ed)?\s+up|put\s+down|place(?:d)?|set\s+down|"
+                r"move(?:d)?)\b",
+                query,
+                re.IGNORECASE,
+            )
+        )
+        placement_only = bool(
+            re.search(
+                r"\b(?:put\s+down|place(?:d)?|set\s+down|move(?:d)?)\b",
                 query,
                 re.IGNORECASE,
             )
         )
         surface_match = re.search(
-            r"\b(on|in|at)\s+(?:(?:the|my|our)\s+)?"
+            r"\b(on|in|at|to)\s+(?:(?:the|my|our)\s+)?"
             r"([a-z][a-z0-9 _-]*?)\s*\??$",
             query,
             re.IGNORECASE,
@@ -714,6 +722,20 @@ class ChronicleRuntime:
                     result is None or result.last_interaction is None
                 ):
                     continue
+                if placement_only:
+                    anchor = (result.terminal_anchor if result is not None else None) or {}
+                    anchor_t = anchor.get("t_start")
+                    interaction_t = (
+                        (result.last_interaction or {}).get("t")
+                        if result is not None
+                        else None
+                    )
+                    if (
+                        anchor_t is None
+                        or interaction_t is None
+                        or float(interaction_t) >= float(anchor_t)
+                    ):
+                        continue
                 if surface_tokens:
                     anchor = (result.terminal_anchor if result is not None else None) or {}
                     anchor_label = str(
@@ -787,7 +809,17 @@ class ChronicleRuntime:
             else " in this memory"
         )
         if interaction_only:
-            answer = f"You interacted with {count} {noun}{plural}{place}."
+            if re.search(
+                r"\b(?:put\s+down|place(?:d)?|set\s+down)\b", query, re.IGNORECASE
+            ):
+                count_verb = "put down"
+            elif re.search(r"\bpick(?:ed)?\s+up\b", query, re.IGNORECASE):
+                count_verb = "picked up"
+            elif re.search(r"\bmove(?:d)?\b", query, re.IGNORECASE):
+                count_verb = "moved"
+            else:
+                count_verb = "interacted with"
+            answer = f"You {count_verb} {count} {noun}{plural}{place}."
         else:
             answer = (
                 f"There {'is' if count == 1 else 'are'} {count} "
@@ -1050,7 +1082,10 @@ class ChronicleRuntime:
         """Summarize which objects share a requested interaction verb."""
 
         query_lower = query.lower()
-        prefix = r"\b(?:what|which)(?:\s+(?:object|thing))?\s+did\s+i\s+"
+        prefix = (
+            r"\b(?:what|which)(?:\s+(?:object|objects|thing|things|item|items))?"
+            r"\s+did\s+i\s+"
+        )
         action = ""
         if re.search(prefix + r"(?:pick\s*up|pickup|grab)\b", query_lower):
             action = "pickup"
@@ -1061,11 +1096,13 @@ class ChronicleRuntime:
             action = "place"
         elif re.search(prefix + r"(?:touch|interact\s+with|handle)\b", query_lower):
             action = "interaction"
+        elif re.search(prefix + r"(?:move|moved|carry|carried)\b", query_lower):
+            action = "move"
         if not action:
             return None
 
         surface_match = re.search(
-            r"\b(on|in|at|from)\s+(?:(?:the|my|our)\s+)?"
+            r"\b(on|in|at|to|from)\s+(?:(?:the|my|our)\s+)?"
             r"([a-z][a-z0-9 _-]*?)(?=\s+(?:before|after)\b|\s*\??$)",
             query_lower,
         )
@@ -1089,8 +1126,20 @@ class ChronicleRuntime:
                 continue
             if action == "place" and (not summary or "placed" not in summary):
                 continue
+            if action == "move":
+                anchor = result.terminal_anchor or {}
+                anchor_t = anchor.get("t_start")
+                interaction_t = (result.last_interaction or {}).get("t")
+                if (
+                    not summary
+                    or "picked up" not in summary
+                    or anchor_t is None
+                    or interaction_t is None
+                    or float(interaction_t) >= float(anchor_t)
+                ):
+                    continue
             if surface_tokens:
-                if action == "place":
+                if action in {"place", "move"}:
                     anchor = (result.terminal_anchor or {})
                     anchor_label = str(
                         anchor.get("label") or anchor.get("anchor_id") or ""
@@ -1103,7 +1152,7 @@ class ChronicleRuntime:
                 elif not surface_tokens <= content_tokens(summary or ""):
                     continue
             interaction = result.last_interaction
-            if action == "place":
+            if action in {"place", "move"}:
                 anchor = (result.terminal_anchor or {})
                 timestamp = float(
                     anchor.get("t_start")
@@ -1191,6 +1240,7 @@ class ChronicleRuntime:
                 "pickup": "picked up",
                 "place": "put down",
                 "interaction": "interacted with",
+                "move": "moved",
             }[action]
             where = (
                 f" {preposition} the {surface_phrase}" if surface_tokens else ""
@@ -1224,9 +1274,12 @@ class ChronicleRuntime:
                 ", ".join(f"the {label}" for label in labels[:-1])
                 + f" and the {labels[-1]}"
             )
-        verb = {"pickup": "picked up", "place": "put down", "interaction": "interacted with"}[
-            action
-        ]
+        verb = {
+            "pickup": "picked up",
+            "place": "put down",
+            "interaction": "interacted with",
+            "move": "moved",
+        }[action]
         first = entries[0][0]
         where = (
             f" {preposition} the {surface_phrase}" if surface_tokens else ""

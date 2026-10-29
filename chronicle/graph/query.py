@@ -250,7 +250,8 @@ class QueryResult:
         pickup_ref = bool(
             clause
             and re.search(
-                r"\b(?:pick(?:ed)?\s*up|pickup|lift(?:ed)?(?:\s+up)?)\b",
+                r"\b(?:pick(?:ed)?(?:\s+(?:it|them|the\s+\w+))?\s*up|pickup|"
+                r"lift(?:ed)?(?:\s+(?:it|them))?(?:\s+up)?)\b",
                 clause,
                 re.IGNORECASE,
             )

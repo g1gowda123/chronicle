@@ -43,6 +43,9 @@ All notable changes to Chronicle are documented here. The format follows
 - Open-ended sequence questions such as `what did I do before I put down the
   keys?` and `what happened after I picked up the cup?` return the ordered
   actions on either side of the referenced event.
+- Action overviews accept plural object words and can summarize movement, so
+  `what did I move?` / `which objects did I move?` return the objects that were
+  both picked up and placed.
 - `chronicle --version` reports the installed distribution version, and
   `chronicle doctor` includes it in both text and JSON reports.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and
@@ -57,6 +60,8 @@ All notable changes to Chronicle are documented here. The format follows
   in location, appearance and event answers.
 - `where was X before it was picked up?` resolves the pick-up event instead of
   falling back to the latest placement.
+- Pronoun variants such as `where was the cup before I picked it up?` resolve
+  the same pick-up event.
 - Event questions about an absent named object abstain instead of summarizing
   unrelated objects, and `what is on the <surface>?` answers from terminal
   support anchors.
@@ -70,6 +75,9 @@ All notable changes to Chronicle are documented here. The format follows
   recent interaction instead of returning the generic newest-first overview.
 - Count questions scoped by interaction, such as `how many objects did I
   touch?`, count only entities with a recorded interaction.
+- Count questions about placement or movement require a confirmed terminal
+  placement, so `how many objects did I put down?` does not count objects that
+  were only touched or picked up.
 - `what did I pick up?`, `what did I put down?`, and `what did I interact
   with?` summarize the objects that share the requested interaction.
 - Count and interaction questions can be scoped to a surface or room, such as

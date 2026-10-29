@@ -205,6 +205,68 @@ class AskDefaultTest(unittest.TestCase):
         self.assertEqual(payload["method"], "graph-count")
         self.assertEqual(payload["answer"], "You interacted with 3 objects in this memory.")
 
+    def test_ask_count_scopes_to_placed_objects(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                ["ask", "how many objects did I put down?", "--llm", "template"]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-count")
+        self.assertEqual(payload["answer"], "You put down 3 objects in this memory.")
+
+    def test_ask_action_overview_scopes_moved_objects_to_surface(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                [
+                    "ask",
+                    "what did I move to the kitchen counter?",
+                    "--llm",
+                    "template",
+                ]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-action")
+        self.assertIn("cup", payload["answer"])
+        self.assertIn("bottle", payload["answer"])
+        self.assertNotIn("keys", payload["answer"])
+
+    def test_ask_temporal_pickup_with_pronoun(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                [
+                    "ask",
+                    "where was the cup before I picked it up?",
+                    "--llm",
+                    "template",
+                ]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertIn("dining table", payload["answer"])
+        self.assertNotIn("Before the cup, the cup", payload["answer"])
+
+    def test_ask_action_overview_lists_moved_objects(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(
+                ["ask", "what did I move?", "--llm", "template"]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["method"], "graph-action")
+        self.assertEqual(
+            payload["answer"], "You moved the cup, the keys and the bottle."
+        )
+
     def test_ask_action_overview_lists_interacted_objects(self) -> None:
         for question, verb in (
             ("what did I pick up?", "picked up"),
