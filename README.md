@@ -266,6 +266,7 @@ tests/            model-free unit + integration suite
 
 ## Documentation
 
+- [Documentation guide: current vs historical](docs/README.md)
 - [Integration and runtime contract](docs/INTEGRATION.md)
 - [Perception contract](docs/PERCEPTION.md)
 - [Memory and graph contract](docs/ROLE_B.md)
