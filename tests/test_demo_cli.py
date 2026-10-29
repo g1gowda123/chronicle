@@ -463,6 +463,52 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertTrue(payload["grounded"])
                 self.assertEqual(payload["answer"], expected)
 
+    def test_ask_movement_source_and_destination(self) -> None:
+        cases = (
+            (
+                "where did I move the cup to?",
+                "You moved the cup to the kitchen counter at t=4.2s.",
+                "graph-object-destination",
+            ),
+            (
+                "where did I move the cup from?",
+                "You moved the cup from the dining table at t=1.9s.",
+                "graph-object-source",
+            ),
+        )
+        for question, expected, method in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], method)
+                self.assertEqual(payload["answer"], expected)
+
+    def test_ask_natural_action_order_phrase(self) -> None:
+        cases = (
+            (
+                "what was the last thing I touched?",
+                "The last object you interacted with was the bottle at t=8.3s.",
+            ),
+            (
+                "what was the first thing I picked up?",
+                "The first object you picked up was the cup at t=1.9s.",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-action")
+                self.assertEqual(payload["answer"], expected)
+
     def test_ask_action_overview_matches_zone_as_well_as_anchor(self) -> None:
         stdout = StringIO()
         stderr = StringIO()

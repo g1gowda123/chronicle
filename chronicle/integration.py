@@ -1141,10 +1141,10 @@ class ChronicleRuntime:
     ) -> RuntimeAnswer | None:
         """Answer "where/what did I put <object>?" for one tracked object."""
 
-        if re.search(r"\b(?:before|after)\b", query, re.IGNORECASE):
+        if re.search(r"\b(?:before|after|from)\b", query, re.IGNORECASE):
             return None
         match = re.match(
-            r"^\s*(?:what|where|when)\s+did\s+i\s+(?P<verb>put|place|set)\s+"
+            r"^\s*(?:what|where|when)\s+did\s+i\s+(?P<verb>put|place|set|move|moved)\s+"
             r"(?:down\s+)?(?P<phrase>.+?)\s*(?:(?:on|in|at|to)\s*)?\?\s*$",
             query,
             re.IGNORECASE,
@@ -1213,13 +1213,20 @@ class ChronicleRuntime:
             "put": "put",
             "place": "placed",
             "set": "set down",
+            "move": "moved",
+            "moved": "moved",
         }[match.group("verb").lower()]
+        destination = (
+            f"to the {anchor_label}"
+            if verb == "moved"
+            else f"{preposition} the {anchor_label}"
+        )
         timestamp = float(anchor_t)
         return RuntimeAnswer(
             query=query,
             answer=(
-                f"You {verb} the {result.label} {preposition} the "
-                f"{anchor_label} at t={timestamp:.1f}s."
+                f"You {verb} the {result.label} {destination} "
+                f"at t={timestamp:.1f}s."
             ),
             citations=(
                 {
@@ -1244,17 +1251,22 @@ class ChronicleRuntime:
         if re.search(r"\b(?:before|after)\b", query, re.IGNORECASE):
             return None
         match = re.match(
-            r"^\s*(?:what|where|when)\s+did\s+i\s+(?P<verb>pick|grab)(?:\s+up)?\s+"
-            r"(?P<phrase>.+?)\s*(?:up\s+)?(?:from\s*)?\?\s*$",
+            r"^\s*(?:what|where|when)\s+did\s+i\s+"
+            r"(?P<verb>pick|grab|move|moved)\s+"
+            r"(?P<phrase>.+?)\s*(?:from\s*)?\?\s*$",
             query,
             re.IGNORECASE,
         )
         if match is None:
             return None
         phrase = match.group("phrase")
-        if re.match(r"^from\b", phrase, re.IGNORECASE):
+        if re.match(r"^(?:up\s+)?from\b", phrase, re.IGNORECASE):
             # "what did I pick up from the table?" asks for every pickup from
             # that surface, not for one named object.
+            return None
+        if re.match(r"^(?:to|on|in|at)\b", phrase, re.IGNORECASE):
+            # "what did I move to the kitchen counter?" is a surface-scoped
+            # overview, not a source question about one object.
             return None
         target_tokens = content_tokens(phrase)
         target_tokens.discard("up")
@@ -1277,10 +1289,15 @@ class ChronicleRuntime:
         node_id = str(entity.get("node_id") or "")
         result = self.memory.query_entity(node_id, question=query)
         if result is None or result.last_interaction is None:
+            action_noun = (
+                "movement"
+                if match.group("verb").lower() in {"move", "moved"}
+                else "pick-up"
+            )
             return RuntimeAnswer(
                 query=query,
                 answer=(
-                    f"I don't have a recorded pick-up for the "
+                    f"I don't have a recorded {action_noun} for the "
                     f"{entity.get('label') or 'object'} in this memory."
                 ),
                 source="graph",
@@ -1306,7 +1323,14 @@ class ChronicleRuntime:
         timestamp = float(
             result.last_interaction.get("t", result.last_seen) or result.last_seen
         )
-        verb = "grabbed" if match.group("verb").lower() == "grab" else "picked up"
+        verb_key = match.group("verb").lower()
+        verb = (
+            "grabbed"
+            if verb_key == "grab"
+            else "moved"
+            if verb_key in {"move", "moved"}
+            else "picked up"
+        )
         return RuntimeAnswer(
             query=query,
             answer=(
@@ -1443,22 +1467,33 @@ class ChronicleRuntime:
 
         query_lower = query.lower()
         prefix = (
-            r"\b(?:what|which)(?:\s+(?:object|objects|thing|things|item|items))?"
-            r"\s+did\s+i\s+"
+            r"\b(?:what|which)\s+"
+            r"(?:(?:was|is)\s+)?"
+            r"(?:the\s+)?"
+            r"(?:(?:first|second|third|fourth|fifth|sixth|seventh|eighth|"
+            r"ninth|tenth|last)\s+)?"
+            r"(?:(?:object|objects|thing|things|item|items)\s+)?"
+            r"(?:did\s+i|i)\s+"
         )
         action = ""
-        if re.search(prefix + r"(?:pick\s*up|pickup|grab)\b", query_lower):
+        if re.search(
+            prefix + r"(?:pick(?:ed)?\s*up|pickup|grab(?:bed)?)\b",
+            query_lower,
+        ):
             action = "pickup"
         elif re.search(
             prefix
             + r"(?:put(?:\s*(?:down|on|in|at))?"
-            + r"|place|set(?:\s*(?:down|on|in|at))?)\b",
+            + r"|place(?:d)?|set(?:\s*(?:down|on|in|at))?)\b",
             query_lower,
         ):
             action = "place"
-        elif re.search(prefix + r"(?:touch|interact\s+with|handle)\b", query_lower):
+        elif re.search(
+            prefix + r"(?:touch(?:ed)?|interact(?:ed)?\s+with|handle(?:d)?)\b",
+            query_lower,
+        ):
             action = "interaction"
-        elif re.search(prefix + r"(?:move|moved|carry|carried)\b", query_lower):
+        elif re.search(prefix + r"(?:move(?:d)?|carry|carried)\b", query_lower):
             action = "move"
         if not action:
             return None
