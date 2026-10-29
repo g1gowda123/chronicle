@@ -37,6 +37,8 @@ All notable changes to Chronicle are documented here. The format follows
   and `what did I do at the beginning?`.
 - Historical location confirmations now use the queried movement verb and do
   not claim a pickup-time surface for placement questions.
+- Ordered yes/no confirmations such as `did I move the cup after picking up the
+  keys?` compare actual event times and state the real ordering.
 - `when did I last see X?` and `when did I first see X?` are answered from the
   graph with a timestamp; the inventory answer now uses singular grammar for a
   one-entity memory.

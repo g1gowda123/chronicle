@@ -1787,6 +1787,150 @@ class ChronicleRuntime:
         }
         return node_labels.get(str(edge.get("dst")), str(edge.get("dst") or ""))
 
+    def _temporal_confirmation_answer(
+        self,
+        query: str,
+        verb: str,
+        target: str,
+        direction: str,
+        reference: str,
+        started: float,
+    ) -> RuntimeAnswer | None:
+        """Verify "did I <action> the X before/after <action> the Y?"."""
+
+        result = self.memory.query(target)
+        if result is None:
+            return RuntimeAnswer(
+                query=query,
+                answer="I don't have that in my memory.",
+                source="graph",
+                grounded=False,
+                method="graph-confirm",
+                elapsed=time.monotonic() - started,
+            )
+
+        interaction = result.last_interaction or {}
+        interaction_t = interaction.get("t")
+        anchor = result.terminal_anchor or {}
+        anchor_t = anchor.get("t_start")
+        if verb == "pickup" or verb == "touch":
+            target_t = interaction_t
+        else:
+            target_t = (
+                anchor_t
+                if anchor_t is not None
+                and interaction_t is not None
+                and float(interaction_t) < float(anchor_t)
+                else None
+            )
+
+        reference_match = re.match(
+            r"^(?:i\s+)?(?:(?P<verb>pick(?:ed|ing)?(?:\s+up)?|"
+            r"grab(?:bed|bing)?|put(?:\s+down)?|place(?:d|ing)?|"
+            r"set(?:\s+down)?|move(?:d|ing)?|touch(?:ed|ing)?)\s+)?"
+            r"(?:the|my|our)?\s*(?P<object>.+?)\s*$",
+            reference,
+            re.IGNORECASE,
+        )
+        if reference_match is None:
+            return None
+        reference_object = reference_match.group("object").strip()
+        reference_verb_text = (reference_match.group("verb") or "").lower()
+        if reference_verb_text.startswith(("pick", "grab")):
+            reference_action = "pickup"
+        elif reference_verb_text.startswith(("put", "plac", "set", "mov")):
+            reference_action = "place"
+        elif reference_verb_text.startswith("touch"):
+            reference_action = "interaction"
+        else:
+            reference_action = "any"
+        reference_result = self.memory.query(reference_object)
+        if reference_result is None:
+            return RuntimeAnswer(
+                query=query,
+                answer="I don't have that in my memory.",
+                source="graph",
+                grounded=False,
+                method="graph-confirm",
+                elapsed=time.monotonic() - started,
+            )
+        ref_interaction = reference_result.last_interaction or {}
+        ref_interaction_t = ref_interaction.get("t")
+        ref_anchor = reference_result.terminal_anchor or {}
+        ref_anchor_t = ref_anchor.get("t_start")
+        if reference_action == "pickup" or reference_action == "interaction":
+            reference_t = ref_interaction_t
+        else:
+            reference_t = (
+                ref_anchor_t
+                if ref_anchor_t is not None
+                and ref_interaction_t is not None
+                and float(ref_interaction_t) < float(ref_anchor_t)
+                else ref_interaction_t
+            )
+        if target_t is None or reference_t is None:
+            return RuntimeAnswer(
+                query=query,
+                answer=(
+                    "I don't have enough recorded actions to verify that "
+                    "ordering."
+                ),
+                source="graph",
+                grounded=False,
+                method="graph-confirm",
+                elapsed=time.monotonic() - started,
+            )
+
+        target_t = float(target_t)
+        reference_t = float(reference_t)
+        ordered = (
+            target_t > reference_t
+            if direction == "after"
+            else target_t < reference_t
+        )
+        target_verb = {
+            "pickup": "picked up",
+            "place": "placed",
+            "move": "moved",
+            "touch": "touched",
+        }.get(verb, verb)
+        reference_verb = {
+            "pickup": "picked up",
+            "place": "placed",
+            "interaction": "touched",
+            "any": "interacted with",
+        }.get(reference_action, "interacted with")
+        target_clause = (
+            f"you {target_verb} the {result.label} at t={target_t:.1f}s"
+        )
+        reference_clause = (
+            f"you {reference_verb} the {reference_result.label} at "
+            f"t={reference_t:.1f}s"
+        )
+        actual_relation = "after" if target_t > reference_t else "before"
+        answer = (
+            f"{'Yes' if ordered else 'No'}. "
+            f"{target_clause[0].upper()}{target_clause[1:]}, "
+            f"{direction if ordered else actual_relation} "
+            f"{reference_clause}."
+        )
+        return RuntimeAnswer(
+            query=query,
+            answer=answer,
+            citations=(
+                {"timestamp": target_t, "relation": "ACTION"},
+                {"timestamp": reference_t, "relation": "ACTION"},
+            ),
+            source="graph",
+            grounded=True,
+            method="graph-confirm",
+            elapsed=time.monotonic() - started,
+            entity=result.label,
+            state=result.state,
+            zone=result.zone_label,
+            last_seen=target_t,
+        )
+
     def _yes_no_answer(self, query: str, started: float) -> RuntimeAnswer | None:
         """Answer direct yes/no location and interaction questions."""
 
@@ -1900,6 +2044,18 @@ class ChronicleRuntime:
             "set down": "place",
             "place": "place",
         }.get(verb_text, verb_text)
+        temporal_match = re.search(
+            r"\s+(before|after)\s+(.+?)\s*$", target, re.IGNORECASE
+        )
+        if temporal_match is not None:
+            return self._temporal_confirmation_answer(
+                query,
+                verb,
+                target[: temporal_match.start()].strip(),
+                temporal_match.group(1).lower(),
+                temporal_match.group(2).strip(),
+                started,
+            )
         source = None
         destination = None
         if verb == "pickup":

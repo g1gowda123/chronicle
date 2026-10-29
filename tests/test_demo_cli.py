@@ -483,6 +483,40 @@ class AskDefaultTest(unittest.TestCase):
                 self.assertTrue(payload["grounded"])
                 self.assertEqual(payload["answer"], expected)
 
+    def test_ask_yes_no_temporal_action_order(self) -> None:
+        cases = (
+            (
+                "did I move the cup after picking up the keys?",
+                "No. You moved the cup at t=4.2s, before you picked up the "
+                "keys at t=5.1s.",
+            ),
+            (
+                "did I pick up the keys after the cup?",
+                "Yes. You picked up the keys at t=5.1s, after you interacted "
+                "with the cup at t=4.2s.",
+            ),
+            (
+                "did I put down the keys before the bottle?",
+                "Yes. You placed the keys at t=7.4s, before you interacted "
+                "with the bottle at t=10.6s.",
+            ),
+            (
+                "did I pick up the keys before the cup?",
+                "No. You picked up the keys at t=5.1s, after you interacted "
+                "with the cup at t=4.2s.",
+            ),
+        )
+        for question, expected in cases:
+            with self.subTest(question=question):
+                stdout = StringIO()
+                stderr = StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = cli.main(["ask", question, "--llm", "template"])
+                self.assertEqual(code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(payload["method"], "graph-confirm")
+                self.assertEqual(payload["answer"], expected)
+
     def test_ask_movement_source_and_destination(self) -> None:
         cases = (
             (
