@@ -34,6 +34,9 @@ All notable changes to Chronicle are documented here. The format follows
   bundled memory and prints a score; it covers location, support surfaces,
   events, first/last-seen times, temporal-before questions, counts, appearance,
   surface inventories and abstention behavior without models or a judge.
+- Action-overview questions can scope by a zone as well as a support surface, so
+  `what did I put in the kitchen?` includes objects placed on the dining table
+  as well as the counter.
 - `chronicle --version` reports the installed distribution version, and
   `chronicle doctor` includes it in both text and JSON reports.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and

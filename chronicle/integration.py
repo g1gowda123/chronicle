@@ -957,7 +957,10 @@ class ChronicleRuntime:
                     anchor_label = str(
                         anchor.get("label") or anchor.get("anchor_id") or ""
                     )
-                    if not surface_tokens <= content_tokens(anchor_label):
+                    candidate_tokens = content_tokens(anchor_label) | content_tokens(
+                        result.zone_label or ""
+                    )
+                    if not surface_tokens <= candidate_tokens:
                         continue
                 elif not surface_tokens <= content_tokens(summary or ""):
                     continue
