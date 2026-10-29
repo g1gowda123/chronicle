@@ -36,8 +36,8 @@
 {"id":"appearance-describe-bottle","category":"appearance","question":"describe the bottle","expect_all":["blue","tall","medium"],"expect_method":"template","tests":"full visual description"}
 {"id":"appearance-notebook","category":"appearance","question":"what does the notebook look like?","expect_all":["red","rectangular","medium"],"expect_method":"template","tests":"natural paraphrase for a description"}
 {"id":"appearance-red-filter","category":"appearance","question":"what red things did you see?","expect_all":["notebook","red"],"expect_method":"colour-filter","tests":"colour-filtered object inventory"}
-{"id":"inventory-counter","category":"inventory","question":"what is on the kitchen counter?","expect_all":["cup","bottle"],"expect_method":"graph-inventory","tests":"objects currently on a named surface"}
-{"id":"inventory-table","category":"inventory","question":"what is on the dining table?","expect_all":["notebook","keys"],"expect_method":"graph-inventory","tests":"objects currently on a second surface"}
+{"id":"inventory-counter","category":"inventory","question":"what is on the kitchen counter?","expect_all":["cup","bottle","t=10.6"],"expect_method":"graph-inventory","tests":"objects currently on a named surface"}
+{"id":"inventory-table","category":"inventory","question":"what is on the dining table?","expect_all":["notebook","keys","t=10.5"],"expect_method":"graph-inventory","tests":"objects currently on a second surface"}
 {"id":"inventory-floor","category":"inventory","question":"what is on the floor?","expect_all":["don't see anything"],"expect_method":"graph-inventory","tests":"honest empty surface"}
 {"id":"unknown-location","category":"abstention","question":"where is the toaster?","expect_all":["don't have"],"expect_method":"template","tests":"honest abstention for an absent object"}
 {"id":"unknown-event","category":"abstention","question":"what happened to the mug?","expect_all":["don't have"],"expect_method":"template","tests":"no invented event for an absent object"}

@@ -102,7 +102,8 @@ is missing.
 locations, support surfaces, events, first/last-seen timestamps, counts,
 appearance, surface inventories, and honest abstentions.
 It prints a score and exits non-zero on failure. This is a product smoke suite,
-not a research benchmark; it deliberately uses no model, judge, or network.
+not a research benchmark; it deliberately uses no model, judge, or network, and
+its score tests CLI behavior rather than perception or reasoning accuracy.
 
 The same memory is available as a Python object:
 

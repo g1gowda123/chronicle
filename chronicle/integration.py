@@ -744,7 +744,7 @@ class ChronicleRuntime:
         if not surface_tokens:
             return None
 
-        found: list[tuple[str, str, float, str, str]] = []
+        found: list[tuple[str, str, float, float, str, str]] = []
         for entity in self.memory.foreground.entities():
             result = self.memory.query_entity(
                 str(entity.get("node_id", "")), question=query
@@ -756,16 +756,18 @@ class ChronicleRuntime:
                 surface_tokens <= anchor_tokens or anchor_tokens <= surface_tokens
             ):
                 continue
-            timestamp = float(
+            last_seen = float(entity.get("last_seen", 0.0) or 0.0)
+            placed_at = float(
                 anchor.get("t_start")
                 if anchor.get("t_start") is not None
-                else entity.get("last_seen", 0.0) or 0.0
+                else last_seen
             )
             found.append(
                 (
                     str(entity.get("label") or "object"),
                     anchor_label,
-                    timestamp,
+                    last_seen,
+                    placed_at,
                     str(result.zone_label or "") if result is not None else "",
                     str(result.state or "") if result is not None else "",
                 )
@@ -787,7 +789,7 @@ class ChronicleRuntime:
         else:
             listed = "the " + ", ".join(labels[:-1]) + f" and the {labels[-1]}"
         newest = found[-1]
-        zone = newest[3] or self.memory.background.zone_label(
+        zone = newest[4] or self.memory.background.zone_label(
             str(self.memory.active_zone or "")
         )
         return RuntimeAnswer(
@@ -799,8 +801,9 @@ class ChronicleRuntime:
             citations=tuple(
                 {
                     "timestamp": item[2],
+                    "placed_at": item[3],
                     "relation": "RESTING_ON",
-                    "zone": item[3] or zone,
+                    "zone": item[4] or zone,
                 }
                 for item in found
             ),
@@ -809,7 +812,7 @@ class ChronicleRuntime:
             method="graph-inventory",
             elapsed=time.monotonic() - started,
             entity=newest[0],
-            state=newest[4],
+            state=newest[5],
             zone=zone,
             last_seen=newest[2],
         )

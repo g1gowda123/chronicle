@@ -246,8 +246,10 @@ def _print_report(result: dict[str, Any], *, temporary: bool) -> None:
         print(f"  A: {answer['answer']}")
         if answer.get("anchor", {}).get("label"):
             anchor = answer["anchor"]
+            t_start = anchor.get("t_start")
+            t_text = f"{float(t_start):.1f}" if t_start is not None else "unknown"
             print(
-                f"     evidence: {anchor['label']} at t={anchor.get('t_start')}s "
+                f"     evidence: {anchor['label']} at t={t_text}s "
                 f"({answer['state']})"
             )
 

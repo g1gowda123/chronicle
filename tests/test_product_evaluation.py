@@ -6,11 +6,25 @@ import io
 import json
 import tempfile
 import unittest
+from collections import Counter
 from contextlib import redirect_stdout
 from pathlib import Path
 
 from chronicle.cli import main
 from chronicle.evaluation import load_cases, run_evaluation
+
+EXPECTED_CASE_COUNT = 45
+EXPECTED_CATEGORY_COUNTS = {
+    "event": 7,
+    "appearance": 7,
+    "temporal": 6,
+    "counting": 6,
+    "location": 5,
+    "temporal-location": 5,
+    "abstention": 4,
+    "inventory": 3,
+    "support": 2,
+}
 
 
 class DemoSuiteTest(unittest.TestCase):
@@ -21,28 +35,16 @@ class DemoSuiteTest(unittest.TestCase):
             / "evaluation_data"
             / "demo_questions.jsonl"
         )
-        self.assertGreaterEqual(len(cases), 30)
-        self.assertLessEqual(len(cases), 50)
+        self.assertEqual(len(cases), EXPECTED_CASE_COUNT)
         self.assertEqual(len({case.id for case in cases}), len(cases))
-        categories = {case.category for case in cases}
-        self.assertTrue(
-            {
-                "location",
-                "support",
-                "temporal-location",
-                "event",
-                "temporal",
-                "counting",
-                "appearance",
-                "inventory",
-                "abstention",
-            }
-            <= categories
+        self.assertEqual(
+            dict(Counter(case.category for case in cases)),
+            EXPECTED_CATEGORY_COUNTS,
         )
 
     def test_bundled_demo_scores_full_marks(self) -> None:
         report = run_evaluation()
-        self.assertGreaterEqual(report["total"], 30)
+        self.assertEqual(report["total"], EXPECTED_CASE_COUNT)
         self.assertEqual(report["passed"], report["total"], report["cases"])
         self.assertEqual(report["failed"], 0)
         self.assertEqual(report["score"], 1.0)
@@ -82,9 +84,7 @@ class DemoSuiteTest(unittest.TestCase):
         with redirect_stdout(buffer):
             code = main(["eval"])
         self.assertEqual(code, 0)
-        report = run_evaluation()
-        expected = f"Score: {report['total']}/{report['total']} (100.0%)"
-        self.assertIn(expected, buffer.getvalue())
+        self.assertIn("Score: 45/45 (100.0%)", buffer.getvalue())
 
 
 class InvalidSuiteTest(unittest.TestCase):

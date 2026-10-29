@@ -51,6 +51,8 @@ All notable changes to Chronicle are documented here. The format follows
 - Event questions about an absent named object abstain instead of summarizing
   unrelated objects, and `what is on the <surface>?` answers from terminal
   support anchors.
+- Surface-inventory answers report the most recent observation of each tracked
+  object instead of the object's original placement time.
 - Location questions without a recorded spatial fact now abstain explicitly
   instead of presenting an unrelated action or state as a location.
 - Hyphenated detector labels such as `joy-con` now canonicalize with
