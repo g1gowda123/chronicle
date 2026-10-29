@@ -775,6 +775,10 @@ class AskDefaultTest(unittest.TestCase):
                 "what did I put down second?",
                 "The second object you put down was the keys at t=7.4s.",
             ),
+            (
+                "which object did I put down eleventh?",
+                "I only have 3 recorded put-down event(s) in this memory.",
+            ),
         ):
             with self.subTest(question=question):
                 stdout = StringIO()

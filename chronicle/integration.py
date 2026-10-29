@@ -122,6 +122,30 @@ _EVENT_TARGET_RE = re.compile(
     r"(?:(?:the|my|our|your|a|an)\s+)?([a-z][a-z0-9_-]*)",
     re.IGNORECASE,
 )
+_ORDINAL_WORDS = {
+    "first": 0,
+    "second": 1,
+    "third": 2,
+    "fourth": 3,
+    "fifth": 4,
+    "sixth": 5,
+    "seventh": 6,
+    "eighth": 7,
+    "ninth": 8,
+    "tenth": 9,
+    "eleventh": 10,
+    "twelfth": 11,
+    "thirteenth": 12,
+    "fourteenth": 13,
+    "fifteenth": 14,
+    "sixteenth": 15,
+    "seventeenth": 16,
+    "eighteenth": 17,
+    "nineteenth": 18,
+    "twentieth": 19,
+    "last": -1,
+}
+_ORDINAL_PATTERN = "|".join(_ORDINAL_WORDS)
 _ORDER_ONLY_TOKENS = {
     "first",
     "last",
@@ -1790,8 +1814,7 @@ class ChronicleRuntime:
             r"\b(?:what|which)\s+"
             r"(?:(?:was|is)\s+)?"
             r"(?:the\s+)?"
-            r"(?:(?:first|second|third|fourth|fifth|sixth|seventh|eighth|"
-            r"ninth|tenth|last)\s+)?"
+            rf"(?:(?:{_ORDINAL_PATTERN})\s+)?"
             r"(?:(?:object|objects|thing|things|item|items)\s+)?"
             r"(?:did\s+i|i)\s+"
         )
@@ -1953,30 +1976,21 @@ class ChronicleRuntime:
                         elapsed=time.monotonic() - started,
                     )
         labels = [result.label for result, _ in entries]
-        order_match = re.search(
-            r"\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|last)\b",
-            query_lower,
-        )
+        order_match = re.search(rf"\b({_ORDINAL_PATTERN})\b", query_lower)
         if order_match is not None:
             ordinal = order_match.group(1)
-            index = {
-                "first": 0,
-                "second": 1,
-                "third": 2,
-                "fourth": 3,
-                "fifth": 4,
-                "sixth": 5,
-                "seventh": 6,
-                "eighth": 7,
-                "ninth": 8,
-                "tenth": 9,
-                "last": -1,
-            }[ordinal]
+            index = _ORDINAL_WORDS[ordinal]
             if not -len(entries) <= index < len(entries):
+                action_noun = {
+                    "pickup": "pick-up",
+                    "place": "put-down",
+                    "interaction": "interaction",
+                    "move": "move",
+                }[action]
                 return RuntimeAnswer(
                     query=query,
                     answer=(
-                        f"I only have {len(entries)} recorded {action} "
+                        f"I only have {len(entries)} recorded {action_noun} "
                         "event(s) in this memory."
                     ),
                     source="graph",
