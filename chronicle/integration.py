@@ -122,6 +122,19 @@ _EVENT_TARGET_RE = re.compile(
     r"(?:(?:the|my|our|your|a|an)\s+)?([a-z][a-z0-9_-]*)",
     re.IGNORECASE,
 )
+_ORDER_ONLY_TOKENS = {
+    "first",
+    "last",
+    "latest",
+    "next",
+    "second",
+    "thing",
+    "things",
+    "object",
+    "objects",
+    "item",
+    "items",
+}
 _EVENT_PRONOUN_TARGETS = {
     "it",
     "them",
@@ -1117,7 +1130,7 @@ class ChronicleRuntime:
         if re.search(r"\b(?:before|after)\b", query, re.IGNORECASE):
             return None
         match = re.match(
-            r"^\s*(?:what|where)\s+did\s+i\s+(?P<verb>put|place|set)\s+"
+            r"^\s*(?:what|where|when)\s+did\s+i\s+(?P<verb>put|place|set)\s+"
             r"(?:down\s+)?(?P<phrase>.+?)\s*(?:(?:on|in|at|to)\s*)?\?\s*$",
             query,
             re.IGNORECASE,
@@ -1132,6 +1145,9 @@ class ChronicleRuntime:
         target_tokens = content_tokens(phrase)
         target_tokens.discard("down")
         if not target_tokens:
+            return None
+        if target_tokens <= _ORDER_ONLY_TOKENS:
+            # "what did I put down first?" is an ordering question.
             return None
         entity = self._entity_matching_tokens(target_tokens)
         if entity is None:
@@ -1214,7 +1230,7 @@ class ChronicleRuntime:
         if re.search(r"\b(?:before|after)\b", query, re.IGNORECASE):
             return None
         match = re.match(
-            r"^\s*(?:what|where)\s+did\s+i\s+(?P<verb>pick|grab)(?:\s+up)?\s+"
+            r"^\s*(?:what|where|when)\s+did\s+i\s+(?P<verb>pick|grab)(?:\s+up)?\s+"
             r"(?P<phrase>.+?)\s*(?:up\s+)?(?:from\s*)?\?\s*$",
             query,
             re.IGNORECASE,
@@ -1225,6 +1241,9 @@ class ChronicleRuntime:
         target_tokens.discard("up")
         target_tokens.discard("from")
         if not target_tokens:
+            return None
+        if target_tokens <= _ORDER_ONLY_TOKENS:
+            # "what did I pick up first?" is an ordering question.
             return None
         entity = self._entity_matching_tokens(target_tokens)
         if entity is None:

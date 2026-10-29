@@ -494,6 +494,14 @@ class AskDefaultTest(unittest.TestCase):
                 "which object did I put down last?",
                 "The last object you put down was the bottle at t=10.6s.",
             ),
+            (
+                "what did I put down first?",
+                "The first object you put down was the cup at t=4.2s.",
+            ),
+            (
+                "what did I grab first?",
+                "The first object you picked up was the cup at t=1.9s.",
+            ),
         ):
             with self.subTest(question=question):
                 stdout = StringIO()
@@ -631,6 +639,10 @@ class AskDefaultTest(unittest.TestCase):
                 "where did I place the bottle?",
                 "You placed the bottle on the kitchen counter at t=10.6s.",
             ),
+            (
+                "when did I put the cup on the kitchen counter?",
+                "You put the cup on the kitchen counter at t=4.2s.",
+            ),
         )
         for question, expected in cases:
             with self.subTest(question=question):
@@ -652,6 +664,10 @@ class AskDefaultTest(unittest.TestCase):
             (
                 "where did I pick up the bottle from?",
                 "You picked up the bottle from the dining table at t=8.3s.",
+            ),
+            (
+                "when did I pick up the keys?",
+                "You picked up the keys from the kitchen counter at t=5.1s.",
             ),
         )
         for question, expected in cases:

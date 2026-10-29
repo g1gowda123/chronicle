@@ -47,6 +47,9 @@ All notable changes to Chronicle are documented here. The format follows
   no-recorded-pick-up/placement answer rather than a generic interaction list.
 - Surface-scoped action overviews accept `set` as a placement verb, so
   `what did I set on the kitchen counter?` lists the objects placed there.
+- `when did I put/pick up <object>?` uses the same source/destination answer,
+  and ordering questions such as `what did I grab first?` stay with the action
+  overview instead of being mistaken for a specific-object lookup.
 - Open-ended sequence questions such as `what did I do before I put down the
   keys?` and `what happened after I picked up the cup?` return the ordered
   actions on either side of the referenced event.
