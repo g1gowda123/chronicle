@@ -156,7 +156,7 @@ _EVENT_PRONOUN_TARGETS = {
 _ACTION_AT_RE = re.compile(
     r"\bwhat\s+(?:did\s+i\s+do|happened|was\s+happening)\s+"
     r"(?:at|around|near)\s+(?:t\s*=\s*)?(\d+(?:\.\d+)?)\s*"
-    r"(?:s|secs?|seconds?)\b",
+    r"(?:s|secs?|seconds?)?\b",
     re.IGNORECASE,
 )
 

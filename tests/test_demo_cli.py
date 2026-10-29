@@ -441,6 +441,10 @@ class AskDefaultTest(unittest.TestCase):
                 "At t=4.2s you placed the cup on the kitchen counter.",
             ),
             (
+                "what did I do around t=5?",
+                "At t=5.1s you picked up the keys.",
+            ),
+            (
                 "what did I do at 99 seconds?",
                 "I don't have an action at t=99.0s. The closest recorded "
                 "action was at t=10.6s: you placed the bottle on the kitchen "
