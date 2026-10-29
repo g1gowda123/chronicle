@@ -200,6 +200,9 @@ def cmd_run(args: argparse.Namespace) -> int:
 def cmd_ask(args: argparse.Namespace) -> int:
     from chronicle.demo_data import demo_db_path
 
+    if not args.question.strip():
+        raise SystemExit("question must not be empty")
+
     runtime_cls = _runtime_class()
 
     if args.db:
@@ -299,11 +302,35 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 
 def _add_backend_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--detector", default="auto", help="auto|color|yolo-world")
-    parser.add_argument("--hands", default="auto", help="auto|color|mediapipe")
-    parser.add_argument("--embedder", default="auto", help="auto|color|deterministic|openclip")
-    parser.add_argument("--llm", default=None, help="auto|ollama|transformers|template")
-    parser.add_argument("--llm-model", default=None, help="Ollama / HF model name (default: qwen2.5:7b-instruct)")
+    parser.add_argument(
+        "--detector",
+        default="auto",
+        choices=("auto", "color", "yolo-world"),
+        help="detector backend (default: auto)",
+    )
+    parser.add_argument(
+        "--hands",
+        default="auto",
+        choices=("auto", "color", "mediapipe"),
+        help="hand backend (default: auto)",
+    )
+    parser.add_argument(
+        "--embedder",
+        default="auto",
+        choices=("auto", "color", "deterministic", "openclip"),
+        help="embedding backend (default: auto)",
+    )
+    parser.add_argument(
+        "--llm",
+        default=None,
+        choices=("auto", "ollama", "transformers", "template"),
+        help="answer backend (default: auto)",
+    )
+    parser.add_argument(
+        "--llm-model",
+        default=None,
+        help="Ollama / HF model name (default: qwen2.5:7b-instruct)",
+    )
 
 
 def _version() -> str:

@@ -90,6 +90,21 @@ class DoctorTest(unittest.TestCase):
 
 
 class AskDefaultTest(unittest.TestCase):
+    def test_rejects_empty_question(self) -> None:
+        stderr = StringIO()
+        with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            cli.main(["ask", "   ", "--llm", "template"])
+        self.assertEqual(raised.exception.code, "question must not be empty")
+        self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_rejects_unknown_backend_cleanly(self) -> None:
+        stderr = StringIO()
+        with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            cli.main(["ask", "where is my cup?", "--llm", "bogus"])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("invalid choice", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+
     def test_ask_without_db_uses_bundled_memory(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
