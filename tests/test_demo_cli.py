@@ -394,6 +394,10 @@ class AskDefaultTest(unittest.TestCase):
                 "dining table at t=7.4s, picked up the bottle at t=8.3s, and "
                 "placed the bottle on the kitchen counter at t=10.6s.",
             ),
+            (
+                "what did I do before I moved the cup?",
+                "Before you moved the cup, you picked up the cup at t=1.9s.",
+            ),
         )
         for question, answer in cases:
             with self.subTest(question=question):

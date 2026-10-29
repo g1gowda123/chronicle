@@ -47,8 +47,9 @@ All notable changes to Chronicle are documented here. The format follows
   `what did I move?` / `which objects did I move?` return the objects that were
   both picked up and placed.
 - Action confirmations accept bare `put` (`did I put the cup on the counter?`),
-  and before/after sequences accept gerund references (`what did I do after
-  picking up the keys?`, `what did I do before placing the cup?`).
+  and before/after sequences accept gerund and movement references (`what did
+  I do after picking up the keys?`, `what did I do before placing the cup?`,
+  `what happened after I moved the cup?`).
 - `chronicle --version` reports the installed distribution version, and
   `chronicle doctor` includes it in both text and JSON reports.
 - `CHANGELOG.md`, release automation, security policy, issue templates, and

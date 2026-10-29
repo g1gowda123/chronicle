@@ -958,7 +958,8 @@ class ChronicleRuntime:
             r"\b(?:what happened|what did i do)\s+(before|after)\s+"
             r"(?:i\s+)?"
             r"(picked\s*up|picking\s*up|pick\s*up|grabbed|grabbing|"
-            r"put\s*down|putting\s*down|put|placed|placing|place|"
+            r"put\s*down|putting\s*down|set\s*down|setting\s*down|put|"
+            r"placed|placing|place|moved|moving|move|"
             r"touched|touching|touch)\s+(?:(?:the|my|our)\s+)?"
             r"([a-z][a-z0-9 _-]*?)\s*\??$",
             query.lower(),
@@ -970,10 +971,23 @@ class ChronicleRuntime:
         verb_phrase = re.sub(r"\s+", " ", verb_phrase)
         if verb_phrase.startswith(("pick", "grab")):
             reference_action = "pickup"
-        elif verb_phrase.startswith(("put", "plac")):
+        elif verb_phrase.startswith(("put", "plac", "set", "mov")):
             reference_action = "place"
         else:
             reference_action = "interaction"
+        if reference_action == "pickup":
+            ref_verb = "picked up"
+        elif reference_action == "place":
+            if "mov" in verb_phrase:
+                ref_verb = "moved"
+            elif "plac" in verb_phrase:
+                ref_verb = "placed"
+            elif "set" in verb_phrase:
+                ref_verb = "set down"
+            else:
+                ref_verb = "put down"
+        else:
+            ref_verb = "touched"
         reference_tokens = content_tokens(reference_label)
 
         events: list[tuple[float, str, str, dict[str, Any] | None]] = []
@@ -1029,7 +1043,7 @@ class ChronicleRuntime:
                 query=query,
                 answer=(
                     f"I don't have any recorded actions {direction} you "
-                    f"{verb_phrase} the {reference_label} in this memory."
+                    f"{ref_verb} the {reference_label} in this memory."
                 ),
                 source="graph",
                 grounded=False,
@@ -1059,12 +1073,6 @@ class ChronicleRuntime:
             listed = f"{phrases[0]} and {phrases[1]}"
         else:
             listed = ", ".join(phrases[:-1]) + f", and {phrases[-1]}"
-        if reference_action == "pickup":
-            ref_verb = "picked up"
-        elif reference_action == "place":
-            ref_verb = "placed" if "plac" in verb_phrase else "put down"
-        else:
-            ref_verb = "touched"
         return RuntimeAnswer(
             query=query,
             answer=(
