@@ -77,6 +77,7 @@ class QueryResult:
     answer_match: bool | None
     abstained: bool
     detector_calls: int
+    elapsed_s: float
     evidence_bytes: int
     object_question: bool
 
@@ -319,6 +320,16 @@ def evaluate(args: argparse.Namespace) -> dict:
             detector=query_detector if mode in {"detector", "hybrid"} else None,
             source=args.clip,
         )
+        prefetch_calls = 0
+        prefetch_seconds = 0.0
+        if args.batch_prefetch:
+            prefetch_started = time.perf_counter()
+            prefetch_calls = engine.prefetch(vocabulary)
+            prefetch_seconds = time.perf_counter() - prefetch_started
+            print(
+                f"[prefetch] calls={prefetch_calls} seconds={prefetch_seconds:.2f}",
+                flush=True,
+            )
         for question in questions:
             query_terms = extract_terms(question["query"])
             object_question = question.get("category") in {
@@ -427,6 +438,7 @@ def evaluate(args: argparse.Namespace) -> dict:
                 answer_match=_semantic_match(question, answer),
                 abstained=answer.abstained,
                 detector_calls=calls,
+                elapsed_s=round(float(answer.elapsed_s), 3),
                 evidence_bytes=answer.evidence_bytes,
                 object_question=object_question,
             )
@@ -495,6 +507,13 @@ def evaluate(args: argparse.Namespace) -> dict:
         "mean_detector_calls": round(
             float(np.mean([item.detector_calls for item in hybrid_results])), 2
         ),
+        "prefetch_calls": prefetch_calls,
+        "prefetch_seconds": round(prefetch_seconds, 2),
+        "total_detector_calls": engine.detector_calls,
+        "query_seconds": round(sum(item.elapsed_s for item in hybrid_results), 2),
+        "mean_query_seconds": round(
+            float(np.mean([item.elapsed_s for item in hybrid_results])), 3
+        ),
         "mean_evidence_bytes": round(
             float(np.mean([item.evidence_bytes for item in hybrid_results])), 0
         ),
@@ -525,6 +544,7 @@ def main() -> None:
     parser.add_argument("--context-hand-only", action="store_true")
     parser.add_argument("--adaptive-context", action="store_true")
     parser.add_argument("--context-sweep-frames", type=int, default=5)
+    parser.add_argument("--batch-prefetch", action="store_true")
     parser.add_argument("--max-capsules", type=int, default=300)
     parser.add_argument("--context-gap", type=float, default=None)
     parser.add_argument("--clip-center", type=float, default=None)

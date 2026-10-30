@@ -168,6 +168,12 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   keyframe/prompt cache. On the Switch store it removed 13 of 110 detector
   calls (12%) and cut warm query time 3.97 s -> 3.33 s (16%), with semantics
   unchanged.
+- Session-level prefetch (`--batch-prefetch`) runs one union-vocabulary pass
+  over retained contexts before a known question batch. On z210 40 Q it cut
+  calls 898 -> 599 (-33%) and query time 24.05 s -> 14.03 s (-42%), plus 3.49 s
+  prefetch; semantics stayed .05 and IoU .768 vs .77. It only pays when
+  contexts are fewer than per-question calls (264 vs 22.45/Q here; Cook would
+  not benefit).
 - Negative result: adaptive context density (0.25 s while a hand action is
   open, 1.5 s idle) increased store size and *hurt* Switch localisation
   (loc@.30 0, IoU .087), because changed context placement altered track

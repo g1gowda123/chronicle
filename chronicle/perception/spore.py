@@ -1463,6 +1463,7 @@ class SporeQueryEngine:
         self._owns_detector = detector is None
         self._text_cache: dict[str, np.ndarray | None] = {}
         self._detection_cache: dict[tuple[Any, tuple[str, ...]], list[Detection]] = {}
+        self._prefetch: dict[tuple[Any, tuple[str, ...]], list[Detection]] = {}
         self.detection_cache_hits = 0
         self.detector_calls = 0
 
@@ -1483,6 +1484,46 @@ class SporeQueryEngine:
             self._embedder = build_embedder(self.perception)
         if self._detector is None and self.config.late_binding:
             self._detector = build_detector(self.perception)
+
+    def prefetch(self, vocabulary: Sequence[str]) -> int:
+        """Run one detector pass per retained context for a shared vocabulary.
+
+        A batch of questions usually shares support labels and often overlaps
+        object terms.  Detecting the union once per keyframe lets every later
+        question filter cached detections instead of paying one call per
+        question and keyframe.  Returns the number of detector calls spent.
+        """
+        if not self.config.detect_cache or not self.store.contexts:
+            return 0
+        if self._detector is None:
+            if not self.config.late_binding:
+                return 0
+            self._detector = build_detector(self.perception)
+        labels = tuple(
+            dict.fromkeys(
+                str(label).strip().lower()
+                for label in vocabulary
+                if str(label).strip()
+            )
+        )
+        if not labels:
+            return 0
+        self._detector.set_vocabulary(list(labels))
+        self._prefetch.clear()
+        calls = 0
+        for context in self.store.contexts:
+            frame = context.image()
+            if frame is None:
+                continue
+            detections = self._detector.detect(
+                frame,
+                frame_index=context.frame_index,
+                timestamp=context.timestamp,
+            )
+            self._prefetch[(context.frame_index, labels)] = detections
+            self.detector_calls += 1
+            calls += 1
+        return calls
 
     def _detect_cached(
         self,
@@ -1514,6 +1555,21 @@ class SporeQueryEngine:
             self.detection_cache_hits += 1
             self._detection_cache[key] = self._detection_cache.pop(key)
             return cached
+        if tag == frame_index:
+            requested = {str(label).strip().lower() for label in vocabulary}
+            for (index, prefetched_labels), detections in self._prefetch.items():
+                if index != frame_index:
+                    continue
+                if requested.issubset(prefetched_labels):
+                    self.detection_cache_hits += 1
+                    return [
+                        detection
+                        for detection in detections
+                        if any(
+                            _label_matches(detection.label, term)
+                            for term in vocabulary
+                        )
+                    ]
         self._detector.set_vocabulary(list(vocabulary))
         detections = self._detector.detect(
             frame, frame_index=frame_index, timestamp=timestamp

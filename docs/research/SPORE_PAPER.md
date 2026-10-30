@@ -385,6 +385,20 @@ hits, 12% fewer calls); warm query time fell from 3.97 s to 3.33 s (16%).
 Cook semantics stay at .70 and Switch at .875. The cache is implementation
 transparent and is cleared per engine, so it cannot leak across clips.
 
+Question batches admit a larger optimisation. When the vocabulary is known
+before answering, `SporeQueryEngine.prefetch` runs one detector pass over every
+retained context with the union of question terms and support labels; each
+question then filters the superset instead of paying one prompt-specific pass
+per context. On the z210 40-question set this reduced detector calls from
+**898 to 599** (-33%), query time from **24.05 s to 14.03 s** (-42%; mean
+601 ms to 351 ms), at the cost of a **3.49 s** prefetch pass. Semantic accuracy
+stayed at .05 and mean IoU at .768 (vs .77). The trade pays only when the
+number of contexts is small relative to per-question calls: z210 has 264
+contexts and 22.45 calls per question, whereas Cook has 140 contexts and 13.7
+calls per question, so prefetching there would add work. The API is opt-in
+(`--batch-prefetch`); a new prefetch replaces the previous table, and the table
+is released with the engine.
+
 Ingest remains the other cost. The 45 s Cook clip took ~25 s (225 sampled
 frames, 140 keyframes) when the GPU was idle; the 257 s z210 clip takes ~298 s.
 Compaction is throttled to once per second and checks box overlap before
