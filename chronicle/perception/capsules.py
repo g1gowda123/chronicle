@@ -83,6 +83,43 @@ def _decode_jpeg(payload: str | None) -> np.ndarray | None:
     return image
 
 
+def _externalize_images(payload: dict[str, Any], evidence_dir: Path) -> None:
+    """Move base64 JPEGs out of an index payload into evidence blobs."""
+    counter = 0
+
+    def _extract(container: dict[str, Any]) -> None:
+        nonlocal counter
+        image = container.get("image")
+        if not isinstance(image, str) or not image:
+            return
+        name = f"frame_{counter:06d}.jpg"
+        counter += 1
+        (evidence_dir / name).write_bytes(base64.b64decode(image))
+        container["image"] = f"file:{evidence_dir.name}/{name}"
+
+    for capsule in payload.get("capsules", []):
+        for view in capsule.get("views", []):
+            _extract(view)
+    for scene in payload.get("scenes", []):
+        _extract(scene)
+    for context in payload.get("contexts", []):
+        _extract(context)
+
+
+def _resolve_image_refs(node: Any, base_dir: Path) -> None:
+    """Inline ``file:`` evidence references before deserialisation."""
+    if isinstance(node, dict):
+        for key, value in list(node.items()):
+            if key == "image" and isinstance(value, str) and value.startswith("file:"):
+                blob = (base_dir / value[len("file:") :]).read_bytes()
+                node[key] = base64.b64encode(blob).decode("ascii")
+            else:
+                _resolve_image_refs(value, base_dir)
+    elif isinstance(node, list):
+        for item in node:
+            _resolve_image_refs(item, base_dir)
+
+
 @dataclass
 class SporeView:
     """One label-free crop of a capsule at a specific time.
@@ -674,16 +711,36 @@ class CapsuleStore:
         store._counter = len(store.capsules) + len(store.actions)
         return store
 
-    def save(self, path: str | Path, *, include_images: bool = True) -> Path:
+    def save(
+        self,
+        path: str | Path,
+        *,
+        include_images: bool = True,
+        split: bool = False,
+    ) -> Path:
+        """Write the store as one JSON file or as a compact index + blobs.
+
+        ``split=True`` moves every JPEG into a sibling ``<stem>_evidence/``
+        directory and leaves ``file:<relative-path>`` references in the
+        index.  An LLM can read the index without loading megabytes of
+        base64, while query-time code transparently resolves the blobs.
+        """
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         payload = self.to_dict(include_images=include_images)
+        if split and include_images:
+            evidence_dir = target.parent / f"{target.stem}_evidence"
+            evidence_dir.mkdir(parents=True, exist_ok=True)
+            _externalize_images(payload, evidence_dir)
         target.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
         return target
 
     @classmethod
     def load(cls, path: str | Path) -> CapsuleStore:
-        return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
+        target = Path(path)
+        payload = json.loads(target.read_text(encoding="utf-8"))
+        _resolve_image_refs(payload, target.parent)
+        return cls.from_dict(payload)
 
     def memory_bytes(self, *, include_images: bool = True) -> int:
         return len(json.dumps(self.to_dict(include_images=include_images)))
