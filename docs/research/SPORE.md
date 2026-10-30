@@ -266,7 +266,9 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   safe: Cook semantic/loc@.3 fall .70/1.00 to .50/.50, so only the narrower
   crops use it. Lowering context JPEG quality to 70 saves only 6% but drops
   Cook semantic .70 to .60 and IoU .692 to .573. Split evidence is 3.99 /
-  2.43 / 4.65 MB.
+  2.43 / 4.65 MB. Downscaling contexts is also unsafe: 512 px wide saves 13.6%
+  of Cook split bytes but drops semantic .70 -> .40, loc@.3 1.00 -> .50, and
+  IoU .692 -> .425; 576 px still drops semantic to .40.
 - View pixels are optional (`include_view_images=False`): views keep boxes and
   embeddings for routing, while contexts keep the pixels used for detection.
   Cook drops to 3.48 MB, Switch to 2.37 MB, Play to 4.55 MB, with unchanged QA

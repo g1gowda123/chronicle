@@ -434,6 +434,15 @@ crops are the safe target.  Lowering context JPEG quality is not a useful
 alternative: quality 70 saves only 6% of Cook bytes but drops semantic accuracy
 .70 to .60 and mean IoU .692 to .573.
 
+Downscaling context images is not a workaround.  Storing Cook contexts at
+512 px wide and resizing them back to frame space before detection saves 13.6%
+of split-store bytes (4.32 vs 5.00 MB), but drops semantic accuracy .70 to .40,
+loc@.3 1.00 to .50, and mean IoU .692 to .425.  A 576 px version saves 7.9% and
+still drops semantic accuracy to .40.  Because the boxes stay in frame
+coordinates and the images are upscaled before detection, this is image-
+information loss rather than the earlier box-scaling bug: the wide keyframe
+needs its native resolution for small objects.
+
 ### 5.9 Detector capacity
 
 A larger query-time detector does not unlock the fine objects.  Re-running the
