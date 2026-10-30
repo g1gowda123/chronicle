@@ -612,11 +612,36 @@ def _coverage_top(
 
 
 def _nms(candidates: list[_Candidate], threshold: float) -> list[_Candidate]:
-    kept: list[_Candidate] = []
-    for candidate in sorted(candidates, key=lambda item: item.score, reverse=True):
-        if all(candidate.bbox.iou(other.bbox) < threshold for other in kept):
-            kept.append(candidate)
-    return kept
+    if not candidates:
+        return []
+    boxes = np.array(
+        [
+            [candidate.bbox.x1, candidate.bbox.y1, candidate.bbox.x2, candidate.bbox.y2]
+            for candidate in candidates
+        ],
+        dtype=np.float32,
+    )
+    scores = np.array([candidate.score for candidate in candidates], dtype=np.float32)
+    order = np.argsort(-scores, kind="stable")
+    areas = np.maximum(0.0, boxes[:, 2] - boxes[:, 0]) * np.maximum(
+        0.0, boxes[:, 3] - boxes[:, 1]
+    )
+    kept: list[int] = []
+    while order.size:
+        current = int(order[0])
+        kept.append(current)
+        if order.size == 1:
+            break
+        rest = order[1:]
+        xx1 = np.maximum(boxes[current, 0], boxes[rest, 0])
+        yy1 = np.maximum(boxes[current, 1], boxes[rest, 1])
+        xx2 = np.minimum(boxes[current, 2], boxes[rest, 2])
+        yy2 = np.minimum(boxes[current, 3], boxes[rest, 3])
+        intersection = np.maximum(0.0, xx2 - xx1) * np.maximum(0.0, yy2 - yy1)
+        union = areas[current] + areas[rest] - intersection
+        iou = np.divide(intersection, union, out=np.zeros_like(intersection), where=union > 0)
+        order = rest[iou < threshold]
+    return [candidates[index] for index in kept]
 
 
 def _norm_percentile(values: np.ndarray, percentile: float = 95.0) -> float:
@@ -1201,14 +1226,28 @@ class SporePerceiver:
     def _annotate_novelty(self, candidates: list[_Candidate]) -> None:
         if not candidates:
             return
-        descriptors = [
-            (capsule, _stored_descriptor(capsule)) for capsule in self.store.candidates()
+        stored = [
+            descriptor
+            for capsule in self.store.candidates()
+            if (descriptor := _stored_descriptor(capsule)) is not None
         ]
-        for candidate in candidates:
-            best = 0.0
-            for _, descriptor in descriptors:
-                best = max(best, _descriptor_similarity(candidate.descriptor, descriptor))
-            candidate.novelty = max(0.0, 1.0 - best)
+        if not stored:
+            for candidate in candidates:
+                candidate.novelty = 1.0
+            return
+        valid = [candidate for candidate in candidates if candidate.descriptor is not None]
+        if not valid:
+            return
+        memory = np.stack(stored).astype(np.float32)
+        query = np.stack(
+            [np.asarray(candidate.descriptor, dtype=np.float32) for candidate in valid]
+        )
+        memory_norm = np.linalg.norm(memory, axis=1, keepdims=True)
+        query_norm = np.linalg.norm(query, axis=1, keepdims=True)
+        similarity = (query @ memory.T) / np.maximum(1e-12, query_norm * memory_norm.T)
+        best = np.clip(similarity.max(axis=1), 0.0, 1.0)
+        for candidate, value in zip(valid, best, strict=True):
+            candidate.novelty = float(1.0 - value)
 
     def _update_descriptor(self, capsule: ObjectCapsule, descriptor: np.ndarray | None) -> None:
         if descriptor is None:
