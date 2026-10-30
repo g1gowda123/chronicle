@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `713c8e6` | pushed; SPORE perceiver + benchmarks + results |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `62702bf` | pushed; SPORE perceiver + benchmarks + results |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -46,11 +46,13 @@ query engine. `scripts/spore_real_bench.py` evaluates Cook 45 s and Switch 34 s
 against dense YOLO-World pseudo-GT. Current headline: Cook loc@.30 1.00 /
 mean IoU .692 / semantic .60 / 12.5 detector calls per query (dense: 150);
 Switch loc@.30 .75 / mean IoU .590 / semantic .875 / 12.25 calls (dense: 128).
-z210 257 s is a scaling diagnostic: 44.6 MB store, 298 s ingest, loc@.30 1.00,
-but semantic .025 because the detector cannot see the fine objects being
-counted. A play-domain smoke test retains 2/3 dense-detectable objects at mean
-IoU .475, with 407 capsules for 45 s, exposing capsule deduplication as the
-next stress point. See `SPORE.md` for ablations, counting limits and open issues.
+z210 257 s is a scaling diagnostic: 298 s ingest and loc@.30 1.00, but semantic
+.025 because the detector cannot see the fine objects being counted. The
+300-capsule hard budget cuts its store from 44.2 MB to 21.1 MB with no metric
+loss; contexts, not capsules, carry most answer evidence. A play-domain smoke
+test retains 2/3 dense-detectable objects at mean IoU .475, and its 407
+capsules are bounded to 10.4 MB with unchanged metrics. See `SPORE.md` for
+ablations, counting limits and open issues.
 
 
 ## 3. Main branch: what is already shipped
