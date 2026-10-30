@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `ad67f4f` | pushed; SPORE perceiver + benchmarks + split store + auto-eval |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `ff24d8b` | pushed; SPORE perceiver + benchmarks + split store + auto-eval + action consolidation |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -44,8 +44,12 @@ tests, README and CLI edits. That work is independent of the perception work.
 implement a working label-free capsule perceiver and budgeted late-binding
 query engine. `scripts/spore_real_bench.py` evaluates Cook 45 s and Switch 34 s
 against dense YOLO-World pseudo-GT. Current headline: Cook loc@.30 1.00 /
-mean IoU .692 / semantic .60 / 12.5 detector calls per query (dense: 150);
-Switch loc@.30 .75 / mean IoU .590 / semantic .875 / 12.25 calls (dense: 128).
+mean IoU .692 / semantic .60 / 14.1 detector calls per query (dense: 150);
+Switch loc@.30 .75 / mean IoU .611 / semantic .875 / 14.4 calls (dense: 128).
+Contact episodes are merged per object (38 actions for 12 annotated switch
+events; recall 12/12 at temporal IoU .1-.3, precision .68 at .1), and counting
+uses a 32-frame uniform temporal grid so action-boundary changes do not change
+counts.
 z210 257 s is a scaling diagnostic: 298 s ingest and loc@.30 1.00, but semantic
 .025 because the detector cannot see the fine objects being counted. The
 300-capsule hard budget cuts its store from 44.2 MB to 21.1 MB with no metric
