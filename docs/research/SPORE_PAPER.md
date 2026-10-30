@@ -368,6 +368,20 @@ candidates and 200 stored descriptors, novelty lookup fell from 2.42 s to
 0.011 s (~220x) and NMS from 167 ms to 57 ms (~3x). Unit tests check that both
 vectorized paths match the original greedy/cosine semantics exactly.
 
+### 5.8 Evidence codec
+
+Capsule and scene crops are stored as WebP at quality 82; context keyframes
+stay JPEG.  Re-encoding or fresh ingest with WebP leaves every headline answer
+unchanged: Cook .70 / loc@.3 1.00 / IoU .692, Switch .875 / .75 / .611, Play
+1.00 / .667 / .475.  Monolithic stores shrink from 8.22 to 6.41 MB (Cook), 6.16
+to 4.69 MB (Switch), and 11.45 to 7.68 MB (Play), a 22-33% reduction.  With
+split storage the Cook index is 1.02 MB and its evidence blobs 3.99 MB;
+Switch is 1.33 / 2.43 MB, Play 1.33 / 4.65 MB.  The remaining context bytes
+are not free to recompress: recoding context frames alone to WebP quality 80
+dropped Cook semantic accuracy .70 to .50 and loc@.3 1.00 to .50.  Small
+objects on the wider keyframe are codec-sensitive, so the narrower capsule
+crops are the safe target.
+
 ## 6. Discussion
 
 SPORE shows that **retained full context**, not better crops, is the dominant
@@ -377,10 +391,13 @@ invisible in the crop. The second factor is cross-frame fusion: two joy-cons
 produce identical text queries, and only temporal association and geometric
 mean scoring reliably pick a consistent instance.
 
-Storage remains context-heavy. The compact index solves the LLM-readability
-problem, but evidence bytes still scale with clip length. A production system
-should add an explicit evidence budget, adaptive context placement around
-interactions, and possibly a keyframe codec or a small learned compressor.
+Storage remains evidence-heavy. The compact index solves the LLM-readability
+problem, but evidence bytes still scale with clip length; after WebP crops,
+contexts are the largest component on Cook, while capsule crops still dominate
+Switch and Play. A production system should add an explicit evidence budget,
+adaptive context placement around interactions, and possibly a context codec
+or a small learned compressor. Context WebP is not a drop-in win because small
+objects are sensitive to its smoothing.
 
 ## 7. Threats to Validity
 

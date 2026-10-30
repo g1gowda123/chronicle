@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+
+import numpy as np
+
 from chronicle.perception.capsules import ActionCapsule, CapsuleStore, SporeView
 from chronicle.types import BBox
 
@@ -14,6 +18,22 @@ def _view(timestamp: float, *, hand_overlap: float = 0.0) -> SporeView:
         score=0.5,
         hand_overlap=hand_overlap,
     )
+
+
+def test_view_image_roundtrips_as_webp() -> None:
+    image = np.zeros((8, 8, 3), dtype=np.uint8)
+    image[:, :, 0] = 200
+    view = _view(1.0)
+    view.image = image
+
+    payload = view.as_dict()
+    raw = base64.b64decode(payload["image"])
+
+    assert raw[:4] == b"RIFF"
+    assert raw[8:12] == b"WEBP"
+    restored = SporeView.from_dict(payload)
+    assert restored.image is not None
+    assert restored.image.shape == image.shape
 
 
 def test_evict_to_keeps_touched_objects_before_recent_background() -> None:

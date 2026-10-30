@@ -65,16 +65,22 @@ def _unpack_vector(payload: str | None, dimension: int | None = None) -> np.ndar
     return array
 
 
-def _encode_jpeg(image: np.ndarray | None, *, quality: int = 82) -> str | None:
+def _encode_image(image: np.ndarray | None, *, quality: int = 82) -> str | None:
     if image is None or image.size == 0:
         return None
-    ok, buffer = cv2.imencode(".jpg", image, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+    ok, buffer = cv2.imencode(
+        ".webp", image, [int(cv2.IMWRITE_WEBP_QUALITY), int(quality)]
+    )
+    if not ok:
+        ok, buffer = cv2.imencode(
+            ".jpg", image, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)]
+        )
     if not ok:
         return None
     return base64.b64encode(buffer.tobytes()).decode("ascii")
 
 
-def _decode_jpeg(payload: str | None) -> np.ndarray | None:
+def _decode_image(payload: str | None) -> np.ndarray | None:
     if not payload:
         return None
     raw = base64.b64decode(payload.encode("ascii"))
@@ -84,7 +90,7 @@ def _decode_jpeg(payload: str | None) -> np.ndarray | None:
 
 
 def _externalize_images(payload: dict[str, Any], evidence_dir: Path) -> None:
-    """Move base64 JPEGs out of an index payload into evidence blobs."""
+    """Move base64 images out of an index payload into evidence blobs."""
     counter = 0
 
     def _extract(container: dict[str, Any]) -> None:
@@ -92,9 +98,11 @@ def _externalize_images(payload: dict[str, Any], evidence_dir: Path) -> None:
         image = container.get("image")
         if not isinstance(image, str) or not image:
             return
-        name = f"frame_{counter:06d}.jpg"
+        raw = base64.b64decode(image)
+        suffix = ".webp" if raw[8:12] == b"WEBP" else ".jpg"
+        name = f"frame_{counter:06d}{suffix}"
         counter += 1
-        (evidence_dir / name).write_bytes(base64.b64decode(image))
+        (evidence_dir / name).write_bytes(raw)
         container["image"] = f"file:{evidence_dir.name}/{name}"
 
     for capsule in payload.get("capsules", []):
@@ -124,7 +132,7 @@ def _resolve_image_refs(node: Any, base_dir: Path) -> None:
 class SporeView:
     """One label-free crop of a capsule at a specific time.
 
-    ``bbox`` is in *frame* coordinates.  The crop is stored as JPEG so a
+    ``bbox`` is in *frame* coordinates.  The crop is stored as WebP so a
     capsule store stays small enough to move with a Chronicle vault; the
     embedding stays in memory (and is packed as float16 on disk).
     """
@@ -158,7 +166,7 @@ class SporeView:
         if self.metadata:
             payload["metadata"] = self.metadata
         if include_image:
-            payload["image"] = _encode_jpeg(self.image)
+            payload["image"] = _encode_image(self.image)
         return payload
 
     @classmethod
@@ -169,7 +177,7 @@ class SporeView:
             bbox=BBox.from_sequence(payload.get("bbox", (0, 0, 0, 0))),
             score=float(payload.get("score", 0.0)),
             embedding=_unpack_vector(payload.get("embedding")),
-            image=_decode_jpeg(payload.get("image")),
+            image=_decode_image(payload.get("image")),
             source=str(payload.get("source", "saliency")),
             sharpness=float(payload.get("sharpness", 0.0)),
             hand_overlap=float(payload.get("hand_overlap", 0.0)),
@@ -430,7 +438,7 @@ class SceneCapsule:
             "metadata": self.metadata,
         }
         if include_image:
-            payload["image"] = _encode_jpeg(self.image)
+            payload["image"] = _encode_image(self.image)
         return payload
 
     @classmethod
@@ -440,7 +448,7 @@ class SceneCapsule:
             frame_index=int(payload.get("frame_index", 0)),
             score=float(payload.get("score", 0.0)),
             embedding=_unpack_vector(payload.get("embedding")),
-            image=_decode_jpeg(payload.get("image")),
+            image=_decode_image(payload.get("image")),
             metadata=dict(payload.get("metadata") or {}),
         )
 
@@ -764,7 +772,7 @@ class CapsuleStore:
     ) -> Path:
         """Write the store as one JSON file or as a compact index + blobs.
 
-        ``split=True`` moves every JPEG into a sibling ``<stem>_evidence/``
+        ``split=True`` moves every image into a sibling ``<stem>_evidence/``
         directory and leaves ``file:<relative-path>`` references in the
         index.  An LLM can read the index without loading megabytes of
         base64, while query-time code transparently resolves the blobs.

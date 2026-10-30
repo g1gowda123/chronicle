@@ -242,10 +242,16 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 - The store now has two tiers. `CapsuleStore.save(path, split=True)` writes a
   compact index plus a sibling `*_evidence/` directory; `load` resolves the
   references transparently. Index sizes: Cook 1.02 MB (vs 8.22 MB monolithic),
-  Switch 1.34 MB (vs 5.99), Play 1.68 MB (vs 11.45), z210-300 2.40 MB (vs
-  21.13). Evidence blobs are 5.42 / 3.50 / 7.34 / 14.08 MB. An LLM can read
+  Switch 1.34 MB (vs 5.99), Play 1.33 MB (vs 11.45), z210-300 2.40 MB (vs
+  21.13). Evidence blobs are 3.99 / 2.43 / 4.65 MB on Cook/Switch/Play with
+  WebP crops (z210 stays 14.08 MB until re-ingested). An LLM can read
   the index without loading image payloads; query-time code loads evidence only
   when it needs pixels.
+- Capsule/scene crops use WebP q82; context keyframes stay JPEG. This cuts
+  monolithic stores from 8.22 to 6.41 MB (Cook), 6.16 to 4.69 MB (Switch), and
+  11.45 to 7.68 MB (Play) with identical QA. Recoding contexts to WebP is not
+  safe: Cook semantic/loc@.3 fall .70/1.00 to .50/.50, so only the narrower
+  crops use it. Split evidence is 3.99 / 2.43 / 4.65 MB.
 - View pixels are optional (`include_view_images=False`): views keep boxes and
   embeddings for routing, while contexts keep the pixels used for detection.
   Cook drops to 3.48 MB, Switch to 2.37 MB, Play to 4.55 MB, with unchanged QA
