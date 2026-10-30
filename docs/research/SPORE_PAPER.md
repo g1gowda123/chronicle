@@ -124,7 +124,7 @@ Views are routing indices, not the primary evidence.  Setting
 pixels; context frames remain the localisation evidence.  This reduces Cook
 from 8.27 to 3.48 MB, Switch from 6.06 to 2.37 MB, Play from 11.53 to 4.55 MB,
 and the 1,947-capsule z210 store from 44.15 to 17.05 MB.  Answers are unchanged
-(Cook semantic .60, Switch .875, Play auto-eval 1.00, z210 .025), while detector
+(Cook semantic .70, Switch .875, Play auto-eval 1.00, z210 .025), while detector
 calls per query fall to 8.3 / 8.6 / 4.5 / 16.8 because the redundant crop
 detector fallback disappears.  We therefore recommend storing view pixels only
 when crop-level binding must work without contexts.
@@ -156,9 +156,11 @@ greedy diversity pass. For the top capsules:
 - **Colour:** HSV vote over the central 70% of the bound region, ignoring
   low-saturation pixels.
 - **Support:** detector pass with support labels only.
-- **Action / first touch:** action capsules and forward context scans; a
-  first-touch answer must overlap a hand box, so "visible on a shelf" is not
-  reported as touching.
+- **Action / first touch:** action capsules and forward context scans. The
+  first-touch scan requires a detected object box to contain a MediaPipe
+  fingertip (within a small padding), falling back to hand-box overlap when
+  fingertips are unavailable. This distinguishes touching from an object that
+  merely appears behind a large, merged hand box.
 - **Abstention:** no binding, count zero with no evidence, or confidence below
   threshold.
 
@@ -213,7 +215,7 @@ Hand-written QA sets:
 
 | Domain | Semantic | loc@.3 | loc@.5 | mean IoU | Store | Calls/query | Dense calls |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Cook 45 s | .60 | 1.00 | .75 | .692 | 8.27 MB | 14.1 | 150 |
+| Cook 45 s | .70 | 1.00 | .75 | .692 | 8.27 MB | 14.5 | 150 |
 | Switch 34 s | .875 | .75 | .75 | .611 | 6.06 MB | 14.4 | 128 |
 | Play 45 s | 1.00 | .667 | .667 | .475 | 10.4 MB | 11.5 | 150 |
 | z210 257 s (300 caps) | .025 | 1.00 | 1.00 | .769 | 21.1 MB | 27.2 | 962 |
@@ -289,17 +291,17 @@ contexts, so a short held-knife interval can fall between two contexts:
 
 | Domain | fps | Semantic | loc@.3 | loc@.5 | Mean IoU | Store | Ingest | Calls/query |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Cook | 2 | .60 | .60 | — | .635 | 7.86 MB | 14.6 s | 11.0 |
-| Cook | 4 | .60 | 1.00 | .75 | .692 | 8.27 MB | 25.7 s | 12.5 |
-| Cook | 8 | .30 | .80 | .60 | .626 | 8.45 MB | 33.5 s | 12.7 |
+| Cook | 2 | .60 | .60 | .60 | .632 | 7.86 MB | 32.5 s | 13.5 |
+| Cook | 4 | .70 | 1.00 | .75 | .692 | 8.27 MB | 24.6 s | 14.5 |
+| Cook | 8 | .40 | .80 | .40 | .524 | 8.44 MB | 73.0 s | 14.6 |
 | Switch | 2 | .75 | .75 | — | .649 | 4.50 MB | 8.0 s | 10.0 |
-| Switch | 4 | .875 | .75 | .75 | .590 | 6.06 MB | 14.3 s | 12.25 |
+| Switch | 4 | .875 | .75 | .75 | .590 | 6.06 MB | 14.3 s | 14.25 |
 | Switch | 8 | .75 | .75 | — | .573 | 5.83 MB | 15.6 s | 12.1 |
 
 A query-time **foveal rescan** can recover a short interaction without storing
 every frame: when retained contexts yield no detector evidence, re-decode a
 one-second window of the original video at 12 fps.  On the 8 fps Cook store,
-rescan raises loc@.3 .80→1.00, mean IoU .626→.739, and semantic .30→.40 at
+rescan raises loc@.3 .80→1.00 and mean IoU .626→.739 at
 20.3 calls/query (vs 12.7 without).  On 4 fps stores it changes no headline
 metric and roughly doubles calls, so it remains opt-in (`rescan=False`) and is
 reported as a cost/accuracy escalation rather than a default.
@@ -308,7 +310,8 @@ reported as a cost/accuracy escalation rather than a default.
 
 The HoloAssist switch clip also ships a real 12-event interaction timeline.
 SPORE ingests without those labels and records only hand-object contact
-geometry.  Comparing its 54 action capsules to the timeline:
+geometry.  Comparing its 38 merged action capsules (from 54 raw contacts) to
+the timeline:
 
 | Temporal IoU | Recall | Precision | Timeline coverage |
 |---|---:|---:|---:|
@@ -323,6 +326,28 @@ merged capsules for 12 events, so precision falls as the IoU requirement
 tightens.  This is evidence that contact geometry is a usable *temporal index*
 before any verb labels, not evidence that SPORE understands verbs.  Verb
 naming remains future work.
+
+### 5.7 Query latency and vocabulary switching
+
+Steady-state query latency on the Cook saved store, measured on the RTX 4060
+Laptop with the detector and CLIP already resident, is **617 ms mean / 337 ms
+median** across the nine non-warmup questions (14.4 detector calls per query).
+The slowest query is counting, which scans 32 contexts. The first query after
+engine construction is not representative: loading YOLO-World and building the
+predictor costs roughly 8-12 s once.
+
+Open-vocabulary switching was the dominant avoidable cost. Ultralytics
+`YOLOWorld.set_classes` rebuilds its CLIP text encoder on every call (~2.1 s on
+this machine). SPORE caches one CLIP text embedding per label, encodes only
+new labels, updates the live predictor's features in place, and avoids
+invalidating the predictor. Vocabulary changes drop to **~0.11-0.14 s** after
+the first swap, and per-frame detection is **~20 ms** once warm. This is a
+general systems optimisation: it does not change any benchmark answer.
+
+Ingest remains the other cost. The 45 s Cook clip takes ~25 s (225 sampled
+frames, 140 keyframes); the 257 s z210 clip takes ~298 s. Compaction is
+throttled to once per second and checks box overlap before appearance
+similarity, which removed the earlier quadratic blow-up.
 
 ## 6. Discussion
 

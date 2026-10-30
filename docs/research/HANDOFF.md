@@ -44,8 +44,12 @@ tests, README and CLI edits. That work is independent of the perception work.
 implement a working label-free capsule perceiver and budgeted late-binding
 query engine. `scripts/spore_real_bench.py` evaluates Cook 45 s and Switch 34 s
 against dense YOLO-World pseudo-GT. Current headline: Cook loc@.30 1.00 /
-mean IoU .692 / semantic .60 / 14.1 detector calls per query (dense: 150);
-Switch loc@.30 .75 / mean IoU .611 / semantic .875 / 14.4 calls (dense: 128).
+mean IoU .692 / semantic .70 / 14.5 detector calls per query (dense: 150);
+Switch loc@.30 .75 / mean IoU .611 / semantic .875 / 14.25 calls (dense: 128).
+First-touch cup time is 4.6 s (annotated 4.5 s) via a fingertip-contact gate;
+steady-state query latency is ~617 ms mean / 337 ms median after a one-time
+model/predictor warmup. Vocabulary switching is cached per label (~0.1 s vs
+~2.1 s for `set_classes`).
 Contact episodes are merged per object (38 actions for 12 annotated switch
 events; recall 12/12 at temporal IoU .1-.3, precision .68 at .1), and counting
 uses a 32-frame uniform temporal grid so action-boundary changes do not change

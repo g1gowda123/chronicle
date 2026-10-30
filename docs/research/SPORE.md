@@ -134,7 +134,7 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 
 | clip | store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .60 | 14.1 | 150 |
+| Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .70 | 14.5 | 150 |
 | Switch 34 s | 6.06 MB | .75 | .75 | .611 | .875 | 14.4 | 128 |
 | Play 45 s | 10.4 MB (300-cap) | .667 | .667 | .475 | 1.00 | 11.5 | 150 |
 | HoloAssist z210 257 s | 21.1 MB (300-cap) | 1.00 | 1.00 | .769 | .025 | 27.2 | 962 |
@@ -151,8 +151,15 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   scoring tracks by a temporally weighted geometric mean of confidence.
 - Action-indexed temporal retrieval answers "when did … first" by forward-
   scanning sparse contexts: Switch first joy-con pick-up at 3.7 s (annotated
-  4.2 s); Cook first cup detection at 1.0 s, which is early and exposes the
-  need for touch/contact evidence rather than appearance alone.
+  4.2 s); Cook first cup touch at **4.6 s** (annotated 4.5 s). The first-touch
+  scan requires a detection to contain a MediaPipe fingertip, so a large hand
+  box overlapping a cup on a shelf no longer counts as contact. The same
+  fingertip rule in action segmentation reduced recall and was rejected;
+  actions still use hand-box/palm contact.
+- Steady-state query latency on Cook is ~617 ms mean / 337 ms median (14.4
+  detector calls), excluding one-time model/predictor warmup (~8-12 s).
+  Vocabulary switching was reduced from ~2.1 s to ~0.11-0.14 s by caching CLIP
+  text embeddings per label and updating the live predictor in place.
 - Negative result: adaptive context density (0.25 s while a hand action is
   open, 1.5 s idle) increased store size and *hurt* Switch localisation
   (loc@.30 0, IoU .087), because changed context placement altered track
@@ -202,12 +209,12 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   precision .68 at IoU .1 / .45 at .3. Reproduce with
   `scripts/spore_action_eval.py`; verb naming is still open.
 - Sampling is not monotonically better. On Cook, semantic/loc@.3/IoU are
-  .60/.60/.635 at 2 fps, .60/1.00/.692 at 4 fps, and .30/.80/.626 at 8 fps;
+  .60/.60/.632 at 2 fps, .70/1.00/.692 at 4 fps, and .40/.80/.524 at 8 fps;
   Switch is .75/.75/.649, .875/.75/.590, .75/.75/.573. More frames change the
   temporal phase of retained contexts and can skip a short interaction. Default
   stays 4 fps. Opt-in `rescan=True` re-decodes a 1 s window of the source at
   12 fps only when retained evidence is weak; on the 8 fps Cook store it
-  recovers loc@.3 .80->1.00 / IoU .626->.739 / semantic .30->.40 at 20.3 calls,
+  recovers loc@.3 .80->1.00 / IoU .626->.739 at 20.3 calls,
   but adds no accuracy at 4 fps, so it is an escalation path, not a default.
 - Fine-object limits are detector-bound, not prompt-bound: over all 264 z210
   contexts, YOLO-World returned zero detections for game card, SD card, wrist
