@@ -190,6 +190,7 @@ def evaluate(args: argparse.Namespace) -> dict:
         context_adaptive_gap=args.adaptive_context,
         query_capsules=args.budget,
         query_views=2,
+        rescan=args.rescan,
     )
     if args.context_gap is not None:
         config.context_min_gap = args.context_gap
@@ -286,6 +287,7 @@ def evaluate(args: argparse.Namespace) -> dict:
             perception,
             embedder=embedder,
             detector=detector if mode in {"detector", "hybrid"} else None,
+            source=args.clip,
         )
         for question in questions:
             query_terms = extract_terms(question["query"])
@@ -491,6 +493,7 @@ def main() -> None:
     parser.add_argument("--context-gap", type=float, default=None)
     parser.add_argument("--clip-center", type=float, default=None)
     parser.add_argument("--abstain", type=float, default=None)
+    parser.add_argument("--rescan", action="store_true")
     args = parser.parse_args()
     torch.set_grad_enabled(False)
     if torch.cuda.is_available():

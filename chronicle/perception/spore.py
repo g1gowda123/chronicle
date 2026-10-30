@@ -240,6 +240,10 @@ class SporeConfig:
     colour_min_chromatic_fraction: float = 0.10
     support_labels: tuple[str, ...] = _SUPPORT_LABELS
     infer_support: bool = True
+    rescan: bool = False
+    rescan_window: float = 1.0
+    rescan_fps: float = 12.0
+    rescan_max_frames: int = 16
     late_binding: bool = True
     binding_mode: str = "detector"  # detector | clip | hybrid
     clip_prompt_templates: tuple[str, ...] = (
@@ -1395,12 +1399,14 @@ class SporeQueryEngine:
         *,
         embedder: EmbeddingService | None = None,
         detector: BaseDetector | None = None,
+        source: str | None = None,
     ) -> None:
         self.store = store
         self.config = config or SporeConfig()
         self.perception = perception or PerceptionConfig()
         self._embedder = embedder
         self._detector = detector
+        self.source = source
         self._owns_embedder = embedder is None
         self._owns_detector = detector is None
         self._text_cache: dict[str, np.ndarray | None] = {}
@@ -1586,6 +1592,17 @@ class SporeQueryEngine:
                     bindings = self._merge_bindings(bindings, swept)
         if mode in {"detector", "hybrid"} and self._detector is not None and not bindings:
             bindings = self._bind_detector(term, capsules, at_time=at_time)
+        if (
+            mode in {"detector", "hybrid"}
+            and self.config.rescan
+            and at_time is not None
+            and (not bindings or bindings[0].confidence < self.config.query_abstain_confidence)
+        ):
+            rescanned = self._rescan(term, at_time)
+            if rescanned and (
+                not bindings or rescanned[0].confidence > bindings[0].confidence
+            ):
+                bindings = rescanned
         if mode == "clip" or (
             mode == "hybrid"
             and (
@@ -2132,6 +2149,129 @@ class SporeQueryEngine:
             return 0.0
         embedding = self._embedder.embed_image(crop)
         return _cosine(term_vector, embedding)
+
+    def _rescan(self, term: str, at_time: float) -> list[Binding]:
+        """Re-read the source video around a query time as a last evidence tier.
+
+        Context frames are stored sparsely to keep memory bounded.  A short
+        interaction can fall between two retained contexts, especially when the
+        sampling rate changes the keyframe phase.  When the detector finds
+        nothing on the retained evidence, a small foveal rescan of the original
+        video recovers that interaction without paying to store every frame.
+        """
+        if (
+            not self.config.rescan
+            or not self.source
+            or self._detector is None
+            or at_time is None
+        ):
+            return []
+        capture = cv2.VideoCapture(self.source)
+        if not capture.isOpened():
+            capture.release()
+            return []
+        try:
+            fps = float(capture.get(cv2.CAP_PROP_FPS) or 30.0)
+            if not math.isfinite(fps) or fps <= 0:
+                fps = 30.0
+            total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+            start = max(0.0, at_time - self.config.rescan_window)
+            end = at_time + self.config.rescan_window
+            start_frame = max(0, int(round(start * fps)))
+            capture.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+            step = max(1, int(round(fps / max(1.0, self.config.rescan_fps))))
+            vocabulary = [term, *self.config.support_labels]
+            support_set = {label.lower() for label in self.config.support_labels}
+            self._detector.set_vocabulary(vocabulary)
+            tracks: list[_DetectionTrack] = []
+            seen = 0
+            detected = 0
+            index = 0
+            while detected < self.config.rescan_max_frames:
+                ok, frame = capture.read()
+                if not ok:
+                    break
+                frame_index = start_frame + index
+                timestamp = frame_index / fps
+                index += 1
+                if total and frame_index >= total:
+                    break
+                if timestamp > end:
+                    break
+                if (index - 1) % step != 0:
+                    continue
+                seen += 1
+                detections = self._detector.detect(
+                    frame, frame_index=frame_index, timestamp=timestamp
+                )
+                self.detector_calls += 1
+                detected += 1
+                height, width = frame.shape[:2]
+                diagonal = math.hypot(width, height)
+                for detection in detections:
+                    if not _label_matches(detection.label, term):
+                        continue
+                    support = self._support_for(detections, detection.bbox, support_set)
+                    match: _DetectionTrack | None = None
+                    for track in tracks:
+                        reference = track.mean_box()
+                        overlap = reference.iou(detection.bbox)
+                        dx = reference.centroid[0] - detection.bbox.centroid[0]
+                        dy = reference.centroid[1] - detection.bbox.centroid[1]
+                        distance = math.hypot(dx, dy)
+                        area_ratio = reference.area / max(1.0, detection.bbox.area)
+                        if (
+                            overlap >= self.config.context_fusion_iou
+                            or (
+                                distance <= self.config.context_fusion_center * diagonal
+                                and 0.4 <= area_ratio <= 2.5
+                            )
+                        ):
+                            match = track
+                            break
+                    if match is None:
+                        match = _DetectionTrack()
+                        tracks.append(match)
+                    match.add(detection, timestamp, support)
+            if not tracks:
+                return []
+            best = max(
+                tracks,
+                key=lambda item: item.temporal_score(at_time)
+                * (0.80 + 0.20 * min(1.0, len(item.stamps) / 2.0)),
+            )
+            box = best.mean_box()
+            capsule_id = "rescan"
+            best_fit = 0.0
+            for capsule in self.store.capsules.values():
+                for view in capsule.best_views:
+                    coverage = view.bbox.intersection_area(box) / max(1.0, box.area)
+                    tightness = min(1.0, box.area / max(1.0, view.bbox.area))
+                    fit = min(1.0, coverage) * (0.35 + 0.65 * tightness)
+                    if fit > best_fit:
+                        best_fit = fit
+                        capsule_id = capsule.capsule_id
+            nearest = min(best.stamps, key=lambda stamp: abs(stamp - at_time))
+            confidence = best.temporal_score(at_time) * (
+                0.80 + 0.20 * min(1.0, len(best.stamps) / 2.0)
+            )
+            return [
+                Binding(
+                    term=term,
+                    label=term,
+                    capsule_id=capsule_id,
+                    confidence=confidence,
+                    timestamp=nearest,
+                    bbox=box,
+                    support=best.best_support(),
+                    detector_confidence=best.mean_confidence,
+                    views_agree=len(best.stamps),
+                    views_tried=seen,
+                    provenance="rescan",
+                )
+            ]
+        finally:
+            capture.release()
 
     def _infer_support(self, binding: Binding) -> None:
         """Fill in a support surface for CLIP-only bindings.

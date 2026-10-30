@@ -252,6 +252,29 @@ hand-zoomed crops (1,372+ calls). CLIP top crops for those terms have cosines
 of .27-.36 and are mostly background. Counting these objects requires contact
 or action evidence, narration, or a stronger detector.
 
+### 5.5 Sampling rate and query-time foveal rescan
+
+Sampling is not monotonic in accuracy.  On Cook, 4 fps is the best operating
+point; 8 fps stores more keyframes but changes the temporal phase of retained
+contexts, so a short held-knife interval can fall between two contexts:
+
+| Domain | fps | Semantic | loc@.3 | loc@.5 | Mean IoU | Store | Ingest | Calls/query |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Cook | 2 | .60 | .60 | — | .635 | 7.86 MB | 14.6 s | 11.0 |
+| Cook | 4 | .60 | 1.00 | .75 | .692 | 8.27 MB | 25.7 s | 12.5 |
+| Cook | 8 | .30 | .80 | .60 | .626 | 8.45 MB | 33.5 s | 12.7 |
+| Switch | 2 | .75 | .75 | — | .649 | 4.50 MB | 8.0 s | 10.0 |
+| Switch | 4 | .875 | .75 | .75 | .590 | 6.06 MB | 14.3 s | 12.25 |
+| Switch | 8 | .75 | .75 | — | .573 | 5.83 MB | 15.6 s | 12.1 |
+
+A query-time **foveal rescan** can recover a short interaction without storing
+every frame: when retained contexts yield no detector evidence, re-decode a
+one-second window of the original video at 12 fps.  On the 8 fps Cook store,
+rescan raises loc@.3 .80→1.00, mean IoU .626→.739, and semantic .30→.40 at
+20.3 calls/query (vs 12.7 without).  On 4 fps stores it changes no headline
+metric and roughly doubles calls, so it remains opt-in (`rescan=False`) and is
+reported as a cost/accuracy escalation rather than a default.
+
 ## 6. Discussion
 
 SPORE shows that **retained full context**, not better crops, is the dominant

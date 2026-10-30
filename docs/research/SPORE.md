@@ -193,6 +193,14 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   temporal bins instead of `starts[::stride]`, which changed every sampled
   context when a 4-decimal timestamp shifted. On fresh and reloaded Cook
   stores the cup count is 2 and semantic accuracy is .60.
+- Sampling is not monotonically better. On Cook, semantic/loc@.3/IoU are
+  .60/.60/.635 at 2 fps, .60/1.00/.692 at 4 fps, and .30/.80/.626 at 8 fps;
+  Switch is .75/.75/.649, .875/.75/.590, .75/.75/.573. More frames change the
+  temporal phase of retained contexts and can skip a short interaction. Default
+  stays 4 fps. Opt-in `rescan=True` re-decodes a 1 s window of the source at
+  12 fps only when retained evidence is weak; on the 8 fps Cook store it
+  recovers loc@.3 .80->1.00 / IoU .626->.739 / semantic .30->.40 at 20.3 calls,
+  but adds no accuracy at 4 fps, so it is an escalation path, not a default.
 - Fine-object limits are detector-bound, not prompt-bound: over all 264 z210
   contexts, YOLO-World returned zero detections for game card, SD card, wrist
   strap, and comfort grip, including 1.5x and 2.6x hand-zoomed crops (1,372+
