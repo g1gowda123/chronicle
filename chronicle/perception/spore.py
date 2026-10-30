@@ -974,6 +974,13 @@ class SporePerceiver:
                                     ]
                                     for hand in hands
                                 ],
+                                "hand_points": [
+                                    [
+                                        [int(point[0]), int(point[1])]
+                                        for point in hand.fingertips()
+                                    ]
+                                    for hand in hands
+                                ],
                             },
                         ),
                         max_frames=self.config.context_max_frames,
@@ -2483,7 +2490,25 @@ class SporeQueryEngine:
                 BBox.from_sequence(box)
                 for box in (context.metadata.get("hand_boxes") or [])
             ]
-            if hands:
+            points = [
+                point
+                for group in (context.metadata.get("hand_points") or [])
+                for point in group
+            ]
+            if points:
+                # A palm-sized hand box can cover a whole shelf.  Fingertips are
+                # the contact evidence: an object merely visible beside a hand
+                # is not being touched.
+                width, height = context.metadata.get("frame_size", [640, 480])
+                pad = min(10.0, 0.02 * math.hypot(float(width), float(height)))
+                matches = [
+                    detection
+                    for detection in matches
+                    if any(detection.bbox.contains_point(point, pad=pad) for point in points)
+                ]
+                if not matches:
+                    continue
+            elif hands:
                 # Seeing an object on a shelf is not touching it.  A first-touch
                 # answer must have the hand and the detection at the same place.
                 matches = [

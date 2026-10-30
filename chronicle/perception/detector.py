@@ -183,6 +183,7 @@ class YoloWorldDetector(BaseDetector):
         self._prompts: tuple[str, ...] = tuple(config.prompts or config_root.vocabulary)
         self._labels: set[str] = set(config_root.vocabulary)
         self._aliases = {str(k).lower(): str(v).lower() for k, v in config.label_aliases.items()}
+        self._text_features: dict[str, object] = {}
 
     def _ensure_model(self) -> None:
         if self._model is not None:
@@ -197,8 +198,50 @@ class YoloWorldDetector(BaseDetector):
         model_path = self._root.resolve_model(self.config.model)
         LOGGER.info("Loading YOLO-World model %s", model_path)
         model = YOLOWorld(model_path)
-        model.set_classes(list(self._prompts))
+        self._apply_classes(model, self._prompts)
         self._model = model
+
+    def _apply_classes(self, model: object, labels: tuple[str, ...]) -> None:
+        """Swap open-vocabulary prompts while reusing CLIP text features.
+
+        ``YOLOWorld.set_classes`` rebuilds the CLIP text model on every call
+        (~2 s per vocabulary switch on a laptop GPU).  We cache one text
+        embedding per label, encode only new labels, update both the wrapper
+        model and the predictor's ``AutoBackend`` copy, and keep the predictor
+        alive.  A live predictor otherwise deep-copies the old ``txt_feats``
+        and silently answers with the previous vocabulary.
+        """
+        import torch
+
+        classes = list(labels)
+        world = getattr(model, "model", None)
+        setter = getattr(world, "set_classes", None)
+        if setter is None:
+            model.set_classes(classes)  # type: ignore[attr-defined]
+            return
+        try:
+            missing = [label for label in classes if label not in self._text_features]
+            if missing:
+                encoded = world.get_text_pe(missing, cache_clip_model=True)  # type: ignore[attr-defined]
+                for index, label in enumerate(missing):
+                    self._text_features[label] = encoded[:, index : index + 1, :].detach()
+            feats = torch.cat([self._text_features[label] for label in classes], dim=1)
+        except Exception:  # pragma: no cover - compatibility fallback
+            setter(classes)
+            world.names = classes  # type: ignore[attr-defined]
+            model.predictor = None  # type: ignore[attr-defined]
+            return
+        world.txt_feats = feats  # type: ignore[attr-defined]
+        world.model[-1].nc = len(classes)  # type: ignore[attr-defined]
+        world.names = classes  # type: ignore[attr-defined]
+        predictor = getattr(model, "predictor", None)
+        backend = getattr(predictor, "model", None)
+        live_world = getattr(backend, "model", None)
+        if live_world is not None:
+            live_world.txt_feats = feats.to(live_world.txt_feats.device)
+            live_world.model[-1].nc = len(classes)
+            live_world.names = classes
+            backend.names = classes  # type: ignore[attr-defined]
 
     def set_vocabulary(self, vocabulary: Iterable[str]) -> None:
         labels = tuple(dict.fromkeys(str(v).strip().lower() for v in vocabulary if str(v).strip()))
@@ -208,7 +251,7 @@ class YoloWorldDetector(BaseDetector):
         self._labels = set(labels)
         with self._lock:
             if self._model is not None:
-                self._model.set_classes(list(labels))  # type: ignore[attr-defined]
+                self._apply_classes(self._model, labels)
 
     def detect(
         self, frame: np.ndarray, frame_index: int = 0, timestamp: float = 0.0
