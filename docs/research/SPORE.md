@@ -226,6 +226,10 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   21.13). Evidence blobs are 5.42 / 3.50 / 7.34 / 14.08 MB. An LLM can read
   the index without loading image payloads; query-time code loads evidence only
   when it needs pixels.
+- View pixels are optional (`include_view_images=False`): views keep boxes and
+  embeddings for routing, while contexts keep the pixels used for detection.
+  Cook drops to 3.48 MB, Switch to 2.37 MB, Play to 4.55 MB, with unchanged QA
+  and fewer detector calls (8.3 / 8.6 / 4.5 per query).
 
 
 

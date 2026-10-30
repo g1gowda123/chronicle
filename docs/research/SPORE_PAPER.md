@@ -119,6 +119,16 @@ To keep the store LLM-friendly, `CapsuleStore.save(path, split=True)` writes:
 `CapsuleStore.load` resolves references transparently. A monolithic store is
 still available for compatibility.
 
+Views are routing indices, not the primary evidence.  Setting
+`include_view_images=False` keeps view boxes and embeddings but drops view
+pixels; context frames remain the localisation evidence.  This reduces Cook
+from 8.27 to 3.48 MB, Switch from 6.06 to 2.37 MB, Play from 11.53 to 4.55 MB,
+and the 1,947-capsule z210 store from 44.15 to 17.05 MB.  Answers are unchanged
+(Cook semantic .60, Switch .875, Play auto-eval 1.00, z210 .025), while detector
+calls per query fall to 8.3 / 8.6 / 4.5 / 16.8 because the redundant crop
+detector fallback disappears.  We therefore recommend storing view pixels only
+when crop-level binding must work without contexts.
+
 ### 3.4 Query routing and late binding
 
 A question is parsed into object terms. Each term is embedded and compared with
@@ -230,6 +240,7 @@ ambiguity, not for claiming general video understanding.
 | Colour attribute | Switch semantic .75 -> .875 | keep |
 | Capsule eviction, 1,947 -> 300 | z210 44.2 -> 21.1 MB, loc unchanged | keep |
 | Split index/evidence | 8.22 -> 1.02 MB index on Cook | keep |
+| Drop view pixels, keep contexts | Cook 8.27 -> 3.48 MB, metrics unchanged | keep optional |
 
 ### 5.3 Storage breakdown
 

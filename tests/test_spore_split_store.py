@@ -45,3 +45,30 @@ def test_split_store_keeps_index_small_and_round_trips(tmp_path) -> None:
     assert view.image is not None
     assert view.image.shape == (24, 32, 3)
     assert loaded.contexts[0].image_jpeg == b"\xff\xd8\xff\xd9"
+
+
+def test_split_store_can_drop_view_pixels_but_keep_contexts(tmp_path) -> None:
+    store = CapsuleStore()
+    store.add_capsule(1.0, _view(1.0))
+    store.add_context(
+        ContextFrame(
+            timestamp=1.0,
+            frame_index=10,
+            image_jpeg=b"\xff\xd8\xff\xd9",
+            metadata={"frame_size": [32, 24]},
+        )
+    )
+
+    with_views = store.save(tmp_path / "with_views.json", split=True)
+    without_views = store.save(
+        tmp_path / "no_views.json",
+        split=True,
+        include_view_images=False,
+    )
+    loaded = CapsuleStore.load(without_views)
+
+    assert without_views.stat().st_size < with_views.stat().st_size
+    view = next(iter(loaded.capsules.values())).best_views[0]
+    assert view.image is None
+    assert view.embedding is not None
+    assert loaded.contexts[0].image_jpeg == b"\xff\xd8\xff\xd9"

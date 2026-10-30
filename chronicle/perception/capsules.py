@@ -673,11 +673,17 @@ class CapsuleStore:
             "contacts": contacts,
         }
 
-    def to_dict(self, *, include_images: bool = True) -> dict[str, Any]:
+    def to_dict(
+        self,
+        *,
+        include_images: bool = True,
+        include_view_images: bool = True,
+    ) -> dict[str, Any]:
+        view_images = include_images and include_view_images
         return {
             "version": 1,
             "capsules": [
-                capsule.as_dict(include_images=include_images)
+                capsule.as_dict(include_images=view_images)
                 for capsule in self.capsules.values()
             ],
             "actions": [action.as_dict() for action in self.actions.values()],
@@ -753,6 +759,7 @@ class CapsuleStore:
         path: str | Path,
         *,
         include_images: bool = True,
+        include_view_images: bool = True,
         split: bool = False,
     ) -> Path:
         """Write the store as one JSON file or as a compact index + blobs.
@@ -761,10 +768,19 @@ class CapsuleStore:
         directory and leaves ``file:<relative-path>`` references in the
         index.  An LLM can read the index without loading megabytes of
         base64, while query-time code transparently resolves the blobs.
+
+        ``include_view_images=False`` keeps capsule view boxes and
+        embeddings but drops their pixels.  Views then act as routing
+        indices; the retained context frames remain the localisation
+        evidence.  This roughly halves episode storage without changing
+        late-binding answers on the evaluated clips.
         """
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        payload = self.to_dict(include_images=include_images)
+        payload = self.to_dict(
+            include_images=include_images,
+            include_view_images=include_view_images,
+        )
         if split and include_images:
             evidence_dir = target.parent / f"{target.stem}_evidence"
             evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -779,8 +795,20 @@ class CapsuleStore:
         _resolve_image_refs(payload, target.parent)
         return cls.from_dict(payload)
 
-    def memory_bytes(self, *, include_images: bool = True) -> int:
-        return len(json.dumps(self.to_dict(include_images=include_images)))
+    def memory_bytes(
+        self,
+        *,
+        include_images: bool = True,
+        include_view_images: bool = True,
+    ) -> int:
+        return len(
+            json.dumps(
+                self.to_dict(
+                    include_images=include_images,
+                    include_view_images=include_view_images,
+                )
+            )
+        )
 
 
 def _center_distance(first: BBox, second: BBox) -> float:
