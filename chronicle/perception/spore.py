@@ -211,6 +211,8 @@ class SporeConfig:
     context_fusion_iou: float = 0.20
     context_fusion_center: float = 0.06
     context_fusion_max_tracks: int = 3
+    context_fusion_box: str = "adaptive"  # "mean", "representative" or "adaptive"
+    context_fusion_spread: float = 0.4
     context_sweep: bool = True
     context_sweep_frames: int = 5
     context_sweep_window: float = 2.0
@@ -383,6 +385,17 @@ class _DetectionTrack:
             return None
         index = max(range(len(self.detections)), key=lambda item: self.confidences[item])
         return self.supports[index]
+
+    def mean_pair_iou(self) -> float:
+        if len(self.boxes) < 2:
+            return 1.0
+        total = 0.0
+        count = 0
+        for i, box in enumerate(self.boxes):
+            for other in self.boxes[i + 1 :]:
+                total += box.iou(other)
+                count += 1
+        return total / max(1, count)
 
     def temporal_score(self, at_time: float) -> float:
         weights = [math.exp(-abs(stamp - at_time) / 1.5) for stamp in self.stamps]
@@ -1982,7 +1995,22 @@ class SporeQueryEngine:
 
         bindings: list[Binding] = []
         for _score, track in scored[: self.config.context_fusion_max_tracks]:
-            box = track.mean_box()
+            representative = self.config.context_fusion_box == "representative"
+            if self.config.context_fusion_box == "adaptive":
+                representative = track.mean_pair_iou() < self.config.context_fusion_spread
+            if representative:
+                best_index = max(
+                    range(len(track.detections)),
+                    key=lambda item: track.confidences[item]
+                    * math.exp(-abs(track.stamps[item] - at_time) / 1.5),
+                )
+                box = track.boxes[best_index]
+            else:
+                best_index = max(
+                    range(len(track.detections)),
+                    key=lambda item: track.confidences[item],
+                )
+                box = track.mean_box()
             capsule: ObjectCapsule | None = None
             capsule_score = -1.0
             capsule_view: SporeView | None = None
@@ -2014,10 +2042,6 @@ class SporeQueryEngine:
                 continue
             if any(binding.bbox.iou(box) >= 0.5 for binding in bindings):
                 continue
-            best_index = max(
-                range(len(track.detections)),
-                key=lambda item: track.confidences[item],
-            )
             confidence = (
                 track.temporal_score(at_time)
                 * (0.70 + 0.30 * min(1.0, len(track.stamps) / 2.0))
@@ -2030,7 +2054,9 @@ class SporeQueryEngine:
                 confidence=float(confidence),
                 timestamp=track.stamps[best_index],
                 bbox=box,
-                support=track.best_support(),
+                support=(
+                    track.supports[best_index] if representative else track.best_support()
+                ),
                 detector_confidence=track.mean_confidence,
                 clip_similarity=0.0,
                 views_agree=len(track.stamps),

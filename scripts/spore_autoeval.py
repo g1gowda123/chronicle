@@ -227,6 +227,7 @@ def evaluate(args) -> dict:
         binding_mode=args.mode,
         context_binding=not args.no_context,
         query_capsules=args.budget,
+        context_fusion_box=args.context_fusion_box,
     )
     vocabulary = [term.strip() for term in args.vocabulary.split(",") if term.strip()]
     detector = build_detector(perception, source_name="tabletop")
@@ -378,6 +379,11 @@ def main() -> None:
     parser.add_argument("--min-confidence", type=float, default=0.35)
     parser.add_argument("--no-context", action="store_true")
     parser.add_argument("--vocabulary", default=",".join(DEFAULT_VOCABULARY))
+    parser.add_argument(
+        "--context-fusion-box",
+        default="adaptive",
+        choices=("mean", "representative", "adaptive"),
+    )
     args = parser.parse_args()
     summary = evaluate(args)
     path = Path(args.out)

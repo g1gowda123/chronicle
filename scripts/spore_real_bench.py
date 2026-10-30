@@ -316,6 +316,8 @@ def evaluate(args: argparse.Namespace) -> dict:
             config,
             binding_mode=mode,
             inventory_labels=tuple(vocabulary) if args.inventory else (),
+            context_fusion_box=args.context_fusion_box,
+            context_fusion_spread=args.context_fusion_spread,
         )
         mode_results: list[QueryResult] = []
         engine = SporeQueryEngine(
@@ -551,6 +553,12 @@ def main() -> None:
     parser.add_argument("--adaptive-context", action="store_true")
     parser.add_argument("--context-sweep-frames", type=int, default=5)
     parser.add_argument("--context-sweep-window", type=float, default=2.0)
+    parser.add_argument(
+        "--context-fusion-box",
+        default="adaptive",
+        choices=("mean", "representative", "adaptive"),
+    )
+    parser.add_argument("--context-fusion-spread", type=float, default=0.4)
     parser.add_argument("--batch-prefetch", action="store_true")
     parser.add_argument("--inventory", action="store_true")
     parser.add_argument("--max-capsules", type=int, default=300)
