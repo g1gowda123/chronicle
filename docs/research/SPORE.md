@@ -140,13 +140,15 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 
 | clip | store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Cook 45 s | 6.46 MB | 1.00 | .75 | .692 | .70 | 7.9 | 150 |
+| Cook 45 s | 6.46 MB | 1.00 | 1.00 | .826 | .70 | 7.9 | 150 |
 | Switch 34 s | 4.69 MB | .75 | .75 | .611 | .875 | 7.4 | 128 |
 | Play 45 s | 7.74 MB (300-cap) | .667 | .667 | .475 | 1.00 | 5.0 | 150 |
 | HoloAssist z210 257 s | 17.07 MB (300-cap) | 1.00 | 1.00 | .77 | .05 | 12.7 | 962 |
 
 - Ablation call counts below predate disabling the redundant crop fallback;
   absolute calls are higher there, while accuracy/storage trends are unchanged.
+  Cook IoU values of .692 in older ablations predate adaptive fusion; the
+  current default is .826, and the direction of each effect is unchanged.
 - The z210 aggregate is 2/40 and is dominated by task mix. One object-identity
   and one counting answer are correct; object location is 0/6 because the
   questions ask for place labels such as “Work Table”, not object boxes, while
@@ -163,6 +165,13 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 - Cross-frame track fusion fixes instance ambiguity (two joy-cons): Switch
   loc@.30 rose .25 → .75 after associating detections across five contexts and
   scoring tracks by a temporally weighted geometric mean of confidence.
+- Adaptive fusion box: tracks whose five context boxes agree (mean pairwise IoU
+  ≥ .4) keep the smoother weighted mean box; spatially inconsistent tracks use
+  the detection nearest the question time. Cook mean IoU rises .692 → **.826**
+  and loc@.50 .75 → **1.00** with semantic unchanged (.70); Switch and Play are
+  unchanged. Unconditional representative fusion is unsafe (Switch .611 →
+  .533, Play .475 → .217). Defaults: `context_fusion_box="adaptive"`,
+  `context_fusion_spread=.4`.
 - Action-indexed temporal retrieval answers "when did … first" by forward-
   scanning sparse contexts: Switch first joy-con pick-up at 3.7 s (annotated
   4.2 s); Cook first cup touch at **4.6 s** (annotated 4.5 s). The first-touch
@@ -255,7 +264,7 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   proximity still over-merges (7 actions, recall .58/.25/.17/.17), so identity
   remains the merge gate.
 - Sampling is not monotonically better. On Cook, semantic/loc@.3/IoU are
-  .60/.60/.632 at 2 fps, .70/1.00/.692 at 4 fps, and .40/.80/.524 at 8 fps;
+  .60/.60/.632 at 2 fps, .70/1.00/.826 at 4 fps, and .40/.80/.524 at 8 fps;
   Switch is .75/.75/.649, .875/.75/.590, .75/.75/.573. More frames change the
   temporal phase of retained contexts and can skip a short interaction. Default
   stays 4 fps. Opt-in `rescan=True` re-decodes a 1 s window of the source at

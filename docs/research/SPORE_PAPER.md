@@ -216,7 +216,7 @@ Hand-written QA sets:
 
 | Domain | Semantic | loc@.3 | loc@.5 | mean IoU | Store | Calls/query | Dense calls |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Cook 45 s | .70 | 1.00 | .75 | .692 | 6.46 MB | 7.9 | 150 |
+| Cook 45 s | .70 | 1.00 | 1.00 | .826 | 6.46 MB | 7.9 | 150 |
 | Switch 34 s | .875 | .75 | .75 | .611 | 4.69 MB | 7.4 | 128 |
 | Play 45 s | 1.00 | .667 | .667 | .475 | 7.74 MB | 5.0 | 150 |
 | z210 257 s (300 caps) | .05 | 1.00 | 1.00 | .77 | 17.07 MB | 12.7 | 962 |
@@ -224,6 +224,16 @@ Hand-written QA sets:
 Calls/query use the default context-first binding, which does not re-detect
 retained crops; batch prefetch is a separate session-level optimisation
 (Section 5.7).
+
+Adaptive box fusion explains the Cook localisation gain.  A track whose five
+context detections agree (mean pairwise IoU at least .4) keeps the smoother
+weighted mean box.  A spatially inconsistent track, such as the moving cup,
+instead uses the detection nearest the question time and that detection's
+support.  On Cook this raises mean IoU from .692 to **.826** and loc@.5 from
+.75 to **1.00** without changing semantic accuracy (.70); the cup box alone
+goes from .33 to .86 IoU.  Switch (.611) and Play (.475) are unchanged.
+Using the representative box unconditionally is not safe: it raises Cook but
+drops Switch to .533 and Play to .217, so the stability gate is required.
 
 The z210 aggregate is dominated by task mix, not by a single perception
 failure. In the timed 40-question baseline, semantic accuracy is 2/40: one
@@ -263,6 +273,12 @@ Unless noted, these ablations were run before the redundant crop fallback was
 disabled.  Their absolute call counts are therefore higher than the current
 default; the accuracy and storage trends are unaffected.
 
+Fusion-box ablations in this subsection, and the storage/codec ablations in
+Sections 5.3 and 5.8, were run with the previous mean-box fusion; their Cook
+reference IoU is .692.  The current adaptive default reports .826 (Section
+5.1), so those historical absolute IoU values are lower by construction, while
+the direction of each effect is unchanged.
+
 | Intervention | Effect | Decision |
 |---|---|---|
 | Remove context frames | Cook loc@.3 .25, IoU .246; Switch 0 / .108 | keep contexts |
@@ -272,6 +288,7 @@ default; the accuracy and storage trends are unaffected.
 | Fold short still fragments | actions 38 -> 24, precision@.2 .526 -> .792, recall .917 | keep |
 | Context sweep 5 -> 1 | calls 13.7 -> 10.9, but Cook loc@.3 1.00 -> .75; Switch at 2-3 frames loc@.3 .25 | keep 5 |
 | Denser sweep + prefetch | z210 IoU .768 -> .834, Play .493 -> .545, Switch flat, Cook .692 -> .560 | keep 5 +/-2 s |
+| Adaptive fusion box | Cook IoU .692 -> .826, loc@.5 .75 -> 1.00; Switch/Play unchanged; representative alone drops Switch .611 -> .533, Play .475 -> .217 | keep adaptive, spread .4 |
 | Adaptive context early exit | calls 13.7 -> 13.6, but Cook loc@.3 1.00 -> .75, IoU .692 -> .664 | reject |
 | CLIP margin .22 | suppresses false switch console, but Cook .40 -> .30 | keep .16 |
 | Count clustering | Cook cups 6 -> 2, semantic .50 -> .60 | keep |
@@ -304,8 +321,9 @@ number is a fetch estimate for an LLM-side reader, not a claim that decoding
 cost is negligible: detector calls dominate query latency.
 
 Capsule eviction is not a free memory knob.  Offline eviction of the Cook store
-from 196 to 50 capsules preserves every answer (.70 / 1.00 / .692) while
-shrinking the serialized store 6.46 to 4.86 MB, but calls rise 13.7 to 14.9.  On z210, 300 to 75
+from 196 to 50 capsules preserves every answer (.70 / 1.00 / .692 on the
+pre-adaptive baseline) while shrinking the serialized store 6.46 to 4.86 MB,
+but calls rise 13.7 to 14.9.  On z210, 300 to 75
 capsules shrinks 17.07 to 12.35 MB, yet calls rise 22.5 to 24.0 and semantic
 accuracy falls .05 to .025 (one question).  Switch from 300 to 150 capsules
 drops semantic .875 to .75: the console support phrase disappears because
@@ -351,19 +369,19 @@ higher-resolution capture, not just a stronger detector, is the prerequisite.
 
 ### 5.5 Sampling rate and query-time foveal rescan
 
-Sampling is not monotonic in accuracy.  These runs predate WebP view crops, but
-the relative ordering is unchanged.  On Cook, 4 fps is the best operating
+Sampling is not monotonic in accuracy.  On Cook, 4 fps is the best operating
 point; 8 fps stores more keyframes but changes the temporal phase of retained
 contexts, so a short held-knife interval can fall between two contexts:
 
-| Domain | fps | Semantic | loc@.3 | loc@.5 | Mean IoU | Store | Ingest | Calls/query |
+| Domain | fps | Semantic | loc@.3 | loc@.5 | Mean IoU | Store | Calls/query | Dense calls |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Cook | 2 | .60 | .60 | .60 | .632 | 7.86 MB | 32.5 s | 13.5 |
-| Cook | 4 | .70 | 1.00 | .75 | .692 | 8.27 MB | 24.6 s | 14.5 |
-| Cook | 8 | .40 | .80 | .40 | .524 | 8.44 MB | 73.0 s | 14.6 |
-| Switch | 2 | .75 | .75 | — | .649 | 4.50 MB | 8.0 s | 10.0 |
-| Switch | 4 | .875 | .75 | .75 | .590 | 6.06 MB | 14.3 s | 14.25 |
-| Switch | 8 | .75 | .75 | — | .573 | 5.83 MB | 15.6 s | 12.1 |
+| Cook | 2 | .60 | .60 | .60 | .632 | 6.13 MB | 8.4 | 90 |
+| Cook | 4 | .70 | 1.00 | 1.00 | .826 | 6.46 MB | 7.9 | 150 |
+| Cook | 8 | .40 | .80 | .40 | .524 | 6.55 MB | 7.5 | 225 |
+
+All three rows use the current adaptive fusion and WebP views.  Dense calls
+scale with the sampling rate, so the detector-call saving per query grows at
+8 fps even as accuracy falls.
 
 A query-time **foveal rescan** can recover a short interaction without storing
 every frame: when retained contexts yield no detector evidence, re-decode a
@@ -482,10 +500,11 @@ vectorized paths match the original greedy/cosine semantics exactly.
 ### 5.8 Evidence codec
 
 Capsule and scene crops are stored as WebP at quality 82; context keyframes
-stay JPEG.  Re-encoding or fresh ingest with WebP leaves every headline answer
-unchanged: Cook .70 / loc@.3 1.00 / IoU .692, Switch .875 / .75 / .611, Play
-1.00 / .667 / .475.  Monolithic stores shrink from 8.22 to 6.41 MB (Cook), 6.16
-to 4.69 MB (Switch), and 11.45 to 7.68 MB (Play), a 22-33% reduction.  With
+stay JPEG.  Re-encoding or fresh ingest with WebP leaves every answer
+unchanged: Cook semantic .70 / loc@.3 1.00, Switch .875 / .75, Play
+1.00 / .667; on the pre-adaptive mean-box baseline Cook IoU was .692.
+Monolithic stores shrink from 8.22 to 6.41 MB (Cook), 6.16 to 4.69 MB
+(Switch), and 11.45 to 7.68 MB (Play), a 22-33% reduction.  With
 split storage the Cook index is 1.02 MB and its evidence blobs 3.99 MB;
 Switch is 1.33 / 2.43 MB, Play 1.33 / 4.65 MB.  The remaining context bytes
 are not free to recompress: recoding context frames alone to WebP quality 80
@@ -633,7 +652,8 @@ long-video evidence storage still needs an explicit budget.
 `sample_fps=4.0`, `max_width=640`, `change_threshold=.035`,
 `keyframe_max_gap=1.2`, `max_views=5`, `max_capsules=300`,
 `context_quality=82`, `context_min_gap=.75`, `context_max_gap=1.5`,
-`context_fusion=True`, `context_sweep_frames=5`, `query_capsules=8`,
+`context_fusion=True`, `context_fusion_box="adaptive"`,
+`context_fusion_spread=.4`, `context_sweep_frames=5`, `query_capsules=8`,
 `query_views=2`, `count_contexts=32`, `count_track_gap=20`,
 `count_peak_confidence=.45`, `clip_margin_center=.16`.
 
