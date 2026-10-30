@@ -344,6 +344,14 @@ invalidating the predictor. Vocabulary changes drop to **~0.11-0.14 s** after
 the first swap, and per-frame detection is **~20 ms** once warm. This is a
 general systems optimisation: it does not change any benchmark answer.
 
+Repeated questions about the same moment also reuse detector output. A bounded
+cache keyed by keyframe and exact prompt set serves location, colour and
+activity questions from one pass. On the Switch saved store, answering all
+eight questions used 110 detector calls without the cache and 97 with it (13
+hits, 12% fewer calls); warm query time fell from 3.97 s to 3.33 s (16%).
+Cook semantics stay at .70 and Switch at .875. The cache is implementation
+transparent and is cleared per engine, so it cannot leak across clips.
+
 Ingest remains the other cost. The 45 s Cook clip took ~25 s (225 sampled
 frames, 140 keyframes) when the GPU was idle; the 257 s z210 clip takes ~298 s.
 Compaction is throttled to once per second and checks box overlap before

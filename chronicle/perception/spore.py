@@ -245,6 +245,8 @@ class SporeConfig:
     rescan_window: float = 1.0
     rescan_fps: float = 12.0
     rescan_max_frames: int = 16
+    detect_cache: bool = True
+    detect_cache_entries: int = 256
     late_binding: bool = True
     binding_mode: str = "detector"  # detector | clip | hybrid
     clip_prompt_templates: tuple[str, ...] = (
@@ -1460,6 +1462,8 @@ class SporeQueryEngine:
         self._owns_embedder = embedder is None
         self._owns_detector = detector is None
         self._text_cache: dict[str, np.ndarray | None] = {}
+        self._detection_cache: dict[tuple[Any, tuple[str, ...]], list[Detection]] = {}
+        self.detection_cache_hits = 0
         self.detector_calls = 0
 
     def close(self) -> None:
@@ -1479,6 +1483,46 @@ class SporeQueryEngine:
             self._embedder = build_embedder(self.perception)
         if self._detector is None and self.config.late_binding:
             self._detector = build_detector(self.perception)
+
+    def _detect_cached(
+        self,
+        frame: np.ndarray,
+        vocabulary: Sequence[str],
+        *,
+        frame_index: int,
+        timestamp: float,
+        cache_tag: Any | None = None,
+    ) -> list[Detection]:
+        """Detect with a bounded cache over immutable keyframes.
+
+        Repeated questions about the same moment (for example a location, a
+        colour and an activity question at one timestamp) otherwise re-run the
+        same detector pass.  Cache keys include the exact prompt set because a
+        different vocabulary is a different computation.
+        """
+        assert self._detector is not None
+        if not self.config.detect_cache:
+            self._detector.set_vocabulary(list(vocabulary))
+            self.detector_calls += 1
+            return self._detector.detect(
+                frame, frame_index=frame_index, timestamp=timestamp
+            )
+        tag = frame_index if cache_tag is None else cache_tag
+        key = (tag, tuple(vocabulary))
+        cached = self._detection_cache.get(key)
+        if cached is not None:
+            self.detection_cache_hits += 1
+            self._detection_cache[key] = self._detection_cache.pop(key)
+            return cached
+        self._detector.set_vocabulary(list(vocabulary))
+        detections = self._detector.detect(
+            frame, frame_index=frame_index, timestamp=timestamp
+        )
+        self.detector_calls += 1
+        self._detection_cache[key] = detections
+        while len(self._detection_cache) > max(1, self.config.detect_cache_entries):
+            del self._detection_cache[next(iter(self._detection_cache))]
+        return detections
 
     # -- routing -----------------------------------------------------------
 
@@ -1716,7 +1760,6 @@ class SporeQueryEngine:
         vocabulary = [term]
         if self.config.support_labels:
             vocabulary.extend(self.config.support_labels)
-        self._detector.set_vocabulary(vocabulary)
         support_set = {label.lower() for label in self.config.support_labels}
         window = self.config.context_sweep_window
         nearby = [
@@ -1730,12 +1773,13 @@ class SporeQueryEngine:
             frame = context.image()
             if frame is None:
                 continue
-            detections = self._detector.detect(
+            detections = self._detect_cached(
                 frame,
+                vocabulary,
                 frame_index=context.frame_index,
                 timestamp=context.timestamp,
+                cache_tag=context.frame_index,
             )
-            self.detector_calls += 1
             term_detections = [
                 detection
                 for detection in detections
@@ -1790,7 +1834,6 @@ class SporeQueryEngine:
         vocabulary = [term]
         if self.config.support_labels:
             vocabulary.extend(self.config.support_labels)
-        self._detector.set_vocabulary(vocabulary)
         support_set = {label.lower() for label in self.config.support_labels}
 
         contexts = [
@@ -1808,21 +1851,17 @@ class SporeQueryEngine:
         contexts.sort(key=lambda context: context.timestamp)
 
         tracks: list[_DetectionTrack] = []
-        detection_cache: dict[int, list[Detection]] = {}
         for context in contexts:
-            key = id(context)
-            detections = detection_cache.get(key)
-            if detections is None:
-                frame = context.image()
-                if frame is None:
-                    continue
-                detections = self._detector.detect(
-                    frame,
-                    frame_index=context.frame_index,
-                    timestamp=context.timestamp,
-                )
-                detection_cache[key] = detections
-                self.detector_calls += 1
+            frame = context.image()
+            if frame is None:
+                continue
+            detections = self._detect_cached(
+                frame,
+                vocabulary,
+                frame_index=context.frame_index,
+                timestamp=context.timestamp,
+                cache_tag=context.frame_index,
+            )
             frame_size = context.metadata.get("frame_size", [640, 480])
             frame_width, frame_height = int(frame_size[0]), int(frame_size[1])
             diagonal = math.hypot(frame_width, frame_height)
@@ -1944,10 +1983,8 @@ class SporeQueryEngine:
         vocabulary = [term]
         if self.config.support_labels:
             vocabulary.extend(self.config.support_labels)
-        self._detector.set_vocabulary(vocabulary)
         support_set = {label.lower() for label in self.config.support_labels}
         binding_by_capsule: dict[str, Binding] = {}
-        detection_cache: dict[int, list[Detection]] = {}
         for capsule in capsules:
             best: Binding | None = None
             views_tried = 0
@@ -1958,19 +1995,16 @@ class SporeQueryEngine:
                 )
                 if context is None:
                     continue
-                key = id(context)
-                detections = detection_cache.get(key)
-                if detections is None:
-                    frame = context.image()
-                    if frame is None:
-                        continue
-                    detections = self._detector.detect(
-                        frame,
-                        frame_index=context.frame_index,
-                        timestamp=context.timestamp,
-                    )
-                    detection_cache[key] = detections
-                    self.detector_calls += 1
+                frame = context.image()
+                if frame is None:
+                    continue
+                detections = self._detect_cached(
+                    frame,
+                    vocabulary,
+                    frame_index=context.frame_index,
+                    timestamp=context.timestamp,
+                    cache_tag=context.frame_index,
+                )
                 views_tried += 1
                 term_detections = [
                     detection
@@ -2027,7 +2061,6 @@ class SporeQueryEngine:
         vocabulary = [term]
         if self.config.support_labels:
             vocabulary.extend(self.config.support_labels)
-        self._detector.set_vocabulary(vocabulary)
         support_set = {label.lower() for label in self.config.support_labels}
         bindings: list[Binding] = []
         for capsule in capsules:
@@ -2038,12 +2071,13 @@ class SporeQueryEngine:
                 if view.image is None:
                     continue
                 views_tried += 1
-                detections = self._detector.detect(
+                detections = self._detect_cached(
                     view.image,
+                    vocabulary,
                     frame_index=view.frame_index,
                     timestamp=view.timestamp,
+                    cache_tag=("view", id(view)),
                 )
-                self.detector_calls += 1
                 term_detections = [
                     detection
                     for detection in detections
@@ -2232,7 +2266,6 @@ class SporeQueryEngine:
             step = max(1, int(round(fps / max(1.0, self.config.rescan_fps))))
             vocabulary = [term, *self.config.support_labels]
             support_set = {label.lower() for label in self.config.support_labels}
-            self._detector.set_vocabulary(vocabulary)
             tracks: list[_DetectionTrack] = []
             seen = 0
             detected = 0
@@ -2251,10 +2284,13 @@ class SporeQueryEngine:
                 if (index - 1) % step != 0:
                     continue
                 seen += 1
-                detections = self._detector.detect(
-                    frame, frame_index=frame_index, timestamp=timestamp
+                detections = self._detect_cached(
+                    frame,
+                    vocabulary,
+                    frame_index=frame_index,
+                    timestamp=timestamp,
+                    cache_tag=("rescan", frame_index),
                 )
-                self.detector_calls += 1
                 detected += 1
                 height, width = frame.shape[:2]
                 diagonal = math.hypot(width, height)
@@ -2340,11 +2376,13 @@ class SporeQueryEngine:
         frame = context.image()
         if frame is None or self._detector is None:
             return
-        self._detector.set_vocabulary(list(self.config.support_labels))
-        detections = self._detector.detect(
-            frame, frame_index=context.frame_index, timestamp=context.timestamp
+        detections = self._detect_cached(
+            frame,
+            self.config.support_labels,
+            frame_index=context.frame_index,
+            timestamp=context.timestamp,
+            cache_tag=context.frame_index,
         )
-        self.detector_calls += 1
         binding.support = self._support_for(
             detections, binding.bbox, {label.lower() for label in self.config.support_labels}
         )
@@ -2505,18 +2543,18 @@ class SporeQueryEngine:
         vocabulary = [term]
         if self.config.support_labels:
             vocabulary.extend(self.config.support_labels)
-        self._detector.set_vocabulary(vocabulary)
         support_set = {label.lower() for label in self.config.support_labels}
         for index, context in enumerate(contexts):
             frame = context.image()
             if frame is None:
                 continue
-            detections = self._detector.detect(
+            detections = self._detect_cached(
                 frame,
+                vocabulary,
                 frame_index=context.frame_index,
                 timestamp=context.timestamp,
+                cache_tag=context.frame_index,
             )
-            self.detector_calls += 1
             matches = [
                 detection
                 for detection in detections
@@ -2565,12 +2603,13 @@ class SporeQueryEngine:
                 if following.timestamp - context.timestamp <= 1.5:
                     next_frame = following.image()
                     if next_frame is not None:
-                        next_detections = self._detector.detect(
+                        next_detections = self._detect_cached(
                             next_frame,
+                            vocabulary,
                             frame_index=following.frame_index,
                             timestamp=following.timestamp,
+                            cache_tag=following.frame_index,
                         )
-                        self.detector_calls += 1
                         if any(
                             _label_matches(item.label, term)
                             and item.confidence
@@ -2688,7 +2727,6 @@ class SporeQueryEngine:
         vocabulary = [term]
         if self.config.support_labels:
             vocabulary.extend(self.config.support_labels)
-        self._detector.set_vocabulary(vocabulary)
 
         contexts = self._count_contexts(at_time)
         tracks: list[_DetectionTrack] = []
@@ -2699,12 +2737,13 @@ class SporeQueryEngine:
             frame = context.image()
             if frame is None:
                 continue
-            detections = self._detector.detect(
+            detections = self._detect_cached(
                 frame,
+                vocabulary,
                 frame_index=context.frame_index,
                 timestamp=context.timestamp,
+                cache_tag=context.frame_index,
             )
-            self.detector_calls += 1
             frame_size = context.metadata.get("frame_size", [640, 480])
             diagonal = math.hypot(float(frame_size[0]), float(frame_size[1]))
             frame_diagonal = diagonal
@@ -2871,7 +2910,6 @@ class SporeQueryEngine:
         vocabulary = [term]
         if self.config.support_labels:
             vocabulary.extend(self.config.support_labels)
-        self._detector.set_vocabulary(vocabulary)
         support_set = {label.lower() for label in self.config.support_labels}
         for attempts, action in enumerate(
             actions[: self.config.action_scan_limit], start=1
@@ -2887,12 +2925,13 @@ class SporeQueryEngine:
             frame = context.image()
             if frame is None:
                 continue
-            detections = self._detector.detect(
+            detections = self._detect_cached(
                 frame,
+                vocabulary,
                 frame_index=context.frame_index,
                 timestamp=context.timestamp,
+                cache_tag=context.frame_index,
             )
-            self.detector_calls += 1
             matches = [
                 detection
                 for detection in detections

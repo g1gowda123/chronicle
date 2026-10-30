@@ -164,6 +164,10 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   candidate-by-capsule cosine matrix (220x faster in a 96x200 microbenchmark),
   and NMS is vectorized (3x). Unit tests assert equivalence with the previous
   greedy/cosine implementations.
+- Repeated queries about one timestamp reuse detector output through a bounded
+  keyframe/prompt cache. On the Switch store it removed 13 of 110 detector
+  calls (12%) and cut warm query time 3.97 s -> 3.33 s (16%), with semantics
+  unchanged.
 - Negative result: adaptive context density (0.25 s while a hand action is
   open, 1.5 s idle) increased store size and *hurt* Switch localisation
   (loc@.30 0, IoU .087), because changed context placement altered track
