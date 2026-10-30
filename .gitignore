@@ -51,6 +51,7 @@ data/real/wheels/
 
 # Local artifacts: media, models, databases, logs
 models/
+models
 weights/
 *.pt
 *.pth
@@ -91,3 +92,8 @@ data/event_clips/
 !data/demo/*.mp4
 data/replays/
 .chronicle-cli
+
+# SPORE research artifacts (large stores, reports, debug frames)
+research/spore/results/
+research/spore/*.jpg
+research/spore/*.json
