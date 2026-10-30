@@ -396,6 +396,7 @@ class SporeAnswer:
     count: int | None = None
     detector_calls: int = 0
     capsules_considered: int = 0
+    evidence_bytes: int = 0
     elapsed_s: float = 0.0
     stats: dict[str, Any] = field(default_factory=dict)
 
@@ -413,6 +414,7 @@ class SporeAnswer:
             "bindings": [binding.as_dict() for binding in self.bindings],
             "detector_calls": self.detector_calls,
             "capsules_considered": self.capsules_considered,
+            "evidence_bytes": self.evidence_bytes,
             "elapsed_s": round(float(self.elapsed_s), 3),
             "stats": self.stats,
         }
@@ -2870,6 +2872,49 @@ class SporeQueryEngine:
             return binding
         return None
 
+    def _evidence_bytes(self, bindings: Sequence[Binding]) -> int:
+        """Unique JPEG bytes attached to an answer's provenance chain.
+
+        Counts the best capsule view and the retained context frame used by
+        each binding, without double-counting evidence shared by bindings.
+        This is the amount a downstream reader would need to fetch from the
+        split evidence directory, not the whole store.
+        """
+        def blob_size(blob: Any) -> int:
+            if blob is None:
+                return 0
+            if isinstance(blob, (bytes, bytearray)):
+                return len(blob)
+            if isinstance(blob, np.ndarray):
+                ok, buffer = cv2.imencode(
+                    ".jpg", blob, [int(cv2.IMWRITE_JPEG_QUALITY), 82]
+                )
+                return int(buffer.nbytes) if ok else int(blob.nbytes)
+            return int(getattr(blob, "nbytes", 0))
+
+        seen: set[tuple[str, int, int]] = set()
+        total = 0
+        for binding in bindings:
+            capsule = self.store.capsules.get(binding.capsule_id)
+            if capsule is not None:
+                view = capsule.best_view
+                size = blob_size(view.image) if view is not None else 0
+                if size:
+                    key = ("view", id(capsule), int(view.timestamp * 1000))
+                    if key not in seen:
+                        seen.add(key)
+                        total += size
+            context = self.store.context_at(
+                binding.timestamp, max_gap=self.config.context_max_gap
+            )
+            size = blob_size(context.image_jpeg) if context is not None else 0
+            if size:
+                key = ("context", 0, int(context.timestamp * 1000))
+                if key not in seen:
+                    seen.add(key)
+                    total += size
+        return total
+
     def answer(
         self,
         question: str,
@@ -2914,6 +2959,7 @@ class SporeQueryEngine:
             self.route(resolved, budget=total_budget, at_time=at_time)
         )
         answer.detector_calls = self.detector_calls - calls_before
+        answer.evidence_bytes = self._evidence_bytes(answer.bindings)
         answer.abstained = (
             (not answer.bindings and answer.count in (None, 0))
             or (

@@ -139,6 +139,9 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 | Play 45 s | 10.4 MB (300-cap) | .667 | .667 | .475 | 1.00 | 11.5 | 150 |
 | HoloAssist z210 257 s | 21.1 MB (300-cap) | 1.00 | 1.00 | .769 | .025 | 27.2 | 962 |
 
+- Evidence per answer (unique JPEG bytes on the provenance chain): 86.8 KB Cook,
+  42.6 KB Switch, 82.1 KB Play, 44.7 KB z210 — 1.0% / 0.7% / 0.7% / 0.2% of
+  the store. Detector calls, not evidence fetches, dominate query cost.
 - Context-free crop binding is much weaker: Cook loc@.30 .25 / IoU .246,
   Switch loc@.30 0 / IoU .108. Retained full keyframes, not better crops, are
   the main source of the gain.

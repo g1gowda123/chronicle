@@ -62,8 +62,10 @@ Switch .667 loc@.30 (any-instance Switch .889). The store now supports
 8.22 MB, with evidence in sidecar blobs. View pixels are optional when
 contexts are retained: Cook drops to 3.48 MB, Switch 2.37 MB, Play 4.55 MB,
 with unchanged QA and fewer detector calls (contexts, not crop views, carry
-localisation evidence). See `SPORE.md` and `SPORE_PAPER.md` for ablations,
-threats to validity, and open issues.
+localisation evidence). A new evidence-byte metric shows one answer touches
+86.8 KB (Cook), 42.6 KB (Switch), 82.1 KB (Play), and 44.7 KB (z210) of JPEG
+evidence, i.e. 0.2-1.0% of the store. See `SPORE.md` and `SPORE_PAPER.md` for
+ablations, threats to validity, and open issues.
 
 
 ## 3. Main branch: what is already shipped

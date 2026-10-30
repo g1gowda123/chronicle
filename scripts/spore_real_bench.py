@@ -77,6 +77,7 @@ class QueryResult:
     answer_match: bool | None
     abstained: bool
     detector_calls: int
+    evidence_bytes: int
     object_question: bool
 
 
@@ -397,6 +398,7 @@ def evaluate(args: argparse.Namespace) -> dict:
                 answer_match=_semantic_match(question, answer),
                 abstained=answer.abstained,
                 detector_calls=calls,
+                evidence_bytes=answer.evidence_bytes,
                 object_question=object_question,
             )
             mode_results.append(result)
@@ -463,6 +465,9 @@ def evaluate(args: argparse.Namespace) -> dict:
         ),
         "mean_detector_calls": round(
             float(np.mean([item.detector_calls for item in hybrid_results])), 2
+        ),
+        "mean_evidence_bytes": round(
+            float(np.mean([item.evidence_bytes for item in hybrid_results])), 0
         ),
         "dense_calls": len(dense),
         "dense_seconds": round(dense_seconds, 2),

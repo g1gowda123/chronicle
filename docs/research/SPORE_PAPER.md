@@ -21,8 +21,8 @@ JPEG evidence blobs, so an LLM can read the index without loading pixels. On
 three short egocentric clips, SPORE localises 0.90/0.90/0.667 of
 dense-detectable objects with 4-8 detector calls per query versus 128-150 for
 dense sampling; a compact 300-capsule store cuts the 257 s HoloAssist z210
-store from 44.2 MB to 21.1 MB while preserving localisation. Fine-object
-counting remains detector-bound.
+store from 44.2 MB to 21.1 MB while preserving localisation, and an answer
+touches only 43-87 KB of evidence. Fine-object counting remains detector-bound.
 
 ## 1. Introduction
 
@@ -191,6 +191,10 @@ boxes; all retention and localisation numbers should be read as
 - **Detector calls per query:** includes routing, context binding, fusion,
   counting, and support inference.
 - **Store bytes:** serialized JSON, with a separate index/evidence breakdown.
+- **Evidence bytes per answer:** unique JPEG bytes attached to the answer's
+  provenance chain (best capsule view plus retained context), not the whole
+  store. This approximates what an LLM-side reader would fetch from the split
+  evidence directory for one question.
 
 ### 4.4 Held-out automatic questions
 
@@ -254,6 +258,13 @@ ambiguity, not for claiming general video understanding.
 The index is 5-8x smaller than the monolithic store and contains the
 LLM-readable structure: timestamps, boxes, labels, contacts, actions, and
 provenance.
+
+A single answer touches far less evidence than the store: counting the unique
+JPEG bytes attached to its provenance chain gives **86.8 KB/query** on Cook,
+**42.6 KB** on Switch, **82.1 KB** on Play, and **44.7 KB** on z210.  These are
+1.0%, 0.7%, 0.7%, and 0.2% of the corresponding stores, respectively.  The
+number is a fetch estimate for an LLM-side reader, not a claim that decoding
+cost is negligible: detector calls dominate query latency.
 
 Context density is not monotonic with accuracy.  With view pixels dropped, a
 0.75 s gap gives Cook 3.48 MB / Switch 2.37 MB and Cook loc@.3 1.00; a 1.0 s
