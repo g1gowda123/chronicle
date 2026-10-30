@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `62702bf` | pushed; SPORE perceiver + benchmarks + results |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `ad67f4f` | pushed; SPORE perceiver + benchmarks + split store + auto-eval |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -49,10 +49,14 @@ Switch loc@.30 .75 / mean IoU .590 / semantic .875 / 12.25 calls (dense: 128).
 z210 257 s is a scaling diagnostic: 298 s ingest and loc@.30 1.00, but semantic
 .025 because the detector cannot see the fine objects being counted. The
 300-capsule hard budget cuts its store from 44.2 MB to 21.1 MB with no metric
-loss; contexts, not capsules, carry most answer evidence. A play-domain smoke
-test retains 2/3 dense-detectable objects at mean IoU .475, and its 407
-capsules are bounded to 10.4 MB with unchanged metrics. See `SPORE.md` for
-ablations, counting limits and open issues.
+loss; contexts, not capsules, carry most answer evidence. Play-domain QA now
+scores 1.0 semantic / .667 loc@.30 / .475 IoU after fixing list-answer
+stringification; its 407 capsules are bounded to 10.4 MB. Automatic
+held-out questions generated from dense tracks score Cook .90 / Play .90 /
+Switch .667 loc@.30 (any-instance Switch .889). The store now supports
+`save(..., split=True)`: Cook's LLM-readable index is 1.02 MB instead of
+8.22 MB, with evidence in sidecar blobs. See `SPORE.md` and
+`SPORE_PAPER.md` for ablations, threats to validity, and open issues.
 
 
 ## 3. Main branch: what is already shipped
@@ -180,15 +184,17 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
    gating, best-view selection, context-frame retention, query-time routing,
    fused detection tracks, and temporal/action scans are implemented.
 2. Next experiments, in priority order:
-   - capsule deduplication: the play clip creates 407 capsules in 45 s, so
-     merge/representative selection is the next scaling bottleneck;
+   - paper-grade evidence: add a real annotated subset or a second detector so
+     the headline is not purely pseudo-GT; report variance over seeds;
    - multi-domain transfer beyond Cook/Switch/Play, without tuning to z210;
    - activity questions that genuinely synthesise a verb from hand motion and
      contact, not just an action-start timestamp;
    - a stronger fine-object detector path, since YOLO-World returns zero for
-     game cards, SD cards, wrist straps, and comfort grips even on hand crops.
-3. Update `SPORE.md` with every experiment that changes a default or a
-   headline number; keep negative results.
+     game cards, SD cards, wrist straps, and comfort grips even on hand crops;
+   - explicit evidence-byte budget for long video; the split index fixes
+     LLM-readability, but context blobs still scale with duration.
+3. Update `SPORE.md` and `SPORE_PAPER.md` with every experiment that changes a
+   default or a headline number; keep negative results and threats to validity.
 4. Only move stable, general improvements to `main` through a clean PR or
    cherry-pick. Never force-push `main`.
 

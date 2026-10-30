@@ -136,6 +136,7 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .60 | 12.5 | 150 |
 | Switch 34 s | 6.06 MB | .75 | .75 | .590 | .875 | 12.25 | 128 |
+| Play 45 s | 10.4 MB (300-cap) | .667 | .667 | .475 | 1.00 | 11.5 | 150 |
 | HoloAssist z210 257 s | 21.1 MB (300-cap) | 1.00 | 1.00 | .769 | .025 | 21.9 | 962 |
 
 - Context-free crop binding is much weaker: Cook loc@.30 .25 / IoU .246,
@@ -198,6 +199,20 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   calls). CLIP top crops for those terms have cosines of only .27-.36 and are
   mostly background. These counts require contact/action evidence, narration,
   or a stronger detector.
+- Held-out automatic questions (`scripts/spore_autoeval.py`) track dense
+  detections and ask only about repeatedly seen objects. With 10 questions per
+  clip: Cook localisation .90 / mean IoU .781 / 4.1 calls, Play .90 / .710 /
+  5.9 calls, Switch .667 / .475 / 8.0 calls (any-instance .889 / .619). Labels
+  are always present in the answer; the remaining error is choosing the wrong
+  instance of a repeated object. Question generation is automatic, so these
+  numbers are not tuned to a hand-written QA list.
+- The store now has two tiers. `CapsuleStore.save(path, split=True)` writes a
+  compact index plus a sibling `*_evidence/` directory; `load` resolves the
+  references transparently. Index sizes: Cook 1.02 MB (vs 8.22 MB monolithic),
+  Switch 1.34 MB (vs 5.99), Play 1.68 MB (vs 11.45), z210-300 2.40 MB (vs
+  21.13). Evidence blobs are 5.42 / 3.50 / 7.34 / 14.08 MB. An LLM can read
+  the index without loading image payloads; query-time code loads evidence only
+  when it needs pixels.
 
 
 
