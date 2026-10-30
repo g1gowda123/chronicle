@@ -241,6 +241,10 @@ class SporeConfig:
     colour_min_chromatic_fraction: float = 0.10
     support_labels: tuple[str, ...] = _SUPPORT_LABELS
     infer_support: bool = True
+    inventory_labels: tuple[str, ...] = ()
+    inventory_contexts: int = 12
+    inventory_min_confidence: float = 0.25
+    inventory_max_items: int = 4
     view_binding: bool = False
     rescan: bool = False
     rescan_window: float = 1.0
@@ -2430,6 +2434,155 @@ class SporeQueryEngine:
         finally:
             capture.release()
 
+    @staticmethod
+    def _inventory_question(question: str) -> str | None:
+        """Return the place phrase in an inventory question, if present.
+
+        This is deliberately narrow: it covers "what objects are on X" and
+        "what is on X" without turning every ``what`` question into a scene
+        inventory request.
+        """
+        text = " ".join(question.strip().split())
+        patterns = (
+            r"^(?:what|which)\s+(?:objects?|items?|things?)\s+(?:are|is)\s+"
+            r"(?:on|at|in)\s+(?:the\s+)?(.+?)\s*\?*$",
+            r"^what(?:'s| is)\s+(?:on|at|in)\s+(?:the\s+)?(.+?)\s*\?*$",
+        )
+        for pattern in patterns:
+            match = re.match(pattern, text, flags=re.IGNORECASE)
+            if match:
+                place = match.group(1).strip(" ?.")
+                return place or None
+        return None
+
+    def _inventory(
+        self, place: str, at_time: float | None = None
+    ) -> tuple[list[str], list[Binding], int]:
+        """List object labels detected on a support surface.
+
+        The caller supplies an open-vocabulary candidate set.  We sample
+        retained keyframes across the whole clip, find a support detection
+        (table/desk/shelf), and keep object detections that sit on it.  This is
+        the missing complement to object binding: a scene can answer "what is
+        here" without first routing to one capsule.
+        """
+        labels = tuple(
+            dict.fromkeys(
+                str(label).strip().lower()
+                for label in self.config.inventory_labels
+                if str(label).strip()
+            )
+        )
+        support = {str(label).strip().lower() for label in self.config.support_labels}
+        ignored = support | {"person", "hand", "arm"}
+        objects = tuple(label for label in labels if label not in ignored)
+        if not objects or not self.store.contexts:
+            return [], [], 0
+        vocabulary = tuple(dict.fromkeys((*objects, *self.config.support_labels)))
+        contexts = list(self.store.contexts)
+        limit = max(1, int(self.config.inventory_contexts))
+        if len(contexts) > limit:
+            indices = np.linspace(0, len(contexts) - 1, limit, dtype=int)
+            contexts = [contexts[int(index)] for index in indices]
+            if at_time is not None:
+                nearest = min(
+                    self.store.contexts,
+                    key=lambda context: abs(context.timestamp - at_time),
+                )
+                if nearest not in contexts:
+                    contexts[-1] = nearest
+        place_lower = place.strip().lower()
+        best: dict[str, tuple[float, Binding]] = {}
+        scanned = 0
+        for context in contexts:
+            frame = context.image()
+            if frame is None:
+                continue
+            detections = self._detect_cached(
+                frame,
+                vocabulary,
+                frame_index=context.frame_index,
+                timestamp=context.timestamp,
+                cache_tag=context.frame_index,
+            )
+            scanned += 1
+            anchors = [
+                detection
+                for detection in detections
+                if detection.label.strip().lower() in support
+                and detection.confidence >= self.config.inventory_min_confidence
+            ]
+            if not anchors:
+                continue
+            anchors.sort(
+                key=lambda detection: (
+                    place_lower in detection.label.lower()
+                    or detection.label.lower() in place_lower,
+                    detection.confidence,
+                ),
+                reverse=True,
+            )
+            anchor = anchors[0]
+            pad = 0.02 * max(anchor.bbox.width, anchor.bbox.height)
+            for detection in detections:
+                label = detection.label.strip().lower()
+                if label in ignored:
+                    continue
+                if detection.confidence < self.config.inventory_min_confidence:
+                    continue
+                inside = anchor.bbox.contains_point(detection.bbox.centroid, pad=pad)
+                if not inside and detection.bbox.iou(anchor.bbox) <= 0.01:
+                    continue
+                previous = best.get(label)
+                if previous is not None and previous[0] >= detection.confidence:
+                    continue
+                best[label] = (
+                    detection.confidence,
+                    Binding(
+                        term=label,
+                        label=label,
+                        capsule_id="",
+                        confidence=detection.confidence,
+                        timestamp=context.timestamp,
+                        bbox=detection.bbox,
+                        support=anchor.label,
+                        detector_confidence=detection.confidence,
+                        provenance="inventory",
+                    ),
+                )
+        ordered = sorted(best.items(), key=lambda item: item[1][0], reverse=True)
+        # "joy-con" and "joy-con controllers" are two prompts for one object.
+        # Merge only when the boxes overlap so a genuinely different instance
+        # is not collapsed by a lexical alias.
+        kept: list[tuple[str, tuple[float, Binding]]] = []
+        for label, (confidence, binding) in ordered:
+            duplicate = next(
+                (
+                    index
+                    for index, (other_label, (_, other_binding)) in enumerate(kept)
+                    if binding.bbox.iou(other_binding.bbox) >= 0.5
+                    and (label in other_label or other_label in label)
+                ),
+                None,
+            )
+            if duplicate is None:
+                kept.append((label, (confidence, binding)))
+                continue
+            other_label, (other_confidence, other_binding) = kept[duplicate]
+            if len(label) < len(other_label):
+                binding.label = label
+                binding.term = label
+                kept[duplicate] = (label, (max(confidence, other_confidence), binding))
+            elif confidence > other_confidence:
+                other_binding.confidence = confidence
+                kept[duplicate] = (other_label, (confidence, other_binding))
+        ordered = kept[: max(1, int(self.config.inventory_max_items))]
+        return (
+            [label for label, _ in ordered],
+            [item[1][1] for item in ordered],
+            scanned,
+        )
+
     def _infer_support(self, binding: Binding) -> None:
         """Fill in a support surface for CLIP-only bindings.
 
@@ -3099,6 +3252,23 @@ class SporeQueryEngine:
     ) -> SporeAnswer:
         start = time.perf_counter()
         calls_before = self.detector_calls
+        inventory_place = self._inventory_question(question)
+        if inventory_place and self.config.inventory_labels:
+            labels, bindings, scanned = self._inventory(inventory_place, at_time)
+            answer = SporeAnswer(question=question, terms=[inventory_place])
+            answer.bindings = bindings
+            answer.abstained = not labels
+            answer.answer = (
+                f"{', '.join(labels)} on the {inventory_place}"
+                if labels
+                else "not enough evidence"
+            )
+            answer.capsules_considered = scanned
+            answer.detector_calls = self.detector_calls - calls_before
+            answer.evidence_bytes = self._evidence_bytes(bindings)
+            answer.stats["inventory"] = labels
+            answer.elapsed_s = time.perf_counter() - start
+            return answer
         resolved = list(terms) if terms else extract_terms(question)
         answer = SporeAnswer(question=question, terms=resolved)
         if not resolved:

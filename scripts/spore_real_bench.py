@@ -312,7 +312,11 @@ def evaluate(args: argparse.Namespace) -> dict:
         )
         print(f"[dump] {dump_dir}", flush=True)
     for mode in (args.mode,):
-        mode_config = replace(config, binding_mode=mode)
+        mode_config = replace(
+            config,
+            binding_mode=mode,
+            inventory_labels=tuple(vocabulary) if args.inventory else (),
+        )
         mode_results: list[QueryResult] = []
         engine = SporeQueryEngine(
             store,
@@ -525,7 +529,7 @@ def evaluate(args: argparse.Namespace) -> dict:
         "store_capsules": len(store.capsules),
         "store_bytes": store.memory_bytes(),
         "ingest": perceiver.stats.as_dict() if perceiver is not None else {},
-        "config": asdict(config),
+        "config": asdict(mode_config),
         "results": [asdict(item) for item in hybrid_results],
     }
     return summary
@@ -548,6 +552,7 @@ def main() -> None:
     parser.add_argument("--context-sweep-frames", type=int, default=5)
     parser.add_argument("--context-sweep-window", type=float, default=2.0)
     parser.add_argument("--batch-prefetch", action="store_true")
+    parser.add_argument("--inventory", action="store_true")
     parser.add_argument("--max-capsules", type=int, default=300)
     parser.add_argument("--context-gap", type=float, default=None)
     parser.add_argument("--clip-center", type=float, default=None)

@@ -528,6 +528,34 @@ retrieval-bound, and the temporal/activity questions cannot be grounded by
 this capture regardless of the question parser.  A higher-resolution capture
 is required before a stronger detector can help.
 
+### 5.10 Scene inventory
+
+Object binding answers "where is X", but not "what is on the work table": the
+place is a support relation, not an object capsule.  The opt-in
+`inventory_labels` path samples 12 retained contexts across the clip, runs one
+detector pass with the candidate object labels plus support labels, selects the
+support box, and keeps object detections whose centre lies on that box (or
+whose box overlaps it).  Lexical aliases are merged only when their boxes
+overlap, which is deliberately conservative: because the detected joy-con
+boxes do not overlap, the current Switch answer still lists both "joy-con
+controllers" and "joy-con".
+
+On Switch, this changes the one inventory answer from
+"not enough evidence" to "joy-con controllers, joy-con on the work table" and
+raises semantic accuracy from 7/8 (.875) to 8/8 (1.00) at unchanged
+localisation and IoU.  The inventory question costs 12 detector calls; the
+eight-question session rises from 7.4 to 8.4 calls/query.  The same operator
+on Cook returns "cup, cups on the table" for "What objects are on the table?"
+and "knife, toaster, plate on the countertop" for "What is on the
+countertop?"; these are qualitative checks because Cook has no inventory
+annotation.
+
+This is not a general captioner.  It needs a candidate label set, supplied by
+the caller in the same way as the detector vocabulary, and it lists only
+objects the detector can see on the support surface.  The main results table
+therefore keeps the .875 Switch number without inventory; the 1.00 variant is
+an explicit capability result, not a new default.
+
 ## 6. Discussion
 
 SPORE shows that **retained full context**, not better crops, is the dominant
