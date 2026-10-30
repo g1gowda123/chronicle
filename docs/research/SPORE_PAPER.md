@@ -255,6 +255,13 @@ The index is 5-8x smaller than the monolithic store and contains the
 LLM-readable structure: timestamps, boxes, labels, contacts, actions, and
 provenance.
 
+Context density is not monotonic with accuracy.  With view pixels dropped, a
+0.75 s gap gives Cook 3.48 MB / Switch 2.37 MB and Cook loc@.3 1.00; a 1.0 s
+gap gives 3.37 / 2.22 MB but Cook loc@.3 .75 and Switch .50; a 1.5 s gap gives
+2.61 / 2.08 MB, Cook loc@.3 .75 and Switch .75.  The sampled keyframe phase
+changes which detections survive, so saving 25-30% of context bytes is not
+worth losing small static objects.  Keep `context_min_gap=0.75`.
+
 ### 5.4 Fine-object limits
 
 Over all 264 retained z210 contexts, YOLO-World returned zero detections for

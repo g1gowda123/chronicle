@@ -230,6 +230,10 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   embeddings for routing, while contexts keep the pixels used for detection.
   Cook drops to 3.48 MB, Switch to 2.37 MB, Play to 4.55 MB, with unchanged QA
   and fewer detector calls (8.3 / 8.6 / 4.5 per query).
+- Sparse contexts are not a free win: with view pixels dropped, 1.0 s and 1.5 s
+  context gaps save only 3-25% but reduce Cook loc@.30 from 1.00 to .75 (and
+  1.0 s also Switch .75 -> .50). Keep `context_min_gap=0.75`; detector phase
+  matters more than raw frame count.
 
 
 
