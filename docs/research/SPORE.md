@@ -245,8 +245,10 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   .025 to .05 (loc/IoU .77 to .83 on the one dense-detectable object, calls
   27.2 to 22.2) and uses 2.2 GB peak VRAM; at 1280 px it still finds none of
   the four fine objects. CLIP top crops for those terms have cosines of only
-  .27-.36 and are mostly background. These counts require contact/action
-  evidence, narration, or a stronger detector.
+  .27-.36 and are mostly background. A 2x2 overlapping tile pass with 2x
+  upsampling over all 264 contexts yielded only six detections at conf .05,
+  all false positives on Joy-Con/console/screen. These counts require
+  contact/action evidence, narration, or a stronger detector.
 - Held-out automatic questions (`scripts/spore_autoeval.py`) track dense
   detections and ask only about repeatedly seen objects. With 10 questions per
   clip: Cook localisation .90 / mean IoU .781 / 4.1 calls, Play .90 / .710 /

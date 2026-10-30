@@ -459,6 +459,11 @@ object moves IoU .77 to .83 and calls fall 27.2 to 22.2.  The cost is 2.2 GB
 peak VRAM, roughly double the small model.  At 1280 px the large model finds no
 game card, SD card, kickstand, or power button in any of the 264 retained
 contexts.  Fine-object QA remains detector-bound, not retrieval-bound.
+Tiling does not rescue them either: a 2x2 overlapping tile pass with 2x
+upsampling over all 264 contexts produced only six detections at confidence
+.05, and visual inspection showed every one was a false positive on a Joy-Con,
+console back, or screen.  The missing objects are a detector-semantic limit,
+not an input-resolution limit.
 
 ## 6. Discussion
 
