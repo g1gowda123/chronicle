@@ -510,13 +510,33 @@ class CapsuleStore:
         last seen and the gap is short; this keeps identity through occlusion
         without merging two visually similar objects that are far apart.
         """
-        if not self.capsules:
+        if not self.capsules or embedding is None:
             return None
-        best: tuple[float, ObjectCapsule] | None = None
+        query = np.asarray(embedding, dtype=np.float32).reshape(-1)
+        query_norm = float(np.linalg.norm(query))
+        if query_norm <= 1e-12:
+            return None
+        capsules: list[ObjectCapsule] = []
+        prototypes: list[np.ndarray] = []
         for capsule in self.capsules.values():
-            similarity = capsule.similarity(embedding)
+            prototype = capsule.prototype
+            if prototype is None:
+                continue
+            capsules.append(capsule)
+            prototypes.append(prototype)
+        if not capsules:
+            return None
+        matrix = np.stack(prototypes)
+        norms = np.linalg.norm(matrix, axis=1)
+        denominator = np.maximum(norms * query_norm, 1e-12)
+        similarities = (matrix @ query) / denominator
+        floor = max(0.0, threshold - 0.03)
+        best: tuple[float, ObjectCapsule] | None = None
+        for index in np.flatnonzero(similarities >= floor):
+            capsule = capsules[int(index)]
+            similarity = float(similarities[int(index)])
             if similarity < threshold:
-                if similarity < max(0.0, threshold - 0.03) or capsule.last_bbox is None:
+                if capsule.last_bbox is None:
                     continue
                 gap = timestamp - capsule.last_seen
                 if gap < 0.0 or gap > max_gap:

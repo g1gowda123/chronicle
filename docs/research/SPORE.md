@@ -2,9 +2,13 @@
 
 Status: research design, branch `research/spore-perception`.
 
-Implementation status: **design only, no perceiver code yet.** The current
-handoff, branch map, experiment results and next steps are in
+Implementation status: **working prototype on `research/spore-perception`.** The
+current handoff, branch map, experiment results and next steps are in
 [`HANDOFF.md`](HANDOFF.md). Read that first.
+
+The prototype lives in `chronicle/perception/capsules.py` and
+`chronicle/perception/spore.py`; benchmarks are in `scripts/spore_*.py`.
+
 
 ## Thesis
 
@@ -122,6 +126,57 @@ Baselines/ablations:
 - SPORE without hand/event gating,
 - SPORE without best-view selection,
 - SPORE without late binding.
+
+## Current results (short clips, pseudo-GT from dense YOLO-World)
+
+Two real egocentric clips are used as *development* evidence, not as general
+video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
+
+| clip | store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .50 | 12.5 | 150 |
+| Switch 34 s | 6.06 MB | .75 | .75 | .590 | .75 | 12.25 | 128 |
+| HoloAssist z210 257 s | 44.6 MB | 1.00 | 1.00 | .769 | .025 | 21.9 | 962 |
+
+- Context-free crop binding is much weaker: Cook loc@.30 .25 / IoU .246,
+  Switch loc@.30 0 / IoU .108. Retained full keyframes, not better crops, are
+  the main source of the gain.
+- JPEG quality matters: at q72 the thin held knife disappears; q82 restores it.
+- Cross-frame track fusion fixes instance ambiguity (two joy-cons): Switch
+  loc@.30 rose .25 → .75 after associating detections across five contexts and
+  scoring tracks by a temporally weighted geometric mean of confidence.
+- Action-indexed temporal retrieval answers "when did … first" by forward-
+  scanning sparse contexts: Switch first joy-con pick-up at 3.7 s (annotated
+  4.2 s); Cook first cup detection at 1.0 s, which is early and exposes the
+  need for touch/contact evidence rather than appearance alone.
+- Negative result: adaptive context density (0.25 s while a hand action is
+  open, 1.5 s idle) increased store size and *hurt* Switch localisation
+  (loc@.30 0, IoU .087), because changed context placement altered track
+  association. It remains an opt-in ablation, not the default.
+- Hand-only context storage saves nothing: hands are present in ~all keyframes.
+- Raising the CLIP-only margin threshold to .22 correctly abstains on
+  undetectable objects (rice cooker, cutting board, switch console) but also
+  suppresses counting candidates. CLIP-only labels need corroboration-aware
+  calibration, not a single global threshold.
+- Counting uses two signals: simultaneous detections (peak occupancy) and
+  persistent detector tracks across action-start contexts. Peak counting fixes
+  the two joy-con case (`2 joy-con controllers`), but cups over-count (6, or 3
+  with a 20 s track gap) because sparse contexts fragment one cup into several
+  appearances. Count bindings also collapse onto one large background capsule,
+  so capsule attribution still needs a tightness penalty.
+- Latency on z210 (7,695 decoded frames) is 298 s ingest at 4 fps sampling; the
+  first attempt stalled because compaction was O(n^2) and ran on every frame
+  once the capsule cap was exceeded. Compaction is now throttled and tests the
+  cheap spatial gate before the appearance similarity; `CapsuleStore.match` is
+  vectorised over prototypes.
+- Fine-object limits are detector-bound, not prompt-bound: over all 264 z210
+  contexts, YOLO-World returned zero detections for game card, SD card, wrist
+  strap, and comfort grip, including 1.5x and 2.6x hand-zoomed crops (1,372+
+  calls). CLIP top crops for those terms have cosines of only .27-.36 and are
+  mostly background. These counts require contact/action evidence, narration,
+  or a stronger detector.
+
+
 
 ## Non-goals
 

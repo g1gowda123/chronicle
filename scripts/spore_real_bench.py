@@ -240,7 +240,9 @@ def evaluate(args: argparse.Namespace) -> dict:
         perceiver = SporePerceiver(config, perception, embedder=embedder, hands=hands)
         started = time.perf_counter()
         store = perceiver.ingest(
-            args.clip, source_name="tabletop"
+            args.clip,
+            max_frames=args.max_frames,
+            source_name="tabletop",
         )
         ingest_seconds = time.perf_counter() - started
         print(
@@ -473,6 +475,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--clip", required=True)
     parser.add_argument("--qa", required=True)
+    parser.add_argument("--max-frames", type=int, default=None)
     parser.add_argument("--sample-fps", type=float, default=4.0)
     parser.add_argument("--budget", type=int, default=8)
     parser.add_argument("--out", default="")

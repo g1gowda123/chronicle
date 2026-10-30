@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
 import time
 from collections.abc import Sequence
@@ -73,12 +74,15 @@ _VERBS = frozenset(
     open opened opening close closed closing press pressed pressing turn turned
     turning insert inserted inserting remove removed removing cut cutting fold
     folding unfold write wrote writing read reading switch switched switching
-    lift lifted lifting drop dropped dropping hand hands arm
+    lift lifted lifting drop dropped dropping hand hands arm attach attached
+    attaching replace replaced replacing rotate rotated rotating slide slid
+    sliding handle handled handling
     """.split()
 )
 
 _SUPPORT_LABELS = (
     "table",
+    "work table",
     "countertop",
     "desk",
     "shelf",
@@ -87,6 +91,13 @@ _SUPPORT_LABELS = (
     "box",
     "basket",
 )
+
+_SUPPORT_ALIASES = {
+    "desk": "work table",
+    "work table": "desk",
+    "countertop": "counter top",
+    "table": "countertop",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +170,7 @@ class SporeConfig:
     match_max_gap: float = 2.5
     max_views: int = 5
     max_capsules: int = 300
+    compact_interval: float = 1.0
 
     # Actions and scenes.
     action_min_duration: float = 0.15
@@ -202,7 +214,13 @@ class SporeConfig:
     query_abstain_confidence: float = 0.24
     query_diversity: float = 0.28
     query_min_relevance: float = 0.10
+    count_contexts: int = 16
+    count_min_confidence: float = 0.30
+    count_single_confidence: float = 0.50
+    count_peak_confidence: float = 0.45
+    count_track_gap: float = 20.0
     support_labels: tuple[str, ...] = _SUPPORT_LABELS
+    infer_support: bool = True
     late_binding: bool = True
     binding_mode: str = "detector"  # detector | clip | hybrid
     clip_prompt_templates: tuple[str, ...] = (
@@ -351,6 +369,7 @@ class SporeAnswer:
     bindings: list[Binding] = field(default_factory=list)
     answer: str = ""
     abstained: bool = True
+    count: int | None = None
     detector_calls: int = 0
     capsules_considered: int = 0
     elapsed_s: float = 0.0
@@ -366,6 +385,7 @@ class SporeAnswer:
             "terms": list(self.terms),
             "answer": self.answer,
             "abstained": self.abstained,
+            "count": self.count,
             "bindings": [binding.as_dict() for binding in self.bindings],
             "detector_calls": self.detector_calls,
             "capsules_considered": self.capsules_considered,
@@ -647,6 +667,7 @@ class SporePerceiver:
         self._last_keyframe_t = -1e9
         self._last_interaction_t = -1e9
         self._last_scene_t = -1e9
+        self._last_compact_t = -1e9
         self._open_actions: dict[str, _OpenAction] = {}
         self._frame_size = (640, 480)
 
@@ -698,8 +719,20 @@ class SporePerceiver:
                 break
             if frame_index % stride:
                 continue
+            if os.environ.get("SPORE_PROGRESS") and self.stats.frames_decoded % 200 == 0:
+                print(
+                    f"[spore] decoded={self.stats.frames_decoded}"
+                    f" sampled={self.stats.frames_sampled}"
+                    f" keyframes={self.stats.keyframes}"
+                    f" capsules={len(self.store.capsules)}"
+                    f" t={float(timestamp):.1f}s",
+                    flush=True,
+                )
             self._consume_frame(frame, float(timestamp), frame_index)
         self._close_all_actions()
+        # Compaction is a batch cleanup, not a per-frame operation.  Running
+        # it inside the ingest loop made long clips quadratic in capsule count.
+        self._compact(0.0, force=True)
         self.stats.elapsed_s = time.perf_counter() - start_time
         return self.store
 
@@ -972,7 +1005,6 @@ class SporePerceiver:
                 if retained:
                     self.stats.views_retained += 1
             self._update_descriptor(capsule, candidate.descriptor)
-        self._compact()
 
     def _proposals(
         self,
@@ -1288,19 +1320,25 @@ class SporePerceiver:
             )
         )
 
-    def _compact(self) -> None:
+    def _compact(self, timestamp: float, *, force: bool = False) -> None:
         if len(self.store.capsules) <= self.config.max_capsules:
             return
+        if not force and timestamp - self._last_compact_t < self.config.compact_interval:
+            return
+        self._last_compact_t = timestamp
         capsules = list(self.store.capsules.values())
         best_pair: tuple[float, ObjectCapsule, ObjectCapsule] | None = None
         for index, first in enumerate(capsules):
             for second in capsules[index + 1 :]:
                 if first.last_bbox is None or second.last_bbox is None:
                     continue
+                # Cheap spatial gate before the 512-D similarity scan.  On
+                # long clips most pairs are disjoint, so this turns an
+                # O(n^2) embedding comparison into an O(n^2) box test.
+                if first.last_bbox.iou(second.last_bbox) < 0.2:
+                    continue
                 similarity = first.similarity(second.prototype)
                 if similarity < self.config.propagate_similarity:
-                    continue
-                if first.last_bbox.iou(second.last_bbox) < 0.2:
                     continue
                 if best_pair is None or similarity > best_pair[0]:
                     best_pair = (similarity, first, second)
@@ -1538,6 +1576,9 @@ class SporeQueryEngine:
                 not bindings or clip_bindings[0].confidence > bindings[0].confidence
             ):
                 bindings = clip_bindings
+        if self.config.infer_support:
+            for binding in bindings:
+                self._infer_support(binding)
         bindings.sort(key=lambda item: item.confidence, reverse=True)
         if self.config.propagate_labels and bindings:
             bindings.extend(
@@ -2065,6 +2106,32 @@ class SporeQueryEngine:
         embedding = self._embedder.embed_image(crop)
         return _cosine(term_vector, embedding)
 
+    def _infer_support(self, binding: Binding) -> None:
+        """Fill in a support surface for CLIP-only bindings.
+
+        Text-image bindings know *what* something is but not *where* it rests.
+        One support-only detector pass over the retained keyframe supplies the
+        missing relation without another full object-detection sweep.
+        """
+        if binding.support or not self.store.contexts:
+            return
+        context = self.store.context_at(
+            binding.timestamp, max_gap=self.config.context_max_gap
+        )
+        if context is None:
+            return
+        frame = context.image()
+        if frame is None or self._detector is None:
+            return
+        self._detector.set_vocabulary(list(self.config.support_labels))
+        detections = self._detector.detect(
+            frame, frame_index=context.frame_index, timestamp=context.timestamp
+        )
+        self.detector_calls += 1
+        binding.support = self._support_for(
+            detections, binding.bbox, {label.lower() for label in self.config.support_labels}
+        )
+
     @staticmethod
     def _support_for(
         detections: Sequence[Any], object_box: BBox, support_set: set[str]
@@ -2236,6 +2303,195 @@ class SporeQueryEngine:
             return binding
         return None
 
+    def _count_contexts(self, at_time: float | None) -> list[ContextFrame]:
+        """Choose contexts spread over the episode for lifetime counting.
+
+        Action starts are the best sampling points: they are where objects are
+        handled, and they cover the whole video rather than only the query
+        timestamp.  If no actions survived, fall back to evenly spaced
+        keyframes.
+        """
+        limit = max(1, self.config.count_contexts)
+        starts = sorted(
+            {
+                round(float(action.start), 2)
+                for action in self.store.actions.values()
+                if action.duration >= self.config.action_scan_min_duration
+            }
+        )
+        contexts: list[ContextFrame] = []
+        if starts:
+            stride = max(1, len(starts) // limit)
+            for timestamp in starts[::stride][:limit]:
+                context = self.store.context_at(timestamp, max_gap=1.0)
+                if context is not None and all(
+                    abs(context.timestamp - found.timestamp) > 0.2
+                    for found in contexts
+                ):
+                    contexts.append(context)
+        if not contexts:
+            ordered = sorted(self.store.contexts, key=lambda item: item.timestamp)
+            stride = max(1, len(ordered) // limit)
+            contexts = ordered[::stride][:limit]
+        if at_time is not None and self.store.contexts:
+            nearest = self.store.context_at(at_time, max_gap=self.config.context_max_gap)
+            if nearest is not None and all(
+                abs(nearest.timestamp - found.timestamp) > 0.2 for found in contexts
+            ):
+                contexts.append(nearest)
+        contexts.sort(key=lambda item: item.timestamp)
+        return contexts
+
+    def _count_term(
+        self,
+        term: str,
+        at_time: float | None = None,
+    ) -> tuple[int, list[Binding]]:
+        """Count distinct detector-confirmed instances across the episode.
+
+        Counting is not ``len(bindings)``: a single capsule can be matched by
+        several views, and one physical object can produce several capsules.
+        Detections from action-aligned keyframes are linked into tracks first;
+        only persistent or high-confidence tracks are counted.
+        """
+        if self._detector is None:
+            return 0, []
+        vocabulary = [term]
+        if self.config.support_labels:
+            vocabulary.extend(self.config.support_labels)
+        self._detector.set_vocabulary(vocabulary)
+
+        contexts = self._count_contexts(at_time)
+        tracks: list[_DetectionTrack] = []
+        peak = 0
+        peak_hits: list[tuple[Any, ContextFrame]] = []
+        for context in contexts:
+            frame = context.image()
+            if frame is None:
+                continue
+            detections = self._detector.detect(
+                frame,
+                frame_index=context.frame_index,
+                timestamp=context.timestamp,
+            )
+            self.detector_calls += 1
+            frame_size = context.metadata.get("frame_size", [640, 480])
+            diagonal = math.hypot(float(frame_size[0]), float(frame_size[1]))
+            frame_hits: list[Any] = []
+            for detection in detections:
+                if not _label_matches(detection.label, term):
+                    continue
+                if detection.confidence < self.config.count_min_confidence:
+                    continue
+                frame_hits.append(detection)
+                matched: _DetectionTrack | None = None
+                matched_score = -1.0
+                for track in tracks:
+                    if context.timestamp - track.stamps[-1] > self.config.count_track_gap:
+                        continue
+                    overlap = detection.bbox.iou(track.last_box)
+                    dx = detection.bbox.centroid[0] - track.last_box.centroid[0]
+                    dy = detection.bbox.centroid[1] - track.last_box.centroid[1]
+                    distance = math.hypot(dx, dy) / max(1.0, diagonal)
+                    area_ratio = detection.bbox.area / max(1.0, track.last_box.area)
+                    close = (
+                        distance <= self.config.context_fusion_center
+                        and 0.4 <= area_ratio <= 2.5
+                    )
+                    if overlap < self.config.context_fusion_iou and not close:
+                        continue
+                    score = overlap + 0.2 * (1.0 - min(1.0, distance / 0.35))
+                    if score > matched_score:
+                        matched = track
+                        matched_score = score
+                if matched is None:
+                    matched = _DetectionTrack()
+                    tracks.append(matched)
+                matched.add(detection, context.timestamp, None)
+            if frame_hits:
+                # Open-vocabulary detectors often emit overlapping boxes for
+                # the same instance.  Deduplicate within the frame before using
+                # peak occupancy as an instance count, and require reasonable
+                # confidence so a single frame of low-confidence noise cannot
+                # inflate the count.
+                kept: list[Any] = []
+                for detection in sorted(
+                    frame_hits, key=lambda item: item.confidence, reverse=True
+                ):
+                    if detection.confidence < self.config.count_peak_confidence:
+                        continue
+                    if all(detection.bbox.iou(other.bbox) < 0.50 for other in kept):
+                        kept.append(detection)
+                frame_hits = kept
+            if len(frame_hits) > peak:
+                peak = len(frame_hits)
+                peak_hits = [(detection, context) for detection in frame_hits]
+
+        confirmed = [
+            track
+            for track in tracks
+            if len(track.stamps) >= 2
+            or max(track.confidences, default=0.0) >= self.config.count_single_confidence
+        ]
+        confirmed.sort(key=lambda track: track.mean_confidence, reverse=True)
+        if peak >= 2:
+            # When two or more instances are visible together, that is stronger
+            # evidence than a lifetime track count: sparse action-start contexts
+            # fragment one moving object into several tracks.  Report the
+            # detections from the peak frame and use their count.
+            peak_bindings: list[Binding] = []
+            for detection, context in peak_hits:
+                peak_bindings.append(
+                    Binding(
+                        term=term,
+                        label=term,
+                        capsule_id="",
+                        confidence=min(0.95, 0.50 + 0.40 * detection.confidence),
+                        timestamp=context.timestamp,
+                        bbox=detection.bbox,
+                        support=None,
+                        detector_confidence=float(detection.confidence),
+                        clip_similarity=None,
+                        views_agree=1,
+                        views_tried=len(contexts),
+                        provenance="count_peak",
+                    )
+                )
+            peak_bindings.sort(key=lambda item: item.confidence, reverse=True)
+            return peak, peak_bindings
+        bindings: list[Binding] = []
+        for track in confirmed:
+            box = track.mean_box()
+            capsule_id = ""
+            best_coverage = 0.0
+            for capsule in self.store.capsules.values():
+                for view in capsule.best_views:
+                    coverage = view.bbox.intersection_area(box) / max(1.0, box.area)
+                    if coverage > best_coverage:
+                        best_coverage = coverage
+                        capsule_id = capsule.capsule_id
+            confidence = min(
+                0.95,
+                0.45 + 0.15 * min(4, len(track.stamps)) + 0.20 * track.mean_confidence,
+            )
+            bindings.append(
+                Binding(
+                    term=term,
+                    label=term,
+                    capsule_id=capsule_id,
+                    confidence=confidence,
+                    timestamp=float(np.mean(track.stamps)),
+                    bbox=box,
+                    support=track.best_support(),
+                    detector_confidence=track.mean_confidence,
+                    clip_similarity=None,
+                    views_agree=len(track.stamps),
+                    views_tried=len(contexts),
+                    provenance="count_track",
+                )
+            )
+        return len(confirmed), bindings
+
     def _scan_actions(
         self,
         term: str,
@@ -2359,21 +2615,24 @@ class SporeQueryEngine:
             return answer
         total_budget = budget or self.config.query_capsules
         shared = max(2, int(math.ceil(total_budget / max(1, len(resolved)))))
-        for term in resolved:
-            answer.bindings.extend(self.bind(term, budget=shared, at_time=at_time))
+        lowered_question = question.lower()
         action_binding = None
-        if len(resolved) == 1:
-            lowered_question = question.lower()
-            if "when did" in lowered_question or "when was" in lowered_question:
-                action_binding = self._scan_first(resolved[0], at_time)
-                if action_binding is None:
+        if "how many" in lowered_question and len(resolved) == 1:
+            answer.count, answer.bindings = self._count_term(resolved[0], at_time)
+        else:
+            for term in resolved:
+                answer.bindings.extend(self.bind(term, budget=shared, at_time=at_time))
+            if len(resolved) == 1:
+                if "when did" in lowered_question or "when was" in lowered_question:
+                    action_binding = self._scan_first(resolved[0], at_time)
+                    if action_binding is None:
+                        action_binding = self._scan_actions(
+                            resolved[0], question, at_time
+                        )
+                else:
                     action_binding = self._scan_actions(
                         resolved[0], question, at_time
                     )
-            else:
-                action_binding = self._scan_actions(
-                    resolved[0], question, at_time
-                )
         answer.bindings.sort(key=lambda item: item.confidence, reverse=True)
         if action_binding is not None:
             answer.bindings = [action_binding] + [
@@ -2384,20 +2643,39 @@ class SporeQueryEngine:
         )
         answer.detector_calls = self.detector_calls - calls_before
         answer.abstained = (
-            not answer.bindings
-            or answer.bindings[0].confidence < self.config.query_abstain_confidence
+            (not answer.bindings and answer.count in (None, 0))
+            or (
+                answer.count is None
+                and bool(answer.bindings)
+                and answer.bindings[0].confidence < self.config.query_abstain_confidence
+            )
         )
-        answer.answer = self._compose(question, answer.bindings, answer.abstained)
+        answer.answer = self._compose(
+            question, answer.bindings, answer.abstained, count=answer.count
+        )
         answer.elapsed_s = time.perf_counter() - start
         return answer
 
     @staticmethod
-    def _compose(question: str, bindings: Sequence[Binding], abstained: bool) -> str:
+    def _compose(
+        question: str,
+        bindings: Sequence[Binding],
+        abstained: bool,
+        *,
+        count: int | None = None,
+    ) -> str:
+        lowered = question.lower()
+        if lowered.startswith("how many") and count is not None and bindings:
+            return f"{count} {bindings[0].term}"
         if abstained or not bindings:
             return "not enough evidence"
         best = bindings[0]
-        location = f" on the {best.support}" if best.support else ""
-        lowered = question.lower()
+        location = ""
+        if best.support:
+            alias = _SUPPORT_ALIASES.get(best.support)
+            location = f" on the {best.support}"
+            if alias and alias not in best.support:
+                location += f" ({alias})"
         if lowered.startswith("where"):
             return f"{best.label}{location} at {best.timestamp:.1f}s"
         if lowered.startswith("how many"):
@@ -2447,7 +2725,11 @@ def extract_terms(question: str) -> list[str]:
     patterns = (
         r"\bwhere (?:is|are|was|were) (?:the |a |an )?(.+)$",
         r"\bwhere (?:did|does|do) (?:the |a |an )?(.+?) go\b",
+        r"\bwhere did .*?\b(?:put|place|attach|insert|remove|open|press|replace|use|handle)\b (?:the |a |an )?(.+?)(?: at | in | on | into | after | before | with | from |$)",
+        r"\bwhat did .*?\b(?:put|place|attach|insert|remove|open|press|replace|use|handle)\b (?:the |a |an )?(.+?)(?: to | into | on | after | before | at | with | from |$)",
         r"\bwhen did .*?(?:touch|pick up|grab|use|hold|open|close) (?:the |a |an )?(.+)$",
+        r"\bhow many times did .*?\b(?:press|use|attach|insert|remove|open|close) (?:the |a |an )?(.+)$",
+        r"\bhow many (.+?)(?: did| does| do| were| are| was| is| has| have)\b",
         r"\bhow many (.+?) (?:are|is|were|was)\b",
         r"\bwhat (?:colour|color) (?:is|are|was|were) (?:the |a |an )?(.+)$",
         r"\b(?:what|which) (?:did|do|does|is|are|was|were).*?\b(?:with|on|at|in|from|using) (?:the |a |an )?(.+)$",
@@ -2471,7 +2753,11 @@ def extract_terms(question: str) -> list[str]:
 
 def _clean_phrase(phrase: str) -> str:
     phrase = phrase.strip(" ?.!,'\"")
-    phrase = re.sub(r"\b(?:on|at|in|from|to|with|for)$", "", phrase).strip()
+    phrase = re.split(
+        r"\b(?:at|in|on|into|after|before|with|from|to|for|during)\b", phrase
+    )[0]
+    phrase = re.sub(r"\b(?:start|beginning|end|first|last|initially)$", "", phrase)
+    phrase = re.sub(r"\b(?:the|a|an)$", "", phrase).strip()
     tokens = [token for token in phrase.split() if token not in _STOPWORDS]
     if not tokens:
         return ""

@@ -95,5 +95,7 @@ data/replays/
 
 # SPORE research artifacts (large stores, reports, debug frames)
 research/spore/results/
+research/spore/**/*.jpg
 research/spore/*.jpg
+research/spore/**/*.json
 research/spore/*.json

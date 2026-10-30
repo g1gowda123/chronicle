@@ -30,13 +30,26 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `1200f84` | design doc only, uncommitted |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `606d5c8` | pushed; SPORE perceiver + benchmarks + results |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
 Do not reset or overwrite `/home/g1/projects/chronicle-vfm`: it contains
 another agent's uncommitted `chronicle/belief/` prototype, `docs/BELIEF.md`,
 tests, README and CLI edits. That work is independent of the perception work.
+
+### SPORE branch status
+
+`chronicle/perception/capsules.py` and `chronicle/perception/spore.py` now
+implement a working label-free capsule perceiver and budgeted late-binding
+query engine. `scripts/spore_real_bench.py` evaluates Cook 45 s and Switch 34 s
+against dense YOLO-World pseudo-GT. Current headline: Cook loc@.30 1.00 /
+mean IoU .692 / semantic .50 / 12.5 detector calls per query (dense: 150);
+Switch loc@.30 .75 / mean IoU .590 / semantic .75 / 12.25 calls (dense: 128).
+z210 257 s is a scaling diagnostic: 44.6 MB store, 298 s ingest, loc@.30 1.00,
+but semantic .025 because the detector cannot see the fine objects being
+counted. See `SPORE.md` for ablations, counting limits and open issues.
+
 
 ## 3. Main branch: what is already shipped
 
@@ -159,27 +172,20 @@ system.
 
 On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 
-1. Implement `chronicle/perception/capsules.py`:
-   - `ObjectCapsule`, `ActionCapsule`, `SceneCapsule`, `TextCapsule`,
-     `SpeechCapsule`, `CapsuleStore`.
-2. Implement a standalone `chronicle/perception/spore.py`:
-   - low-res sampling;
-   - hand/motion gating;
-   - best-view selection;
-   - query-time capsule retrieval;
-   - open-vocabulary binding on crops.
-3. Build a small multi-domain evaluation:
-   - Cook 45 s (`data/qa/cook_45s.json`);
-   - HoloAssist 34 s (`data/qa/holoassist_switch.json`);
-   - z210 only as a secondary diagnostic.
-4. Report:
-   - object/action evidence recall/precision;
-   - open-vocabulary binding accuracy;
-   - QA;
-   - expert calls/query, frames processed, VRAM, latency;
-   - ablations: dense baseline, uniform sampling, no hand gating, no best-view,
-     no late binding.
-5. Only move stable, general improvements to `main` through a clean PR or
+1. Keep the label-free capsule path stable: low-res sampling, hand/motion
+   gating, best-view selection, context-frame retention, query-time routing,
+   fused detection tracks, and temporal/action scans are implemented.
+2. Next experiments, in priority order:
+   - count attribution: penalise huge background capsules when mapping a
+     detection back to a capsule, and test contact-episode counting for cups;
+   - colour and attribute questions: the current answer path returns location
+     only;
+   - multi-domain transfer beyond Cook/Switch, without tuning to z210;
+   - a stronger fine-object detector path, since YOLO-World returns zero for
+     game cards, SD cards, wrist straps, and comfort grips even on hand crops.
+3. Update `SPORE.md` with every experiment that changes a default or a
+   headline number; keep negative results.
+4. Only move stable, general improvements to `main` through a clean PR or
    cherry-pick. Never force-push `main`.
 
 ## 7. Environment
@@ -209,11 +215,12 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 ## 9. Current immediate state
 
 - `main`: `1200f84`, clean, CI green.
-- `research/spore-perception`: based on `1200f84`; only
-  `docs/research/SPORE.md` and this handoff are new.
+- `research/spore-perception`: based on `1200f84`; perceiver, query engine,
+  benchmarks, context frames, fused tracks, counting and temporal scans are
+  implemented. Newer count/support/docs edits are uncommitted on top of
+  `606d5c8`.
 - `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
   untracked; no 1280 run executed.
 - `research/long-video-qa`: `990013e`, clean.
-- No code has been written for SPORE yet. The next agent should start with the
-  capsule dataclasses and a standalone prototype, not another z210 threshold
-  sweep.
+- The next agent should improve count attribution/attribute answers or try a
+  stronger fine-object detector, not another z210 prompt/threshold sweep.
