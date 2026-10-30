@@ -241,6 +241,7 @@ ambiguity, not for claiming general video understanding.
 | Adaptive context density | Switch loc@.3 0, IoU .087; larger store | reject |
 | Prune to 3-4 views/capsule | Switch semantic .875 -> .75 | keep 5 views |
 | Contact-area gate | cleaner actions but Cook .60 -> .50, Switch .875 -> .75 | revert |
+| Fold short still fragments | actions 38 -> 24, precision@.2 .526 -> .792, recall .917 | keep |
 | CLIP margin .22 | suppresses false switch console, but Cook .40 -> .30 | keep .16 |
 | Count clustering | Cook cups 6 -> 2, semantic .50 -> .60 | keep |
 | Colour attribute | Switch semantic .75 -> .875 | keep |
@@ -310,22 +311,25 @@ reported as a cost/accuracy escalation rather than a default.
 
 The HoloAssist switch clip also ships a real 12-event interaction timeline.
 SPORE ingests without those labels and records only hand-object contact
-geometry.  Comparing its 38 merged action capsules (from 54 raw contacts) to
-the timeline:
+geometry.  A second consolidation pass folds short stationary fragments (same
+hand, no path length, duration $\leq .8$ s) into the neighbouring action;
+longer holds are preserved.  Comparing the resulting 24 merged action capsules
+to the timeline:
 
 | Temporal IoU | Recall | Precision | Timeline coverage |
 |---|---:|---:|---:|
-| .1 | 1.00 | .684 | .972 |
-| .2 | 1.00 | .526 | — |
-| .3 | 1.00 | .447 | — |
-| .5 | .33 | .105 | — |
+| .1 | 1.00 | .917 | .972 |
+| .2 | .917 | .792 | — |
+| .3 | .917 | .708 | — |
+| .5 | .417 | .208 | — |
 
-Every annotated interaction is recovered at IoU .1-.3, and 97% of annotated
-interaction time is covered.  The action stream is still over-segmented: 38
-merged capsules for 12 events, so precision falls as the IoU requirement
-tightens.  This is evidence that contact geometry is a usable *temporal index*
-before any verb labels, not evidence that SPORE understands verbs.  Verb
-naming remains future work.
+Every annotated interaction is recovered at IoU .1, and 92% at IoU .2-.3,
+while 97% of annotated interaction time is covered.  The still-fragment pass
+roughly halves the action count (38 to 24) and raises precision at IoU .2 from
+.526 to .792 without changing any QA answer.  The action stream is still
+coarser than the 12-event annotation, and the threshold was validated on one
+annotated clip; it is a temporal-index improvement, not evidence that SPORE
+understands verbs.  Verb naming remains future work.
 
 A more permissive merge that joined actions across capsule identities when
 their hand boxes were spatially close (IoU $\geq .10$ or centre distance

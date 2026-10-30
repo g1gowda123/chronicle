@@ -212,12 +212,16 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   context when a 4-decimal timestamp shifted. On fresh and reloaded Cook
   stores the cup count is 2 and semantic accuracy is .60.
 - Action capsules are a usable temporal index even without verbs. Against the
-  real 12-event HoloAssist switch timeline, merged contact episodes (38 actions)
-  give recall 12/12 at temporal IoU .1/.2/.3, 97.2% timeline coverage, and
-  precision .68 at IoU .1 / .45 at .3. Reproduce with
-  `scripts/spore_action_eval.py`; verb naming is still open. Merging actions
-  across capsule identities by hand-box proximity over-merged (7 actions,
-  recall .58/.25/.17/.17), so identity remains the merge gate.
+  real 12-event HoloAssist switch timeline, a still-fragment pass (same hand,
+  no path length, duration <= .8 s, gap <= .25 s) folds tracking fragments into
+  their neighbour and leaves longer holds alone. The resulting 24 actions give
+  recall 12/12 at temporal IoU .1, 11/12 at .2/.3, 97.2% timeline coverage,
+  and precision .917 at IoU .1 / .792 at .2 / .708 at .3 (38 actions before
+  the pass: .684/.526/.447). QA is unchanged. Reproduce with
+  `scripts/spore_action_eval.py`; verb naming is still open, and thresholds
+  were validated on one clip. Merging across capsule identities by hand-box
+  proximity still over-merges (7 actions, recall .58/.25/.17/.17), so identity
+  remains the merge gate.
 - Sampling is not monotonically better. On Cook, semantic/loc@.3/IoU are
   .60/.60/.632 at 2 fps, .70/1.00/.692 at 4 fps, and .40/.80/.524 at 8 fps;
   Switch is .75/.75/.649, .875/.75/.590, .75/.75/.573. More frames change the

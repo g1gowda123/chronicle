@@ -44,16 +44,17 @@ tests, README and CLI edits. That work is independent of the perception work.
 implement a working label-free capsule perceiver and budgeted late-binding
 query engine. `scripts/spore_real_bench.py` evaluates Cook 45 s and Switch 34 s
 against dense YOLO-World pseudo-GT. Current headline: Cook loc@.30 1.00 /
-mean IoU .692 / semantic .70 / 14.5 detector calls per query (dense: 150);
-Switch loc@.30 .75 / mean IoU .611 / semantic .875 / 14.25 calls (dense: 128).
+mean IoU .692 / semantic .70 / 13.7 detector calls per query (dense: 150);
+Switch loc@.30 .75 / mean IoU .611 / semantic .875 / 12.9 calls (dense: 128).
 First-touch cup time is 4.6 s (annotated 4.5 s) via a fingertip-contact gate;
 steady-state query latency is ~617 ms mean / 337 ms median after a one-time
 model/predictor warmup. Vocabulary switching is cached per label (~0.1 s vs
 ~2.1 s for `set_classes`).
-Contact episodes are merged per object (38 actions for 12 annotated switch
-events; recall 12/12 at temporal IoU .1-.3, precision .68 at .1), and counting
-uses a 32-frame uniform temporal grid so action-boundary changes do not change
-counts.
+Contact episodes are merged per object and short still fragments are folded
+into their same-hand neighbour (24 actions for 12 annotated switch events;
+recall 12/12 at IoU .1, 11/12 at .2-.3; precision .917 at .1, .792 at .2), and
+counting uses a 32-frame uniform temporal grid so action-boundary changes do
+not change counts.
 z210 257 s is a scaling diagnostic: 298 s ingest and loc@.30 1.00, but semantic
 .025 because the detector cannot see the fine objects being counted. The
 300-capsule hard budget cuts its store from 44.2 MB to 21.1 MB with no metric

@@ -476,6 +476,57 @@ class SpeechCapsule:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+def _merge_action(target: ActionCapsule, action: ActionCapsule) -> None:
+    target.end = max(target.end, action.end)
+    target.capsule_ids = list(
+        dict.fromkeys([*target.capsule_ids, *action.capsule_ids])
+    )
+    target.displacement = (
+        target.displacement[0] + action.displacement[0],
+        target.displacement[1] + action.displacement[1],
+    )
+    target.hand_speed = max(target.hand_speed, action.hand_speed)
+    target.metadata["merged_actions"] = int(
+        target.metadata.get("merged_actions", 1)
+    ) + int(action.metadata.get("merged_actions", 1))
+
+
+def _is_still_fragment(action: ActionCapsule, still_duration: float) -> bool:
+    return (
+        action.duration <= still_duration
+        and "path_length" in action.metadata
+        and float(action.metadata.get("path_length", 0.0)) <= 1e-6
+    )
+
+
+def _merge_still_actions(
+    actions: list[ActionCapsule],
+    *,
+    still_duration: float,
+    still_gap: float,
+) -> tuple[list[ActionCapsule], int]:
+    merged: list[ActionCapsule] = []
+    removed = 0
+    for action in sorted(actions, key=lambda item: item.start):
+        target = None
+        for candidate in reversed(merged):
+            if candidate.hand_id != action.hand_id:
+                continue
+            if action.start > candidate.end + still_gap:
+                continue
+            if _is_still_fragment(candidate, still_duration) or _is_still_fragment(
+                action, still_duration
+            ):
+                target = candidate
+                break
+        if target is None:
+            merged.append(action)
+            continue
+        _merge_action(target, action)
+        removed += 1
+    return merged, removed
+
+
 class CapsuleStore:
     """In-memory capsule collection with compact JSON persistence."""
 
@@ -512,13 +563,22 @@ class CapsuleStore:
     def add_action(self, action: ActionCapsule) -> None:
         self.actions[action.action_id] = action
 
-    def consolidate_actions(self, max_gap: float = 0.4) -> int:
+    def consolidate_actions(
+        self,
+        max_gap: float = 0.4,
+        *,
+        still_duration: float = 0.8,
+        still_gap: float = 0.25,
+    ) -> int:
         """Merge adjacent contact episodes on the same object.
 
         Two hands, or a momentarily-lost contact, can split one physical
         interaction into several capsules.  Merging by primary object and a
         small temporal gap keeps the temporal index compact without joining
-        interactions on different objects.
+        interactions on different objects.  A second pass folds very short
+        stationary fragments (hand present, no path length) into a neighbouring
+        action on the same hand; these are tracking artefacts, not holds.
+        Longer stationary episodes are kept because they can be real holds.
         """
         if max_gap < 0 or not self.actions:
             return 0
@@ -538,14 +598,15 @@ class CapsuleStore:
             if target is None:
                 merged.append(action)
                 continue
-            target.end = max(target.end, action.end)
-            target.capsule_ids = list(
-                dict.fromkeys([*target.capsule_ids, *action.capsule_ids])
-            )
-            target.metadata["merged_actions"] = int(
-                target.metadata.get("merged_actions", 1)
-            ) + 1
+            _merge_action(target, action)
             removed += 1
+        if still_duration > 0 and still_gap >= 0:
+            merged, still_removed = _merge_still_actions(
+                merged,
+                still_duration=still_duration,
+                still_gap=still_gap,
+            )
+            removed += still_removed
         self.actions = {action.action_id: action for action in merged}
         return removed
 

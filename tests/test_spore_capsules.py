@@ -92,3 +92,93 @@ def test_consolidate_actions_merges_same_object_contacts() -> None:
     assert removed == 1
     assert set(store.actions) == {"action-1", "action-3"}
     assert store.actions["action-1"].end == 3.0
+
+
+def test_consolidate_actions_folds_short_still_fragments() -> None:
+    store = CapsuleStore()
+    store.add_action(
+        ActionCapsule(
+            action_id="action-1",
+            start=1.0,
+            end=2.0,
+            hand_id="hand:0",
+            capsule_ids=["spore-1"],
+            displacement=(20.0, 0.0),
+            metadata={"path_length": 20.0},
+        )
+    )
+    store.add_action(
+        ActionCapsule(
+            action_id="action-2",
+            start=2.1,
+            end=2.5,
+            hand_id="hand:0",
+            capsule_ids=["spore-1"],
+            metadata={"path_length": 0.0},
+        )
+    )
+
+    removed = store.consolidate_actions(max_gap=0.4)
+
+    assert removed == 1
+    assert set(store.actions) == {"action-1"}
+    assert store.actions["action-1"].end == 2.5
+    assert store.actions["action-1"].metadata["merged_actions"] == 2
+
+
+def test_consolidate_actions_keeps_long_still_holds() -> None:
+    store = CapsuleStore()
+    store.add_action(
+        ActionCapsule(
+            action_id="action-1",
+            start=1.0,
+            end=2.0,
+            hand_id="hand:0",
+            capsule_ids=["spore-1"],
+            metadata={"path_length": 20.0},
+        )
+    )
+    store.add_action(
+        ActionCapsule(
+            action_id="action-2",
+            start=2.1,
+            end=3.4,
+            hand_id="hand:0",
+            capsule_ids=["spore-2"],
+            metadata={"path_length": 0.0},
+        )
+    )
+
+    removed = store.consolidate_actions(max_gap=0.4)
+
+    assert removed == 0
+    assert set(store.actions) == {"action-1", "action-2"}
+
+
+def test_consolidate_actions_does_not_fold_across_hands() -> None:
+    store = CapsuleStore()
+    store.add_action(
+        ActionCapsule(
+            action_id="action-1",
+            start=1.0,
+            end=2.0,
+            hand_id="hand:0",
+            capsule_ids=["spore-1"],
+            metadata={"path_length": 20.0},
+        )
+    )
+    store.add_action(
+        ActionCapsule(
+            action_id="action-2",
+            start=2.1,
+            end=2.5,
+            hand_id="hand:1",
+            capsule_ids=["spore-2"],
+            metadata={"path_length": 0.0},
+        )
+    )
+
+    removed = store.consolidate_actions(max_gap=0.4)
+
+    assert removed == 0
+    assert set(store.actions) == {"action-1", "action-2"}
