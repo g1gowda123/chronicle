@@ -247,6 +247,9 @@ class SporeConfig:
     inventory_contexts: int = 12
     inventory_max_contexts: int = 48
     inventory_min_confidence: float = 0.25
+    inventory_min_hits: int = 2
+    inventory_persistent_confidence: float = 0.5
+    inventory_nms_iou: float = 0.7
     inventory_max_items: int = 4
     view_binding: bool = False
     rescan: bool = False
@@ -2513,6 +2516,9 @@ class SporeQueryEngine:
         contexts = list(self.store.contexts)
         place_lower = place.strip().lower()
         best: dict[str, tuple[float, Binding]] = {}
+        hit_contexts: dict[str, set[int]] = {}
+        min_hits = max(1, int(self.config.inventory_min_hits))
+        persistent_confidence = float(self.config.inventory_persistent_confidence)
         scanned = 0
 
         def scan_context(context: ContextFrame) -> None:
@@ -2555,6 +2561,7 @@ class SporeQueryEngine:
                 inside = anchor.bbox.contains_point(detection.bbox.centroid, pad=pad)
                 if not inside and detection.bbox.iou(anchor.bbox) <= 0.01:
                     continue
+                hit_contexts.setdefault(label, set()).add(context.frame_index)
                 previous = best.get(label)
                 if previous is not None and previous[0] >= detection.confidence:
                     continue
@@ -2599,34 +2606,55 @@ class SporeQueryEngine:
                     continue
                 seen.add(context.frame_index)
                 scan_context(context)
-            if best:
+            if any(len(indices) >= min_hits for indices in hit_contexts.values()):
                 break
-        ordered = sorted(best.items(), key=lambda item: item[1][0], reverse=True)
-        # "joy-con" and "joy-con controllers" are two prompts for one object.
-        # Merge only when the boxes overlap so a genuinely different instance
-        # is not collapsed by a lexical alias.
+        ordered = sorted(
+            (
+                (label, item)
+                for label, item in best.items()
+                if item[0] >= persistent_confidence
+                or len(hit_contexts.get(label, ())) >= min_hits
+            ),
+            key=lambda item: item[1][0],
+            reverse=True,
+        )
+        # Two kinds of duplicate: lexical prompts for the same object
+        # ("joy-con" / "joy-con controllers"), and different labels firing on
+        # the same box.  Merge the former by name; suppress the latter with
+        # class-agnostic NMS so a high-confidence duplicate does not survive.
         kept: list[tuple[str, tuple[float, Binding]]] = []
         for label, (confidence, binding) in ordered:
-            duplicate = next(
+            alias = next(
                 (
                     index
-                    for index, (other_label, (_, other_binding)) in enumerate(kept)
-                    if binding.bbox.iou(other_binding.bbox) >= 0.5
-                    and (label in other_label or other_label in label)
+                    for index, (other_label, _) in enumerate(kept)
+                    if label in other_label or other_label in label
                 ),
                 None,
             )
-            if duplicate is None:
-                kept.append((label, (confidence, binding)))
+            if alias is not None:
+                other_label, (other_confidence, other_binding) = kept[alias]
+                shorter = label if len(label) < len(other_label) else other_label
+                chosen = binding if confidence > other_confidence else other_binding
+                chosen.label = shorter
+                chosen.term = shorter
+                chosen.confidence = max(confidence, other_confidence)
+                kept[alias] = (
+                    shorter,
+                    (chosen.confidence, chosen),
+                )
                 continue
-            other_label, (other_confidence, other_binding) = kept[duplicate]
-            if len(label) < len(other_label):
-                binding.label = label
-                binding.term = label
-                kept[duplicate] = (label, (max(confidence, other_confidence), binding))
-            elif confidence > other_confidence:
-                other_binding.confidence = confidence
-                kept[duplicate] = (other_label, (confidence, other_binding))
+            overlap = next(
+                (
+                    index
+                    for index, (_, (_, other_binding)) in enumerate(kept)
+                    if binding.bbox.iou(other_binding.bbox)
+                    >= self.config.inventory_nms_iou
+                ),
+                None,
+            )
+            if overlap is None:
+                kept.append((label, (confidence, binding)))
         ordered = kept[: max(1, int(self.config.inventory_max_items))]
         return (
             [label for label, _ in ordered],

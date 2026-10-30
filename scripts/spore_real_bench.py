@@ -50,6 +50,57 @@ from chronicle.perception.spore import (  # noqa: E402
 )
 from chronicle.types import BBox  # noqa: E402
 
+# Generic household/office prior for "what is here?" queries.  This is not a
+# caption vocabulary: persistence and duplicate suppression reject labels the
+# detector fires on by mistake, and callers can pass a scene-specific set.
+GENERAL_INVENTORY_LABELS = (
+    "cup",
+    "mug",
+    "bottle",
+    "plate",
+    "bowl",
+    "knife",
+    "fork",
+    "spoon",
+    "cutting board",
+    "toaster",
+    "rice cooker",
+    "pot",
+    "pan",
+    "kettle",
+    "spatula",
+    "keys",
+    "phone",
+    "laptop",
+    "book",
+    "notebook",
+    "pen",
+    "pencil",
+    "backpack",
+    "bag",
+    "shoe",
+    "chair",
+    "game controller",
+    "joy-con",
+    "switch console",
+    "remote",
+    "monitor",
+    "screen",
+    "cable",
+    "charger",
+    "headphones",
+    "speaker",
+    "plant",
+    "towel",
+    "sponge",
+    "soap",
+    "trash can",
+    "door",
+    "window",
+    "tomato",
+    "cabinet",
+)
+
 
 @dataclass
 class QueryResult:
@@ -319,7 +370,13 @@ def evaluate(args: argparse.Namespace) -> dict:
         mode_config = replace(
             config,
             binding_mode=mode,
-            inventory_labels=tuple(vocabulary) if args.inventory else (),
+            inventory_labels=(
+                GENERAL_INVENTORY_LABELS
+                if args.inventory_bank
+                else tuple(vocabulary)
+                if args.inventory
+                else ()
+            ),
             context_fusion_box=args.context_fusion_box,
             context_fusion_spread=args.context_fusion_spread,
         )
@@ -574,7 +631,16 @@ def main() -> None:
     )
     parser.add_argument("--context-fusion-spread", type=float, default=0.4)
     parser.add_argument("--batch-prefetch", action="store_true")
-    parser.add_argument("--inventory", action="store_true")
+    parser.add_argument(
+        "--inventory",
+        action="store_true",
+        help="Enable inventory with the QA vocabulary as candidate labels.",
+    )
+    parser.add_argument(
+        "--inventory-bank",
+        action="store_true",
+        help="Enable inventory with the generic household/office label bank.",
+    )
     parser.add_argument("--max-capsules", type=int, default=300)
     parser.add_argument("--context-gap", type=float, default=None)
     parser.add_argument("--clip-center", type=float, default=None)

@@ -42,38 +42,37 @@ tests, README and CLI edits. That work is independent of the perception work.
 
 `chronicle/perception/capsules.py` and `chronicle/perception/spore.py` now
 implement a working label-free capsule perceiver and budgeted late-binding
-query engine. `scripts/spore_real_bench.py` evaluates Cook 45 s and Switch 34 s
-against dense YOLO-World pseudo-GT. Current headline: Cook loc@.30 1.00 /
-mean IoU .692 / semantic .70 / 7.9 detector calls per query (dense: 150);
-Switch loc@.30 .75 / mean IoU .611 / semantic .875 / 7.4 calls (dense: 128).
-First-touch cup time is 4.6 s (annotated 4.5 s) via a fingertip-contact gate;
-steady-state query latency is ~201 ms mean / 151 ms median at 7.9 calls after
-a one-time model/predictor warmup (down from 617 / 337 ms at 14.4 calls).
-Vocabulary switching is cached per label (~0.1 s vs ~2.1 s for `set_classes`).
-Context-first binding is the default: retained keyframes answer first, and the
-crop detector fallback runs only for context-less stores or `view_binding=True`.
+query engine. `scripts/spore_real_bench.py` evaluates Cook 45 s, Switch 34 s,
+Play 45 s, and the 257 s z210 diagnostic against dense YOLO-World pseudo-GT.
+Current headline: Cook loc@.30 1.00 / mean IoU .826 / semantic .70 / 7.9 calls
+(dense 150), compact store 3.33 MB; Switch loc@.30 .75 / IoU .611 / semantic
+.875 / 7.4 calls (dense 128), compact 2.20 MB; Play semantic 1.00 / loc .667 /
+IoU .475, compact 3.77 MB; z210 loc 1.00 / IoU .77 / semantic .05 / 12.65
+calls, compact 9.96 MB. First-touch cup time is 4.6 s (annotated 4.5 s) via a
+fingertip-contact gate; steady-state query latency is ~201 ms mean / 151 ms
+median at 7.9 calls after warmup. Vocabulary switching is cached per label
+(~0.1 s vs ~2.1 s for `set_classes`). Context-first binding is the default:
+retained keyframes answer first, and the crop detector fallback runs only for
+context-less stores or `view_binding=True`.
 Contact episodes are merged per object and short still fragments are folded
 into their same-hand neighbour (24 actions for 12 annotated switch events;
 recall 12/12 at IoU .1, 11/12 at .2-.3; precision .917 at .1, .792 at .2), and
 counting uses a 32-frame uniform temporal grid so action-boundary changes do
 not change counts.
-z210 257 s is a scaling diagnostic: 298 s ingest and loc@.30 1.00, but semantic
-.05 because the 454x256 capture cannot resolve the fine objects being counted
-(temporal/activity questions also need verbs/speech not present). The
-300-capsule hard budget cuts its store from 44.2 MB to 17.1 MB with no metric
-loss; contexts, not capsules, carry most answer evidence. Play-domain QA now
-scores 1.0 semantic / .667 loc@.30 / .475 IoU after fixing list-answer
-stringification; its 407 capsules are bounded to 10.4 MB. Automatic
-held-out questions generated from dense tracks score Cook .90 / Play .90 /
-Switch .667 loc@.30 (any-instance Switch .889). The store now supports
-`save(..., split=True)`: Cook's LLM-readable index is 1.02 MB instead of
-8.22 MB, with evidence in sidecar blobs. View pixels are optional when
-contexts are retained: Cook drops to 3.48 MB, Switch 2.37 MB, Play 4.55 MB,
-with unchanged QA and fewer detector calls (contexts, not crop views, carry
-localisation evidence). A new evidence-byte metric shows one answer touches
-86.8 KB (Cook), 42.6 KB (Switch), 82.1 KB (Play), and 44.7 KB (z210) of JPEG
-evidence, i.e. 0.2-1.0% of the store. See `SPORE.md` and `SPORE_PAPER.md` for
-ablations, threats to validity, and open issues.
+z210 257 s is a scaling diagnostic: the 454x256 capture cannot resolve the
+fine objects being counted (temporal/activity questions also need verbs/speech
+not present), and only joy-con/console are detectable. The 300-capsule hard
+budget keeps its compact store at 9.96 MB with no metric loss; contexts, not
+capsules, carry most answer evidence. The store supports `save(...,
+split=True)` and drops capsule crop pixels by default in benchmark dumps;
+contexts remain JPEG q82. A new evidence-byte metric shows one answer touches
+35-66 KB of evidence, 0.4-2.0% of the compact store.
+Scene inventory is opt-in: 12 contexts, support-box filtering, confidence-gated
+persistence, and alias/duplicate-box suppression. A generic 43-label
+household/office bank answers the Switch inventory question as "joy-con on the
+work table" (12 calls, semantic 1.00, up from .875); caller-label inventory
+remains 8/8. It is a grounded listing operator, not a captioner. See `SPORE.md`
+and `SPORE_PAPER.md` for ablations, threats to validity, and open issues.
 
 
 ## 3. Main branch: what is already shipped

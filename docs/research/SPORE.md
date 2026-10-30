@@ -89,10 +89,14 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   during ingestion.
 - An opt-in inventory path answers "what is on the table?" by sampling support
   contexts across the clip (12, expanding to 24 or 48 when the first batch
-  finds nothing), detecting a caller-supplied candidate vocabulary, and
-  keeping objects whose centres lie on the support box. It is a grounded
-  listing operator, not a general captioner; the main results table keeps the
-  base Switch score and reports the inventory variant separately.
+  finds nothing), detecting a candidate vocabulary, and keeping objects whose
+  centres lie on the support box. A generic 43-label household/office bank is
+  usable with confidence-gated persistence (low-confidence detections need two
+  contexts) plus alias and duplicate-box suppression. On Switch it yields
+  "joy-con on the work table" instead of "joy-con, remote, phone"; caller-label
+  inventory remains 8/8. It is a grounded listing operator, not a general
+  captioner; the main results table keeps the base Switch score and reports
+  the inventory variant separately.
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

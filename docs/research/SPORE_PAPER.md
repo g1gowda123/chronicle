@@ -583,26 +583,38 @@ place is a support relation, not an object capsule.  The opt-in
 expands to 24 and then 48 contexts if the first batch finds no supported
 object. It runs one detector pass with the candidate object labels plus
 support labels, selects the support box, and keeps object detections whose
-centre lies on that box (or whose box overlaps it).  Lexical aliases are merged only when their boxes
-overlap, which is deliberately conservative: because the detected joy-con
-boxes do not overlap, the current Switch answer still lists both "joy-con
-controllers" and "joy-con".
+centre lies on that box (or whose box overlaps it).
 
-On Switch, this changes the one inventory answer from
-"not enough evidence" to "joy-con controllers, joy-con on the work table" and
-raises semantic accuracy from 7/8 (.875) to 8/8 (1.00) at unchanged
-localisation and IoU.  The inventory question costs 12 detector calls; the
-eight-question session rises from 7.4 to 8.4 calls/query.  The same operator
-on Cook returns "cup, cups on the table" for "What objects are on the table?"
-and "knife, toaster, plate on the countertop" for "What is on the
-countertop?"; these are qualitative checks because Cook has no inventory
-annotation.
+Inventory is open-vocabulary but not vocabulary-free: it still needs a
+candidate label bank.  A generic 43-label household/office bank is usable
+only after two filters.  First, a detection below .50 must recur in at least
+two sampled contexts; a high-confidence detection stands alone.  This
+rejects one-frame false positives without erasing briefly visible real
+objects that the detector is confident about.  Second, lexical aliases are
+merged by label containment, and remaining detections whose boxes overlap at
+IoU >= .70 are suppressed class-agnostically, keeping the higher-confidence
+label.  This removes a second prompt firing on the same box.
 
-This is not a general captioner.  It needs a candidate label set, supplied by
-the caller in the same way as the detector vocabulary, and it lists only
-objects the detector can see on the support surface.  The main results table
-therefore keeps the .875 Switch number without inventory; the 1.00 variant is
-an explicit capability result, not a new default.
+On Switch, the generic bank now returns "joy-con on the work table" instead
+of the naive bank's "joy-con, remote, phone on the work table"; "remote"
+(.66) was a second label on the joy-con box, and "phone" (.36) appeared in
+one frame.  The inventory question costs 12 detector calls and raises
+semantic accuracy from 7/8 (.875) to 8/8 (1.00) at unchanged localisation and
+IoU; the eight-question session rises from 7.4 to 8.4 calls/query.  The
+benchmark reproduces the bank run with `--inventory-bank`.  The
+caller-label inventory audit still scores 8/8, and Cook's caller-label
+inventory still lists the six supported objects.  On Cook the generic bank
+returns "cabinet, mug, bowl, toaster" for the countertop query; this is a
+coarse prior, not a caption.
+
+The filters matter: a blanket "two hits" rule removes the Switch false
+positives but also drops Cook's knife and tomato, which are real but
+low-frequency.  Confidence-gated persistence keeps them.  The operator also
+inherits the support-box error: if the detector chooses a shelf rather than
+the named countertop, the answer lists objects on the shelf.  Inventory is
+therefore a grounded listing capability, not a general captioner, and the
+main results table keeps the .875 Switch number without it; the 1.00 variant
+is reported separately.
 
 ## 6. Discussion
 
