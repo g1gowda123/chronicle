@@ -216,10 +216,14 @@ Hand-written QA sets:
 
 | Domain | Semantic | loc@.3 | loc@.5 | mean IoU | Store | Calls/query | Dense calls |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Cook 45 s | .70 | 1.00 | .75 | .692 | 6.46 MB | 13.7 | 150 |
-| Switch 34 s | .875 | .75 | .75 | .611 | 4.69 MB | 12.9 | 128 |
-| Play 45 s | 1.00 | .667 | .667 | .475 | 7.74 MB | 11.5 | 150 |
-| z210 257 s (300 caps) | .05 | 1.00 | 1.00 | .77 | 17.07 MB | 22.5 | 962 |
+| Cook 45 s | .70 | 1.00 | .75 | .692 | 6.46 MB | 7.9 | 150 |
+| Switch 34 s | .875 | .75 | .75 | .611 | 4.69 MB | 7.4 | 128 |
+| Play 45 s | 1.00 | .667 | .667 | .475 | 7.74 MB | 5.0 | 150 |
+| z210 257 s (300 caps) | .05 | 1.00 | 1.00 | .77 | 17.07 MB | 12.7 | 962 |
+
+Calls/query use the default context-first binding, which does not re-detect
+retained crops; batch prefetch is a separate session-level optimisation
+(Section 5.7).
 
 The z210 aggregate is dominated by task mix, not by a single perception
 failure. In the timed 40-question baseline, semantic accuracy is 2/40: one
@@ -255,6 +259,10 @@ ambiguity, not for claiming general video understanding.
 
 ### 5.2 Ablations and negative results
 
+Unless noted, these ablations were run before the redundant crop fallback was
+disabled.  Their absolute call counts are therefore higher than the current
+default; the accuracy and storage trends are unaffected.
+
 | Intervention | Effect | Decision |
 |---|---|---|
 | Remove context frames | Cook loc@.3 .25, IoU .246; Switch 0 / .108 | keep contexts |
@@ -264,6 +272,7 @@ ambiguity, not for claiming general video understanding.
 | Fold short still fragments | actions 38 -> 24, precision@.2 .526 -> .792, recall .917 | keep |
 | Context sweep 5 -> 1 | calls 13.7 -> 10.9, but Cook loc@.3 1.00 -> .75; Switch at 2-3 frames loc@.3 .25 | keep 5 |
 | Denser sweep + prefetch | z210 IoU .768 -> .834, Play .493 -> .545, Switch flat, Cook .692 -> .560 | keep 5 +/-2 s |
+| Adaptive context early exit | calls 13.7 -> 13.6, but Cook loc@.3 1.00 -> .75, IoU .692 -> .664 | reject |
 | CLIP margin .22 | suppresses false switch console, but Cook .40 -> .30 | keep .16 |
 | Count clustering | Cook cups 6 -> 2, semantic .50 -> .60 | keep |
 | Colour attribute | Switch semantic .75 -> .875 | keep |
@@ -406,9 +415,19 @@ place chain together.  The primary-capsule gate is retained.
 
 ### 5.7 Query latency and vocabulary switching
 
+Capsule crops are attention records, not detector inputs.  Once keyframes are
+retained, running the detector again on crops is redundant: on Cook, Switch,
+and Play it changed **zero answer strings**, and on z210 it changed only two
+wrong timestamps.  Disabling that fallback by default cuts detector calls from
+13.7 to **7.9** on Cook (-42%), 12.9 to **7.4** on Switch (-43%), 11.5 to
+**5.0** on Play (-57%), and 22.5 to **12.7** on z210 (-44%), with identical
+semantic, localization, and IoU numbers.  The crop path remains available for
+context-less stores and as an explicit `view_binding=True` ablation.
+
 Steady-state query latency on the Cook saved store, measured on the RTX 4060
-Laptop with the detector and CLIP already resident, is **617 ms mean / 337 ms
-median** across the nine non-warmup questions (14.4 detector calls per query).
+Laptop with the detector and CLIP already resident, is **201 ms mean / 151 ms
+median** across the nine non-warmup questions (7.9 detector calls per query),
+down from 617 ms / 337 ms at 14.4 calls with the redundant crop fallback.
 The slowest query is counting, which scans 32 contexts. The first query after
 engine construction is not representative: loading YOLO-World and building the
 predictor costs roughly 8-12 s once.
@@ -433,20 +452,21 @@ Question batches admit a larger optimisation. When the vocabulary is known
 before answering, `SporeQueryEngine.prefetch` runs one detector pass over every
 retained context with the union of question terms and support labels; each
 question then filters the superset instead of paying one prompt-specific pass
-per context. On the z210 40-question set this reduced detector calls from
-**898 to 599** (-33%), query time from **24.05 s to 14.03 s** (-42%; mean
-601 ms to 351 ms), at the cost of a **3.49 s** prefetch pass. Semantic accuracy
-stayed at .05 and mean IoU at .768 (vs .77). The trade pays only when the
-number of contexts is small relative to per-question calls: z210 has 264
-contexts and 22.45 calls per question, whereas Cook has 140 contexts and 13.7
-calls per question, so prefetching there would add work. The API is opt-in
-(`--batch-prefetch`); a new prefetch replaces the previous table, and the table
-is released with the engine.
+per context. On the z210 40-question set, with the redundant crop fallback
+disabled, this reduced detector calls from **506 to 264** (-48%), query time
+from **11.47 s to 5.37 s** (-53%; mean 287 ms to 134 ms), at the cost of a
+**3.28 s** prefetch pass; session time fell from 11.47 s to **8.65 s** (-25%).
+Semantic accuracy stayed at .05 and mean IoU at .768 (vs .77). The trade pays
+only when the number of contexts is small relative to per-question calls: z210
+has 264 contexts and 12.7 calls per question, whereas Cook has 140 contexts
+and 7.9 calls per question, so prefetching there would add work. The API is
+opt-in (`--batch-prefetch`); a new prefetch replaces the previous table, and
+the table is released with the engine.
 
 Extending the same pass to capsule views is not a free win. Prefetching all 989
 retained view crops raises prefetch cost to 24.79 s and total calls to 1,253;
 query calls fall to zero and query time to 8.56 s, but the session takes 33.4 s
-versus 17.5 s with context-only prefetch. Blind view prefetch overpays because
+versus 8.7 s with context-only prefetch. Blind view prefetch overpays because
 most views are never queried; it needs query-aware selection rather than a
 global vocabulary union.
 

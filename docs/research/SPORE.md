@@ -134,11 +134,13 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 
 | clip | store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Cook 45 s | 6.46 MB | 1.00 | .75 | .692 | .70 | 13.7 | 150 |
-| Switch 34 s | 4.69 MB | .75 | .75 | .611 | .875 | 12.9 | 128 |
-| Play 45 s | 7.74 MB (300-cap) | .667 | .667 | .475 | 1.00 | 11.5 | 150 |
-| HoloAssist z210 257 s | 17.07 MB (300-cap) | 1.00 | 1.00 | .77 | .05 | 22.5 | 962 |
+| Cook 45 s | 6.46 MB | 1.00 | .75 | .692 | .70 | 7.9 | 150 |
+| Switch 34 s | 4.69 MB | .75 | .75 | .611 | .875 | 7.4 | 128 |
+| Play 45 s | 7.74 MB (300-cap) | .667 | .667 | .475 | 1.00 | 5.0 | 150 |
+| HoloAssist z210 257 s | 17.07 MB (300-cap) | 1.00 | 1.00 | .77 | .05 | 12.7 | 962 |
 
+- Ablation call counts below predate disabling the redundant crop fallback;
+  absolute calls are higher there, while accuracy/storage trends are unchanged.
 - The z210 aggregate is 2/40 and is dominated by task mix. One object-identity
   and one counting answer are correct; object location is 0/6 because the
   questions ask for place labels such as “Work Table”, not object boxes, while
@@ -162,8 +164,15 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   box overlapping a cup on a shelf no longer counts as contact. The same
   fingertip rule in action segmentation reduced recall and was rejected;
   actions still use hand-box/palm contact.
-- Steady-state query latency on Cook is ~617 ms mean / 337 ms median (14.4
-  detector calls), excluding one-time model/predictor warmup (~8-12 s).
+- Capsule crops are attention records, not detector inputs. With keyframes
+  retained, the crop detector fallback changed zero answer strings on
+  Cook/Switch/Play and only two wrong timestamps on z210. Disabling it by
+  default cuts calls 13.7 -> 7.9 (Cook), 12.9 -> 7.4 (Switch), 11.5 -> 5.0
+  (Play), 22.5 -> 12.7 (z210), with identical accuracy/localization/IoU. It
+  remains available for context-less stores or via `view_binding=True`.
+- Steady-state query latency on Cook is now ~201 ms mean / 151 ms median (7.9
+  detector calls), down from 617 / 337 ms at 14.4 calls with the redundant
+  crop fallback; excluding one-time model/predictor warmup (~8-12 s).
   Vocabulary switching was reduced from ~2.1 s to ~0.11-0.14 s by caching CLIP
   text embeddings per label and updating the live predictor in place.
 - Ingest proposal bookkeeping is vectorized: novelty lookup uses one
@@ -175,13 +184,14 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   calls (12%) and cut warm query time 3.97 s -> 3.33 s (16%), with semantics
   unchanged.
 - Session-level prefetch (`--batch-prefetch`) runs one union-vocabulary pass
-  over retained contexts before a known question batch. On z210 40 Q it cut
-  calls 898 -> 599 (-33%) and query time 24.05 s -> 14.03 s (-42%), plus 3.49 s
-  prefetch; semantics stayed .05 and IoU .768 vs .77. It only pays when
-  contexts are fewer than per-question calls (264 vs 22.45/Q here; Cook would
-  not benefit). Prefetching all 989 capsule views as well costs 24.79 s and
-  makes the session 33.4 s vs 17.5 s despite zero query calls; blind view
-  prefetch needs query-aware selection.
+  over retained contexts before a known question batch. On z210 40 Q, with
+  crop fallback off, it cut calls 506 -> 264 (-48%) and query time 11.47 s ->
+  5.37 s (-53%), plus 3.28 s prefetch; session 11.47 -> 8.65 s (-25%),
+  semantics .05, IoU .768 vs .77. It only pays when contexts are fewer than
+  per-question calls (264 vs 12.7/Q here; Cook would not benefit). Prefetching
+  all 989 capsule views as well costs 24.79 s and makes the session 33.4 s vs
+  8.7 s despite zero query calls; blind view prefetch needs query-aware
+  selection.
 - Negative result: adaptive context density (0.25 s while a hand action is
   open, 1.5 s idle) increased store size and *hurt* Switch localisation
   (loc@.30 0, IoU .087), because changed context placement altered track
@@ -310,6 +320,10 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   .75/.25/.25/.75. Two or three frames fuse competing same-class instances into
   an unstable track, so fewer frames save calls but not reliably. Keep
   `context_sweep_frames=5`; use `--context-sweep-frames` only for ablations.
+- Adaptive early exit does not work: a confidence/margin gate on 3 frames
+  either expands every query (calls unchanged) or cuts calls only 13.7 -> 13.6
+  while dropping Cook loc@.30 1.00 -> .75 and IoU .692 -> .664. Detector
+  confidence is not calibrated enough to choose fusion depth safely.
 - Prefetch makes denser sweeps cheap in detector calls but not in accuracy:
   z210 at 9 frames/+/-4 s gives IoU .834 vs .768 and 586 vs 599 calls; Play
   .545 vs .493 and 60 vs 73 calls; Switch is unchanged; Cook drops .692 -> .560

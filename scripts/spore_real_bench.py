@@ -195,6 +195,7 @@ def evaluate(args: argparse.Namespace) -> dict:
         max_capsules=args.max_capsules,
         query_capsules=args.budget,
         query_views=2,
+        view_binding=args.view_binding,
         rescan=args.rescan,
     )
     if args.context_gap is not None:
@@ -555,6 +556,7 @@ def main() -> None:
     parser.add_argument("--query-detector-model", default="")
     parser.add_argument("--query-detector-confidence", type=float, default=None)
     parser.add_argument("--query-detector-imgsz", type=int, default=None)
+    parser.add_argument("--view-binding", action="store_true")
     parser.add_argument("--rescan", action="store_true")
     args = parser.parse_args()
     torch.set_grad_enabled(False)

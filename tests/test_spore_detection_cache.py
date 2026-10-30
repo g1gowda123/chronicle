@@ -96,6 +96,21 @@ def test_prefetched_vocabulary_superset_is_filtered() -> None:
     assert engine.detection_cache_hits == 1
 
 
+def test_view_binding_falls_back_only_without_contexts() -> None:
+    engine = SporeQueryEngine(CapsuleStore(), SporeConfig())
+    assert engine._view_binding_enabled() is True
+
+    store = CapsuleStore()
+    store.contexts.append(
+        ContextFrame(timestamp=0.0, frame_index=0, image_jpeg=b"not-a-jpeg")
+    )
+    engine = SporeQueryEngine(store, SporeConfig())
+    assert engine._view_binding_enabled() is False
+
+    engine.config.view_binding = True
+    assert engine._view_binding_enabled() is True
+
+
 def test_prefetch_runs_one_pass_per_context() -> None:
     import cv2
 

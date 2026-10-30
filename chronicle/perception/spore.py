@@ -241,6 +241,7 @@ class SporeConfig:
     colour_min_chromatic_fraction: float = 0.10
     support_labels: tuple[str, ...] = _SUPPORT_LABELS
     infer_support: bool = True
+    view_binding: bool = False
     rescan: bool = False
     rescan_window: float = 1.0
     rescan_fps: float = 12.0
@@ -1710,6 +1711,15 @@ class SporeQueryEngine:
             view.bbox.y1 + box.y2,
         ).clipped(width, height)
 
+    def _view_binding_enabled(self) -> bool:
+        """Crops are attention records; use them only when no keyframes exist.
+
+        A retained context is a superset of every capsule crop at that moment,
+        so running both is usually a second detector pass over the same scene.
+        ``view_binding=True`` forces the old crop fallback for ablation.
+        """
+        return self.config.view_binding or not self.store.contexts
+
     def bind(
         self,
         term: str,
@@ -1740,7 +1750,12 @@ class SporeQueryEngine:
                 if at_time is not None and self.config.context_sweep:
                     swept = self._bind_context_sweep(term, capsules, at_time=at_time)
                     bindings = self._merge_bindings(bindings, swept)
-        if mode in {"detector", "hybrid"} and self._detector is not None and not bindings:
+        if (
+            mode in {"detector", "hybrid"}
+            and self._detector is not None
+            and self._view_binding_enabled()
+            and not bindings
+        ):
             bindings = self._bind_detector(term, capsules, at_time=at_time)
         if (
             mode in {"detector", "hybrid"}
