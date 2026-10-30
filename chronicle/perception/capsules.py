@@ -555,6 +555,36 @@ class CapsuleStore:
     def candidates(self) -> list[ObjectCapsule]:
         return list(self.capsules.values())
 
+    def evict_to(self, limit: int) -> int:
+        """Bound memory by dropping the least interaction-relevant capsules.
+
+        A long egocentric clip otherwise accumulates thousands of background
+        patches and blows the store size.  Contact windows are the strongest
+        evidence that a capsule mattered, followed by hand overlap, motion, and
+        view quality.  Recency only breaks ties, so an old but touched object
+        survives a recent wall patch.
+        """
+        if limit <= 0 or len(self.capsules) <= limit:
+            return 0
+        def priority(capsule: ObjectCapsule) -> tuple[float, ...]:
+            hand = max((view.hand_overlap for view in capsule.best_views), default=0.0)
+            motion = max((view.motion for view in capsule.best_views), default=0.0)
+            quality = max((view.score for view in capsule.best_views), default=0.0)
+            return (
+                1.0 if capsule.contact_windows else 0.0,
+                1.0 if hand >= 0.05 else 0.0,
+                float(motion),
+                float(quality),
+                capsule.last_seen,
+            )
+
+        ordered = sorted(self.capsules.values(), key=priority, reverse=True)
+        removed = 0
+        for capsule in ordered[limit:]:
+            del self.capsules[capsule.capsule_id]
+            removed += 1
+        return removed
+
     def stats(self) -> dict[str, Any]:
         views = sum(len(capsule.best_views) for capsule in self.capsules.values())
         contacts = sum(capsule.contact_count for capsule in self.capsules.values())

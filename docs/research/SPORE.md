@@ -136,7 +136,7 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .60 | 12.5 | 150 |
 | Switch 34 s | 6.06 MB | .75 | .75 | .590 | .875 | 12.25 | 128 |
-| HoloAssist z210 257 s | 44.6 MB | 1.00 | 1.00 | .769 | .025 | 21.9 | 962 |
+| HoloAssist z210 257 s | 21.1 MB (300-cap) | 1.00 | 1.00 | .769 | .025 | 21.9 | 962 |
 
 - Context-free crop binding is much weaker: Cook loc@.30 .25 / IoU .246,
   Switch loc@.30 0 / IoU .108. Retained full keyframes, not better crops, are
@@ -171,13 +171,27 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   from the blue joy-con; this raises semantic accuracy from .75 to .875.
 - Third-domain evidence: on `aria_play_45s.mp4` (no QA, dense pseudo-GT), SPORE
   retains 2/3 dense-detectable objects (book, chair) with loc@.30 .667 and mean
-  IoU .475. The store is larger (11.5 MB / 45 s) because the moving play scene
-  produces 407 capsules, so this domain stresses capsule deduplication.
+  IoU .475. The moving play scene creates 407 capsules; the 300-capsule budget
+  keeps the store at 10.4 MB with identical metrics, so contexts absorb the
+  loss rather than object evidence.
 - Latency on z210 (7,695 decoded frames) is 298 s ingest at 4 fps sampling; the
   first attempt stalled because compaction was O(n^2) and ran on every frame
   once the capsule cap was exceeded. Compaction is now throttled and tests the
   cheap spatial gate before the appearance similarity; `CapsuleStore.match` is
   vectorised over prototypes.
+- Memory is bounded by interaction evidence, not appearance alone. Play-domain
+  analysis found only one near-duplicate prototype pair at cosine >= .95 among
+  406 capsules, so merging cannot control growth. `CapsuleStore.evict_to`
+  ranks capsules by contact window, hand overlap, motion, view quality, then
+  recency. On z210 this cuts 1,947 capsules to 300 and the JSON store from
+  44.2 MB to 21.1 MB with localisation unchanged (semantic remains detector-
+  limited); Cook, Switch and Play keep their headline metrics, and Play drops
+  from 11.5 MB to 10.4 MB. Context frames, not capsules, carry most answer
+  evidence.
+- Counting is stable across serialization: action-start sampling now uses
+  temporal bins instead of `starts[::stride]`, which changed every sampled
+  context when a 4-decimal timestamp shifted. On fresh and reloaded Cook
+  stores the cup count is 2 and semantic accuracy is .60.
 - Fine-object limits are detector-bound, not prompt-bound: over all 264 z210
   contexts, YOLO-World returned zero detections for game card, SD card, wrist
   strap, and comfort grip, including 1.5x and 2.6x hand-zoomed crops (1,372+

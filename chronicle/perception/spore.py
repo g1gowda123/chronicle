@@ -1361,19 +1361,22 @@ class SporePerceiver:
                     continue
                 if best_pair is None or similarity > best_pair[0]:
                     best_pair = (similarity, first, second)
-        if best_pair is None:
-            return
-        _, first, second = best_pair
-        for view in second.best_views:
-            first.add_view(view)
-        for start, end in second.contact_windows:
-            first.contact_windows.append((start, end))
-        first.contact_windows.sort()
-        first.observations += second.observations
-        first.last_seen = max(first.last_seen, second.last_seen)
-        if first.last_bbox is None:
-            first.last_bbox = second.last_bbox
-        del self.store.capsules[second.capsule_id]
+        if best_pair is not None:
+            _, first, second = best_pair
+            for view in second.best_views:
+                first.add_view(view)
+            for start, end in second.contact_windows:
+                first.contact_windows.append((start, end))
+            first.contact_windows.sort()
+            first.observations += second.observations
+            first.last_seen = max(first.last_seen, second.last_seen)
+            if first.last_bbox is None:
+                first.last_bbox = second.last_bbox
+            del self.store.capsules[second.capsule_id]
+        # Merging alone cannot bound a long clip: background patches rarely
+        # overlap, so the store would stay above the cap.  Evict by retained
+        # interaction evidence instead of silently growing without limit.
+        self.store.evict_to(self.config.max_capsules)
 
 
 # ---------------------------------------------------------------------------
@@ -2401,8 +2404,15 @@ class SporeQueryEngine:
         )
         contexts: list[ContextFrame] = []
         if starts:
-            stride = max(1, len(starts) // limit)
-            for timestamp in starts[::stride][:limit]:
+            # Temporal stratification, not ``starts[::stride]``: action starts
+            # are noisy and a sub-centisecond shift must not change which
+            # whole second gets sampled.  Pick the start nearest each bin
+            # centre so counting is stable across serialization/ingest jitter.
+            first, last = starts[0], starts[-1]
+            width = max(1e-6, last - first)
+            for index in range(limit):
+                target = first + (index + 0.5) * width / limit
+                timestamp = min(starts, key=lambda value: abs(value - target))
                 context = self.store.context_at(timestamp, max_gap=1.0)
                 if context is not None and all(
                     abs(context.timestamp - found.timestamp) > 0.2
