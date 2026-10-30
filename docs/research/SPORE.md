@@ -257,9 +257,13 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   .27-.36 and are mostly background. The z210 source is 454x256, so these
   objects occupy only a few pixels; a 2x2 overlapping tile pass with 2x
   upsampling over all 264 contexts yielded only six detections at conf .05,
-  all false positives on Joy-Con/console/screen. The limit is source
-  resolution before it is detector capacity; higher-resolution capture is
-  required, not just a stronger detector.
+  all false positives on Joy-Con/console/screen. A direct six-term probe over
+  all 264 contexts returned zero detections for comfort grip, wrist straps,
+  game card, SD card, kickstand, and power button at conf .10; only joy-con
+  (76) and Switch console (16) were visible. The limit is source resolution
+  before it is detector capacity; higher-resolution capture is required, not
+  just a stronger detector, and z210 temporal/activity questions cannot be
+  grounded by this capture.
 - Held-out automatic questions (`scripts/spore_autoeval.py`) track dense
   detections and ask only about repeatedly seen objects. With 10 questions per
   clip: Cook localisation .90 / mean IoU .781 / 4.1 calls, Play .90 / .710 /

@@ -498,9 +498,15 @@ a handful of pixels; the missing detail is absent before the detector sees it.
 Tiling cannot recover it: a 2x2 overlapping tile pass with 2x upsampling over
 all 264 contexts produced only six detections at confidence .05, and visual
 inspection showed every one was a false positive on a Joy-Con, console back,
-or screen.  Fine-object QA is therefore source-resolution-bound as well as
-detector-bound, not retrieval-bound; a higher-resolution capture is required
-before a stronger detector can help.
+or screen.  A direct probe of the objects named by z210's temporal and
+activity questions is equally stark: across all 264 contexts at confidence
+.10, YOLO-World-S returned zero detections for comfort grip, wrist straps,
+game card, SD card, kickstand, and power button; only joy-con controllers
+(76 detections) and the Switch console (16) were visible.  Fine-object QA is
+therefore source-resolution-bound as well as detector-bound, not
+retrieval-bound, and the temporal/activity questions cannot be grounded by
+this capture regardless of the question parser.  A higher-resolution capture
+is required before a stronger detector can help.
 
 ## 6. Discussion
 
