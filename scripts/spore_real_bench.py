@@ -133,7 +133,22 @@ def _semantic_match(question: dict, answer: SporeAnswer) -> bool | None:
     if any("don't have" in value or "do not have" in value for value in expected):
         return answer.abstained
     if question.get("category") == "temporal":
-        return None
+        if answer.abstained:
+            return False
+        seconds = []
+        for value in expected:
+            match = re.search(r"(\d+(?:\.\d+)?)\s*(?:seconds?|s)\b", value)
+            if match:
+                seconds.append(float(match.group(1)))
+        if not seconds:
+            return None
+        best = answer.best
+        if best is None:
+            return False
+        return any(
+            abs(best.timestamp - value) <= max(1.0, 0.2 * value)
+            for value in seconds
+        )
     if answer.abstained:
         return False
     text = answer.answer.lower()
@@ -169,9 +184,16 @@ def evaluate(args: argparse.Namespace) -> dict:
         binding_mode=args.mode,
         context_binding=not args.no_context,
         context_hand_only=args.context_hand_only,
+        context_adaptive_gap=args.adaptive_context,
         query_capsules=args.budget,
         query_views=2,
     )
+    if args.context_gap is not None:
+        config.context_min_gap = args.context_gap
+    if args.clip_center is not None:
+        config.clip_margin_center = args.clip_center
+    if args.abstain is not None:
+        config.query_abstain_confidence = args.abstain
 
     terms: list[str] = []
     for question in questions:
@@ -459,6 +481,10 @@ def main() -> None:
     parser.add_argument("--mode", default="hybrid", choices=("clip", "detector", "hybrid"))
     parser.add_argument("--no-context", action="store_true")
     parser.add_argument("--context-hand-only", action="store_true")
+    parser.add_argument("--adaptive-context", action="store_true")
+    parser.add_argument("--context-gap", type=float, default=None)
+    parser.add_argument("--clip-center", type=float, default=None)
+    parser.add_argument("--abstain", type=float, default=None)
     args = parser.parse_args()
     torch.set_grad_enabled(False)
     if torch.cuda.is_available():

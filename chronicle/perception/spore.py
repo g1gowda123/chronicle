@@ -167,6 +167,7 @@ class SporeConfig:
     action_scan_limit: int = 12
     action_scan_min_displacement: float = 15.0
     action_scan_min_duration: float = 0.20
+    temporal_scan_limit: int = 16
     scene_interval: float = 4.0
     scene_min_change: float = 0.08
     scene_max_width: int = 480
@@ -188,6 +189,9 @@ class SporeConfig:
     context_sweep_window: float = 2.0
     context_hand_only: bool = False
     context_min_gap: float = 0.75
+    context_adaptive_gap: bool = False
+    context_active_gap: float = 0.25
+    context_idle_gap: float = 1.50
 
     # Query-time binding.
     query_capsules: int = 8
@@ -877,7 +881,15 @@ class SporePerceiver:
             last_context = (
                 self.store.contexts[-1].timestamp if self.store.contexts else -1e9
             )
-            if timestamp - last_context >= self.config.context_min_gap:
+            if self.config.context_adaptive_gap:
+                min_gap = (
+                    self.config.context_active_gap
+                    if self._open_actions
+                    else self.config.context_idle_gap
+                )
+            else:
+                min_gap = self.config.context_min_gap
+            if timestamp - last_context >= min_gap:
                 ok, buffer = cv2.imencode(
                     ".jpg",
                     frame,
@@ -893,6 +905,15 @@ class SporePerceiver:
                             metadata={
                                 "frame_size": [width, height],
                                 "hands": len(hands),
+                                "hand_boxes": [
+                                    [
+                                        int(hand.bbox.x1),
+                                        int(hand.bbox.y1),
+                                        int(hand.bbox.x2),
+                                        int(hand.bbox.y2),
+                                    ]
+                                    for hand in hands
+                                ],
                             },
                         ),
                         max_frames=self.config.context_max_frames,
@@ -2116,6 +2137,105 @@ class SporeQueryEngine:
 
     # -- question answering ------------------------------------------------
 
+    def _scan_first(
+        self,
+        term: str,
+        at_time: float | None,
+    ) -> Binding | None:
+        """Forward-scan retained keyframes for the first appearance of a term.
+
+        A temporal question ("when did … first touch X") is not answered by the
+        capsule nearest the question time: the event may be long past.  SPORE's
+        compressed context frames form a sparse temporal index, so scanning
+        them forward finds the first evidence at a fraction of dense-video cost.
+        """
+        if not self.config.action_scan or not self.store.contexts:
+            return None
+        contexts = sorted(self.store.contexts, key=lambda item: item.timestamp)
+        if at_time is not None:
+            contexts = [
+                context
+                for context in contexts
+                if context.timestamp <= at_time + 0.5
+            ]
+        contexts = contexts[: self.config.temporal_scan_limit]
+        if not contexts:
+            return None
+        assert self._detector is not None
+        vocabulary = [term]
+        if self.config.support_labels:
+            vocabulary.extend(self.config.support_labels)
+        self._detector.set_vocabulary(vocabulary)
+        support_set = {label.lower() for label in self.config.support_labels}
+        for index, context in enumerate(contexts):
+            frame = context.image()
+            if frame is None:
+                continue
+            detections = self._detector.detect(
+                frame,
+                frame_index=context.frame_index,
+                timestamp=context.timestamp,
+            )
+            self.detector_calls += 1
+            matches = [
+                detection
+                for detection in detections
+                if _label_matches(detection.label, term)
+                and detection.confidence >= self.config.query_detector_confidence
+            ]
+            if not matches:
+                continue
+            detection = max(matches, key=lambda item: item.confidence)
+            persistence = 0.0
+            if index + 1 < len(contexts):
+                following = contexts[index + 1]
+                if following.timestamp - context.timestamp <= 1.5:
+                    next_frame = following.image()
+                    if next_frame is not None:
+                        next_detections = self._detector.detect(
+                            next_frame,
+                            frame_index=following.frame_index,
+                            timestamp=following.timestamp,
+                        )
+                        self.detector_calls += 1
+                        if any(
+                            _label_matches(item.label, term)
+                            and item.confidence
+                            >= self.config.query_detector_confidence
+                            for item in next_detections
+                        ):
+                            persistence = 1.0
+            confidence = float(detection.confidence) * (
+                0.80 + 0.20 * persistence
+            )
+            capsule = max(
+                self.store.capsules.values(),
+                key=lambda item: max(
+                    (view.bbox.iou(detection.bbox) for view in item.best_views),
+                    default=0.0,
+                ),
+                default=None,
+            )
+            if capsule is None:
+                return None
+            binding = Binding(
+                term=term,
+                label=detection.label.strip().lower(),
+                capsule_id=capsule.capsule_id,
+                confidence=confidence,
+                timestamp=context.timestamp,
+                bbox=detection.bbox,
+                support=self._support_for(detections, detection.bbox, support_set),
+                detector_confidence=float(detection.confidence),
+                clip_similarity=0.0,
+                views_agree=1 + int(persistence),
+                views_tried=index + 2,
+                provenance="temporal_scan",
+            )
+            self._attach(binding)
+            return binding
+        return None
+
     def _scan_actions(
         self,
         term: str,
@@ -2241,11 +2361,19 @@ class SporeQueryEngine:
         shared = max(2, int(math.ceil(total_budget / max(1, len(resolved)))))
         for term in resolved:
             answer.bindings.extend(self.bind(term, budget=shared, at_time=at_time))
-        action_binding = (
-            self._scan_actions(resolved[0], question, at_time)
-            if len(resolved) == 1
-            else None
-        )
+        action_binding = None
+        if len(resolved) == 1:
+            lowered_question = question.lower()
+            if "when did" in lowered_question or "when was" in lowered_question:
+                action_binding = self._scan_first(resolved[0], at_time)
+                if action_binding is None:
+                    action_binding = self._scan_actions(
+                        resolved[0], question, at_time
+                    )
+            else:
+                action_binding = self._scan_actions(
+                    resolved[0], question, at_time
+                )
         answer.bindings.sort(key=lambda item: item.confidence, reverse=True)
         if action_binding is not None:
             answer.bindings = [action_binding] + [
