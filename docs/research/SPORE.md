@@ -269,6 +269,12 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   context gaps save only 3-25% but reduce Cook loc@.30 from 1.00 to .75 (and
   1.0 s also Switch .75 -> .50). Keep `context_min_gap=0.75`; detector phase
   matters more than raw frame count.
+- Query-time context sweep is also non-monotonic. On the Cook store, 1/2/3/5
+  frames give loc@.30 .75/.75/.75/1.00 at 10.9/11.8/12.5/13.7 calls; on Switch
+  the same sweep gives semantic .75/.75/.75/.875 and loc@.30
+  .75/.25/.25/.75. Two or three frames fuse competing same-class instances into
+  an unstable track, so fewer frames save calls but not reliably. Keep
+  `context_sweep_frames=5`; use `--context-sweep-frames` only for ablations.
 
 
 

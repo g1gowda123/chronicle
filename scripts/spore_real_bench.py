@@ -189,6 +189,7 @@ def evaluate(args: argparse.Namespace) -> dict:
         context_binding=not args.no_context,
         context_hand_only=args.context_hand_only,
         context_adaptive_gap=args.adaptive_context,
+        context_sweep_frames=args.context_sweep_frames,
         query_capsules=args.budget,
         query_views=2,
         rescan=args.rescan,
@@ -522,6 +523,7 @@ def main() -> None:
     parser.add_argument("--no-context", action="store_true")
     parser.add_argument("--context-hand-only", action="store_true")
     parser.add_argument("--adaptive-context", action="store_true")
+    parser.add_argument("--context-sweep-frames", type=int, default=5)
     parser.add_argument("--context-gap", type=float, default=None)
     parser.add_argument("--clip-center", type=float, default=None)
     parser.add_argument("--abstain", type=float, default=None)

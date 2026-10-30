@@ -242,6 +242,7 @@ ambiguity, not for claiming general video understanding.
 | Prune to 3-4 views/capsule | Switch semantic .875 -> .75 | keep 5 views |
 | Contact-area gate | cleaner actions but Cook .60 -> .50, Switch .875 -> .75 | revert |
 | Fold short still fragments | actions 38 -> 24, precision@.2 .526 -> .792, recall .917 | keep |
+| Context sweep 5 -> 1 | calls 13.7 -> 10.9, but Cook loc@.3 1.00 -> .75; Switch at 2-3 frames loc@.3 .25 | keep 5 |
 | CLIP margin .22 | suppresses false switch console, but Cook .40 -> .30 | keep .16 |
 | Count clustering | Cook cups 6 -> 2, semantic .50 -> .60 | keep |
 | Colour attribute | Switch semantic .75 -> .875 | keep |
@@ -275,6 +276,13 @@ gap gives 3.37 / 2.22 MB but Cook loc@.3 .75 and Switch .50; a 1.5 s gap gives
 2.61 / 2.08 MB, Cook loc@.3 .75 and Switch .75.  The sampled keyframe phase
 changes which detections survive, so saving 25-30% of context bytes is not
 worth losing small static objects.  Keep `context_min_gap=0.75`.
+
+The same phase/instance problem appears in query-time context sweep.  Reducing
+from five to one frame cuts Cook calls 13.7 to 10.9, but loc@.3 falls 1.00 to
+.75; on Switch, two or three frames give semantic .75 and loc@.3 .25 versus
+.875/.75 at five.  The intermediate counts are worse than either endpoint
+because competing same-class instances are fused into one track over a short
+window.  Keep `context_sweep_frames=5`; the CLI flag is for ablation only.
 
 ### 5.4 Fine-object limits
 
