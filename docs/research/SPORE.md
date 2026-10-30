@@ -134,11 +134,17 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 
 | clip | store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .70 | 14.5 | 150 |
-| Switch 34 s | 6.06 MB | .75 | .75 | .611 | .875 | 14.4 | 128 |
-| Play 45 s | 10.4 MB (300-cap) | .667 | .667 | .475 | 1.00 | 11.5 | 150 |
-| HoloAssist z210 257 s | 21.1 MB (300-cap) | 1.00 | 1.00 | .769 | .025 | 27.2 | 962 |
+| Cook 45 s | 6.46 MB | 1.00 | .75 | .692 | .70 | 13.7 | 150 |
+| Switch 34 s | 4.69 MB | .75 | .75 | .611 | .875 | 12.9 | 128 |
+| Play 45 s | 7.74 MB (300-cap) | .667 | .667 | .475 | 1.00 | 11.5 | 150 |
+| HoloAssist z210 257 s | 17.07 MB (300-cap) | 1.00 | 1.00 | .77 | .05 | 22.5 | 962 |
 
+- The z210 aggregate is 2/40 and is dominated by task mix. One object-identity
+  and one counting answer are correct; object location is 0/6 because the
+  questions ask for place labels such as “Work Table”, not object boxes, while
+  error correction needs instructor speech and temporal/activity questions
+  need verbs. Only identity and counting are in the current object-memory
+  scope (2/14). z210 has no audio stream.
 - Evidence per answer (unique JPEG bytes on the provenance chain): 86.8 KB Cook,
   42.6 KB Switch, 82.1 KB Play, 44.7 KB z210 — 1.0% / 0.7% / 0.7% / 0.2% of
   the store. Detector calls, not evidence fetches, dominate query cost.
@@ -199,7 +205,7 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 - Third-domain evidence: on `aria_play_45s.mp4` (no QA, dense pseudo-GT), SPORE
   retains 2/3 dense-detectable objects (book, chair) with loc@.30 .667 and mean
   IoU .475. The moving play scene creates 407 capsules; the 300-capsule budget
-  keeps the store at 10.4 MB with identical metrics, so contexts absorb the
+  keeps the store compact with identical metrics, so contexts absorb the
   loss rather than object evidence.
 - Latency on z210 (7,695 decoded frames) is 298 s ingest at 4 fps sampling; the
   first attempt stalled because compaction was O(n^2) and ran on every frame
@@ -211,10 +217,9 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   406 capsules, so merging cannot control growth. `CapsuleStore.evict_to`
   ranks capsules by contact window, hand overlap, motion, view quality, then
   recency. On z210 this cuts 1,947 capsules to 300 and the JSON store from
-  44.2 MB to 21.1 MB with localisation unchanged (semantic remains detector-
-  limited); Cook, Switch and Play keep their headline metrics, and Play drops
-  from 11.5 MB to 10.4 MB. Context frames, not capsules, carry most answer
-  evidence.
+  44.2 MB to 17.1 MB with localisation unchanged (semantic remains detector-
+  limited); Cook, Switch and Play keep their headline metrics. Context frames,
+  not capsules, carry most answer evidence.
 - Counting is stable across serialization: action-start sampling now uses
   temporal bins instead of `starts[::stride]`, which changed every sampled
   context when a 4-decimal timestamp shifted. On fresh and reloaded Cook
@@ -241,17 +246,20 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   12 fps only when retained evidence is weak; on the 8 fps Cook store it
   recovers loc@.3 .80->1.00 / IoU .626->.739 at 20.3 calls,
   but adds no accuracy at 4 fps, so it is an escalation path, not a default.
-- Fine-object limits are detector-bound, not prompt-bound: over all 264 z210
-  contexts, YOLO-World-S returned zero detections for game card, SD card, wrist
-  strap, and comfort grip, including 1.5x and 2.6x hand-zoomed crops (1,372+
-  calls). A query-time YOLO-World-L pass raises z210 semantic accuracy only
-  .025 to .05 (loc/IoU .77 to .83 on the one dense-detectable object, calls
-  27.2 to 22.2) and uses 2.2 GB peak VRAM; at 1280 px it still finds none of
+- Fine-object limits are detector-bound and source-resolution-bound, not
+  prompt-bound: over all 264 z210 contexts, YOLO-World-S returned zero
+  detections for game card, SD card, wrist strap, and comfort grip, including
+  1.5x and 2.6x hand-zoomed crops (1,372+ calls). A query-time YOLO-World-L
+  pass leaves z210 semantic accuracy at .05 (2/40), moves loc/IoU .77 to .83
+  on the one dense-detectable object, changes calls 22.45 to 22.2, and uses
+  2.2 GB peak VRAM; at 1280 px it still finds none of
   the four fine objects. CLIP top crops for those terms have cosines of only
-  .27-.36 and are mostly background. A 2x2 overlapping tile pass with 2x
+  .27-.36 and are mostly background. The z210 source is 454x256, so these
+  objects occupy only a few pixels; a 2x2 overlapping tile pass with 2x
   upsampling over all 264 contexts yielded only six detections at conf .05,
-  all false positives on Joy-Con/console/screen. These counts require
-  contact/action evidence, narration, or a stronger detector.
+  all false positives on Joy-Con/console/screen. The limit is source
+  resolution before it is detector capacity; higher-resolution capture is
+  required, not just a stronger detector.
 - Held-out automatic questions (`scripts/spore_autoeval.py`) track dense
   detections and ask only about repeatedly seen objects. With 10 questions per
   clip: Cook localisation .90 / mean IoU .781 / 4.1 calls, Play .90 / .710 /

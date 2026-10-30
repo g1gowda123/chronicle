@@ -21,8 +21,9 @@ JPEG evidence blobs, so an LLM can read the index without loading pixels. On
 three short egocentric clips, SPORE localises 0.90/0.90/0.667 of
 dense-detectable objects with 4-8 detector calls per query versus 128-150 for
 dense sampling; a compact 300-capsule store cuts the 257 s HoloAssist z210
-store from 44.2 MB to 21.1 MB while preserving localisation, and an answer
-touches only 43-87 KB of evidence. Fine-object counting remains detector-bound.
+store from 44.2 MB to 17.1 MB while preserving localisation, and an answer
+touches only 43-87 KB of evidence. Fine-object counting remains source-
+resolution-bound as well as detector-bound.
 
 ## 1. Introduction
 
@@ -121,13 +122,13 @@ still available for compatibility.
 
 Views are routing indices, not the primary evidence.  Setting
 `include_view_images=False` keeps view boxes and embeddings but drops view
-pixels; context frames remain the localisation evidence.  This reduces Cook
-from 8.27 to 3.48 MB, Switch from 6.06 to 2.37 MB, Play from 11.53 to 4.55 MB,
-and the 1,947-capsule z210 store from 44.15 to 17.05 MB.  Answers are unchanged
-(Cook semantic .70, Switch .875, Play auto-eval 1.00, z210 .025), while detector
-calls per query fall to 8.3 / 8.6 / 4.5 / 16.8 because the redundant crop
-detector fallback disappears.  We therefore recommend storing view pixels only
-when crop-level binding must work without contexts.
+pixels; context frames remain the localisation evidence.  In the pre-WebP
+ablation this reduced Cook from 8.27 to 3.48 MB, Switch from 6.06 to 2.37 MB,
+Play from 11.53 to 4.55 MB, and the 1,947-capsule z210 store from 44.15 to
+17.05 MB, with Cook/Switch/Play answers unchanged and z210 at .025 in that
+run.  Detector calls per query fell to 8.3 / 8.6 / 4.5 / 16.8 because the
+redundant crop detector fallback disappeared.  We therefore recommend storing
+view pixels only when crop-level binding must work without contexts.
 
 ### 3.4 Query routing and late binding
 
@@ -215,10 +216,29 @@ Hand-written QA sets:
 
 | Domain | Semantic | loc@.3 | loc@.5 | mean IoU | Store | Calls/query | Dense calls |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Cook 45 s | .70 | 1.00 | .75 | .692 | 8.27 MB | 14.5 | 150 |
-| Switch 34 s | .875 | .75 | .75 | .611 | 6.06 MB | 14.4 | 128 |
-| Play 45 s | 1.00 | .667 | .667 | .475 | 10.4 MB | 11.5 | 150 |
-| z210 257 s (300 caps) | .025 | 1.00 | 1.00 | .769 | 21.1 MB | 27.2 | 962 |
+| Cook 45 s | .70 | 1.00 | .75 | .692 | 6.46 MB | 13.7 | 150 |
+| Switch 34 s | .875 | .75 | .75 | .611 | 4.69 MB | 12.9 | 128 |
+| Play 45 s | 1.00 | .667 | .667 | .475 | 7.74 MB | 11.5 | 150 |
+| z210 257 s (300 caps) | .05 | 1.00 | 1.00 | .77 | 17.07 MB | 22.5 | 962 |
+
+The z210 aggregate is dominated by task mix, not by a single perception
+failure. In the timed 40-question baseline, semantic accuracy is 2/40: one
+object-identity answer and one count. Per category:
+
+| Category | Questions | Correct | What the question needs |
+|---|---:|---:|---|
+| object identity | 8 | 1 | object capsule / detector |
+| object location | 6 | 0 | place label ("Work Table"), not an object box |
+| counting | 6 | 1 | contact or instance evidence |
+| temporal order | 6 | 0 | action sequence / verbs |
+| activity | 6 | 0 | action recognition |
+| error correction | 8 | 0 | instructor speech / narration |
+
+Six location questions ask for a place label, eight error-correction questions
+require speech, and the temporal/activity questions require verbs. Only the
+identity and counting questions are inside the current object-memory scope,
+where the system scores 2/14. z210 has no audio stream, so a narration/ASR
+route cannot be tested on this file.
 
 Automatic held-out questions (10 per short clip):
 
@@ -247,11 +267,14 @@ ambiguity, not for claiming general video understanding.
 | CLIP margin .22 | suppresses false switch console, but Cook .40 -> .30 | keep .16 |
 | Count clustering | Cook cups 6 -> 2, semantic .50 -> .60 | keep |
 | Colour attribute | Switch semantic .75 -> .875 | keep |
-| Capsule eviction, 1,947 -> 300 | z210 44.2 -> 21.1 MB, loc unchanged | keep |
+| Capsule eviction, 1,947 -> 300 | z210 44.2 -> 17.1 MB, loc unchanged | keep |
 | Split index/evidence | 8.22 -> 1.02 MB index on Cook | keep |
 | Drop view pixels, keep contexts | Cook 8.27 -> 3.48 MB, metrics unchanged | keep optional |
 
 ### 5.3 Storage breakdown
+
+These split-storage measurements predate WebP view crops; current full-store
+sizes are in Table 1.
 
 | Store | Full JSON | Index | Evidence | Embeddings (in index) |
 |---|---:|---:|---:|---:|
@@ -313,12 +336,14 @@ ablation, not a safe universal default.
 Over all 264 retained z210 contexts, YOLO-World returned zero detections for
 game card, SD card, wrist strap, and comfort grip, including 1.5x and 2.6x
 hand-zoomed crops (1,372+ calls). CLIP top crops for those terms have cosines
-of .27-.36 and are mostly background. Counting these objects requires contact
-or action evidence, narration, or a stronger detector.
+of .27-.36 and are mostly background. The z210 source is only 454x256, so the
+detail needed to count these objects is absent before the detector sees it;
+higher-resolution capture, not just a stronger detector, is the prerequisite.
 
 ### 5.5 Sampling rate and query-time foveal rescan
 
-Sampling is not monotonic in accuracy.  On Cook, 4 fps is the best operating
+Sampling is not monotonic in accuracy.  These runs predate WebP view crops, but
+the relative ordering is unchanged.  On Cook, 4 fps is the best operating
 point; 8 fps stores more keyframes but changes the temporal phase of retained
 contexts, so a short held-knife interval can fall between two contexts:
 
@@ -462,17 +487,20 @@ needs its native resolution for small objects.
 ### 5.9 Detector capacity
 
 A larger query-time detector does not unlock the fine objects.  Re-running the
-z210 questions with YOLO-World-L (binding confidence .15) raises semantic
-accuracy only .025 to .05, while localisation on the single dense-detectable
-object moves IoU .77 to .83 and calls fall 27.2 to 22.2.  The cost is 2.2 GB
-peak VRAM, roughly double the small model.  At 1280 px the large model finds no
+z210 questions with YOLO-World-L (binding confidence .15) leaves semantic
+accuracy at .05 (2/40), moves localisation on the single dense-detectable
+object from IoU .77 to .83, and changes calls from 22.45 to 22.2.  The cost is
+2.2 GB peak VRAM, roughly double the small model.  At 1280 px the large model
+finds no
 game card, SD card, kickstand, or power button in any of the 264 retained
-contexts.  Fine-object QA remains detector-bound, not retrieval-bound.
-Tiling does not rescue them either: a 2x2 overlapping tile pass with 2x
-upsampling over all 264 contexts produced only six detections at confidence
-.05, and visual inspection showed every one was a false positive on a Joy-Con,
-console back, or screen.  The missing objects are a detector-semantic limit,
-not an input-resolution limit.
+contexts.  The z210 source is only 454x256, so a game card or SD card occupies
+a handful of pixels; the missing detail is absent before the detector sees it.
+Tiling cannot recover it: a 2x2 overlapping tile pass with 2x upsampling over
+all 264 contexts produced only six detections at confidence .05, and visual
+inspection showed every one was a false positive on a Joy-Con, console back,
+or screen.  Fine-object QA is therefore source-resolution-bound as well as
+detector-bound, not retrieval-bound; a higher-resolution capture is required
+before a stronger detector can help.
 
 ## 6. Discussion
 
