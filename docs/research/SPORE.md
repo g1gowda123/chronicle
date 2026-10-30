@@ -227,11 +227,14 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   recovers loc@.3 .80->1.00 / IoU .626->.739 at 20.3 calls,
   but adds no accuracy at 4 fps, so it is an escalation path, not a default.
 - Fine-object limits are detector-bound, not prompt-bound: over all 264 z210
-  contexts, YOLO-World returned zero detections for game card, SD card, wrist
+  contexts, YOLO-World-S returned zero detections for game card, SD card, wrist
   strap, and comfort grip, including 1.5x and 2.6x hand-zoomed crops (1,372+
-  calls). CLIP top crops for those terms have cosines of only .27-.36 and are
-  mostly background. These counts require contact/action evidence, narration,
-  or a stronger detector.
+  calls). A query-time YOLO-World-L pass raises z210 semantic accuracy only
+  .025 to .05 (loc/IoU .77 to .83 on the one dense-detectable object, calls
+  27.2 to 22.2) and uses 2.2 GB peak VRAM; at 1280 px it still finds none of
+  the four fine objects. CLIP top crops for those terms have cosines of only
+  .27-.36 and are mostly background. These counts require contact/action
+  evidence, narration, or a stronger detector.
 - Held-out automatic questions (`scripts/spore_autoeval.py`) track dense
   detections and ask only about repeatedly seen objects. With 10 questions per
   clip: Cook localisation .90 / mean IoU .781 / 4.1 calls, Play .90 / .710 /
@@ -251,7 +254,9 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   monolithic stores from 8.22 to 6.41 MB (Cook), 6.16 to 4.69 MB (Switch), and
   11.45 to 7.68 MB (Play) with identical QA. Recoding contexts to WebP is not
   safe: Cook semantic/loc@.3 fall .70/1.00 to .50/.50, so only the narrower
-  crops use it. Split evidence is 3.99 / 2.43 / 4.65 MB.
+  crops use it. Lowering context JPEG quality to 70 saves only 6% but drops
+  Cook semantic .70 to .60 and IoU .692 to .573. Split evidence is 3.99 /
+  2.43 / 4.65 MB.
 - View pixels are optional (`include_view_images=False`): views keep boxes and
   embeddings for routing, while contexts keep the pixels used for detection.
   Cook drops to 3.48 MB, Switch to 2.37 MB, Play to 4.55 MB, with unchanged QA

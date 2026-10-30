@@ -380,7 +380,19 @@ Switch is 1.33 / 2.43 MB, Play 1.33 / 4.65 MB.  The remaining context bytes
 are not free to recompress: recoding context frames alone to WebP quality 80
 dropped Cook semantic accuracy .70 to .50 and loc@.3 1.00 to .50.  Small
 objects on the wider keyframe are codec-sensitive, so the narrower capsule
-crops are the safe target.
+crops are the safe target.  Lowering context JPEG quality is not a useful
+alternative: quality 70 saves only 6% of Cook bytes but drops semantic accuracy
+.70 to .60 and mean IoU .692 to .573.
+
+### 5.9 Detector capacity
+
+A larger query-time detector does not unlock the fine objects.  Re-running the
+z210 questions with YOLO-World-L (binding confidence .15) raises semantic
+accuracy only .025 to .05, while localisation on the single dense-detectable
+object moves IoU .77 to .83 and calls fall 27.2 to 22.2.  The cost is 2.2 GB
+peak VRAM, roughly double the small model.  At 1280 px the large model finds no
+game card, SD card, kickstand, or power button in any of the 264 retained
+contexts.  Fine-object QA remains detector-bound, not retrieval-bound.
 
 ## 6. Discussion
 

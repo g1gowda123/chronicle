@@ -199,6 +199,8 @@ def evaluate(args: argparse.Namespace) -> dict:
         config.clip_margin_center = args.clip_center
     if args.abstain is not None:
         config.query_abstain_confidence = args.abstain
+    if args.binding_confidence is not None:
+        config.query_detector_confidence = args.binding_confidence
 
     terms: list[str] = []
     for question in questions:
@@ -233,6 +235,31 @@ def evaluate(args: argparse.Namespace) -> dict:
         f"[dense] frames={len(dense)} calls={len(dense)} seconds={dense_seconds:.2f}",
         flush=True,
     )
+
+    query_detector = detector
+    if args.query_detector_model:
+        query_detector_config = replace(
+            perception.detector,
+            model=args.query_detector_model,
+            confidence=(
+                args.query_detector_confidence
+                if args.query_detector_confidence is not None
+                else perception.detector.confidence
+            ),
+            imgsz=(
+                args.query_detector_imgsz
+                if args.query_detector_imgsz is not None
+                else perception.detector.imgsz
+            ),
+        )
+        query_perception = replace(perception, detector=query_detector_config)
+        query_detector = build_detector(query_perception, source_name="tabletop")
+        query_detector.set_vocabulary(vocabulary)
+        print(
+            f"[query-detector] {args.query_detector_model} "
+            f"conf={query_detector_config.confidence} imgsz={query_detector_config.imgsz}",
+            flush=True,
+        )
 
     embedder = build_embedder(perception, source_name="tabletop")
     hands = build_hands(perception, source_name="tabletop")
@@ -287,7 +314,7 @@ def evaluate(args: argparse.Namespace) -> dict:
             mode_config,
             perception,
             embedder=embedder,
-            detector=detector if mode in {"detector", "hybrid"} else None,
+            detector=query_detector if mode in {"detector", "hybrid"} else None,
             source=args.clip,
         )
         for question in questions:
@@ -498,6 +525,10 @@ def main() -> None:
     parser.add_argument("--context-gap", type=float, default=None)
     parser.add_argument("--clip-center", type=float, default=None)
     parser.add_argument("--abstain", type=float, default=None)
+    parser.add_argument("--binding-confidence", type=float, default=None)
+    parser.add_argument("--query-detector-model", default="")
+    parser.add_argument("--query-detector-confidence", type=float, default=None)
+    parser.add_argument("--query-detector-imgsz", type=int, default=None)
     parser.add_argument("--rescan", action="store_true")
     args = parser.parse_args()
     torch.set_grad_enabled(False)
