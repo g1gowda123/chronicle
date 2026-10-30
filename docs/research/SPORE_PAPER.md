@@ -275,6 +275,25 @@ rescan raises loc@.3 .80→1.00, mean IoU .626→.739, and semantic .30→.40 at
 metric and roughly doubles calls, so it remains opt-in (`rescan=False`) and is
 reported as a cost/accuracy escalation rather than a default.
 
+### 5.6 Action intervals against real annotation
+
+The HoloAssist switch clip also ships a real 12-event interaction timeline.
+SPORE ingests without those labels and records only hand-object contact
+geometry.  Comparing its 54 action capsules to the timeline:
+
+| Temporal IoU | Recall | Precision | Timeline coverage |
+|---|---:|---:|---:|
+| .1 | 1.00 | .50 | .972 |
+| .2 | .92 | .31 | — |
+| .3 | .92 | .24 | — |
+| .5 | .42 | .09 | — |
+
+Every annotated interaction is recovered at IoU .1, and 97% of annotated
+interaction time is covered.  The action stream is over-segmented: 54 capsules
+for 12 events, so precision is low.  This is evidence that contact geometry is
+a usable *temporal index* before any verb labels, not evidence that SPORE
+understands verbs.  Verb naming remains future work.
+
 ## 6. Discussion
 
 SPORE shows that **retained full context**, not better crops, is the dominant
