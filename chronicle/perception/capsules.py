@@ -504,6 +504,43 @@ class CapsuleStore:
     def add_action(self, action: ActionCapsule) -> None:
         self.actions[action.action_id] = action
 
+    def consolidate_actions(self, max_gap: float = 0.4) -> int:
+        """Merge adjacent contact episodes on the same object.
+
+        Two hands, or a momentarily-lost contact, can split one physical
+        interaction into several capsules.  Merging by primary object and a
+        small temporal gap keeps the temporal index compact without joining
+        interactions on different objects.
+        """
+        if max_gap < 0 or not self.actions:
+            return 0
+        merged: list[ActionCapsule] = []
+        removed = 0
+        for action in sorted(self.actions.values(), key=lambda item: item.start):
+            primary = action.capsule_ids[0] if action.capsule_ids else ""
+            target = None
+            if primary:
+                for candidate in merged:
+                    candidate_primary = (
+                        candidate.capsule_ids[0] if candidate.capsule_ids else ""
+                    )
+                    if candidate_primary == primary and action.start <= candidate.end + max_gap:
+                        target = candidate
+                        break
+            if target is None:
+                merged.append(action)
+                continue
+            target.end = max(target.end, action.end)
+            target.capsule_ids = list(
+                dict.fromkeys([*target.capsule_ids, *action.capsule_ids])
+            )
+            target.metadata["merged_actions"] = int(
+                target.metadata.get("merged_actions", 1)
+            ) + 1
+            removed += 1
+        self.actions = {action.action_id: action for action in merged}
+        return removed
+
     def add_scene(self, scene: SceneCapsule) -> None:
         self.scenes.append(scene)
 

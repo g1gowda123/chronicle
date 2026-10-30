@@ -189,6 +189,7 @@ class SporeConfig:
     # Actions and scenes.
     action_min_duration: float = 0.15
     action_close_grace: float = 0.40
+    action_merge_gap: float = 0.40
     action_scan: bool = True
     action_scan_limit: int = 12
     action_scan_min_displacement: float = 15.0
@@ -228,7 +229,7 @@ class SporeConfig:
     query_abstain_confidence: float = 0.24
     query_diversity: float = 0.28
     query_min_relevance: float = 0.10
-    count_contexts: int = 16
+    count_contexts: int = 32
     count_min_confidence: float = 0.30
     count_single_confidence: float = 0.50
     count_peak_confidence: float = 0.45
@@ -753,6 +754,7 @@ class SporePerceiver:
                 )
             self._consume_frame(frame, float(timestamp), frame_index)
         self._close_all_actions()
+        self.store.consolidate_actions(self.config.action_merge_gap)
         # Compaction is a batch cleanup, not a per-frame operation.  Running
         # it inside the ingest loop made long clips quadratic in capsule count.
         self._compact(0.0, force=True)
@@ -2544,40 +2546,25 @@ class SporeQueryEngine:
     def _count_contexts(self, at_time: float | None) -> list[ContextFrame]:
         """Choose contexts spread over the episode for lifetime counting.
 
-        Action starts are the best sampling points: they are where objects are
-        handled, and they cover the whole video rather than only the query
-        timestamp.  If no actions survived, fall back to evenly spaced
-        keyframes.
+        Counting must not depend on action segmentation: a better contact
+        boundary should not change how many cups are reported.  Sample the
+        retained contexts on a uniform temporal grid instead of action starts,
+        then add the query-time keyframe.
         """
         limit = max(1, self.config.count_contexts)
-        starts = sorted(
-            {
-                round(float(action.start), 2)
-                for action in self.store.actions.values()
-                if action.duration >= self.config.action_scan_min_duration
-            }
-        )
+        ordered = sorted(self.store.contexts, key=lambda item: item.timestamp)
         contexts: list[ContextFrame] = []
-        if starts:
-            # Temporal stratification, not ``starts[::stride]``: action starts
-            # are noisy and a sub-centisecond shift must not change which
-            # whole second gets sampled.  Pick the start nearest each bin
-            # centre so counting is stable across serialization/ingest jitter.
-            first, last = starts[0], starts[-1]
+        if ordered:
+            first, last = ordered[0].timestamp, ordered[-1].timestamp
             width = max(1e-6, last - first)
             for index in range(limit):
                 target = first + (index + 0.5) * width / limit
-                timestamp = min(starts, key=lambda value: abs(value - target))
-                context = self.store.context_at(timestamp, max_gap=1.0)
-                if context is not None and all(
+                context = min(ordered, key=lambda item: abs(item.timestamp - target))
+                if all(
                     abs(context.timestamp - found.timestamp) > 0.2
                     for found in contexts
                 ):
                     contexts.append(context)
-        if not contexts:
-            ordered = sorted(self.store.contexts, key=lambda item: item.timestamp)
-            stride = max(1, len(ordered) // limit)
-            contexts = ordered[::stride][:limit]
         if at_time is not None and self.store.contexts:
             nearest = self.store.context_at(at_time, max_gap=self.config.context_max_gap)
             if nearest is not None and all(

@@ -134,10 +134,10 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 
 | clip | store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .60 | 12.5 | 150 |
-| Switch 34 s | 6.06 MB | .75 | .75 | .590 | .875 | 12.25 | 128 |
+| Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .60 | 14.1 | 150 |
+| Switch 34 s | 6.06 MB | .75 | .75 | .611 | .875 | 14.4 | 128 |
 | Play 45 s | 10.4 MB (300-cap) | .667 | .667 | .475 | 1.00 | 11.5 | 150 |
-| HoloAssist z210 257 s | 21.1 MB (300-cap) | 1.00 | 1.00 | .769 | .025 | 21.9 | 962 |
+| HoloAssist z210 257 s | 21.1 MB (300-cap) | 1.00 | 1.00 | .769 | .025 | 27.2 | 962 |
 
 - Context-free crop binding is much weaker: Cook loc@.30 .25 / IoU .246,
   Switch loc@.30 0 / IoU .108. Retained full keyframes, not better crops, are
@@ -194,9 +194,9 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   context when a 4-decimal timestamp shifted. On fresh and reloaded Cook
   stores the cup count is 2 and semantic accuracy is .60.
 - Action capsules are a usable temporal index even without verbs. Against the
-  real 12-event HoloAssist switch timeline, recall is 12/12 at temporal IoU .1
-  and 11/12 at .3, with 97.2% timeline coverage; precision is .50 at .1 because
-  the stream is over-segmented (54 actions). Reproduce with
+  real 12-event HoloAssist switch timeline, merged contact episodes (38 actions)
+  give recall 12/12 at temporal IoU .1/.2/.3, 97.2% timeline coverage, and
+  precision .68 at IoU .1 / .45 at .3. Reproduce with
   `scripts/spore_action_eval.py`; verb naming is still open.
 - Sampling is not monotonically better. On Cook, semantic/loc@.3/IoU are
   .60/.60/.635 at 2 fps, .60/1.00/.692 at 4 fps, and .30/.80/.626 at 8 fps;

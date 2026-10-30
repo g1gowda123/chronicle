@@ -199,10 +199,10 @@ Hand-written QA sets:
 
 | Domain | Semantic | loc@.3 | loc@.5 | mean IoU | Store | Calls/query | Dense calls |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Cook 45 s | .60 | 1.00 | .75 | .692 | 8.27 MB | 12.5 | 150 |
-| Switch 34 s | .875 | .75 | .75 | .590 | 6.06 MB | 12.25 | 128 |
+| Cook 45 s | .60 | 1.00 | .75 | .692 | 8.27 MB | 14.1 | 150 |
+| Switch 34 s | .875 | .75 | .75 | .611 | 6.06 MB | 14.4 | 128 |
 | Play 45 s | 1.00 | .667 | .667 | .475 | 10.4 MB | 11.5 | 150 |
-| z210 257 s (300 caps) | .025 | 1.00 | 1.00 | .769 | 21.1 MB | 24.6 | 962 |
+| z210 257 s (300 caps) | .025 | 1.00 | 1.00 | .769 | 21.1 MB | 27.2 | 962 |
 
 Automatic held-out questions (10 per short clip):
 
@@ -283,16 +283,17 @@ geometry.  Comparing its 54 action capsules to the timeline:
 
 | Temporal IoU | Recall | Precision | Timeline coverage |
 |---|---:|---:|---:|
-| .1 | 1.00 | .50 | .972 |
-| .2 | .92 | .31 | — |
-| .3 | .92 | .24 | — |
-| .5 | .42 | .09 | — |
+| .1 | 1.00 | .684 | .972 |
+| .2 | 1.00 | .526 | — |
+| .3 | 1.00 | .447 | — |
+| .5 | .33 | .105 | — |
 
-Every annotated interaction is recovered at IoU .1, and 97% of annotated
-interaction time is covered.  The action stream is over-segmented: 54 capsules
-for 12 events, so precision is low.  This is evidence that contact geometry is
-a usable *temporal index* before any verb labels, not evidence that SPORE
-understands verbs.  Verb naming remains future work.
+Every annotated interaction is recovered at IoU .1-.3, and 97% of annotated
+interaction time is covered.  The action stream is still over-segmented: 38
+merged capsules for 12 events, so precision falls as the IoU requirement
+tightens.  This is evidence that contact geometry is a usable *temporal index*
+before any verb labels, not evidence that SPORE understands verbs.  Verb
+naming remains future work.
 
 ## 6. Discussion
 
@@ -368,7 +369,7 @@ long-video evidence storage still needs an explicit budget.
 `keyframe_max_gap=1.2`, `max_views=5`, `max_capsules=300`,
 `context_quality=82`, `context_min_gap=.75`, `context_max_gap=1.5`,
 `context_fusion=True`, `context_sweep_frames=5`, `query_capsules=8`,
-`query_views=2`, `count_contexts=16`, `count_track_gap=20`,
+`query_views=2`, `count_contexts=32`, `count_track_gap=20`,
 `count_peak_confidence=.45`, `clip_margin_center=.16`.
 
 ## Appendix B: What not to claim
