@@ -243,6 +243,7 @@ ambiguity, not for claiming general video understanding.
 | Contact-area gate | cleaner actions but Cook .60 -> .50, Switch .875 -> .75 | revert |
 | Fold short still fragments | actions 38 -> 24, precision@.2 .526 -> .792, recall .917 | keep |
 | Context sweep 5 -> 1 | calls 13.7 -> 10.9, but Cook loc@.3 1.00 -> .75; Switch at 2-3 frames loc@.3 .25 | keep 5 |
+| Denser sweep + prefetch | z210 IoU .768 -> .834, Play .493 -> .545, Switch flat, Cook .692 -> .560 | keep 5 +/-2 s |
 | CLIP margin .22 | suppresses false switch console, but Cook .40 -> .30 | keep .16 |
 | Count clustering | Cook cups 6 -> 2, semantic .50 -> .60 | keep |
 | Colour attribute | Switch semantic .75 -> .875 | keep |
@@ -297,6 +298,15 @@ from five to one frame cuts Cook calls 13.7 to 10.9, but loc@.3 falls 1.00 to
 .875/.75 at five.  The intermediate counts are worse than either endpoint
 because competing same-class instances are fused into one track over a short
 window.  Keep `context_sweep_frames=5`; the CLI flag is for ablation only.
+
+Prefetching (Section 5.7) removes the detector-call cost of a denser sweep,
+but not its semantic cost.  On z210, nine frames over a +/-4 s window raised
+mean IoU from .768 to .834 while total calls fell 599 to 586; on Play it raised
+IoU from .493 to .545 and total calls fell 73 to 60.  Switch was unchanged,
+but Cook fell from .692 to .560 (semantic .70 to .60): the wider window merges
+competing same-class instances, and a sharper temporal kernel did not recover
+the answer.  Keep the five-frame, +/-2 s default.  Denser sweeps are an opt-in
+ablation, not a safe universal default.
 
 ### 5.4 Fine-object limits
 

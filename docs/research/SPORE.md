@@ -289,6 +289,11 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   .75/.25/.25/.75. Two or three frames fuse competing same-class instances into
   an unstable track, so fewer frames save calls but not reliably. Keep
   `context_sweep_frames=5`; use `--context-sweep-frames` only for ablations.
+- Prefetch makes denser sweeps cheap in detector calls but not in accuracy:
+  z210 at 9 frames/+/-4 s gives IoU .834 vs .768 and 586 vs 599 calls; Play
+  .545 vs .493 and 60 vs 73 calls; Switch is unchanged; Cook drops .692 -> .560
+  and semantic .70 -> .60 because a wider window fuses competing instances.
+  Default stays 5 frames/+/-2 s; `--context-sweep-window` is an ablation knob.
 
 
 
