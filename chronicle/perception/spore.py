@@ -231,6 +231,12 @@ class SporeConfig:
     query_abstain_confidence: float = 0.24
     query_diversity: float = 0.28
     query_min_relevance: float = 0.10
+    # Detector-free place memory.  ``scene_recall`` answers "when was X
+    # visible?" from stored scene keyframes; it is intentionally separate
+    # from object binding and only fires on explicit visibility questions.
+    scene_recall: bool = True
+    scene_recall_top_k: int = 3
+    scene_recall_min_score: float = 0.15
     count_contexts: int = 32
     count_min_confidence: float = 0.30
     count_single_confidence: float = 0.50
@@ -1625,6 +1631,31 @@ class SporeQueryEngine:
                 best = max(best, _cosine(term, vector))
         return best
 
+    def scene_recall(
+        self, term: str, *, top_k: int = 3
+    ) -> list[tuple[SceneCapsule, float]]:
+        """Rank stored scene keyframes by CLIP similarity to a text query.
+
+        This is the detector-free complement to object binding: a long video
+        can answer ``when did I see the stairs?`` from the scene index alone,
+        without loading a vocabulary or paying a detector pass.  The caller
+        receives scenes and scores; it decides whether the evidence is strong
+        enough to answer.  Similarity calibration is deliberately left to the
+        caller because CLIP thresholds are domain-dependent.
+        """
+        if not self.store.scenes or not term.strip():
+            return []
+        vector = self._embed_text(term.strip())
+        if vector is None:
+            return []
+        scored: list[tuple[SceneCapsule, float]] = []
+        for scene in self.store.scenes:
+            if scene.embedding is None:
+                continue
+            scored.append((scene, _cosine(vector, scene.embedding)))
+        scored.sort(key=lambda item: item[1], reverse=True)
+        return scored[: max(1, top_k)]
+
     def route(
         self, terms: Sequence[str], *, budget: int | None = None, at_time: float | None = None
     ) -> list[ObjectCapsule]:
@@ -2484,6 +2515,82 @@ class SporeQueryEngine:
                 place = match.group(1).strip(" ?.")
                 return place or None
         return None
+
+    @staticmethod
+    def _scene_question(question: str) -> str | None:
+        """Return the term in an explicit scene-visibility question.
+
+        Kept narrow on purpose: "when did I see X?" and "when was X
+        visible?" ask about scene evidence, while "when did I first touch X?"
+        remains an object/action query.
+        """
+        text = " ".join(question.strip().split())
+        patterns = (
+            r"^when\s+(?:did|do)\s+(?:i|we)\s+(?:see|spot|notice)\s+(.+?)\s*\?*$",
+            r"^when\s+(?:was|is)\s+(?:the\s+|a\s+|an\s+)?(.+?)\s+visible\s*\?*$",
+        )
+        for pattern in patterns:
+            match = re.match(pattern, text, flags=re.IGNORECASE)
+            if match:
+                term = match.group(1).strip(" ?.\"'")
+                term = re.sub(r"^(?:the|a|an)\s+", "", term, flags=re.IGNORECASE)
+                if term and term.lower() not in {"it", "this", "that"}:
+                    return term
+        return None
+
+    def _answer_scene(self, question: str, term: str) -> SporeAnswer:
+        """Answer a visibility question from the scene index, no detector."""
+        start = time.perf_counter()
+        calls_before = self.detector_calls
+        hits = self.scene_recall(
+            term, top_k=max(1, self.config.scene_recall_top_k)
+        )
+        answer = SporeAnswer(question=question, terms=[term])
+        answer.capsules_considered = len(self.store.scenes)
+        answer.stats["scene_recall"] = [
+            {
+                "timestamp": round(float(scene.timestamp), 2),
+                "frame_index": int(scene.frame_index),
+                "score": round(float(score), 4),
+            }
+            for scene, score in hits
+        ]
+        if hits:
+            scene, score = hits[0]
+            answer.abstained = score < self.config.scene_recall_min_score
+            answer.bindings = [
+                Binding(
+                    term=term,
+                    label=term,
+                    capsule_id=f"scene:{scene.frame_index}",
+                    confidence=score,
+                    timestamp=scene.timestamp,
+                    bbox=BBox(
+                        0.0,
+                        0.0,
+                        float(scene.image.shape[1]) if scene.image is not None else 0.0,
+                        float(scene.image.shape[0]) if scene.image is not None else 0.0,
+                    ),
+                    provenance="scene",
+                )
+            ]
+            if not answer.abstained:
+                answer.answer = (
+                    f"saw {term} at {scene.timestamp:.1f}s "
+                    f"(scene similarity {score:.2f})"
+                )
+            else:
+                answer.answer = "not enough evidence"
+            if scene.image is not None:
+                ok, buffer = cv2.imencode(
+                    ".jpg", scene.image, [int(cv2.IMWRITE_JPEG_QUALITY), 82]
+                )
+                answer.evidence_bytes = int(buffer.nbytes) if ok else int(scene.image.nbytes)
+        else:
+            answer.answer = "not enough evidence"
+        answer.detector_calls = self.detector_calls - calls_before
+        answer.elapsed_s = time.perf_counter() - start
+        return answer
 
     def _inventory(
         self, place: str, at_time: float | None = None
@@ -3348,6 +3455,9 @@ class SporeQueryEngine:
             answer.stats["inventory"] = labels
             answer.elapsed_s = time.perf_counter() - start
             return answer
+        scene_term = self._scene_question(question)
+        if scene_term and self.config.scene_recall and self.store.scenes:
+            return self._answer_scene(question, scene_term)
         resolved = list(terms) if terms else extract_terms(question)
         answer = SporeAnswer(question=question, terms=resolved)
         if not resolved:

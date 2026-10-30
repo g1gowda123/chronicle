@@ -74,6 +74,13 @@ work table" (12 calls, semantic 1.00, up from .875); caller-label inventory
 remains 8/8. It is a grounded listing operator, not a captioner. See `SPORE.md`
 and `SPORE_PAPER.md` for ablations, threats to validity, and open issues.
 
+A detector-free scene-recall path answers explicit "when did I see X?" /
+"when was X visible?" questions from retained `SceneCapsule` embeddings. On a
+60 s outdoor walk it retrieved 4/6 informative landmarks at top-1 (stairs,
+person, building, cup) with zero detector calls and 13-14 ms warm query time; a
+painted curb sign and a glass door were missed. It is a place-memory
+complement, not a general sign reader.
+
 
 ## 3. Main branch: what is already shipped
 
@@ -242,9 +249,9 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 
 - `main`: `1200f84`, clean, CI green.
 - `research/spore-perception`: based on `1200f84`; perceiver, query engine,
-  benchmarks, context frames, fused tracks, counting and temporal scans are
-  implemented. Newer count/support/docs edits are uncommitted on top of
-  `606d5c8`.
+  benchmarks, context frames, fused tracks, counting, inventory, compact
+  stores, temporal scans, and detector-free scene recall are implemented.
+  The branch tip is the scene-recall commit; clean.
 - `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
   untracked; no 1280 run executed.
 - `research/long-video-qa`: `990013e`, clean.
