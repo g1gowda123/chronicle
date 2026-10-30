@@ -65,7 +65,9 @@ def test_scene_visibility_question_answers_without_detector() -> None:
     store = CapsuleStore()
     store.add_scene(_scene(1.0, [0.0, 1.0]))
     store.add_scene(_scene(3.0, [1.0, 0.0]))
-    engine = SporeQueryEngine(store, SporeConfig(), embedder=FakeEmbedder())
+    engine = SporeQueryEngine(
+        store, SporeConfig(scene_recall=True), embedder=FakeEmbedder()
+    )
 
     answer = engine.answer("When was the stairs visible?")
 
@@ -86,7 +88,7 @@ def test_scene_answer_abstains_below_threshold() -> None:
     store.add_scene(_scene(2.0, [1.0, 0.0]))
     engine = SporeQueryEngine(
         store,
-        SporeConfig(scene_recall_min_score=1.1),
+        SporeConfig(scene_recall=True, scene_recall_min_score=1.1),
         embedder=FakeEmbedder(),
     )
 
@@ -95,3 +97,15 @@ def test_scene_answer_abstains_below_threshold() -> None:
     assert answer.abstained is True
     assert answer.answer == "not enough evidence"
     assert answer.bindings[0].provenance == "scene"
+
+
+def test_scene_visibility_answering_is_opt_in() -> None:
+    store = CapsuleStore()
+    store.add_scene(_scene(2.0, [1.0, 0.0]))
+    engine = SporeQueryEngine(store, SporeConfig(), embedder=FakeEmbedder())
+
+    answer = engine.answer("When did I see the stairs?")
+
+    assert engine.config.scene_recall is False
+    assert "scene_recall" not in answer.stats
+    assert answer.bindings == []

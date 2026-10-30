@@ -231,10 +231,11 @@ class SporeConfig:
     query_abstain_confidence: float = 0.24
     query_diversity: float = 0.28
     query_min_relevance: float = 0.10
-    # Detector-free place memory.  ``scene_recall`` answers "when was X
-    # visible?" from stored scene keyframes; it is intentionally separate
-    # from object binding and only fires on explicit visibility questions.
-    scene_recall: bool = True
+    # Detector-free place memory.  ``scene_recall`` ranks stored scene
+    # keyframes by CLIP similarity.  It is opt-in: absolute CLIP scores do not
+    # separate present from absent terms, so it must not answer open-ended
+    # visibility questions without external verification.
+    scene_recall: bool = False
     scene_recall_top_k: int = 3
     scene_recall_min_score: float = 0.15
     count_contexts: int = 32

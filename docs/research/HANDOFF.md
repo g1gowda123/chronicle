@@ -74,12 +74,14 @@ work table" (12 calls, semantic 1.00, up from .875); caller-label inventory
 remains 8/8. It is a grounded listing operator, not a captioner. See `SPORE.md`
 and `SPORE_PAPER.md` for ablations, threats to validity, and open issues.
 
-A detector-free scene-recall path answers explicit "when did I see X?" /
+A detector-free scene-recall path ranks explicit "when did I see X?" /
 "when was X visible?" questions from retained `SceneCapsule` embeddings. On a
 60 s outdoor walk it retrieved 4/6 informative landmarks at top-1 (stairs,
 person, building, cup) with zero detector calls and 13-14 ms warm query time; a
-painted curb sign and a glass door were missed. It is a place-memory
-complement, not a general sign reader.
+painted curb sign and a glass door were missed. A twelve-term absent probe
+scored .145-.259 and eleven exceeded the .15 gate, so absolute CLIP scores do
+not verify absence; the path is opt-in (`scene_recall=False`) and only ranks a
+term assumed present.
 
 
 ## 3. Main branch: what is already shipped

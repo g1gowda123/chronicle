@@ -40,6 +40,24 @@ from chronicle.perception.spore import (  # noqa: E402
 )
 
 # (query, start_s, end_s, note)
+# Terms that are absent from the clip, used to test abstention.  A useful
+# visibility operator must score these below the terms that are present.
+NEGATIVE_QUESTIONS: tuple[str, ...] = (
+    "elephant",
+    "kitchen",
+    "swimming pool",
+    "toaster",
+    "laptop",
+    "bicycle",
+    "dog",
+    "beach",
+    "office",
+    "car",
+    "train station",
+    "basketball court",
+)
+
+
 SCENE_QUESTIONS: tuple[tuple[str, float, float, str], ...] = (
     ("stairs", 44.0, 60.0, "stairs dominate the last third"),
     ("parking sign", 28.0, 38.0, "NO PARKING painted on the curb"),
@@ -113,6 +131,18 @@ def evaluate(
                 elapsed_ms=elapsed_ms,
             )
         )
+    negative_scores: dict[str, float] = {}
+    for query in NEGATIVE_QUESTIONS:
+        hits = engine.scene_recall(query, top_k=1)
+        negative_scores[query] = round(float(hits[0][1]), 3) if hits else 0.0
+    positive_scores = [float(result.top_scores[0]) for result in results]
+    wins = sum(
+        1.0 if positive > negative else 0.5 if positive == negative else 0.0
+        for positive in positive_scores
+        for negative in negative_scores.values()
+    )
+    auc = wins / max(1, len(positive_scores) * len(negative_scores))
+    threshold = SporeConfig().scene_recall_min_score
     return {
         "clip": str(clip),
         "ingest_s": round(ingest_s, 2),
@@ -123,6 +153,13 @@ def evaluate(
         "top1": sum(result.top1_hit for result in results),
         "top3": sum(result.top3_hit for result in results),
         "n": len(results),
+        "positive_scores": [round(score, 3) for score in positive_scores],
+        "negative_scores": negative_scores,
+        "negative_above_threshold": sum(
+            score >= threshold for score in negative_scores.values()
+        ),
+        "negative_n": len(negative_scores),
+        "auc_present_vs_absent": round(auc, 3),
         "results": [asdict(result) for result in results],
     }
 
@@ -155,6 +192,11 @@ def main() -> None:
             f"top1={result['top1_hit']} top3={result['top3_hit']} "
             f"times={result['top_times']} scores={result['top_scores']}"
         )
+    print(
+        "[calibration] negatives above threshold: "
+        f"{summary['negative_above_threshold']}/{summary['negative_n']} "
+        f"auc={summary['auc_present_vs_absent']}"
+    )
     print(f"[report] {out}")
 
 

@@ -97,13 +97,14 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   inventory remains 8/8. It is a grounded listing operator, not a general
   captioner; the main results table keeps the base Switch score and reports
   the inventory variant separately.
-- A detector-free scene-recall path answers explicit "when did I see X?" /
+- A detector-free scene-recall path ranks explicit "when did I see X?" /
   "when was X visible?" questions by cosine-scoring text against retained
   `SceneCapsule` embeddings. On a 60 s outdoor walk it retrieved 4/6
   informative landmarks at top-1 (stairs, person, building, cup) with zero
   detector calls and 13-14 ms warm query time, but missed a painted curb sign
-  and a glass door. It is a place-memory complement, not an object-memory or
-  sign-reading result.
+  and a glass door. A twelve-term absent probe scored .145-.259 and eleven
+  terms exceeded the .15 gate, so absolute CLIP scores cannot verify absence;
+  the natural-language path is opt-in and only ranks a term assumed present.
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

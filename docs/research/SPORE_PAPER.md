@@ -616,32 +616,43 @@ therefore a grounded listing capability, not a general captioner, and the
 main results table keeps the .875 Switch number without it; the 1.00 variant
 is reported separately.
 
-### 5.11 Detector-free scene recall (exploratory)
+### 5.11 Detector-free scene recall (exploratory, opt-in)
 
 Object capsules answer "where is X"; scene capsules can answer a complementary
 question: "when was X visible?"  `SporeQueryEngine.scene_recall` cosine-scores
 a text embedding against the retained `SceneCapsule` embeddings and returns
 the top frames.  The `when did I see X` / `when was X visible` parser routes
-only those explicit visibility questions here; touch and pickup questions stay
-on the object path.  The operator loads no detector and uses no vocabulary.
+explicit visibility questions here; touch and pickup questions stay on the
+object path.  The operator loads no detector and uses no vocabulary.
 
 On the 60 s outdoor `aria_walk_60s` clip, ingest produced 45 scenes, 63
 contexts, and 300 capsules (7.7 MB store).  Against eight prompts whose time
 windows were chosen from a contact sheet before scoring, top-1 was **6/8** and
 top-3 was **6/8**.  Two prompts (`trees`, `path`) are visible for the whole
 clip, so the informative subset is **4/6**: stairs, person, building, and cup
-succeed; a painted "NO PARKING" curb sign and a glass entrance door fail.  The
-successful scores are only .20-.30, so the .15 abstention threshold is a
-retrieval gate, not a calibrated probability.  In the reproducible eval, a
-query takes **13-14 ms** once the text encoder is warm (the first is 92 ms in
-that process); detector calls are zero.
+succeed; a painted "NO PARKING" curb sign and a glass entrance door fail.  In
+the reproducible eval, a query takes **13-14 ms** once the text encoder is warm
+(the first is 92 ms in that process); detector calls are zero.
 
-The failure mode is resolution and semantics, not indexing: global CLIP
-embeddings capture large scene structure but not small text or an ambiguous
-entrance.  OCR on raw frames did not recover the curb text (Tesseract psm 11
-returned noise; perspective crop/rectification would be needed), so scene-text
-memory is future work.  This is a place-memory capability, not a replacement
-for object binding, and it is not included in the main QA table.
+The more important result is calibration.  A probe with twelve absent terms
+(elephant, kitchen, swimming pool, toaster, laptop, bicycle, dog, beach,
+office, car, train station, basketball court) produced top-1 scores of
+.145-.259.  Eleven of twelve exceeded the .15 gate and seven exceeded .20,
+overlapping the successful present terms (.209-.297).  The pairwise AUC for
+present versus absent top-1 scores is only **.72**.  Absolute CLIP similarity
+therefore cannot decide whether a term is present; a threshold that suppresses
+absent terms also suppresses most real ones.  Scene recall is a **ranking
+primitive for a term already known to be present**, not an open-ended
+verifier.  It is consequently disabled by default (`scene_recall=False`), and
+the natural-language visibility path requires an external check before it can
+be treated as an answer.
+
+The remaining failure mode is resolution and semantics: global CLIP embeddings
+capture large scene structure but not small text or an ambiguous entrance.
+OCR on raw frames did not recover the curb text (Tesseract psm 11 returned
+noise; perspective crop/rectification would be needed), so scene-text memory
+is future work.  This is a place-memory retrieval tool, not a replacement for
+object binding, and it is not included in the main QA table.
 
 ## 6. Discussion
 
@@ -733,7 +744,8 @@ long-video evidence storage still needs an explicit budget.
 `context_fusion_spread=.4`, `context_sweep_frames=5`, `query_capsules=8`,
 `query_views=2`, `count_contexts=32`, `count_track_gap=20`,
 `count_peak_confidence=.45`, `clip_margin_center=.16`,
-`scene_recall=True`, `scene_recall_top_k=3`, `scene_recall_min_score=.15`.
+`scene_recall=False`, `scene_recall_top_k=3`, `scene_recall_min_score=.15`
+(opt-in; absolute scores are not calibrated for absence).
 
 ## Appendix B: What not to claim
 
