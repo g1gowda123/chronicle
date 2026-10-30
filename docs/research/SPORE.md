@@ -135,15 +135,20 @@ Baselines/ablations:
 
 ## Current results (short clips, pseudo-GT from dense YOLO-World)
 
-Two real egocentric clips are used as *development* evidence, not as general
+Four real egocentric clips are used as *development* evidence, not as general
 video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 
-| clip | store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
+| clip | compact store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Cook 45 s | 6.46 MB | 1.00 | 1.00 | .826 | .70 | 7.9 | 150 |
-| Switch 34 s | 4.69 MB | .75 | .75 | .611 | .875 | 7.4 | 128 |
-| Play 45 s | 7.74 MB (300-cap) | .667 | .667 | .475 | 1.00 | 5.0 | 150 |
-| HoloAssist z210 257 s | 17.07 MB (300-cap) | 1.00 | 1.00 | .77 | .05 | 12.7 | 962 |
+| Cook 45 s | 3.33 MB | 1.00 | 1.00 | .826 | .70 | 7.9 | 150 |
+| Switch 34 s | 2.20 MB | .75 | .75 | .611 | .875 | 7.4 | 128 |
+| Play 45 s | 3.77 MB (300-cap) | .667 | .667 | .475 | 1.00 | 5.0 | 150 |
+| HoloAssist z210 257 s | 9.96 MB (300-cap) | 1.00 | 1.00 | .77 | .05 | 12.7 | 962 |
+
+Compact stores are split index plus evidence blobs with capsule view pixels
+omitted; context frames and scene crops remain. Full split stores with view
+pixels are 5.00/3.75/5.98/13.35 MB; monolithic stores are 6.46/4.69/7.74/17.07
+MB.
 
 - Ablation call counts below predate disabling the redundant crop fallback;
   absolute calls are higher there, while accuracy/storage trends are unchanged.
@@ -158,9 +163,9 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   error correction needs instructor speech and temporal/activity questions
   need verbs. Only identity and counting are in the current object-memory
   scope (2/14). z210 has no audio stream.
-- Evidence per answer (unique JPEG bytes on the provenance chain): 86.8 KB Cook,
-  42.6 KB Switch, 82.1 KB Play, 44.7 KB z210 — 1.0% / 0.7% / 0.7% / 0.2% of
-  the store. Detector calls, not evidence fetches, dominate query cost.
+- Evidence per answer (unique bytes on the provenance chain): 66.3 KB Cook,
+  34.6 KB Switch, 65.2 KB Play, 35.9 KB z210 — 2.0% / 1.6% / 1.7% / 0.4% of
+  the compact store. Detector calls, not evidence fetches, dominate query cost.
 - Context-free crop binding is much weaker: Cook loc@.30 .25 / IoU .246,
   Switch loc@.30 0 / IoU .108. Retained full keyframes, not better crops, are
   the main source of the gain.
@@ -244,10 +249,11 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   analysis found only one near-duplicate prototype pair at cosine >= .95 among
   406 capsules, so merging cannot control growth. `CapsuleStore.evict_to`
   ranks capsules by contact window, hand overlap, motion, view quality, then
-  recency. On z210 this cuts 1,947 capsules to 300 and the JSON store from
-  44.2 MB to 17.1 MB with localisation unchanged (semantic remains detector-
-  limited); Cook, Switch and Play keep their headline metrics. Context frames,
-  not capsules, carry most answer evidence.
+  recency. On z210 this cuts 1,947 capsules to 300; the monolithic JSON store
+  falls 44.2 -> 17.1 MB and the compact split store is 9.96 MB, with
+  localisation unchanged (semantic remains detector-limited); Cook, Switch and
+  Play keep their headline metrics. Context frames, not capsules, carry most
+  answer evidence.
 - Counting is stable across serialization: action-start sampling now uses
   temporal bins instead of `starts[::stride]`, which changed every sampled
   context when a 4-decimal timestamp shifted. On fresh and reloaded Cook
@@ -303,34 +309,37 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   numbers are not tuned to a hand-written QA list.
 - The store now has two tiers. `CapsuleStore.save(path, split=True)` writes a
   compact index plus a sibling `*_evidence/` directory; `load` resolves the
-  references transparently. Index sizes: Cook 1.02 MB (vs 8.22 MB monolithic),
-  Switch 1.34 MB (vs 5.99), Play 1.33 MB (vs 11.45), z210-300 2.40 MB (vs
-  21.13). Evidence blobs are 3.99 / 2.43 / 4.65 MB on Cook/Switch/Play with
-  WebP crops (z210 stays 14.08 MB until re-ingested). An LLM can read
-  the index without loading image payloads; query-time code loads evidence only
-  when it needs pixels.
+  references transparently. Current compact indexes are Cook .99 MB, Switch
+  1.29 MB, Play 1.30 MB, z210-300 2.35 MB; evidence blobs are 2.35 / .91 /
+  2.47 / 7.61 MB, for compact totals of 3.33 / 2.20 / 3.77 / 9.96 MB. An LLM
+  can read the index without loading image payloads; query-time code loads
+  evidence only when it needs pixels.
 - Capsule/scene crops use WebP q82; context keyframes stay JPEG. This cuts
   monolithic stores from 8.22 to 6.41 MB (Cook), 6.16 to 4.69 MB (Switch), and
   11.45 to 7.68 MB (Play) with identical QA. Recoding contexts to WebP is not
   safe: Cook semantic/loc@.3 fall .70/1.00 to .50/.50, so only the narrower
   crops use it. Lowering context JPEG quality to 70 saves only 6% but drops
-  Cook semantic .70 to .60 and IoU .692 to .573. Split evidence is 3.99 /
-  2.43 / 4.65 MB. Downscaling contexts is also unsafe: 512 px wide saves 13.6%
+  Cook semantic .70 to .60 and IoU .692 to .573. The view-bearing split
+  evidence was 3.99 / 2.43 / 4.65 MB; compact evidence is 2.35 / .91 / 2.47
+  MB. Downscaling contexts is also unsafe: 512 px wide saves 13.6%
   of Cook split bytes but drops semantic .70 -> .40, loc@.3 1.00 -> .50, and
   IoU .692 -> .425; 576 px still drops semantic to .40.
 - View pixels are optional (`include_view_images=False`): views keep boxes and
   embeddings for routing, while contexts keep the pixels used for detection.
-  Cook drops to 3.48 MB, Switch to 2.37 MB, Play to 4.55 MB, with unchanged QA
-  and fewer detector calls (8.3 / 8.6 / 4.5 per query).
+  This is the benchmark dump default now. It cuts the current split stores
+  25-41% (Cook 5.00 -> 3.33 MB, Switch 3.75 -> 2.20, Play 5.98 -> 3.77, z210
+  13.35 -> 9.96) with identical QA and detector calls. `--view-pixels` keeps
+  crops; `--dump-split` writes index plus evidence blobs.
 - Capsule eviction is not a free memory knob. Evicting Cook 196 -> 50 preserves
   all answers (.70 / 1.00 / .692) and 6.46 -> 4.86 MB, but calls rise 13.7 ->
   14.9; z210 300 -> 75 cuts 17.07 -> 12.35 MB, but calls rise 22.5 -> 24.0 and
   semantic falls .05 -> .025 (one question). Switch 300 -> 150 drops semantic
   .875 -> .75 because routing chooses a different context and loses the
   console's support phrase, despite unchanged loc/IoU. Keep capsules for
-  routing and drop view pixels instead. Context frames are the floor: ~4 MB
-  Cook, ~12 MB z210.
-- Sparse contexts are not a free win: with view pixels dropped, 1.0 s and 1.5 s
+  routing and drop view pixels instead. In the compact store, context/scene
+  evidence is the floor: 2.35 MB Cook, 7.61 MB z210.
+- Sparse contexts are not a free win: in an earlier pre-WebP no-view ablation,
+  1.0 s and 1.5 s
   context gaps save only 3-25% but reduce Cook loc@.30 from 1.00 to .75 (and
   1.0 s also Switch .75 -> .50). Keep `context_min_gap=0.75`; detector phase
   matters more than raw frame count.

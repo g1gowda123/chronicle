@@ -291,7 +291,11 @@ def evaluate(args: argparse.Namespace) -> dict:
     if args.dump:
         dump_dir = Path(args.dump)
         dump_dir.mkdir(parents=True, exist_ok=True)
-        store.save(dump_dir / "store.json")
+        store.save(
+            dump_dir / "store.json",
+            include_view_images=args.view_pixels,
+            split=args.dump_split,
+        )
         (dump_dir / "dense.json").write_text(
             json.dumps(
                 [
@@ -546,6 +550,16 @@ def main() -> None:
     parser.add_argument("--budget", type=int, default=8)
     parser.add_argument("--out", default="")
     parser.add_argument("--dump", default="")
+    parser.add_argument(
+        "--view-pixels",
+        action="store_true",
+        help="Keep capsule view crops when dumping a store (default: contexts only).",
+    )
+    parser.add_argument(
+        "--dump-split",
+        action="store_true",
+        help="Write the dumped store as an index plus evidence blobs.",
+    )
     parser.add_argument("--store", default="")
     parser.add_argument("--mode", default="hybrid", choices=("clip", "detector", "hybrid"))
     parser.add_argument("--no-context", action="store_true")

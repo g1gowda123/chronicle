@@ -17,13 +17,13 @@ CLIP; and stores compressed full keyframes as query-time context. A query
 routes question terms to capsules, runs an open-vocabulary detector only on a
 few retained keyframes, and fuses detections across time into instance tracks.
 The store separates a compact index (metadata, embeddings, provenance) from
-JPEG evidence blobs, so an LLM can read the index without loading pixels. On
-three short egocentric clips, SPORE localises 0.90/0.90/0.667 of
-dense-detectable objects with 4-8 detector calls per query versus 128-150 for
-dense sampling; a compact 300-capsule store cuts the 257 s HoloAssist z210
-store from 44.2 MB to 17.1 MB while preserving localisation, and an answer
-touches only 43-87 KB of evidence. Fine-object counting remains source-
-resolution-bound as well as detector-bound.
+compressed evidence blobs, so an LLM can read the index without loading pixels. On
+three short egocentric clips, SPORE localises 0.75-1.00 of dense-detectable
+objects at loc@.3 with 5-8 detector calls per query versus 128-150 for dense
+sampling; a compact 300-capsule store cuts the 257 s HoloAssist z210 store
+from 44.2 MB to 9.96 MB while preserving localisation, and an answer touches
+only 35-66 KB of evidence. Fine-object counting remains source-resolution-bound
+as well as detector-bound.
 
 ## 1. Introduction
 
@@ -115,20 +115,23 @@ To keep the store LLM-friendly, `CapsuleStore.save(path, split=True)` writes:
 
 - `index.json`: capsules, views, embeddings, actions, contacts, scene/text
   records, and `file:` references;
-- `<stem>_evidence/`: JPEG crops and context frames.
+- `<stem>_evidence/`: WebP scene crops and JPEG context frames.
 
 `CapsuleStore.load` resolves references transparently. A monolithic store is
 still available for compatibility.
 
 Views are routing indices, not the primary evidence.  Setting
 `include_view_images=False` keeps view boxes and embeddings but drops view
-pixels; context frames remain the localisation evidence.  In the pre-WebP
-ablation this reduced Cook from 8.27 to 3.48 MB, Switch from 6.06 to 2.37 MB,
-Play from 11.53 to 4.55 MB, and the 1,947-capsule z210 store from 44.15 to
-17.05 MB, with Cook/Switch/Play answers unchanged and z210 at .025 in that
-run.  Detector calls per query fell to 8.3 / 8.6 / 4.5 / 16.8 because the
-redundant crop detector fallback disappeared.  We therefore recommend storing
-view pixels only when crop-level binding must work without contexts.
+pixels; context frames remain the localisation evidence.  With WebP scene
+crops and adaptive fusion this reduces the current split stores from
+5.00/3.75/5.98/13.35 MB to **3.33/2.20/3.77/9.96 MB** for Cook, Switch, Play,
+and z210, a 25-41% reduction.  All headline answers and detector-call counts
+are unchanged: Cook .70 / IoU .826 / 7.9 calls, Switch .875 / .611 / 7.4,
+Play 1.00 / .475 / 5.0, z210 .05 / .77 / 12.7.  The JSON index remains
+human-readable at 1.0-2.4 MB.  The benchmark dumper therefore omits crop
+pixels by default (`--view-pixels` retains them) and can write the split
+index with `--dump-split`.  Keep view pixels only when crop-level inspection
+must work without context frames.
 
 ### 3.4 Query routing and late binding
 
@@ -193,11 +196,12 @@ boxes; all retention and localisation numbers should be read as
   appears in the composed answer.
 - **Detector calls per query:** includes routing, context binding, fusion,
   counting, and support inference.
-- **Store bytes:** serialized JSON, with a separate index/evidence breakdown.
-- **Evidence bytes per answer:** unique JPEG bytes attached to the answer's
-  provenance chain (best capsule view plus retained context), not the whole
-  store. This approximates what an LLM-side reader would fetch from the split
-  evidence directory for one question.
+- **Store bytes:** compact split store on disk (JSON index plus evidence
+  blobs); monolithic JSON sizes are noted where relevant.
+- **Evidence bytes per answer:** unique evidence bytes attached to the
+  answer's provenance chain (retained context and any scene crop), not the
+  whole store. This approximates what an LLM-side reader would fetch from the
+  split evidence directory for one question.
 
 ### 4.4 Held-out automatic questions
 
@@ -214,12 +218,17 @@ any-instance localisation.
 
 Hand-written QA sets:
 
-| Domain | Semantic | loc@.3 | loc@.5 | mean IoU | Store | Calls/query | Dense calls |
+| Domain | Semantic | loc@.3 | loc@.5 | mean IoU | Compact store | Calls/query | Dense calls |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Cook 45 s | .70 | 1.00 | 1.00 | .826 | 6.46 MB | 7.9 | 150 |
-| Switch 34 s | .875 | .75 | .75 | .611 | 4.69 MB | 7.4 | 128 |
-| Play 45 s | 1.00 | .667 | .667 | .475 | 7.74 MB | 5.0 | 150 |
-| z210 257 s (300 caps) | .05 | 1.00 | 1.00 | .77 | 17.07 MB | 12.7 | 962 |
+| Cook 45 s | .70 | 1.00 | 1.00 | .826 | 3.33 MB | 7.9 | 150 |
+| Switch 34 s | .875 | .75 | .75 | .611 | 2.20 MB | 7.4 | 128 |
+| Play 45 s | 1.00 | .667 | .667 | .475 | 3.77 MB | 5.0 | 150 |
+| z210 257 s (300 caps) | .05 | 1.00 | 1.00 | .77 | 9.96 MB | 12.7 | 962 |
+
+Compact stores are split index plus evidence blobs with capsule view pixels
+omitted; context frames and scene crops remain.  Full split stores that retain
+view pixels are 5.00/3.75/5.98/13.35 MB, and monolithic stores are
+6.46/4.69/7.74/17.07 MB.
 
 Calls/query use the default context-first binding, which does not re-detect
 retained crops; batch prefetch is a separate session-level optimisation
@@ -303,32 +312,32 @@ the direction of each effect is unchanged.
 | CLIP margin .22 | suppresses false switch console, but Cook .40 -> .30 | keep .16 |
 | Count clustering | Cook cups 6 -> 2, semantic .50 -> .60 | keep |
 | Colour attribute | Switch semantic .75 -> .875 | keep |
-| Capsule eviction, 1,947 -> 300 | z210 44.2 -> 17.1 MB, loc unchanged | keep |
-| Split index/evidence | 8.22 -> 1.02 MB index on Cook | keep |
-| Drop view pixels, keep contexts | Cook 8.27 -> 3.48 MB, metrics unchanged | keep optional |
+| Capsule eviction, 1,947 -> 300 | z210 44.2 -> 17.1 MB monolithic, loc unchanged | keep |
+| Split index/evidence | Cook index .99 MB in compact store | keep |
+| Drop view pixels, keep contexts | compact stores 25-41% smaller; all four QAs/calls unchanged | keep (dump default) |
 
 ### 5.3 Storage breakdown
 
-These split-storage measurements predate WebP view crops; current full-store
-sizes are in Table 1.
+Current compact split stores on disk.  The index is JSON; evidence is scene
+crops and retained context keyframes, with capsule view pixels omitted.
 
-| Store | Full JSON | Index | Evidence | Embeddings (in index) |
-|---|---:|---:|---:|---:|
-| Cook | 8.22 MB | 1.02 MB | 5.42 MB | .66 MB |
-| Switch | 5.99 MB | 1.34 MB | 3.50 MB | .81 MB |
-| Play | 11.45 MB | 1.68 MB | 7.34 MB | 1.00 MB |
-| z210 (300 caps) | 21.13 MB | 2.40 MB | 14.08 MB | ~1.5 MB |
+| Store | Index | Evidence | Total | Evidence/answer |
+|---|---:|---:|---:|---:|---:|
+| Cook | .99 MB | 2.35 MB | 3.33 MB | 66.3 KB |
+| Switch | 1.29 MB | .91 MB | 2.20 MB | 34.6 KB |
+| Play | 1.30 MB | 2.47 MB | 3.77 MB | 65.2 KB |
+| z210 (300 caps) | 2.35 MB | 7.61 MB | 9.96 MB | 35.9 KB |
 
-The index is 5-8x smaller than the monolithic store and contains the
-LLM-readable structure: timestamps, boxes, labels, contacts, actions, and
-provenance.
+The index contains the LLM-readable structure: timestamps, boxes, labels,
+contacts, actions, and provenance.  The largest index is 2.35 MB because z210
+retains 300 capsules and 264 contexts; the short clips stay near 1 MB.
 
-A single answer touches far less evidence than the store: counting the unique
-JPEG bytes attached to its provenance chain gives **86.8 KB/query** on Cook,
-**42.6 KB** on Switch, **82.1 KB** on Play, and **44.7 KB** on z210.  These are
-1.0%, 0.7%, 0.7%, and 0.2% of the corresponding stores, respectively.  The
-number is a fetch estimate for an LLM-side reader, not a claim that decoding
-cost is negligible: detector calls dominate query latency.
+A single answer touches far less evidence than the store: the unique bytes
+attached to its provenance chain are **66.3 KB** on Cook, **34.6 KB** on
+Switch, **65.2 KB** on Play, and **35.9 KB** on z210.  These are 2.0%, 1.6%,
+1.7%, and 0.4% of the corresponding compact stores.  The number is a fetch
+estimate for an LLM-side reader, not a claim that decoding cost is negligible:
+detector calls dominate query latency.
 
 Capsule eviction is not a free memory knob.  Offline eviction of the Cook store
 from 196 to 50 capsules preserves every answer (.70 / 1.00 / .692 on the
@@ -339,16 +348,17 @@ accuracy falls .05 to .025 (one question).  Switch from 300 to 150 capsules
 drops semantic .875 to .75: the console support phrase disappears because
 routing selects a different context (18.2 s instead of 20.8 s), even though
 localization and IoU are unchanged.  Capsule views are routing priors, not just
-payload.  (Sizes here are the JSON serialization reported by the query engine;
-split-on-disk stores are smaller because image bytes leave the index.)  Keep
-the capsule count and drop view pixels instead; the no-view
-store keeps 300-capsule routing at 3.48 / 2.37 / 4.55 MB.  Retained context
-frames set the memory floor: about 4 MB for Cook and 12 MB for z210.
+payload.  (Eviction sizes here are the earlier monolithic serialization;
+current compact split stores are in Table 1.)  Keep the capsule count and
+drop view pixels instead; current compact stores retain 300-capsule routing at
+3.33 / 2.20 MB for Cook/Switch and 9.96 MB for z210.  Retained context frames
+set the memory floor: 2.35 MB for Cook and 7.61 MB for z210 in compact
+evidence.
 
-Context density is not monotonic with accuracy.  With view pixels dropped, a
-0.75 s gap gives Cook 3.48 MB / Switch 2.37 MB and Cook loc@.3 1.00; a 1.0 s
-gap gives 3.37 / 2.22 MB but Cook loc@.3 .75 and Switch .50; a 1.5 s gap gives
-2.61 / 2.08 MB, Cook loc@.3 .75 and Switch .75.  The sampled keyframe phase
+Context density is not monotonic with accuracy.  In an earlier pre-WebP
+no-view ablation, a 0.75 s gap gave Cook 3.48 MB / Switch 2.37 MB and Cook
+loc@.3 1.00; a 1.0 s gap gave 3.37 / 2.22 MB but Cook loc@.3 .75 and Switch
+.50; a 1.5 s gap gave 2.61 / 2.08 MB, Cook loc@.3 .75 and Switch .75.  The sampled keyframe phase
 changes which detections survive, so saving 25-30% of context bytes is not
 worth losing small static objects.  Keep `context_min_gap=0.75`.
 
@@ -389,9 +399,10 @@ contexts, so a short held-knife interval can fall between two contexts:
 | Cook | 4 | .70 | 1.00 | 1.00 | .826 | 6.46 MB | 7.9 | 150 |
 | Cook | 8 | .40 | .80 | .40 | .524 | 6.55 MB | 7.5 | 225 |
 
-All three rows use the current adaptive fusion and WebP views.  Dense calls
-scale with the sampling rate, so the detector-call saving per query grows at
-8 fps even as accuracy falls.
+All three rows use the current adaptive fusion and WebP views; the Store
+column is the monolithic JSON serialization including view crops, not the
+compact on-disk store.  Dense calls scale with the sampling rate, so the
+detector-call saving per query grows at 8 fps even as accuracy falls.
 
 A query-time **foveal rescan** can recover a short interaction without storing
 every frame: when retained contexts yield no detector evidence, re-decode a
@@ -522,8 +533,8 @@ unchanged: Cook semantic .70 / loc@.3 1.00, Switch .875 / .75, Play
 1.00 / .667; on the pre-adaptive mean-box baseline Cook IoU was .692.
 Monolithic stores shrink from 8.22 to 6.41 MB (Cook), 6.16 to 4.69 MB
 (Switch), and 11.45 to 7.68 MB (Play), a 22-33% reduction.  With
-split storage the Cook index is 1.02 MB and its evidence blobs 3.99 MB;
-Switch is 1.33 / 2.43 MB, Play 1.33 / 4.65 MB.  The remaining context bytes
+compact split storage the Cook index is .99 MB and its evidence blobs
+2.35 MB; Switch is 1.29 / .91 MB, Play 1.30 / 2.47 MB.  The remaining context bytes
 are not free to recompress: recoding context frames alone to WebP quality 80
 dropped Cook semantic accuracy .70 to .50 and loc@.3 1.00 to .50.  Small
 objects on the wider keyframe are codec-sensitive, so the narrower capsule
@@ -630,10 +641,11 @@ objects are sensitive to its smoothing.
 ## 8. Reproducibility
 
 ```bash
-# Ingest + hand-written QA
+# Ingest + hand-written QA, dumping a compact split store
 python scripts/spore_real_bench.py \
   --clip data/real/aria_cook_45s.mp4 \
   --qa data/qa/cook_45s.json \
+  --dump research/spore/results/cook_store/store.json --dump-split \
   --out research/spore/results/cook.json
 
 # Held-out automatic questions
@@ -647,7 +659,11 @@ python scripts/spore_autoeval.py \
 python - <<'PY'
 from chronicle.perception.capsules import CapsuleStore
 store = CapsuleStore.load("research/spore/results/gap_cook/store.json")
-store.save("research/spore/results/gap_cook/index.json", split=True)
+store.save(
+    "research/spore/results/gap_cook/index.json",
+    split=True,
+    include_view_images=False,
+)
 PY
 ```
 
