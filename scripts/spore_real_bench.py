@@ -123,9 +123,12 @@ def _semantic_match(question: dict, answer: SporeAnswer) -> bool | None:
     semantic score keeps the text answer honest while the IoU metrics measure
     localisation quality against dense pseudo-ground-truth.
     """
+    raw_expected = question.get("answers") or question.get("answer") or []
+    if isinstance(raw_expected, str):
+        raw_expected = [raw_expected]
     expected = [
         str(value).strip().lower()
-        for value in (question.get("answers") or [question.get("answer", "")])
+        for value in raw_expected
         if str(value).strip()
     ]
     if not expected:

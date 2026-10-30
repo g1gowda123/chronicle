@@ -2335,6 +2335,21 @@ class SporeQueryEngine:
             ]
             if not matches:
                 continue
+            hands = [
+                BBox.from_sequence(box)
+                for box in (context.metadata.get("hand_boxes") or [])
+            ]
+            if hands:
+                # Seeing an object on a shelf is not touching it.  A first-touch
+                # answer must have the hand and the detection at the same place.
+                matches = [
+                    detection
+                    for detection in matches
+                    if max((hand.ios(detection.bbox) for hand in hands), default=0.0)
+                    >= 0.05
+                ]
+                if not matches:
+                    continue
             detection = max(matches, key=lambda item: item.confidence)
             persistence = 0.0
             if index + 1 < len(contexts):
