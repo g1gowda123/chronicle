@@ -327,6 +327,13 @@ tightens.  This is evidence that contact geometry is a usable *temporal index*
 before any verb labels, not evidence that SPORE understands verbs.  Verb
 naming remains future work.
 
+A more permissive merge that joined actions across capsule identities when
+their hand boxes were spatially close (IoU $\geq .10$ or centre distance
+$\leq .75\times$ the hand-box scale) collapsed the stream to 7 actions and
+cut recall to .58/.25/.17/.17 at IoU .1-.5 (mean best IoU .194).  Hand
+proximity is not an identity signal: different objects handled in the same
+place chain together.  The primary-capsule gate is retained.
+
 ### 5.7 Query latency and vocabulary switching
 
 Steady-state query latency on the Cook saved store, measured on the RTX 4060
