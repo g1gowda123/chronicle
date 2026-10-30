@@ -227,7 +227,10 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   and precision .917 at IoU .1 / .792 at .2 / .708 at .3 (38 actions before
   the pass: .684/.526/.447). QA is unchanged. Reproduce with
   `scripts/spore_action_eval.py`; verb naming is still open, and thresholds
-  were validated on one clip. Merging across capsule identities by hand-box
+  were validated on one clip. A duration sweep (.4-5.0 s) spans 26-20 actions
+  with a broad 1.2-2.5 s plateau (mean IoU .514, precision@.2 .818, recall@.2
+  .917), so .8 s is a conservative default rather than a tuned point.
+  Merging across capsule identities by hand-box
   proximity still over-merges (7 actions, recall .58/.25/.17/.17), so identity
   remains the merge gate.
 - Sampling is not monotonically better. On Cook, semantic/loc@.3/IoU are

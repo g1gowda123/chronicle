@@ -363,6 +363,15 @@ coarser than the 12-event annotation, and the threshold was validated on one
 annotated clip; it is a temporal-index improvement, not evidence that SPORE
 understands verbs.  Verb naming remains future work.
 
+A threshold sweep on the same 38-action stream checks that the gain is not a
+single-point fit.  With still duration .4/.6/.8/1.0/1.2/2.5/3.0/5.0 s, the
+merged action counts are 26/25/24/24/22/22/21/20, mean best IoU is
+.475/.475/.488/.488/.514/.514/.510/.493, and precision at IoU .2 is
+.769/.800/.792/.792/.818/.818/.810/.850; recall at IoU .2 stays .917
+throughout.  The 1.2-2.5 s range is a broad plateau, and .8 s is the
+conservative default.  The still-gap parameter (.15-.45 s) made no difference
+on this clip, so the result depends mainly on the duration rule.
+
 A more permissive merge that joined actions across capsule identities when
 their hand boxes were spatially close (IoU $\geq .10$ or centre distance
 $\leq .75\times$ the hand-box scale) collapsed the stream to 7 actions and
