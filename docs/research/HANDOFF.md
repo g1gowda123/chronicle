@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `ff24d8b` | pushed; SPORE perceiver + benchmarks + split store + auto-eval + action consolidation |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `e33a110` | pushed; SPORE perceiver + benchmarks + split store + auto-eval + action consolidation |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -59,8 +59,11 @@ stringification; its 407 capsules are bounded to 10.4 MB. Automatic
 held-out questions generated from dense tracks score Cook .90 / Play .90 /
 Switch .667 loc@.30 (any-instance Switch .889). The store now supports
 `save(..., split=True)`: Cook's LLM-readable index is 1.02 MB instead of
-8.22 MB, with evidence in sidecar blobs. See `SPORE.md` and
-`SPORE_PAPER.md` for ablations, threats to validity, and open issues.
+8.22 MB, with evidence in sidecar blobs. View pixels are optional when
+contexts are retained: Cook drops to 3.48 MB, Switch 2.37 MB, Play 4.55 MB,
+with unchanged QA and fewer detector calls (contexts, not crop views, carry
+localisation evidence). See `SPORE.md` and `SPORE_PAPER.md` for ablations,
+threats to validity, and open issues.
 
 
 ## 3. Main branch: what is already shipped
