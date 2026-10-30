@@ -149,6 +149,9 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   absolute calls are higher there, while accuracy/storage trends are unchanged.
   Cook IoU values of .692 in older ablations predate adaptive fusion; the
   current default is .826, and the direction of each effect is unchanged.
+  The gain is phase-conditional: at 4.4 fps adaptive/mean is .826/.692, but at
+  3.6 fps both are .371 because that ingest loses the cup evidence; absolute
+  scores are ingest-phase sensitive.
 - The z210 aggregate is 2/40 and is dominated by task mix. One object-identity
   and one counting answer are correct; object location is 0/6 because the
   questions ask for place labels such as “Work Table”, not object boxes, while
@@ -265,12 +268,14 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   remains the merge gate.
 - Sampling is not monotonically better. On Cook, semantic/loc@.3/IoU are
   .60/.60/.632 at 2 fps, .70/1.00/.826 at 4 fps, and .40/.80/.524 at 8 fps;
-  Switch is .75/.75/.649, .875/.75/.590, .75/.75/.573. More frames change the
+  Switch is .75/.75/.649, .875/.75/.611, .75/.75/.573. More frames change the
   temporal phase of retained contexts and can skip a short interaction. Default
   stays 4 fps. Opt-in `rescan=True` re-decodes a 1 s window of the source at
   12 fps only when retained evidence is weak; on the 8 fps Cook store it
-  recovers loc@.3 .80->1.00 / IoU .626->.739 at 20.3 calls,
-  but adds no accuracy at 4 fps, so it is an escalation path, not a default.
+  recovers loc@.3 .80->1.00 / IoU .626->.739 at 20.3 calls. On Play it recovers
+  the shoe (loc .667->1.00, IoU .475->.717) at 12.75 calls, but adds no
+  semantic accuracy at 4 fps Cook/Switch; on a 3.6 fps Cook store it raises IoU
+  .371->.587 while semantic stays .40. It is an escalation path, not a default.
 - Fine-object limits are detector-bound and source-resolution-bound, not
   prompt-bound: over all 264 z210 contexts, YOLO-World-S returned zero
   detections for game card, SD card, wrist strap, and comfort grip, including

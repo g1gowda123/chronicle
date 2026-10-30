@@ -235,6 +235,16 @@ goes from .33 to .86 IoU.  Switch (.611) and Play (.475) are unchanged.
 Using the representative box unconditionally is not safe: it raises Cook but
 drops Switch to .533 and Play to .217, so the stability gate is required.
 
+The gain is conditional on whether the ingest actually contains a spatially
+inconsistent query-time track, and it is not invariant to sampling phase.  At
+4.4 fps the adaptive/mean comparison is .826/.692 IoU and loc@.5 1.00/.75 at
+the same .70 semantic accuracy, reproducing the 4.0 fps gain.  At 3.6 fps both
+modes score .371 IoU, loc@.3 .50, semantic .40: that ingest loses the cup
+evidence (store retention .75, dense detection only 4/7), so the trigger has
+nothing to repair.  Absolute scores are therefore ingest-phase sensitive;
+adaptive fusion is a targeted fix for inconsistent tracks, not a universal
+accuracy gain.
+
 The z210 aggregate is dominated by task mix, not by a single perception
 failure. In the timed 40-question baseline, semantic accuracy is 2/40: one
 object-identity answer and one count. Per category:
@@ -387,9 +397,16 @@ A query-time **foveal rescan** can recover a short interaction without storing
 every frame: when retained contexts yield no detector evidence, re-decode a
 one-second window of the original video at 12 fps.  On the 8 fps Cook store,
 rescan raises loc@.3 .80→1.00 and mean IoU .626→.739 at
-20.3 calls/query (vs 12.7 without).  On 4 fps stores it changes no headline
-metric and roughly doubles calls, so it remains opt-in (`rescan=False`) and is
-reported as a cost/accuracy escalation rather than a default.
+20.3 calls/query (vs 12.7 without).  On the 4 fps Cook and Switch stores it
+changes no headline metric and roughly doubles calls.  It is useful when an
+object is absent from retained evidence: on Play it recovers the shoe and
+raises loc@.3 .667→1.00 and mean IoU .475→.717 (semantic unchanged at 1.00) at
+12.75 calls/query versus 5.0.  On the phase-shifted 3.6 fps Cook store,
+rescan raises loc@.3 .50→.75 and mean IoU .371→.587 at 16.7 calls/query, but
+semantic accuracy stays .40 because the missed first-touch context is not
+recovered.  The table query still fails after rescan, so this is a targeted
+fallback for missing objects, not a universal default; `rescan=False` remains
+the default.
 
 ### 5.6 Action intervals against real annotation
 
