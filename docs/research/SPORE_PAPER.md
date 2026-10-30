@@ -409,6 +409,13 @@ calls per question, so prefetching there would add work. The API is opt-in
 (`--batch-prefetch`); a new prefetch replaces the previous table, and the table
 is released with the engine.
 
+Extending the same pass to capsule views is not a free win. Prefetching all 989
+retained view crops raises prefetch cost to 24.79 s and total calls to 1,253;
+query calls fall to zero and query time to 8.56 s, but the session takes 33.4 s
+versus 17.5 s with context-only prefetch. Blind view prefetch overpays because
+most views are never queried; it needs query-aware selection rather than a
+global vocabulary union.
+
 Ingest remains the other cost. The 45 s Cook clip took ~25 s (225 sampled
 frames, 140 keyframes) when the GPU was idle; the 257 s z210 clip takes ~298 s.
 Compaction is throttled to once per second and checks box overlap before

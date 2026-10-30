@@ -173,7 +173,9 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   calls 898 -> 599 (-33%) and query time 24.05 s -> 14.03 s (-42%), plus 3.49 s
   prefetch; semantics stayed .05 and IoU .768 vs .77. It only pays when
   contexts are fewer than per-question calls (264 vs 22.45/Q here; Cook would
-  not benefit).
+  not benefit). Prefetching all 989 capsule views as well costs 24.79 s and
+  makes the session 33.4 s vs 17.5 s despite zero query calls; blind view
+  prefetch needs query-aware selection.
 - Negative result: adaptive context density (0.25 s while a hand action is
   open, 1.5 s idle) increased store size and *hurt* Switch localisation
   (loc@.30 0, IoU .087), because changed context placement altered track
