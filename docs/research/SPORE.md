@@ -88,8 +88,9 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
 - The same capsules support later queries for objects that were never named
   during ingestion.
 - An opt-in inventory path answers "what is on the table?" by sampling support
-  contexts across the clip, detecting a caller-supplied candidate vocabulary,
-  and keeping objects whose centres lie on the support box. It is a grounded
+  contexts across the clip (12, expanding to 24 or 48 when the first batch
+  finds nothing), detecting a caller-supplied candidate vocabulary, and
+  keeping objects whose centres lie on the support box. It is a grounded
   listing operator, not a general captioner; the main results table keeps the
   base Switch score and reports the inventory variant separately.
 

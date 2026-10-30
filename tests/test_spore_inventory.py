@@ -24,6 +24,13 @@ class SceneDetector(BaseDetector):
         ]
 
 
+class LateSceneDetector(SceneDetector):
+    def detect(self, frame, frame_index=0, timestamp=0.0):
+        if frame_index != 4:
+            return []
+        return super().detect(frame, frame_index=frame_index, timestamp=timestamp)
+
+
 def _context(timestamp: float, frame_index: int) -> ContextFrame:
     ok, encoded = cv2.imencode(".jpg", np.zeros((100, 100, 3), dtype=np.uint8))
     assert ok
@@ -84,3 +91,22 @@ def test_inventory_builds_detector_on_first_question(monkeypatch) -> None:
 
     assert answer.abstained is False
     assert "joy-con" in answer.answer
+
+
+def test_inventory_expands_contexts_when_first_batch_is_empty() -> None:
+    store = CapsuleStore()
+    store.contexts.extend([_context(float(i), i) for i in range(1, 5)])
+    engine = SporeQueryEngine(
+        store,
+        SporeConfig(
+            inventory_labels=("joy-con", "person", "desk"),
+            inventory_contexts=1,
+            inventory_max_contexts=4,
+        ),
+        detector=LateSceneDetector(),
+    )
+
+    answer = engine.answer("What objects are on the work table?")
+
+    assert answer.abstained is False
+    assert answer.stats["inventory"] == ["joy-con"]

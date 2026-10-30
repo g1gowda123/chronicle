@@ -532,10 +532,11 @@ is required before a stronger detector can help.
 
 Object binding answers "where is X", but not "what is on the work table": the
 place is a support relation, not an object capsule.  The opt-in
-`inventory_labels` path samples 12 retained contexts across the clip, runs one
-detector pass with the candidate object labels plus support labels, selects the
-support box, and keeps object detections whose centre lies on that box (or
-whose box overlaps it).  Lexical aliases are merged only when their boxes
+`inventory_labels` path samples 12 retained contexts across the clip and
+expands to 24 and then 48 contexts if the first batch finds no supported
+object. It runs one detector pass with the candidate object labels plus
+support labels, selects the support box, and keeps object detections whose
+centre lies on that box (or whose box overlaps it).  Lexical aliases are merged only when their boxes
 overlap, which is deliberately conservative: because the detected joy-con
 boxes do not overlap, the current Switch answer still lists both "joy-con
 controllers" and "joy-con".

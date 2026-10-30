@@ -243,6 +243,7 @@ class SporeConfig:
     infer_support: bool = True
     inventory_labels: tuple[str, ...] = ()
     inventory_contexts: int = 12
+    inventory_max_contexts: int = 48
     inventory_min_confidence: float = 0.25
     inventory_max_items: int = 4
     view_binding: bool = False
@@ -2484,24 +2485,15 @@ class SporeQueryEngine:
             return [], [], 0
         vocabulary = tuple(dict.fromkeys((*objects, *self.config.support_labels)))
         contexts = list(self.store.contexts)
-        limit = max(1, int(self.config.inventory_contexts))
-        if len(contexts) > limit:
-            indices = np.linspace(0, len(contexts) - 1, limit, dtype=int)
-            contexts = [contexts[int(index)] for index in indices]
-            if at_time is not None:
-                nearest = min(
-                    self.store.contexts,
-                    key=lambda context: abs(context.timestamp - at_time),
-                )
-                if nearest not in contexts:
-                    contexts[-1] = nearest
         place_lower = place.strip().lower()
         best: dict[str, tuple[float, Binding]] = {}
         scanned = 0
-        for context in contexts:
+
+        def scan_context(context: ContextFrame) -> None:
+            nonlocal scanned
             frame = context.image()
             if frame is None:
-                continue
+                return
             detections = self._detect_cached(
                 frame,
                 vocabulary,
@@ -2517,7 +2509,7 @@ class SporeQueryEngine:
                 and detection.confidence >= self.config.inventory_min_confidence
             ]
             if not anchors:
-                continue
+                return
             anchors.sort(
                 key=lambda detection: (
                     place_lower in detection.label.lower()
@@ -2554,6 +2546,35 @@ class SporeQueryEngine:
                         provenance="inventory",
                     ),
                 )
+
+        limit = max(1, int(self.config.inventory_contexts))
+        max_contexts = max(limit, int(self.config.inventory_max_contexts))
+        limits: list[int] = []
+        current = limit
+        while current < min(len(contexts), max_contexts):
+            limits.append(current)
+            current = min(max_contexts, current * 2)
+        limits.append(min(len(contexts), max_contexts))
+        seen: set[int] = set()
+        for batch_limit in limits:
+            if batch_limit <= 0:
+                break
+            indices = np.linspace(0, len(contexts) - 1, batch_limit, dtype=int)
+            batch = [contexts[int(index)] for index in indices]
+            if at_time is not None:
+                nearest = min(
+                    self.store.contexts,
+                    key=lambda context: abs(context.timestamp - at_time),
+                )
+                if nearest not in batch:
+                    batch[-1] = nearest
+            for context in batch:
+                if context.frame_index in seen:
+                    continue
+                seen.add(context.frame_index)
+                scan_context(context)
+            if best:
+                break
         ordered = sorted(best.items(), key=lambda item: item[1][0], reverse=True)
         # "joy-con" and "joy-con controllers" are two prompts for one object.
         # Merge only when the boxes overlap so a genuinely different instance
