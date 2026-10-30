@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `9c3f18f` | pushed; SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `a352b0f` | pushed; SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
