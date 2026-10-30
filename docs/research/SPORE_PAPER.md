@@ -270,6 +270,20 @@ JPEG bytes attached to its provenance chain gives **86.8 KB/query** on Cook,
 number is a fetch estimate for an LLM-side reader, not a claim that decoding
 cost is negligible: detector calls dominate query latency.
 
+Capsule eviction is not a free memory knob.  Offline eviction of the Cook store
+from 196 to 50 capsules preserves every answer (.70 / 1.00 / .692) while
+shrinking the serialized store 6.46 to 4.86 MB, but calls rise 13.7 to 14.9.  On z210, 300 to 75
+capsules shrinks 17.07 to 12.35 MB, yet calls rise 22.5 to 24.0 and semantic
+accuracy falls .05 to .025 (one question).  Switch from 300 to 150 capsules
+drops semantic .875 to .75: the console support phrase disappears because
+routing selects a different context (18.2 s instead of 20.8 s), even though
+localization and IoU are unchanged.  Capsule views are routing priors, not just
+payload.  (Sizes here are the JSON serialization reported by the query engine;
+split-on-disk stores are smaller because image bytes leave the index.)  Keep
+the capsule count and drop view pixels instead; the no-view
+store keeps 300-capsule routing at 3.48 / 2.37 / 4.55 MB.  Retained context
+frames set the memory floor: about 4 MB for Cook and 12 MB for z210.
+
 Context density is not monotonic with accuracy.  With view pixels dropped, a
 0.75 s gap gives Cook 3.48 MB / Switch 2.37 MB and Cook loc@.3 1.00; a 1.0 s
 gap gives 3.37 / 2.22 MB but Cook loc@.3 .75 and Switch .50; a 1.5 s gap gives

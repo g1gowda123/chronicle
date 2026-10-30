@@ -265,6 +265,14 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   embeddings for routing, while contexts keep the pixels used for detection.
   Cook drops to 3.48 MB, Switch to 2.37 MB, Play to 4.55 MB, with unchanged QA
   and fewer detector calls (8.3 / 8.6 / 4.5 per query).
+- Capsule eviction is not a free memory knob. Evicting Cook 196 -> 50 preserves
+  all answers (.70 / 1.00 / .692) and 6.46 -> 4.86 MB, but calls rise 13.7 ->
+  14.9; z210 300 -> 75 cuts 17.07 -> 12.35 MB, but calls rise 22.5 -> 24.0 and
+  semantic falls .05 -> .025 (one question). Switch 300 -> 150 drops semantic
+  .875 -> .75 because routing chooses a different context and loses the
+  console's support phrase, despite unchanged loc/IoU. Keep capsules for
+  routing and drop view pixels instead. Context frames are the floor: ~4 MB
+  Cook, ~12 MB z210.
 - Sparse contexts are not a free win: with view pixels dropped, 1.0 s and 1.5 s
   context gaps save only 3-25% but reduce Cook loc@.30 from 1.00 to .75 (and
   1.0 s also Switch .75 -> .50). Keep `context_min_gap=0.75`; detector phase
