@@ -134,8 +134,8 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 
 | clip | store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .50 | 12.5 | 150 |
-| Switch 34 s | 6.06 MB | .75 | .75 | .590 | .75 | 12.25 | 128 |
+| Cook 45 s | 8.27 MB | 1.00 | .75 | .692 | .60 | 12.5 | 150 |
+| Switch 34 s | 6.06 MB | .75 | .75 | .590 | .875 | 12.25 | 128 |
 | HoloAssist z210 257 s | 44.6 MB | 1.00 | 1.00 | .769 | .025 | 21.9 | 962 |
 
 - Context-free crop binding is much weaker: Cook loc@.30 .25 / IoU .246,
@@ -158,12 +158,21 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   undetectable objects (rice cooker, cutting board, switch console) but also
   suppresses counting candidates. CLIP-only labels need corroboration-aware
   calibration, not a single global threshold.
-- Counting uses two signals: simultaneous detections (peak occupancy) and
-  persistent detector tracks across action-start contexts. Peak counting fixes
-  the two joy-con case (`2 joy-con controllers`), but cups over-count (6, or 3
-  with a 20 s track gap) because sparse contexts fragment one cup into several
-  appearances. Count bindings also collapse onto one large background capsule,
-  so capsule attribution still needs a tightness penalty.
+- Counting uses three signals: simultaneous detections (peak occupancy),
+  persistent detector tracks across action-start contexts, and spatial
+  clustering of track mean boxes. Peak counting fixes the two joy-con case
+  (`2 joy-con controllers`); clustering the six fragmented cup tracks into two
+  places fixes the Cook cup count. Detection-to-capsule attribution now weights
+  coverage by crop tightness, so count provenance points at the cup capsule
+  rather than one background capsule.
+- Attribute questions use retained pixels, not another model: the central 70%
+  of the bound box is converted to HSV, low-saturation pixels are discarded,
+  and coarse hue bins vote. Switch `What colour is the joy-con?` answers `cyan`
+  from the blue joy-con; this raises semantic accuracy from .75 to .875.
+- Third-domain evidence: on `aria_play_45s.mp4` (no QA, dense pseudo-GT), SPORE
+  retains 2/3 dense-detectable objects (book, chair) with loc@.30 .667 and mean
+  IoU .475. The store is larger (11.5 MB / 45 s) because the moving play scene
+  produces 407 capsules, so this domain stresses capsule deduplication.
 - Latency on z210 (7,695 decoded frames) is 298 s ingest at 4 fps sampling; the
   first attempt stalled because compaction was O(n^2) and ran on every frame
   once the capsule cap was exceeded. Compaction is now throttled and tests the

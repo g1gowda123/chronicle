@@ -1,0 +1,38 @@
+{
+  "clip": "aria_play_45s.mp4",
+  "zone": "Play",
+  "questions": [
+    {
+      "query": "Where is the book?",
+      "answer": [
+        "book"
+      ],
+      "timestamp": 2.0,
+      "category": "object_location"
+    },
+    {
+      "query": "Where is the chair?",
+      "answer": [
+        "chair"
+      ],
+      "timestamp": 0.0,
+      "category": "object_location"
+    },
+    {
+      "query": "Where is the shoe?",
+      "answer": [
+        "shoe"
+      ],
+      "timestamp": 17.0,
+      "category": "object_location"
+    },
+    {
+      "query": "Where is the table?",
+      "answer": [
+        "table"
+      ],
+      "timestamp": 2.0,
+      "category": "object_location"
+    }
+  ]
+}

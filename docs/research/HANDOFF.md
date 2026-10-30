@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `606d5c8` | pushed; SPORE perceiver + benchmarks + results |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `713c8e6` | pushed; SPORE perceiver + benchmarks + results |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -44,11 +44,13 @@ tests, README and CLI edits. That work is independent of the perception work.
 implement a working label-free capsule perceiver and budgeted late-binding
 query engine. `scripts/spore_real_bench.py` evaluates Cook 45 s and Switch 34 s
 against dense YOLO-World pseudo-GT. Current headline: Cook loc@.30 1.00 /
-mean IoU .692 / semantic .50 / 12.5 detector calls per query (dense: 150);
-Switch loc@.30 .75 / mean IoU .590 / semantic .75 / 12.25 calls (dense: 128).
+mean IoU .692 / semantic .60 / 12.5 detector calls per query (dense: 150);
+Switch loc@.30 .75 / mean IoU .590 / semantic .875 / 12.25 calls (dense: 128).
 z210 257 s is a scaling diagnostic: 44.6 MB store, 298 s ingest, loc@.30 1.00,
 but semantic .025 because the detector cannot see the fine objects being
-counted. See `SPORE.md` for ablations, counting limits and open issues.
+counted. A play-domain smoke test retains 2/3 dense-detectable objects at mean
+IoU .475, with 407 capsules for 45 s, exposing capsule deduplication as the
+next stress point. See `SPORE.md` for ablations, counting limits and open issues.
 
 
 ## 3. Main branch: what is already shipped
@@ -176,11 +178,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
    gating, best-view selection, context-frame retention, query-time routing,
    fused detection tracks, and temporal/action scans are implemented.
 2. Next experiments, in priority order:
-   - count attribution: penalise huge background capsules when mapping a
-     detection back to a capsule, and test contact-episode counting for cups;
-   - colour and attribute questions: the current answer path returns location
-     only;
-   - multi-domain transfer beyond Cook/Switch, without tuning to z210;
+   - capsule deduplication: the play clip creates 407 capsules in 45 s, so
+     merge/representative selection is the next scaling bottleneck;
+   - multi-domain transfer beyond Cook/Switch/Play, without tuning to z210;
+   - activity questions that genuinely synthesise a verb from hand motion and
+     contact, not just an action-start timestamp;
    - a stronger fine-object detector path, since YOLO-World returns zero for
      game cards, SD cards, wrist straps, and comfort grips even on hand crops.
 3. Update `SPORE.md` with every experiment that changes a default or a

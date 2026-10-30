@@ -99,6 +99,20 @@ _SUPPORT_ALIASES = {
     "table": "countertop",
 }
 
+# OpenCV hue is 0..179.  Ranges are deliberately coarse: the point is a
+# verifiable attribute answer from retained pixels, not a colour taxonomy.
+_COLOUR_RANGES = (
+    ("red", 0, 8),
+    ("red", 170, 180),
+    ("orange", 8, 20),
+    ("yellow", 20, 35),
+    ("green", 35, 85),
+    ("cyan", 85, 102),
+    ("blue", 102, 130),
+    ("purple", 130, 158),
+    ("magenta", 158, 170),
+)
+
 
 # ---------------------------------------------------------------------------
 # Configuration and result types
@@ -219,6 +233,11 @@ class SporeConfig:
     count_single_confidence: float = 0.50
     count_peak_confidence: float = 0.45
     count_track_gap: float = 20.0
+    count_cluster_distance: float = 0.12
+    count_cluster_iou: float = 0.15
+    colour_min_saturation: int = 45
+    colour_min_value: int = 35
+    colour_min_chromatic_fraction: float = 0.10
     support_labels: tuple[str, ...] = _SUPPORT_LABELS
     infer_support: bool = True
     late_binding: bool = True
@@ -1785,6 +1804,11 @@ class SporeQueryEngine:
             for candidate in capsules:
                 for view in candidate.best_views:
                     coverage = view.bbox.intersection_area(box) / max(1.0, box.area)
+                    # A huge background capsule "covers" every detection.  Weight
+                    # coverage by how tightly the view bounds the object so
+                    # provenance points at the object capsule, not the scene.
+                    tightness = min(1.0, box.area / max(1.0, view.bbox.area))
+                    fit = min(1.0, coverage) * (0.35 + 0.65 * tightness)
                     dx = view.bbox.centroid[0] - box.centroid[0]
                     dy = view.bbox.centroid[1] - box.centroid[1]
                     diagonal = math.hypot(*view.metadata.get("frame_size", [640, 480]))
@@ -1793,7 +1817,7 @@ class SporeQueryEngine:
                         1.0 - math.hypot(dx, dy) / max(1.0, 0.35 * diagonal),
                     )
                     utility = (
-                        0.55 * min(1.0, coverage)
+                        0.55 * fit
                         + 0.30 * proximity
                         + 0.15 * min(1.0, view.score)
                     )
@@ -2132,6 +2156,62 @@ class SporeQueryEngine:
             detections, binding.bbox, {label.lower() for label in self.config.support_labels}
         )
 
+    def _dominant_colour(self, binding: Binding) -> str | None:
+        """Read a colour attribute from the retained context around a binding.
+
+        Attribute questions are evidence questions too.  Rather than captioning
+        the whole frame, sample the central part of the bound box, ignore
+        unsaturated pixels (hands, white table, shadows), and vote over coarse
+        hue bins.  A low-chroma crop falls back to black/grey/white.
+        """
+        if not self.store.contexts:
+            return None
+        context = self.store.context_at(
+            binding.timestamp, max_gap=self.config.context_max_gap
+        )
+        if context is None:
+            return None
+        frame = context.image()
+        if frame is None:
+            return None
+        height, width = frame.shape[:2]
+        x1, y1, x2, y2 = binding.bbox.clipped(width, height).int_xyxy
+        if x2 <= x1 or y2 <= y1:
+            return None
+        inset_x = int((x2 - x1) * 0.15)
+        inset_y = int((y2 - y1) * 0.15)
+        crop = frame[y1 + inset_y : y2 - inset_y, x1 + inset_x : x2 - inset_x]
+        if crop.size == 0:
+            return None
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        hue = hsv[..., 0]
+        saturation = hsv[..., 1]
+        value = hsv[..., 2]
+        chromatic = (saturation >= self.config.colour_min_saturation) & (
+            value >= self.config.colour_min_value
+        )
+        total = float(chromatic.size)
+        if total <= 0:
+            return None
+        if chromatic.mean() < self.config.colour_min_chromatic_fraction:
+            grey_level = float(np.median(value))
+            if grey_level >= 170.0:
+                return "white"
+            if grey_level <= 55.0:
+                return "black"
+            return "grey"
+        votes: dict[str, int] = {}
+        for name, low, high in _COLOUR_RANGES:
+            if low < high:
+                mask = chromatic & (hue >= low) & (hue < high)
+            else:
+                mask = chromatic & ((hue >= low) | (hue < high))
+            votes[name] = votes.get(name, 0) + int(mask.sum())
+        name, count = max(votes.items(), key=lambda item: item[1])
+        if count < 0.30 * float(chromatic.sum()):
+            return None
+        return name
+
     @staticmethod
     def _support_for(
         detections: Sequence[Any], object_box: BBox, support_set: set[str]
@@ -2342,6 +2422,37 @@ class SporeQueryEngine:
         contexts.sort(key=lambda item: item.timestamp)
         return contexts
 
+    def _cluster_tracks(
+        self, tracks: Sequence[_DetectionTrack], frame_diagonal: float
+    ) -> list[list[_DetectionTrack]]:
+        """Group lifetime tracks that describe the same physical place.
+
+        Sparse action-start contexts fragment one cup seen at 20 s and again at
+        40 s into separate tracks.  Before counting, merge tracks whose mean
+        boxes overlap or whose centres stay within a small fraction of the
+        frame diagonal.  The highest-confidence track represents each cluster.
+        """
+        clusters: list[list[_DetectionTrack]] = []
+        for track in sorted(tracks, key=lambda item: item.mean_confidence, reverse=True):
+            box = track.mean_box()
+            placed = False
+            for cluster in clusters:
+                representative = max(cluster, key=lambda item: item.mean_confidence)
+                other = representative.mean_box()
+                if box.iou(other) >= self.config.count_cluster_iou:
+                    cluster.append(track)
+                    placed = True
+                    break
+                dx = box.centroid[0] - other.centroid[0]
+                dy = box.centroid[1] - other.centroid[1]
+                if math.hypot(dx, dy) / max(1.0, frame_diagonal) <= self.config.count_cluster_distance:
+                    cluster.append(track)
+                    placed = True
+                    break
+            if not placed:
+                clusters.append([track])
+        return clusters
+
     def _count_term(
         self,
         term: str,
@@ -2365,6 +2476,7 @@ class SporeQueryEngine:
         tracks: list[_DetectionTrack] = []
         peak = 0
         peak_hits: list[tuple[Any, ContextFrame]] = []
+        frame_diagonal = math.hypot(640.0, 480.0)
         for context in contexts:
             frame = context.image()
             if frame is None:
@@ -2377,6 +2489,7 @@ class SporeQueryEngine:
             self.detector_calls += 1
             frame_size = context.metadata.get("frame_size", [640, 480])
             diagonal = math.hypot(float(frame_size[0]), float(frame_size[1]))
+            frame_diagonal = diagonal
             frame_hits: list[Any] = []
             for detection in detections:
                 if not _label_matches(detection.label, term):
@@ -2460,19 +2573,26 @@ class SporeQueryEngine:
             peak_bindings.sort(key=lambda item: item.confidence, reverse=True)
             return peak, peak_bindings
         bindings: list[Binding] = []
-        for track in confirmed:
+        clusters = self._cluster_tracks(confirmed, frame_diagonal)
+        for cluster in clusters:
+            track = max(cluster, key=lambda item: item.mean_confidence)
             box = track.mean_box()
             capsule_id = ""
-            best_coverage = 0.0
+            best_fit = 0.0
             for capsule in self.store.capsules.values():
                 for view in capsule.best_views:
                     coverage = view.bbox.intersection_area(box) / max(1.0, box.area)
-                    if coverage > best_coverage:
-                        best_coverage = coverage
+                    tightness = min(1.0, box.area / max(1.0, view.bbox.area))
+                    fit = min(1.0, coverage) * (0.35 + 0.65 * tightness)
+                    if fit > best_fit:
+                        best_fit = fit
                         capsule_id = capsule.capsule_id
             confidence = min(
                 0.95,
-                0.45 + 0.15 * min(4, len(track.stamps)) + 0.20 * track.mean_confidence,
+                0.45
+                + 0.15 * min(4, len(track.stamps))
+                + 0.20 * track.mean_confidence
+                + 0.04 * min(3, len(cluster) - 1),
             )
             bindings.append(
                 Binding(
@@ -2485,12 +2605,12 @@ class SporeQueryEngine:
                     support=track.best_support(),
                     detector_confidence=track.mean_confidence,
                     clip_similarity=None,
-                    views_agree=len(track.stamps),
+                    views_agree=sum(len(item.stamps) for item in cluster),
                     views_tried=len(contexts),
                     provenance="count_track",
                 )
             )
-        return len(confirmed), bindings
+        return len(clusters), bindings
 
     def _scan_actions(
         self,
@@ -2650,8 +2770,19 @@ class SporeQueryEngine:
                 and answer.bindings[0].confidence < self.config.query_abstain_confidence
             )
         )
+        colour = None
+        if ("colour" in lowered_question or "color" in lowered_question) and answer.bindings:
+            best_bound = next(
+                (item for item in answer.bindings if item.bbox.area > 0.0), None
+            )
+            if best_bound is not None:
+                colour = self._dominant_colour(best_bound)
         answer.answer = self._compose(
-            question, answer.bindings, answer.abstained, count=answer.count
+            question,
+            answer.bindings,
+            answer.abstained,
+            count=answer.count,
+            colour=colour,
         )
         answer.elapsed_s = time.perf_counter() - start
         return answer
@@ -2663,6 +2794,7 @@ class SporeQueryEngine:
         abstained: bool,
         *,
         count: int | None = None,
+        colour: str | None = None,
     ) -> str:
         lowered = question.lower()
         if lowered.startswith("how many") and count is not None and bindings:
@@ -2670,6 +2802,8 @@ class SporeQueryEngine:
         if abstained or not bindings:
             return "not enough evidence"
         best = bindings[0]
+        if colour and ("colour" in lowered or "color" in lowered):
+            return f"{best.label} is {colour} at {best.timestamp:.1f}s"
         location = ""
         if best.support:
             alias = _SUPPORT_ALIASES.get(best.support)
