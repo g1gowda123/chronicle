@@ -2466,6 +2466,10 @@ class SporeQueryEngine:
         the missing complement to object binding: a scene can answer "what is
         here" without first routing to one capsule.
         """
+        if self._detector is None:
+            if not self.config.late_binding:
+                return [], [], 0
+            self._detector = build_detector(self.perception)
         labels = tuple(
             dict.fromkeys(
                 str(label).strip().lower()

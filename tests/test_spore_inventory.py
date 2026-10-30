@@ -5,6 +5,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+from chronicle.perception import spore as spore_module
 from chronicle.perception.capsules import CapsuleStore, ContextFrame
 from chronicle.perception.detector import BaseDetector
 from chronicle.perception.spore import SporeConfig, SporeQueryEngine
@@ -62,3 +63,24 @@ def test_inventory_lists_objects_on_support() -> None:
     assert "person" not in answer.answer
     assert answer.detector_calls >= 1
     assert answer.stats["inventory"] == ["joy-con"]
+
+
+def test_inventory_builds_detector_on_first_question(monkeypatch) -> None:
+    store = CapsuleStore()
+    store.contexts.extend([_context(1.0, 1)])
+    monkeypatch.setattr(
+        spore_module, "build_detector", lambda perception: SceneDetector()
+    )
+    engine = SporeQueryEngine(
+        store,
+        SporeConfig(
+            inventory_labels=("joy-con", "person", "desk"),
+            inventory_contexts=2,
+            late_binding=True,
+        ),
+    )
+
+    answer = engine.answer("What objects are on the work table?")
+
+    assert answer.abstained is False
+    assert "joy-con" in answer.answer
