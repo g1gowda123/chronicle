@@ -160,6 +160,10 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
   detector calls), excluding one-time model/predictor warmup (~8-12 s).
   Vocabulary switching was reduced from ~2.1 s to ~0.11-0.14 s by caching CLIP
   text embeddings per label and updating the live predictor in place.
+- Ingest proposal bookkeeping is vectorized: novelty lookup uses one
+  candidate-by-capsule cosine matrix (220x faster in a 96x200 microbenchmark),
+  and NMS is vectorized (3x). Unit tests assert equivalence with the previous
+  greedy/cosine implementations.
 - Negative result: adaptive context density (0.25 s while a hand action is
   open, 1.5 s idle) increased store size and *hurt* Switch localisation
   (loc@.30 0, IoU .087), because changed context placement altered track

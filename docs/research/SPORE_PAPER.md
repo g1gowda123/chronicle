@@ -344,10 +344,14 @@ invalidating the predictor. Vocabulary changes drop to **~0.11-0.14 s** after
 the first swap, and per-frame detection is **~20 ms** once warm. This is a
 general systems optimisation: it does not change any benchmark answer.
 
-Ingest remains the other cost. The 45 s Cook clip takes ~25 s (225 sampled
-frames, 140 keyframes); the 257 s z210 clip takes ~298 s. Compaction is
-throttled to once per second and checks box overlap before appearance
-similarity, which removed the earlier quadratic blow-up.
+Ingest remains the other cost. The 45 s Cook clip took ~25 s (225 sampled
+frames, 140 keyframes) when the GPU was idle; the 257 s z210 clip takes ~298 s.
+Compaction is throttled to once per second and checks box overlap before
+appearance similarity, which removed the earlier quadratic blow-up. Proposal
+bookkeeping is now vectorized as well: in a 20-iteration microbenchmark with 96
+candidates and 200 stored descriptors, novelty lookup fell from 2.42 s to
+0.011 s (~220x) and NMS from 167 ms to 57 ms (~3x). Unit tests check that both
+vectorized paths match the original greedy/cosine semantics exactly.
 
 ## 6. Discussion
 
