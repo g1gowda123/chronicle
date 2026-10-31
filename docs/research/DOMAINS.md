@@ -149,6 +149,17 @@ matcher accepts a wrong support. Report both the lenient and human-judged
 scores, and do not tune these questions after the run. A wall-support change
 must be evaluated on a different clip before it is claimed as a gain.
 
+### Wall-support probe (negative)
+
+A second six-question human set was written for `aria_clean_0_45s` (living
+room: TV, window, sofa, table, chair) and committed as `c85be76` before the
+change. Baseline: semantic **0/6**; TV supported by a shelf, sofa/chair by a
+desk, window abstained. Adding `wall` to `SporeConfig.support_labels` gave
+only **2/6** (sofa and chair moved to `floor`), while TV still used the shelf
+and window still abstained. It also regressed Cook **.70→.60**, IoU
+**.826→.792**, and cup count **2→1**. Reverted. This is evidence that support
+selection, not just the support vocabulary, is the bottleneck.
+
 ## Comparison with the original `main` perception path
 
 The same human-written QA sets were run with SPORE on the real clips recovered

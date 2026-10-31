@@ -223,6 +223,15 @@ transfers to this room (TV IoU .609); the **support ontology** does not
 ungrounded. Do not tune the QA on this clip; a wall-support hypothesis must be
 tested on a separate clip.
 
+**Wall-support probe (negative).** Six questions were committed for the
+held-out living-room clip `aria_clean_0_45s` (`c85be76`) before the change.
+Baseline semantic was **0/6** (TV→shelf, sofa/chair→desk, window abstained).
+Adding `wall` to `_SUPPORT_LABELS` gave only **2/6** (sofa/chair→floor); the TV
+still used the shelf and the window still abstained. Cook then regressed
+**.70→.60**, IoU **.826→.792**, and cup counting **2→1**. Reverted. The
+missing label is not the whole bug; support selection needs place geometry or
+a learned support model, and any retry must be validated on separate QA.
+
 **Detector-only ablation.** The hybrid default can rescue an object from a
 CLIP-scored capsule view when the query detector does not fire. Re-running the
 three short clips with `--mode detector` gives semantic .50 Cook, .75 Switch,

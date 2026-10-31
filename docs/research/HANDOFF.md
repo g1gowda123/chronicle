@@ -302,10 +302,15 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   substring matcher accepts “table” inside “work table”; the TV is detected
   at IoU .609 but supported as a desk because `wall` is not in the support
   ontology; the window is an ungrounded CLIP fallback.
-- Next: add a human-checked QA subset for `clean_0` or `walk_0` **before**
-  changing the support ontology. Test a general `wall` support label on that
-  separate clip and re-run the existing short clips for regressions; report
-  the eat_0 result as post-hoc, not held-out. Also consider tightening the
-  semantic matcher or always reporting human-judged support correctness.
-  Do not tune the eat_0 questions, run another z210 prompt/threshold sweep, or
-  tune Cook-specific failures.
+- The wall-support probe was completed and **rejected**: the held-out
+  `aria_clean_0_45s` QA (`c85be76`) went 0/6 → 2/6 with `wall` added, but the
+  TV still used a shelf, the window still abstained, and Cook regressed
+  .70→.60 with cup counting 2→1. The code change was reverted; do not retry
+  a label-only wall fix.
+- Next: implement support/place **selection** (nearby shelf vs floor vs wall
+  geometry, or a learned support head) and evaluate on `walk_0` or a new
+  human QA set committed before the change. Keep reporting lenient semantic
+  and human-judged support correctness separately; the plate “work table”
+  case is a known substring false positive.
+- Do not tune the eat_0/clean_0 questions, run another z210 prompt/threshold
+  sweep, or tune Cook-specific failures.

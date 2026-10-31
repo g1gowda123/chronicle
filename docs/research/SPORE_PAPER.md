@@ -796,6 +796,19 @@ room; the spatial-support ontology and the CLIP fallback do not yet transfer
 with it.  With six questions from one clip these numbers are descriptive, not
 a benchmark estimate, and the questions were not tuned after the run.
 
+A follow-up tested whether the failure was just a missing support label.  Six
+questions were added for the held-out living-room clip `aria_clean_0_45s`
+(committed as `c85be76` before the change).  The baseline scored **0/6**: the
+TV was supported by a shelf, the sofa and chair by a desk, and the window
+abstained.  Adding `wall` to `_SUPPORT_LABELS` raised that to only **2/6**:
+the sofa and chair moved to `floor`, but the TV still used the shelf and the
+window still abstained.  More importantly, Cook semantic dropped **.70→.60**
+and cup counting went **2→1** (IoU .826→.792).  The change was reverted.  A
+support label alone does not fix support selection, and the mixed result is
+not worth a regression on the established QA.  `wall` support should be
+revisited only with a place/support-selection model that can choose between a
+nearby shelf, floor, and wall, and it must be tested on a separate clip.
+
 ## 6. Discussion
 
 SPORE shows that **retained full context**, not better crops, is the dominant
