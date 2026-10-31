@@ -248,6 +248,7 @@ def evaluate(args: argparse.Namespace) -> dict:
         query_views=2,
         view_binding=args.view_binding,
         rescan=args.rescan,
+        synonym_binding=args.synonym_binding,
     )
     if args.context_gap is not None:
         config.context_min_gap = args.context_gap
@@ -659,6 +660,11 @@ def main() -> None:
     parser.add_argument("--query-detector-confidence", type=float, default=None)
     parser.add_argument("--query-detector-imgsz", type=int, default=None)
     parser.add_argument("--view-binding", action="store_true")
+    parser.add_argument(
+        "--synonym-binding",
+        action="store_true",
+        help="Ground undetected queries through repeated detector synonyms with a CLIP check.",
+    )
     parser.add_argument("--rescan", action="store_true")
     parser.add_argument(
         "--context-fallback",

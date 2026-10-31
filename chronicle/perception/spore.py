@@ -112,6 +112,20 @@ _SUPPORT_QUERY_ALIASES = {
     "countertop": ("countertop", "counter top", "table"),
 }
 
+# Conservative lexical bridges between common query nouns and the labels an
+# open-vocabulary detector actually emits.  These are not asserted as truth;
+# synonym binding still requires repeated detections and CLIP agreement.
+_DETECTOR_SYNONYMS = {
+    "rice cooker": ("instant pot", "pressure cooker", "slow cooker"),
+    "cutting board": ("chopping board", "wooden board"),
+    "sofa": ("couch",),
+    "couch": ("sofa",),
+    "television": ("tv", "monitor"),
+    "tv": ("television", "monitor"),
+    "refrigerator": ("fridge",),
+    "fridge": ("refrigerator",),
+}
+
 # OpenCV hue is 0..179.  Ranges are deliberately coarse: the point is a
 # verifiable attribute answer from retained pixels, not a colour taxonomy.
 _COLOUR_RANGES = (
@@ -281,6 +295,15 @@ class SporeConfig:
     inventory_nms_iou: float = 0.7
     inventory_max_items: int = 4
     view_binding: bool = False
+    # Detector vocabularies disagree on names for the same household object
+    # (a rice cooker may only fire as ``instant pot``).  Synonym binding is an
+    # opt-in last resort: it requires repeated detections in keyframes and a
+    # CLIP check against the asked term, so a single spurious alias cannot
+    # create evidence.
+    synonym_binding: bool = False
+    synonym_contexts: int = 12
+    synonym_min_contexts: int = 2
+    synonym_clip_threshold: float = 0.22
     rescan: bool = False
     rescan_window: float = 1.0
     rescan_fps: float = 12.0
@@ -1811,9 +1834,14 @@ class SporeQueryEngine:
             return []
         self._ensure_backends()
         capsules = self.route([term], budget=budget, at_time=at_time)
+        aliases = _query_synonyms(term) if self.config.synonym_binding else ()
         support_target = term.lower() in {
             label.lower() for label in self.config.support_labels
         }
+        if not capsules and aliases:
+            synonym_bindings = self._bind_synonyms(term, aliases, at_time=at_time)
+            if synonym_bindings:
+                return synonym_bindings
         if not capsules and not (support_target or self.config.context_fallback):
             return []
         if not capsules:
@@ -1879,6 +1907,19 @@ class SporeQueryEngine:
                 not bindings or clip_bindings[0].confidence > bindings[0].confidence
             ):
                 bindings = clip_bindings
+        if (
+            aliases
+            and (
+                not bindings
+                or bindings[0].confidence < self.config.query_abstain_confidence
+            )
+        ):
+            synonym_bindings = self._bind_synonyms(term, aliases, at_time=at_time)
+            if synonym_bindings and (
+                not bindings
+                or synonym_bindings[0].confidence > bindings[0].confidence
+            ):
+                bindings = synonym_bindings
         if self.config.infer_support:
             for binding in bindings:
                 if binding.provenance == "support_track":
@@ -2323,6 +2364,114 @@ class SporeQueryEngine:
             bindings.append(best)
             self._attach(best)
         return bindings
+
+    def _bind_synonyms(
+        self,
+        term: str,
+        aliases: Sequence[str],
+        at_time: float | None = None,
+    ) -> list[Binding]:
+        """Ground a query through a detector synonym, with persistence.
+
+        Open-vocabulary detectors often know an object only under a neighbouring
+        label (``instant pot`` for a rice cooker).  A synonym binding is only
+        accepted when the alias appears in at least two retained keyframes and
+        the crop also agrees with the asked term under CLIP.  That keeps a
+        one-frame mislabel from becoming stored evidence.
+        """
+        assert self._detector is not None
+        alias_set = {label.strip().lower() for label in aliases}
+        if not alias_set or not self.store.contexts:
+            return []
+        if at_time is not None:
+            contexts = sorted(
+                self.store.contexts,
+                key=lambda context: abs(context.timestamp - at_time),
+            )
+        else:
+            stride = max(1, len(self.store.contexts) // self.config.synonym_contexts)
+            contexts = list(self.store.contexts)[::stride]
+        contexts = contexts[: self.config.synonym_contexts]
+        term_vector = self._embed_text(term)
+        vocabulary = list(
+            dict.fromkeys(
+                [term, *aliases, *self.config.support_labels]
+            )
+        )
+        support_set = {label.lower() for label in self.config.support_labels}
+        best: Binding | None = None
+        hits = 0
+        for context in contexts:
+            frame = context.image()
+            if frame is None:
+                continue
+            detections = self._detect_cached(
+                frame,
+                vocabulary,
+                frame_index=context.frame_index,
+                timestamp=context.timestamp,
+                cache_tag=context.frame_index,
+            )
+            alias_detections = [
+                detection
+                for detection in detections
+                if detection.label.strip().lower() in alias_set
+                and detection.confidence >= self.config.query_detector_confidence
+            ]
+            if not alias_detections:
+                continue
+            hits += 1
+            for detection in alias_detections:
+                clip_similarity = self._bbox_clip_similarity(
+                    frame, detection.bbox, term_vector
+                )
+                if (
+                    term_vector is not None
+                    and clip_similarity < self.config.synonym_clip_threshold
+                ):
+                    continue
+                confidence = float(detection.confidence) * (
+                    0.55 + 0.45 * max(0.0, clip_similarity)
+                )
+                binding = Binding(
+                    term=term,
+                    label=term,
+                    capsule_id="",
+                    confidence=confidence,
+                    timestamp=context.timestamp,
+                    bbox=detection.bbox,
+                    support=self._support_for(detections, detection.bbox, support_set),
+                    detector_confidence=float(detection.confidence),
+                    clip_similarity=float(clip_similarity),
+                    views_agree=hits,
+                    views_tried=len(contexts),
+                    provenance="synonym_track",
+                )
+                if best is None or binding.confidence > best.confidence:
+                    best = binding
+        if best is None or hits < self.config.synonym_min_contexts:
+            return []
+        best.views_agree = hits
+        best.views_tried = len(contexts)
+        self._attach(best)
+        return [best]
+
+    def _bbox_clip_similarity(
+        self,
+        frame: np.ndarray,
+        bbox: BBox,
+        term_vector: np.ndarray | None,
+    ) -> float:
+        if term_vector is None or self._embedder is None:
+            return 0.0
+        height, width = frame.shape[:2]
+        x1, y1, x2, y2 = bbox.clipped(width, height).int_xyxy
+        if x2 <= x1 or y2 <= y1:
+            return 0.0
+        crop = frame[y1:y2, x1:x2]
+        if crop.size == 0:
+            return 0.0
+        return _cosine(term_vector, self._embedder.embed_image(crop))
 
     def _bind_clip(
         self,
@@ -3696,6 +3845,12 @@ def _support_aliases(term: str) -> tuple[str, ...]:
     """Detector labels that can satisfy a support-surface question."""
     lowered = term.strip().lower()
     return _SUPPORT_QUERY_ALIASES.get(lowered, (lowered,))
+
+
+def _query_synonyms(term: str) -> tuple[str, ...]:
+    """Detector labels that may denote the queried object under another name."""
+    lowered = term.strip().lower()
+    return _DETECTOR_SYNONYMS.get(lowered, ())
 
 
 # ---------------------------------------------------------------------------
