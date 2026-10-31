@@ -747,8 +747,10 @@ class CapsuleStore:
         *,
         include_images: bool = True,
         include_view_images: bool = True,
+        include_scene_images: bool = True,
     ) -> dict[str, Any]:
         view_images = include_images and include_view_images
+        scene_images = include_images and include_scene_images
         return {
             "version": 1,
             "capsules": [
@@ -757,7 +759,7 @@ class CapsuleStore:
             ],
             "actions": [action.as_dict() for action in self.actions.values()],
             "scenes": [
-                scene.as_dict(include_image=include_images) for scene in self.scenes
+                scene.as_dict(include_image=scene_images) for scene in self.scenes
             ],
             "texts": [
                 {
@@ -829,6 +831,7 @@ class CapsuleStore:
         *,
         include_images: bool = True,
         include_view_images: bool = True,
+        include_scene_images: bool = True,
         split: bool = False,
     ) -> Path:
         """Write the store as one JSON file or as a compact index + blobs.
@@ -843,12 +846,18 @@ class CapsuleStore:
         indices; the retained context frames remain the localisation
         evidence.  This roughly halves episode storage without changing
         late-binding answers on the evaluated clips.
+
+        ``include_scene_images=False`` keeps scene embeddings and timestamps
+        but drops the scene thumbnails.  Scene recall ranks embeddings, and
+        its evidence image is resolved from the nearest retained context
+        frame, so the scene index does not need a second copy of the frame.
         """
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         payload = self.to_dict(
             include_images=include_images,
             include_view_images=include_view_images,
+            include_scene_images=include_scene_images,
         )
         if split and include_images:
             evidence_dir = target.parent / f"{target.stem}_evidence"
@@ -869,12 +878,14 @@ class CapsuleStore:
         *,
         include_images: bool = True,
         include_view_images: bool = True,
+        include_scene_images: bool = True,
     ) -> int:
         return len(
             json.dumps(
                 self.to_dict(
                     include_images=include_images,
                     include_view_images=include_view_images,
+                    include_scene_images=include_scene_images,
                 )
             )
         )

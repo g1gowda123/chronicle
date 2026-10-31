@@ -154,15 +154,15 @@ video-understanding claims. Dense YOLO-World at 4 fps is pseudo-ground-truth.
 
 | clip | compact store | loc@.30 | loc@.50 | mean IoU | semantic | detector calls/query | dense calls |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Cook 45 s | 3.33 MB | 1.00 | 1.00 | .826 | .70 | 7.9 | 150 |
-| Switch 34 s | 2.20 MB | .75 | .75 | .611 | .875 | 7.4 | 128 |
-| Play 45 s | 3.77 MB (300-cap) | .667 | .667 | .475 | 1.00 | 5.0 | 150 |
-| HoloAssist z210 257 s | 9.96 MB (300-cap) | 1.00 | 1.00 | .77 | .05 | 12.7 | 962 |
+| Cook 45 s | 3.11 MB | 1.00 | 1.00 | .826 | .70 | 7.9 | 150 |
+| Switch 34 s | 1.95 MB | .75 | .75 | .611 | .875 | 7.4 | 128 |
+| Play 45 s | 3.11 MB (300-cap) | .667 | .667 | .475 | 1.00 | 5.0 | 150 |
+| HoloAssist z210 257 s | 7.55 MB (300-cap) | 1.00 | 1.00 | .77 | .05 | 12.7 | 962 |
 
 Compact stores are split index plus evidence blobs with capsule view pixels
-omitted; context frames and scene crops remain. Full split stores with view
-pixels are 5.00/3.75/5.98/13.35 MB; monolithic stores are 6.46/4.69/7.74/17.07
-MB.
+and scene thumbnails omitted; context frames remain. Full split stores with
+both pixel sets are 5.00/3.75/5.98/13.35 MB; monolithic stores are
+6.46/4.69/7.74/17.07 MB.
 
 ### Held-out Aria domains (automatic pseudo-GT)
 
@@ -188,7 +188,7 @@ On the same hand-written QA used by the research branch, SPORE scores Cook
 7/10, Switch 7/8, and Play 4/4; the corresponding `main` numbers were Cook
 8/10 and Switch 7/8. SPORE therefore does **not** beat `main` on accuracy in
 this comparison. Its measured advantage is efficiency: ~5–8 detector calls per
-query versus 128–150 dense calls, with 4.7–7.7 MB capsule stores. The Cook
+query versus 128–150 dense calls, with 1.95–3.11 MB compact stores. The Cook
 regressions are a shelf/countertop support error and a plate-destination
 tracking error; they are general failure modes, not reasons to tune on Cook.
 See `docs/research/DOMAINS.md` for the comparison table.
@@ -207,7 +207,7 @@ See `docs/research/DOMAINS.md` for the comparison table.
   need verbs. Only identity and counting are in the current object-memory
   scope (2/14). z210 has no audio stream.
 - Evidence per answer (unique bytes on the provenance chain): 66.3 KB Cook,
-  34.6 KB Switch, 65.2 KB Play, 35.9 KB z210 — 2.0% / 1.6% / 1.7% / 0.4% of
+  34.6 KB Switch, 65.2 KB Play, 35.9 KB z210 — 2.1% / 1.8% / 2.1% / 0.5% of
   the compact store. Detector calls, not evidence fetches, dominate query cost.
 - Context-free crop binding is much weaker: Cook loc@.30 .25 / IoU .246,
   Switch loc@.30 0 / IoU .108. Retained full keyframes, not better crops, are
@@ -293,7 +293,7 @@ See `docs/research/DOMAINS.md` for the comparison table.
   406 capsules, so merging cannot control growth. `CapsuleStore.evict_to`
   ranks capsules by contact window, hand overlap, motion, view quality, then
   recency. On z210 this cuts 1,947 capsules to 300; the monolithic JSON store
-  falls 44.2 -> 17.1 MB and the compact split store is 9.96 MB, with
+  falls 44.2 -> 17.1 MB and the compact split store is 7.55 MB, with
   localisation unchanged (semantic remains detector-limited); Cook, Switch and
   Play keep their headline metrics. Context frames, not capsules, carry most
   answer evidence.
@@ -359,34 +359,38 @@ See `docs/research/DOMAINS.md` for the comparison table.
 - The store now has two tiers. `CapsuleStore.save(path, split=True)` writes a
   compact index plus a sibling `*_evidence/` directory; `load` resolves the
   references transparently. Current compact indexes are Cook .99 MB, Switch
-  1.29 MB, Play 1.30 MB, z210-300 2.35 MB; evidence blobs are 2.35 / .91 /
-  2.47 / 7.61 MB, for compact totals of 3.33 / 2.20 / 3.77 / 9.96 MB. An LLM
+  1.29 MB, Play 1.29 MB, z210-300 2.34 MB; evidence blobs are 2.12 / .67 /
+  1.82 / 5.21 MB, for compact totals of 3.11 / 1.95 / 3.11 / 7.55 MB. An LLM
   can read the index without loading image payloads; query-time code loads
-  evidence only when it needs pixels.
+  evidence only when it needs pixels. Scene thumbnails are omitted because
+  nearly every scene (188/189 on z210; all on the short clips) is within 0.5 s
+  of a retained context; scene evidence resolves from that context.
 - Capsule/scene crops use WebP q82; context keyframes stay JPEG. This cuts
   monolithic stores from 8.22 to 6.41 MB (Cook), 6.16 to 4.69 MB (Switch), and
   11.45 to 7.68 MB (Play) with identical QA. Recoding contexts to WebP is not
   safe: Cook semantic/loc@.3 fall .70/1.00 to .50/.50, so only the narrower
   crops use it. Lowering context JPEG quality to 70 saves only 6% but drops
   Cook semantic .70 to .60 and IoU .692 to .573. The view-bearing split
-  evidence was 3.99 / 2.43 / 4.65 MB; compact evidence is 2.35 / .91 / 2.47
+  evidence was 3.99 / 2.43 / 4.65 MB; compact evidence is 2.12 / .67 / 1.82
   MB. Downscaling contexts is also unsafe: 512 px wide saves 13.6%
   of Cook split bytes but drops semantic .70 -> .40, loc@.3 1.00 -> .50, and
   IoU .692 -> .425; 576 px still drops semantic to .40.
-- View pixels are optional (`include_view_images=False`): views keep boxes and
-  embeddings for routing, while contexts keep the pixels used for detection.
-  This is the benchmark dump default now. It cuts the current split stores
-  25-41% (Cook 5.00 -> 3.33 MB, Switch 3.75 -> 2.20, Play 5.98 -> 3.77, z210
-  13.35 -> 9.96) with identical QA and detector calls. `--view-pixels` keeps
-  crops; `--dump-split` writes index plus evidence blobs.
+- View and scene pixels are optional (`include_view_images=False`,
+  `include_scene_images=False`): views keep boxes and embeddings for routing,
+  scenes keep embeddings for ranking, and contexts keep the pixels used for
+  detection and evidence. This is the benchmark dump default now. It cuts the
+  current split stores 38-48% (Cook 5.00 -> 3.11 MB, Switch 3.75 -> 1.95, Play
+  5.98 -> 3.11, z210 13.35 -> 7.55) with identical QA and detector calls.
+  `--view-pixels` and `--scene-pixels` keep those pixels; `--dump-split`
+  writes index plus evidence blobs.
 - Capsule eviction is not a free memory knob. Evicting Cook 196 -> 50 preserves
   all answers (.70 / 1.00 / .692) and 6.46 -> 4.86 MB, but calls rise 13.7 ->
   14.9; z210 300 -> 75 cuts 17.07 -> 12.35 MB, but calls rise 22.5 -> 24.0 and
   semantic falls .05 -> .025 (one question). Switch 300 -> 150 drops semantic
   .875 -> .75 because routing chooses a different context and loses the
   console's support phrase, despite unchanged loc/IoU. Keep capsules for
-  routing and drop view pixels instead. In the compact store, context/scene
-  evidence is the floor: 2.35 MB Cook, 7.61 MB z210.
+  routing and drop view and scene pixels instead. In the compact store,
+  context evidence is the floor: 2.12 MB Cook, 5.21 MB z210.
 - Sparse contexts are not a free win: in an earlier pre-WebP no-view ablation,
   1.0 s and 1.5 s
   context gaps save only 3-25% but reduce Cook loc@.30 from 1.00 to .75 (and

@@ -21,8 +21,8 @@ compressed evidence blobs, so an LLM can read the index without loading pixels. 
 three short egocentric clips, SPORE localises 0.75-1.00 of dense-detectable
 objects at loc@.3 with 5-8 detector calls per query versus 128-150 for dense
 sampling; a compact 300-capsule store cuts the 257 s HoloAssist z210 store
-from 44.2 MB to 9.96 MB while preserving localisation, and an answer touches
-only 35-66 KB of evidence. Fine-object counting remains source-resolution-bound
+from 44.2 MB to 7.55 MB while preserving localisation, and an answer touches
+only 35-66 KB of evidence (0.5-2.1% of the store). Fine-object counting remains source-resolution-bound
 as well as detector-bound.
 
 ## 1. Introduction
@@ -115,23 +115,29 @@ To keep the store LLM-friendly, `CapsuleStore.save(path, split=True)` writes:
 
 - `index.json`: capsules, views, embeddings, actions, contacts, scene/text
   records, and `file:` references;
-- `<stem>_evidence/`: WebP scene crops and JPEG context frames.
+- `<stem>_evidence/`: JPEG context frames and, when requested, WebP capsule
+  crops and scene thumbnails.
 
 `CapsuleStore.load` resolves references transparently. A monolithic store is
 still available for compatibility.
 
 Views are routing indices, not the primary evidence.  Setting
 `include_view_images=False` keeps view boxes and embeddings but drops view
-pixels; context frames remain the localisation evidence.  With WebP scene
-crops and adaptive fusion this reduces the current split stores from
-5.00/3.75/5.98/13.35 MB to **3.33/2.20/3.77/9.96 MB** for Cook, Switch, Play,
-and z210, a 25-41% reduction.  All headline answers and detector-call counts
+pixels; context frames remain the localisation evidence.  Scene thumbnails are
+also redundant: all but one retained scene across the four stores is within
+0.5 s of a context frame (188/189 on z210, all on the short clips), so
+`include_scene_images=False` keeps the scene embeddings and timestamps while
+resolving scene evidence from that context.  With WebP crops, adaptive fusion,
+and both pixel budgets omitted, the current split stores fall from
+5.00/3.75/5.98/13.35 MB to **3.11/1.95/3.11/7.55 MB** for Cook, Switch, Play,
+and z210, a 38-48% reduction.  All headline answers and detector-call counts
 are unchanged: Cook .70 / IoU .826 / 7.9 calls, Switch .875 / .611 / 7.4,
 Play 1.00 / .475 / 5.0, z210 .05 / .77 / 12.7.  The JSON index remains
-human-readable at 1.0-2.4 MB.  The benchmark dumper therefore omits crop
-pixels by default (`--view-pixels` retains them) and can write the split
-index with `--dump-split`.  Keep view pixels only when crop-level inspection
-must work without context frames.
+human-readable at 1.0-2.3 MB.  The benchmark dumper therefore omits both
+capsule and scene pixels by default (`--view-pixels` and `--scene-pixels`
+retain them) and can write the split index with `--dump-split`.  Keep those
+pixels only when crop- or scene-level inspection must work without context
+frames.
 
 ### 3.4 Query routing and late binding
 
@@ -199,9 +205,9 @@ boxes; all retention and localisation numbers should be read as
 - **Store bytes:** compact split store on disk (JSON index plus evidence
   blobs); monolithic JSON sizes are noted where relevant.
 - **Evidence bytes per answer:** unique evidence bytes attached to the
-  answer's provenance chain (retained context and any scene crop), not the
-  whole store. This approximates what an LLM-side reader would fetch from the
-  split evidence directory for one question.
+  answer's provenance chain (retained context, plus a scene thumbnail only if
+  one was stored), not the whole store. This approximates what an LLM-side
+  reader would fetch from the split evidence directory for one question.
 
 ### 4.4 Held-out automatic questions
 
@@ -220,14 +226,14 @@ Hand-written QA sets:
 
 | Domain | Semantic | loc@.3 | loc@.5 | mean IoU | Compact store | Calls/query | Dense calls |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Cook 45 s | .70 | 1.00 | 1.00 | .826 | 3.33 MB | 7.9 | 150 |
-| Switch 34 s | .875 | .75 | .75 | .611 | 2.20 MB | 7.4 | 128 |
-| Play 45 s | 1.00 | .667 | .667 | .475 | 3.77 MB | 5.0 | 150 |
-| z210 257 s (300 caps) | .05 | 1.00 | 1.00 | .77 | 9.96 MB | 12.7 | 962 |
+| Cook 45 s | .70 | 1.00 | 1.00 | .826 | 3.11 MB | 7.9 | 150 |
+| Switch 34 s | .875 | .75 | .75 | .611 | 1.95 MB | 7.4 | 128 |
+| Play 45 s | 1.00 | .667 | .667 | .475 | 3.11 MB | 5.0 | 150 |
+| z210 257 s (300 caps) | .05 | 1.00 | 1.00 | .77 | 7.55 MB | 12.7 | 962 |
 
 Compact stores are split index plus evidence blobs with capsule view pixels
-omitted; context frames and scene crops remain.  Full split stores that retain
-view pixels are 5.00/3.75/5.98/13.35 MB, and monolithic stores are
+and scene thumbnails omitted; context frames remain.  Full split stores that
+retain both pixel sets are 5.00/3.75/5.98/13.35 MB, and monolithic stores are
 6.46/4.69/7.74/17.07 MB.
 
 Calls/query use the default context-first binding, which does not re-detect
@@ -342,27 +348,28 @@ the direction of each effect is unchanged.
 | Capsule eviction, 1,947 -> 300 | z210 44.2 -> 17.1 MB monolithic, loc unchanged | keep |
 | Split index/evidence | Cook index .99 MB in compact store | keep |
 | Drop view pixels, keep contexts | compact stores 25-41% smaller; all four QAs/calls unchanged | keep (dump default) |
+| Drop scene thumbnails, keep embeddings | compact stores 7-24% smaller; all four QAs/calls unchanged; evidence resolves from nearest context | keep (dump default) |
 
 ### 5.3 Storage breakdown
 
-Current compact split stores on disk.  The index is JSON; evidence is scene
-crops and retained context keyframes, with capsule view pixels omitted.
+Current compact split stores on disk.  The index is JSON; evidence is retained
+context keyframes, with capsule view pixels and scene thumbnails omitted.
 
 | Store | Index | Evidence | Total | Evidence/answer |
 |---|---:|---:|---:|---:|---:|
-| Cook | .99 MB | 2.35 MB | 3.33 MB | 66.3 KB |
-| Switch | 1.29 MB | .91 MB | 2.20 MB | 34.6 KB |
-| Play | 1.30 MB | 2.47 MB | 3.77 MB | 65.2 KB |
-| z210 (300 caps) | 2.35 MB | 7.61 MB | 9.96 MB | 35.9 KB |
+| Cook | .99 MB | 2.12 MB | 3.11 MB | 66.3 KB |
+| Switch | 1.29 MB | .67 MB | 1.95 MB | 34.6 KB |
+| Play | 1.29 MB | 1.82 MB | 3.11 MB | 65.2 KB |
+| z210 (300 caps) | 2.34 MB | 5.21 MB | 7.55 MB | 35.9 KB |
 
 The index contains the LLM-readable structure: timestamps, boxes, labels,
-contacts, actions, and provenance.  The largest index is 2.35 MB because z210
+contacts, actions, and provenance.  The largest index is 2.34 MB because z210
 retains 300 capsules and 264 contexts; the short clips stay near 1 MB.
 
 A single answer touches far less evidence than the store: the unique bytes
 attached to its provenance chain are **66.3 KB** on Cook, **34.6 KB** on
-Switch, **65.2 KB** on Play, and **35.9 KB** on z210.  These are 2.0%, 1.6%,
-1.7%, and 0.4% of the corresponding compact stores.  The number is a fetch
+Switch, **65.2 KB** on Play, and **35.9 KB** on z210.  These are 2.1%, 1.8%,
+2.1%, and 0.5% of the corresponding compact stores.  The number is a fetch
 estimate for an LLM-side reader, not a claim that decoding cost is negligible:
 detector calls dominate query latency.
 
@@ -377,10 +384,10 @@ routing selects a different context (18.2 s instead of 20.8 s), even though
 localization and IoU are unchanged.  Capsule views are routing priors, not just
 payload.  (Eviction sizes here are the earlier monolithic serialization;
 current compact split stores are in Table 1.)  Keep the capsule count and
-drop view pixels instead; current compact stores retain 300-capsule routing at
-3.33 / 2.20 MB for Cook/Switch and 9.96 MB for z210.  Retained context frames
-set the memory floor: 2.35 MB for Cook and 7.61 MB for z210 in compact
-evidence.
+drop view and scene pixels instead; current compact stores retain 300-capsule
+routing at 3.11 / 1.95 MB for Cook/Switch and 7.55 MB for z210.  Retained
+context frames set the memory floor: 2.12 MB for Cook and 5.21 MB for z210 in
+compact evidence.
 
 Context density is not monotonic with accuracy.  In an earlier pre-WebP
 no-view ablation, a 0.75 s gap gave Cook 3.48 MB / Switch 2.37 MB and Cook
@@ -554,14 +561,15 @@ vectorized paths match the original greedy/cosine semantics exactly.
 
 ### 5.8 Evidence codec
 
-Capsule and scene crops are stored as WebP at quality 82; context keyframes
-stay JPEG.  Re-encoding or fresh ingest with WebP leaves every answer
+When retained, capsule and scene crops are stored as WebP at quality 82;
+context keyframes stay JPEG.  Re-encoding or fresh ingest with WebP leaves every answer
 unchanged: Cook semantic .70 / loc@.3 1.00, Switch .875 / .75, Play
 1.00 / .667; on the pre-adaptive mean-box baseline Cook IoU was .692.
 Monolithic stores shrink from 8.22 to 6.41 MB (Cook), 6.16 to 4.69 MB
 (Switch), and 11.45 to 7.68 MB (Play), a 22-33% reduction.  With
-compact split storage the Cook index is .99 MB and its evidence blobs
-2.35 MB; Switch is 1.29 / .91 MB, Play 1.30 / 2.47 MB.  The remaining context bytes
+compact split storage and scene thumbnails dropped, the Cook index is .99 MB
+and its evidence blobs 2.12 MB; Switch is 1.29 / .67 MB, Play 1.29 / 1.82 MB.
+The remaining context bytes
 are not free to recompress: recoding context frames alone to WebP quality 80
 dropped Cook semantic accuracy .70 to .50 and loc@.3 1.00 to .50.  Small
 objects on the wider keyframe are codec-sensitive, so the narrower capsule
@@ -691,9 +699,11 @@ produce identical text queries, and only temporal association and geometric
 mean scoring reliably pick a consistent instance.
 
 Storage remains evidence-heavy. The compact index solves the LLM-readability
-problem, but evidence bytes still scale with clip length; after WebP crops,
-contexts are the largest component on Cook, while capsule crops still dominate
-Switch and Play. A production system should add an explicit evidence budget,
+problem, but evidence bytes still scale with clip length; after WebP crops and
+scene-thumbnail removal, contexts are the largest component on all four clips.
+Scene thumbnails were removed because they duplicate a nearby context, not
+because scene embeddings are free: the 300-capsule z210 still spends 5.21 MB on
+context evidence. A production system should add an explicit evidence budget,
 adaptive context placement around interactions, and possibly a context codec
 or a small learned compressor. Context WebP is not a drop-in win because small
 objects are sensitive to its smoothing.
@@ -740,6 +750,7 @@ store.save(
     "research/spore/results/gap_cook/index.json",
     split=True,
     include_view_images=False,
+    include_scene_images=False,
 )
 PY
 

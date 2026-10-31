@@ -2541,6 +2541,18 @@ class SporeQueryEngine:
                     return term
         return None
 
+    def _scene_frame(self, scene: SceneCapsule) -> np.ndarray | None:
+        """Resolve a scene image, falling back to the nearest context frame.
+
+        Compact stores omit scene thumbnails because a scene is always chosen
+        within a fraction of a second of a retained context.  The embedding
+        still ranks the hit; the context supplies the evidence pixels.
+        """
+        if scene.image is not None:
+            return scene.image
+        context = self.store.context_at(scene.timestamp, max_gap=0.6)
+        return context.image() if context is not None else None
+
     def _answer_scene(self, question: str, term: str) -> SporeAnswer:
         """Answer a visibility question from the scene index, no detector."""
         start = time.perf_counter()
@@ -2560,6 +2572,7 @@ class SporeQueryEngine:
         ]
         if hits:
             scene, score = hits[0]
+            frame = self._scene_frame(scene)
             answer.abstained = score < self.config.scene_recall_min_score
             answer.bindings = [
                 Binding(
@@ -2571,8 +2584,8 @@ class SporeQueryEngine:
                     bbox=BBox(
                         0.0,
                         0.0,
-                        float(scene.image.shape[1]) if scene.image is not None else 0.0,
-                        float(scene.image.shape[0]) if scene.image is not None else 0.0,
+                        float(frame.shape[1]) if frame is not None else 0.0,
+                        float(frame.shape[0]) if frame is not None else 0.0,
                     ),
                     provenance="scene",
                 )
@@ -2584,11 +2597,11 @@ class SporeQueryEngine:
                 )
             else:
                 answer.answer = "not enough evidence"
-            if scene.image is not None:
+            if frame is not None:
                 ok, buffer = cv2.imencode(
-                    ".jpg", scene.image, [int(cv2.IMWRITE_JPEG_QUALITY), 82]
+                    ".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82]
                 )
-                answer.evidence_bytes = int(buffer.nbytes) if ok else int(scene.image.nbytes)
+                answer.evidence_bytes = int(buffer.nbytes) if ok else int(frame.nbytes)
         else:
             answer.answer = "not enough evidence"
         answer.detector_calls = self.detector_calls - calls_before

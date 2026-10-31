@@ -345,6 +345,7 @@ def evaluate(args: argparse.Namespace) -> dict:
         store.save(
             dump_dir / "store.json",
             include_view_images=args.view_pixels,
+            include_scene_images=args.scene_pixels,
             split=args.dump_split,
         )
         (dump_dir / "dense.json").write_text(
@@ -611,6 +612,11 @@ def main() -> None:
         "--view-pixels",
         action="store_true",
         help="Keep capsule view crops when dumping a store (default: contexts only).",
+    )
+    parser.add_argument(
+        "--scene-pixels",
+        action="store_true",
+        help="Keep scene thumbnails when dumping (default: resolve evidence from contexts).",
     )
     parser.add_argument(
         "--dump-split",

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import cv2
 import numpy as np
 
-from chronicle.perception.capsules import CapsuleStore, SceneCapsule
+from chronicle.perception.capsules import CapsuleStore, ContextFrame, SceneCapsule
 from chronicle.perception.embedder import BaseEmbedder
 from chronicle.perception.spore import SporeConfig, SporeQueryEngine
 
@@ -75,6 +76,30 @@ def test_scene_visibility_question_answers_without_detector() -> None:
     assert answer.bindings[0].provenance == "scene"
     assert answer.stats["scene_recall"][0]["timestamp"] == 3.0
     assert answer.detector_calls == 0
+
+
+def test_scene_answer_uses_nearest_context_when_scene_pixels_are_dropped() -> None:
+    frame = np.zeros((24, 32, 3), dtype=np.uint8)
+    ok, encoded = cv2.imencode(".jpg", frame)
+    assert ok
+    store = CapsuleStore()
+    store.add_scene(_scene(2.0, [1.0, 0.0]))
+    store.add_context(
+        ContextFrame(
+            timestamp=2.0,
+            frame_index=20,
+            image_jpeg=encoded.tobytes(),
+            metadata={"frame_size": [32, 24]},
+        )
+    )
+    engine = SporeQueryEngine(
+        store, SporeConfig(scene_recall=True), embedder=FakeEmbedder()
+    )
+
+    answer = engine.answer("When did I see the stairs?")
+
+    assert answer.bindings[0].bbox.width == 32
+    assert answer.evidence_bytes > 0
 
 
 def test_scene_parser_does_not_hijack_touch_questions() -> None:

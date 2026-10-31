@@ -45,10 +45,10 @@ implement a working label-free capsule perceiver and budgeted late-binding
 query engine. `scripts/spore_real_bench.py` evaluates Cook 45 s, Switch 34 s,
 Play 45 s, and the 257 s z210 diagnostic against dense YOLO-World pseudo-GT.
 Current headline: Cook loc@.30 1.00 / mean IoU .826 / semantic .70 / 7.9 calls
-(dense 150), compact store 3.33 MB; Switch loc@.30 .75 / IoU .611 / semantic
-.875 / 7.4 calls (dense 128), compact 2.20 MB; Play semantic 1.00 / loc .667 /
-IoU .475, compact 3.77 MB; z210 loc 1.00 / IoU .77 / semantic .05 / 12.65
-calls, compact 9.96 MB. First-touch cup time is 4.6 s (annotated 4.5 s) via a
+(dense 150), compact store 3.11 MB; Switch loc@.30 .75 / IoU .611 / semantic
+.875 / 7.4 calls (dense 128), compact 1.95 MB; Play semantic 1.00 / loc .667 /
+IoU .475, compact 3.11 MB; z210 loc 1.00 / IoU .77 / semantic .05 / 12.65
+calls, compact 7.55 MB. First-touch cup time is 4.6 s (annotated 4.5 s) via a
 fingertip-contact gate; steady-state query latency is ~201 ms mean / 151 ms
 median at 7.9 calls after warmup. Vocabulary switching is cached per label
 (~0.1 s vs ~2.1 s for `set_classes`). Context-first binding is the default:
@@ -87,11 +87,12 @@ a valid localization benchmark.
 z210 257 s is a scaling diagnostic: the 454x256 capture cannot resolve the
 fine objects being counted (temporal/activity questions also need verbs/speech
 not present), and only joy-con/console are detectable. The 300-capsule hard
-budget keeps its compact store at 9.96 MB with no metric loss; contexts, not
+budget keeps its compact store at 7.55 MB with no metric loss; contexts, not
 capsules, carry most answer evidence. The store supports `save(...,
-split=True)` and drops capsule crop pixels by default in benchmark dumps;
-contexts remain JPEG q82. A new evidence-byte metric shows one answer touches
-35-66 KB of evidence, 0.4-2.0% of the compact store.
+split=True)` and drops capsule crop pixels and scene thumbnails by default in
+benchmark dumps; contexts remain JPEG q82. Scene recall ranks embeddings and
+resolves evidence from the nearest context. An evidence-byte metric shows one
+answer touches 35-66 KB of evidence, 0.5-2.1% of the compact store.
 Scene inventory is opt-in: 12 contexts, support-box filtering, confidence-gated
 persistence, and alias/duplicate-box suppression. A generic 43-label
 household/office bank answers the Switch inventory question as "joy-con on the

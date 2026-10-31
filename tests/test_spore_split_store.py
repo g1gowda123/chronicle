@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from chronicle.perception.capsules import CapsuleStore, ContextFrame, SporeView
+from chronicle.perception.capsules import (
+    CapsuleStore,
+    ContextFrame,
+    SceneCapsule,
+    SporeView,
+)
 from chronicle.types import BBox
 
 
@@ -72,3 +77,28 @@ def test_split_store_can_drop_view_pixels_but_keep_contexts(tmp_path) -> None:
     assert view.image is None
     assert view.embedding is not None
     assert loaded.contexts[0].image_jpeg == b"\xff\xd8\xff\xd9"
+
+
+def test_split_store_can_drop_scene_pixels_but_keep_embeddings(tmp_path) -> None:
+    store = CapsuleStore()
+    store.add_scene(
+        SceneCapsule(
+            timestamp=1.0,
+            frame_index=10,
+            score=0.9,
+            embedding=np.ones(8, dtype=np.float32) / np.sqrt(8),
+            image=np.zeros((24, 32, 3), dtype=np.uint8),
+        )
+    )
+
+    full = store.save(tmp_path / "with_scenes.json", split=True)
+    compact = store.save(
+        tmp_path / "without_scenes.json",
+        split=True,
+        include_scene_images=False,
+    )
+    loaded = CapsuleStore.load(compact)
+
+    assert compact.stat().st_size < full.stat().st_size
+    assert loaded.scenes[0].image is None
+    assert loaded.scenes[0].embedding is not None
