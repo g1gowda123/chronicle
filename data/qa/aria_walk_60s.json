@@ -1,0 +1,32 @@
+[
+  {
+    "query": "Where is the person?",
+    "answer": ["stairs"],
+    "timestamp": 54.5,
+    "category": "object_location"
+  },
+  {
+    "query": "What is the person holding?",
+    "answer": ["cup"],
+    "timestamp": 54.5,
+    "category": "object_location"
+  },
+  {
+    "query": "When did I first see the person?",
+    "answer": ["person"],
+    "timestamp": 54.5,
+    "category": "temporal"
+  },
+  {
+    "query": "How many people did I see?",
+    "answer": ["1"],
+    "timestamp": 54.5,
+    "category": "counting"
+  },
+  {
+    "query": "Where is the sign?",
+    "answer": ["sidewalk"],
+    "timestamp": 10.0,
+    "category": "object_location"
+  }
+]
