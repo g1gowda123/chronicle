@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "dataset": "chronicle-aria-clean-heldout",
+  "description": "Held-out human QA over a 45 s Aria living-room cleaning clip. Questions and expected answers were visually annotated and committed before the wall-support experiment; the clip is used to test whether adding wall as a general support surface helps background objects without regressing tabletop support.",
+  "video_id": "aria_clean_0_45s",
+  "zone_label": "Living room",
+  "questions": [
+    {
+      "video_id": "aria_clean_0_45s",
+      "query": "Where is the TV?",
+      "answer": "wall",
+      "answers": ["wall"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_clean_0_45s",
+      "query": "Where is the window?",
+      "answer": "wall",
+      "answers": ["wall"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_clean_0_45s",
+      "query": "Where is the sofa?",
+      "answer": "floor",
+      "answers": ["floor"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_clean_0_45s",
+      "query": "Where is the table?",
+      "answer": "floor",
+      "answers": ["floor"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_clean_0_45s",
+      "query": "What colour is the sofa?",
+      "answer": "grey",
+      "answers": ["grey", "gray"],
+      "timestamp": 20.0,
+      "category": "attribute"
+    },
+    {
+      "video_id": "aria_clean_0_45s",
+      "query": "Where is the chair?",
+      "answer": "floor",
+      "answers": ["floor"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    }
+  ],
+  "vocabulary": [
+    "tv",
+    "window",
+    "sofa",
+    "table",
+    "chair",
+    "floor",
+    "wall",
+    "person"
+  ]
+}
