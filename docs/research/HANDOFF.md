@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `3f34b5b` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `75fa0c5` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -108,6 +108,16 @@ painted curb sign and a glass door were missed. A twelve-term absent probe
 scored .145-.259 and eleven exceeded the .15 gate, so absolute CLIP scores do
 not verify absence; the path is opt-in (`scene_recall=False`) and only ranks a
 term assumed present.
+
+An optional ADE20K SegFormer-B0 surface head (`surface_support=True`,
+`--surface-support`) fixes the wall/floor gap conservatively: wall-mounted
+objects may use `wall`, furniture on a desk/shelf may use `floor`, and tabletop
+objects on a desk/shelf may use `table`; a specific horizontal support is never
+replaced by a different horizontal one. On the held-out QA it raises clean
+0/6→3/6 (TV, sofa, chair) and eat 4/6 lenient (3/6 human)→6/6 (plate and window
+fixed), with Cook/Switch/Play unchanged. It costs ~0.18 GB peak VRAM and
+0.2–0.5 s/query, so it stays opt-in and out of the headline table. See paper
+§5.15.
 
 
 ## 3. Main branch: what is already shipped
@@ -286,14 +296,15 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 - `main`: `1200f84`, clean, CI green.
 - `research/spore-perception`: based on `1200f84`; perceiver, query engine,
   benchmarks, context frames, fused tracks, counting, inventory, compact
-  stores, temporal scans, detector-free scene recall, and support-surface
-  query targets are implemented. Multi-domain manifest/fetch/aggregate scripts
-  and tests are present. Branch tip `3f34b5b` documents the first held-out
-  human QA (eating domain, 3/6 human-judged, 4/6 lenient) and the rejected
-  wall-support probe; the eat QA was committed as `ec501bb` before the run,
-  clean QA as `c85be76`. Earlier `8e3bfb2` includes the four-domain
-  held-out automatic run, the person-query fix, the SPORE/main comparison, and
-  `scripts/fetch_lfs_clips.py`.
+  stores, temporal scans, detector-free scene recall, support-surface query
+  targets, and an optional semantic surface head are implemented. Multi-domain
+  manifest/fetch/aggregate scripts and tests are present. Branch tip `75fa0c5`
+  adds the opt-in SegFormer-B0 surface head: clean held-out 0/6→3/6, eating
+  4/6 lenient (3/6 human)→6/6, Cook/Switch/Play unchanged, +~0.18 GB VRAM and
+  0.2–0.5 s/query. Earlier `3f34b5b` records the rejected wall-label probe;
+  eating QA was committed as `ec501bb` before the run, clean QA as `c85be76`.
+  `8e3bfb2` includes the four-domain held-out automatic run, the person-query
+  fix, the SPORE/main comparison, and `scripts/fetch_lfs_clips.py`.
 - `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
   untracked; no 1280 run executed.
 - `research/long-video-qa`: `990013e`, clean.
@@ -308,10 +319,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   TV still used a shelf, the window still abstained, and Cook regressed
   .70→.60 with cup counting 2→1. The code change was reverted; do not retry
   a label-only wall fix.
-- Next: implement support/place **selection** (nearby shelf vs floor vs wall
-  geometry, or a learned support head) and evaluate on `walk_0` or a new
-  human QA set committed before the change. Keep reporting lenient semantic
-  and human-judged support correctness separately; the plate “work table”
-  case is a known substring false positive.
+- The support/place **selection** bottleneck now has an opt-in head (above).
+  It is not in the default headline. Next: validate on `walk_0` or a new human
+  QA set committed before the change, and measure whether a cheaper mask pass
+  is worthwhile. Keep reporting lenient semantic and human-judged support
+  correctness separately; the plate “work table” case is a known substring
+  false positive.
 - Do not tune the eat_0/clean_0 questions, run another z210 prompt/threshold
   sweep, or tune Cook-specific failures.
