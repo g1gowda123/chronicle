@@ -925,10 +925,15 @@ blue instead of green/teal, first appearance is returned as 0.8 s instead of
 
 Because the parser changes and outdoor rule were written after inspecting
 this five-question set, the 2/5 is a **post-hoc diagnostic, not a clean
-held-out estimate**.  A second outdoor clip is needed before treating outdoor
-support as a general capability.  The fallback and surface head are opt-in
-(`--context-fallback`, `--surface-support`) and are not part of the headline
-table.
+held-out estimate**.  A second 60 s outdoor clip (`aria_walk_60s`, five-question
+QA committed as `4af714c` before its first run) did not replicate the result:
+the baseline and the fallback+surface run both score **0/5**.  The person is
+detected at 54.2 s but receives no support because the stairs do not satisfy
+the road-fraction rule; the cup and sign are never detected; first appearance
+is 0.0 s and the people count is 2 instead of 1.  Outdoor support is therefore
+a post-hoc diagnostic, not a general capability.  The fallback and surface head
+are opt-in (`--context-fallback`, `--surface-support`) and are not part of the
+headline table.
 
 SPORE shows that **retained full context**, not better crops, is the dominant
 factor for late-binding localisation. Capsule crops alone are too tight and too

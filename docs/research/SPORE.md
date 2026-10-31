@@ -287,8 +287,13 @@ parser fixes reaches **2/5 semantic**: `person on the road at 24.0s` and
 Shirt colour is still blue instead of green/teal, first appearance is 0.8 s
 instead of 24.0 s, and count is 2 instead of 3. Because the parser and outdoor
 rule were written after inspecting this QA set, the 2/5 is a post-hoc
-diagnostic, not a clean held-out estimate; a second outdoor clip is needed.
-Fallback and surface support stay opt-in and out of the headline table.
+diagnostic, not a clean held-out estimate. A second 60 s outdoor clip
+(`aria_walk_60s`, QA `4af714c`) did not replicate it: baseline and
+fallback+surface both score **0/5**. The person is detected at 54.2 s but the
+stairs do not satisfy the road rule; cup and sign are not detected; first
+appearance is 0.0 s and count is 2. Outdoor support is therefore a post-hoc
+diagnostic, not a general capability. Fallback and surface support stay
+opt-in and out of the headline table.
 
 - Ablation call counts below predate disabling the redundant crop fallback;
   absolute calls are higher there, while accuracy/storage trends are unchanged.

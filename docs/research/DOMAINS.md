@@ -198,6 +198,29 @@ this is a **post-hoc diagnostic, not a clean held-out estimate**; the first
 appearance (0.8 s), shirt colour (blue), and count (2) remain wrong. Do not
 tune further on this clip; validate on a second outdoor clip.
 
+### Human QA check (walk_60)
+
+A second five-question human set was written for the 60 s outdoor campus clip
+`aria_walk_60s` (person on stairs, cup held by the person, first appearance,
+people count, sign on the sidewalk) and committed as `4af714c` before the
+first run. Baseline and the opt-in fallback+surface run both score **0/5
+semantic**; the outputs are identical. Localisation is 1.00/1.00 and mean IoU
+.733 on the dense person target, with 8.2 detector calls/query.
+
+| question | expected | baseline / fallback+surface |
+|---|---|---|
+| Where is the person? | stairs | `person at 54.2s` (support None) |
+| What is the person holding? | cup | not detected |
+| When did I first see the person? | person at 54.5 s | `first interaction with person at 0.0s` (wrong time) |
+| How many people did I see? | 1 | `2 person` |
+| Where is the sign? | sidewalk | not detected |
+
+The person is detected but not supported: the stairs do not meet the road
+fraction threshold, and stairs are not in `_ROAD`. The cup and sign are never
+detected, so there is nothing to ground. This second outdoor clip does not
+replicate the post-hoc walk_0 2/5; treat outdoor support as a diagnostic, not a
+general capability. Do not tune on this clip.
+
 ### Wall-support probe (negative)
 
 A second six-question human set was written for `aria_clean_0_45s` (living
