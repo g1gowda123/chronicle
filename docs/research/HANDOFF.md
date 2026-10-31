@@ -257,8 +257,8 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 - `research/spore-perception`: based on `1200f84`; perceiver, query engine,
   benchmarks, context frames, fused tracks, counting, inventory, compact
   stores, temporal scans, and detector-free scene recall are implemented.
-  Multi-domain manifest/fetch/aggregate scripts and tests are present; the
-  branch tip is the scene-recall commit plus these uncommitted additions.
+  Multi-domain manifest/fetch/aggregate scripts and tests are present; branch
+  tip `a8bc643`.
 - `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
   untracked; no 1280 run executed.
 - `research/long-video-qa`: `990013e`, clean.
