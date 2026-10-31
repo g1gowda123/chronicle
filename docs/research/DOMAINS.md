@@ -118,6 +118,37 @@ These numbers are deliberately **not** a headline accuracy claim:
 - The four clips are short windows from one capture rig. Report them as
   held-out development domains, not a benchmark.
 
+## Human QA check (eat_0)
+
+The automatic questions above are generated from the same dense detector that
+supplies their reference boxes. To get one independent check, six questions
+were written from visual inspection of `aria_eat_0_45s` and committed
+(`data/qa/aria_eat_0_45s.json`, `ec501bb`) **before** the first SPORE run on
+the clip. The clip has three people at a dining table, plates, pink/orange
+cups, a wall-mounted TV, and a window with blinds.
+
+| question | expected | SPORE answer | IoU | outcome |
+|---|---|---|---|---:|---|
+| Where is the table? | table | `table at 20.0s` | .807 | pass |
+| Where is the cup? | table | `cup on the table (countertop) at 19.2s` | .772 | pass |
+| Where is the plate? | table | `plate on the desk (work table) at 20.0s` | .238 | wrong support; semantic substring accepts “table” |
+| What colour is the cup? | red/orange | `cup is red at 19.2s` | .772 | pass |
+| Where is the TV? | wall | `tv on the desk (work table) at 20.0s` | .609 | detected, support wrong |
+| Where is the window? | wall | `window on the table (countertop) at 19.6s` | .000 | CLIP fallback, no dense target |
+
+Aggregate: lenient semantic **.667 (4/6)**, human-judged **.50 (3/6)**,
+loc@.30/.50 **.80**, mean IoU **.64**, **4.5 calls/query** (27 total vs 150
+dense), 30.6 s ingest, 5.24 MB in-memory store, 1.34 GB peak VRAM.
+
+This is a transfer check, not a benchmark estimate. Object memory transfers to
+the new room (the TV is detected at IoU .609), but the support vocabulary does
+not contain `wall`, so the TV relation is forced onto a desk; the window is a
+CLIP-fallback hallucination with no detector target. The plate answer exposes
+a metric weakness: “table” is a substring of “work table,” so the lenient
+matcher accepts a wrong support. Report both the lenient and human-judged
+scores, and do not tune these questions after the run. A wall-support change
+must be evaluated on a different clip before it is claimed as a gain.
+
 ## Comparison with the original `main` perception path
 
 The same human-written QA sets were run with SPORE on the real clips recovered

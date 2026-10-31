@@ -758,6 +758,44 @@ The main results table keeps the hybrid default because the fallback is part
 of the deployed query path.  Papers using these numbers should report the
 detector-only row as the more conservative grounding baseline.
 
+### 5.14 Held-out human QA: eating domain
+
+The automatic held-out questions in Section 4.4 are generated from dense
+detector tracks.  To test whether the system answers independently written
+questions, a six-question QA set was annotated from visual inspection of the
+45 s eating clip before the first run on that clip
+(`data/qa/aria_eat_0_45s.json`, committed as `ec501bb` before evaluation).
+The clip contains three people at a dining table, plates, pink/orange cups, a
+wall-mounted television, and a window with blinds.
+
+| Question | Expected | Answer | IoU | Outcome |
+|---|---|---|---:|---|
+| Where is the table? | table | `table at 20.0s` | .807 | pass, support track |
+| Where is the cup? | table | `cup on the table (countertop) at 19.2s` | .772 | pass |
+| Where is the plate? | table | `plate on the desk (work table) at 20.0s` | .238 | wrong support; semantic matcher accepts “table” inside “work table” |
+| What colour is the cup? | red/orange | `cup is red at 19.2s` | .772 | pass |
+| Where is the TV? | wall | `tv on the desk (work table) at 20.0s` | .609 | object detected, support wrong |
+| Where is the window? | wall | `window on the table (countertop) at 19.6s` | .000 | CLIP fallback, no dense target |
+
+The run answers four of six questions under the lenient semantic matcher
+(.667), with loc@.30/.50 .80, mean IoU .64, 4.5 detector calls per query
+(27 total vs 150 dense), 30.6 s ingest, a 5.24 MB in-memory store, and 1.34 GB
+peak VRAM.  Human-judged accuracy is **3/6 (.50)**: the plate answer names a
+desk rather than the dining table, and only the lenient substring check makes
+it count.  This is a useful negative result about the metric as well as the
+system: semantic accuracy and grounded support attribution can disagree.
+
+The table query exercises the support-surface path from Section 5.11 and is
+the strongest result.  The cup and colour answers are grounded by a context
+track.  The TV is the informative failure: the detector finds it with IoU
+.609, but the support vocabulary contains table/desk/shelf/floor and no
+`wall`, so the relation is forced onto a nearby desk.  The window failure is
+different: no dense detection exists, and the CLIP fallback invents a
+`window on the table` binding.  Object memory transfers to this held-out
+room; the spatial-support ontology and the CLIP fallback do not yet transfer
+with it.  With six questions from one clip these numbers are descriptive, not
+a benchmark estimate, and the questions were not tuned after the run.
+
 ## 6. Discussion
 
 SPORE shows that **retained full context**, not better crops, is the dominant
@@ -795,6 +833,14 @@ objects are sensitive to its smoothing.
   query-time detector. Detector-only semantic scores are .50 Cook, .75 Switch,
   and .75 Play (Section 5.13); the hybrid scores should not be read as pure
   detector accuracy.
+- The semantic matcher is a lenient substring test. In the held-out eating QA
+  it accepts “desk (work table)” for the expected “table,” so the reported
+  .667 is higher than the human-judged 3/6. Report both when support
+  attribution matters.
+- Held-out human QA is six questions from one clip. It shows transfer of
+  object memory to a new room, but the TV/window failures are support-ontology
+  and CLIP-fallback failures, not evidence that the answers are generally
+  grounded.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 

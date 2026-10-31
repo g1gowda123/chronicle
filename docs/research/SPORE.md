@@ -199,6 +199,30 @@ regressions are a shelf/countertop support error and a plate-destination
 tracking error; they are general failure modes, not reasons to tune on Cook.
 See `docs/research/DOMAINS.md` for the comparison table.
 
+**Held-out human QA (eating).** A six-question set was annotated from visual
+inspection of `aria_eat_0_45s` and committed (`ec501bb`) before the first run,
+so it is independent of the automatic dense-question generator. The clip has
+three people at a dining table, plates, pink/orange cups, a wall-mounted TV,
+and a window. Results: lenient semantic **4/6 (.667)**, human-judged **3/6
+(.50)**, loc@.30/.50 **.80**, mean IoU **.64**, **4.5 calls/query** (27 total
+vs 150 dense), 30.6 s ingest, 5.24 MB in-memory store, 1.34 GB peak VRAM.
+
+| question | answer | expected | IoU | outcome |
+|---|---|---|---:|---|
+| table | `table at 20.0s` | table | .807 | pass |
+| cup | `cup on the table (countertop) at 19.2s` | table | .772 | pass |
+| plate | `plate on the desk (work table) at 20.0s` | table | .238 | wrong support; substring match only |
+| cup colour | `cup is red at 19.2s` | red/orange | .772 | pass |
+| TV | `tv on the desk (work table) at 20.0s` | wall | .609 | object detected, support wrong |
+| window | `window on the table (countertop) at 19.6s` | wall | .000 | CLIP fallback, no dense target |
+
+The semantic matcher counts “table” inside “work table,” which is why the
+plate row looks like a semantic pass despite the wrong support. Object memory
+transfers to this room (TV IoU .609); the **support ontology** does not
+(table/desk/shelf/floor, no `wall`), and the window CLIP fallback is
+ungrounded. Do not tune the QA on this clip; a wall-support hypothesis must be
+tested on a separate clip.
+
 **Detector-only ablation.** The hybrid default can rescue an object from a
 CLIP-scored capsule view when the query detector does not fire. Re-running the
 three short clips with `--mode detector` gives semantic .50 Cook, .75 Switch,
