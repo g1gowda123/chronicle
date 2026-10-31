@@ -211,7 +211,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 2. Next experiments, in priority order:
    - paper-grade evidence: add a real annotated subset or a second detector so
      the headline is not purely pseudo-GT; report variance over seeds;
-   - multi-domain transfer beyond Cook/Switch/Play, without tuning to z210;
+   - multi-domain transfer beyond Cook/Switch/Play, without tuning to z210:
+     `data/aria_gen2pilot.json`, `scripts/fetch_aria_clip.py`, and
+     `scripts/spore_domains.py` add four held-out Aria windows (eating,
+     cleaning, social, outdoor). They are not downloaded or scored yet; fetch
+     when the laptop is charged, then run `spore_domains.py --allow-missing`;
    - activity questions that genuinely synthesise a verb from hand motion and
      contact, not just an action-start timestamp;
    - a stronger fine-object detector path, since YOLO-World returns zero for
@@ -253,7 +257,8 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 - `research/spore-perception`: based on `1200f84`; perceiver, query engine,
   benchmarks, context frames, fused tracks, counting, inventory, compact
   stores, temporal scans, and detector-free scene recall are implemented.
-  The branch tip is the scene-recall commit; clean.
+  Multi-domain manifest/fetch/aggregate scripts and tests are present; the
+  branch tip is the scene-recall commit plus these uncommitted additions.
 - `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
   untracked; no 1280 run executed.
 - `research/long-video-qa`: `990013e`, clean.

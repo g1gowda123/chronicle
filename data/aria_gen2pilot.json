@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "dataset": "Aria Gen 2 Pilot",
+  "source": "https://explorer.projectaria.com/data/gen2pilot",
+  "license": "CC BY-NC 4.0 (research/demo use only)",
+  "note": "Clips are locally downloaded preview windows and are not redistributed. Only this manifest and derived annotations are committed.",
+  "sequences": [
+    {
+      "name": "eat_0",
+      "domain": "eating",
+      "sequence": "eat_0",
+      "start_s": 30.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_eat_0_45s.mp4",
+      "zone": "Dining Room",
+      "main_stream": "214-1",
+      "vocabulary": "plate,bowl,cup,mug,bottle,sandwich,fork,knife,spoon,table,chair,napkin,food",
+      "notes": "Three people eating at a dining table; hands, plates, cups, and sandwich visible."
+    },
+    {
+      "name": "clean_0",
+      "domain": "cleaning",
+      "sequence": "clean_0",
+      "start_s": 40.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_clean_0_45s.mp4",
+      "zone": "Living Room",
+      "main_stream": "214-1",
+      "vocabulary": "table,chair,sofa,vacuum,broom,dustpan,spray bottle,cloth,trash can,box,book,game,toy,plant,lamp",
+      "notes": "Living-room cleaning/sorting scene; coffee table covered with board games and cards."
+    },
+    {
+      "name": "play_3",
+      "domain": "social",
+      "sequence": "play_3",
+      "start_s": 40.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_play_3_45s.mp4",
+      "zone": "Living Room",
+      "main_stream": "214-1",
+      "vocabulary": "table,chair,sofa,book,game,cup,bottle,card,box,lamp,tv,screen,plant",
+      "notes": "Two people talking and playing a board game at a coffee table."
+    },
+    {
+      "name": "walk_0",
+      "domain": "outdoor",
+      "sequence": "walk_0",
+      "start_s": 40.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_walk_0_45s.mp4",
+      "zone": "Outdoor Campus",
+      "main_stream": "214-1",
+      "vocabulary": "tree,plant,building,car,bicycle,sign,hydrant,bench,door,sidewalk,road,person",
+      "notes": "Outdoor campus walk; building, path, hedges, hydrant, and strong sunlight."
+    }
+  ]
+}

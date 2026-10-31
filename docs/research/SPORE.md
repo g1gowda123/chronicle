@@ -126,6 +126,8 @@ Domains (at least two, held-out scenes):
 
 - cooking (Cook clip),
 - assembly/manipulation (HoloAssist),
+- eating, cleaning, social, and outdoor windows from the Aria Gen 2 Pilot
+  release (see [`DOMAINS.md`](DOMAINS.md)),
 - scene/text-heavy egocentric clip.
 
 Metrics:
@@ -319,6 +321,11 @@ MB.
   are always present in the answer; the remaining error is choosing the wrong
   instance of a repeated object. Question generation is automatic, so these
   numbers are not tuned to a hand-written QA list.
+- Four held-out Aria windows (eating, cleaning, social, outdoor) are specified
+  in `data/aria_gen2pilot.json`; use `scripts/fetch_aria_clip.py` and
+  `scripts/spore_domains.py`. They are **not yet downloaded or scored** on this
+  branch. The harness is deliberately separated from the current four-clip
+  development table so the new domains stay held out until the first run.
 - The store now has two tiers. `CapsuleStore.save(path, split=True)` writes a
   compact index plus a sibling `*_evidence/` directory; `load` resolves the
   references transparently. Current compact indexes are Cook .99 MB, Switch

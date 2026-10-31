@@ -15,9 +15,10 @@ The clip shows a person assembling Joy-Con controllers onto a Nintendo Switch /
 comfort grip on a table. It is real smart-glasses footage, but it is a tabletop
 assembly task rather than a room walkthrough.
 
-`python -m chronicle fetch-real` reproduces the download and trim. The source
-archive is retrieved with HTTP range requests; only the needed tar member is
-read. The repository keeps only the trimmed clip and its small metadata file.
+The HoloAssist source archive is retrieved with HTTP range requests; only the
+needed tar member is read. The repository keeps only the trimmed clip and its
+small metadata file. (The old `python -m chronicle fetch-real` note was stale;
+that command is not implemented in this worktree.)
 
 ## Additional Aria Gen 2 clips
 
