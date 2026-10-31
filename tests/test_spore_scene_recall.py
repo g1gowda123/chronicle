@@ -44,6 +44,39 @@ def test_scene_recall_ranks_by_text_similarity() -> None:
     assert hits[0][1] > hits[1][1] > 0.0
 
 
+def test_scene_recall_averages_generic_prompt_variants() -> None:
+    store = CapsuleStore()
+    store.add_scene(_scene(1.0, [1.0, 0.0]))
+    embedder = FakeEmbedder()
+    engine = SporeQueryEngine(store, SporeConfig(), embedder=embedder)
+
+    engine.scene_recall("stairs")
+
+    assert embedder.texts == [
+        "stairs",
+        "a photo of stairs",
+        "a close-up photo of stairs",
+        "the stairs in a first-person video",
+        "a scene containing stairs",
+        "a view of stairs",
+    ]
+
+
+def test_scene_recall_can_use_a_single_prompt() -> None:
+    store = CapsuleStore()
+    store.add_scene(_scene(1.0, [1.0, 0.0]))
+    embedder = FakeEmbedder()
+    engine = SporeQueryEngine(
+        store,
+        SporeConfig(scene_prompt_templates=("{term}",)),
+        embedder=embedder,
+    )
+
+    engine.scene_recall("stairs")
+
+    assert embedder.texts == ["stairs"]
+
+
 def test_scene_recall_skips_scenes_without_embeddings() -> None:
     store = CapsuleStore()
     store.add_scene(_scene(1.0, [1.0, 0.0]))

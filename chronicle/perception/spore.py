@@ -269,6 +269,17 @@ class SporeConfig:
     scene_recall: bool = False
     scene_recall_top_k: int = 3
     scene_recall_min_score: float = 0.15
+    # A single bare term is a poorly conditioned CLIP prompt.  Averaging a
+    # small generic ensemble is free at query time (text vectors are cached)
+    # and raises present/absent separation on the outdoor probe; see SPORE.md.
+    scene_prompt_templates: tuple[str, ...] = (
+        "{term}",
+        "a photo of {term}",
+        "a close-up photo of {term}",
+        "the {term} in a first-person video",
+        "a scene containing {term}",
+        "a view of {term}",
+    )
     count_contexts: int = 32
     count_min_confidence: float = 0.30
     count_single_confidence: float = 0.50
@@ -1687,6 +1698,30 @@ class SporeQueryEngine:
         self._text_cache[text] = vector
         return vector
 
+    def _scene_text_vector(self, term: str) -> np.ndarray | None:
+        """Average generic prompt variants for detector-free scene recall.
+
+        CLIP text scores depend strongly on the prompt frame.  The ensemble
+        costs one cached text encode per variant and no image work, so it is
+        cheap relative to the scene scan itself.
+        """
+        vectors: list[np.ndarray] = []
+        for template in self.config.scene_prompt_templates:
+            try:
+                text = template.format(term=term)
+            except (KeyError, IndexError):
+                continue
+            vector = self._embed_text(text)
+            if vector is not None:
+                vectors.append(np.asarray(vector, dtype=np.float32))
+        if not vectors:
+            return None
+        if len(vectors) == 1:
+            return vectors[0]
+        mean = np.mean(np.stack(vectors), axis=0)
+        norm = float(np.linalg.norm(mean))
+        return mean / norm if norm > 1e-9 else None
+
     def _capsule_relevance(
         self, capsule: ObjectCapsule, term_vectors: Sequence[np.ndarray | None]
     ) -> float:
@@ -1713,7 +1748,7 @@ class SporeQueryEngine:
         """
         if not self.store.scenes or not term.strip():
             return []
-        vector = self._embed_text(term.strip())
+        vector = self._scene_text_vector(term.strip())
         if vector is None:
             return []
         scored: list[tuple[SceneCapsule, float]] = []

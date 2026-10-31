@@ -112,12 +112,15 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   perception gain.
 - A detector-free scene-recall path ranks explicit "when did I see X?" /
   "when was X visible?" questions by cosine-scoring text against retained
-  `SceneCapsule` embeddings. On a 60 s outdoor walk it retrieved 4/6
-  informative landmarks at top-1 (stairs, person, building, cup) with zero
-  detector calls and 13-14 ms warm query time, but missed a painted curb sign
-  and a glass door. A twelve-term absent probe scored .145-.259 and eleven
-  terms exceeded the .15 gate, so absolute CLIP scores cannot verify absence;
-  the natural-language path is opt-in and only ranks a term assumed present.
+  `SceneCapsule` embeddings. The default text side averages six generic
+  prompts; on a 60 s outdoor walk this retrieved 5/6 informative landmarks at
+  top-1 (stairs, person, building, cup, painted curb sign) and 8/8 at top-3
+  with zero detector calls and no extra image storage. A glass door is still
+  top-1 false (top-3 at 8.6 s). A twelve-term absent probe scored .189-.275;
+  all twelve exceeded the .15 gate and AUC was .823, so absolute CLIP scores
+  still cannot verify absence. z-score/margin/centering probes did not help
+  (z-score AUC .438), and a 3x3 tile variant cost 9x scene embeddings for no
+  top-1 gain. The path is opt-in and only ranks a term assumed present.
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

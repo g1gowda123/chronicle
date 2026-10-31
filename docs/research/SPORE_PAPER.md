@@ -727,31 +727,44 @@ object path.  The operator loads no detector and uses no vocabulary.
 
 On the 60 s outdoor `aria_walk_60s` clip, ingest produced 45 scenes, 63
 contexts, and 300 capsules (7.7 MB store).  Against eight prompts whose time
-windows were chosen from a contact sheet before scoring, top-1 was **6/8** and
-top-3 was **6/8**.  Two prompts (`trees`, `path`) are visible for the whole
-clip, so the informative subset is **4/6**: stairs, person, building, and cup
-succeed; a painted "NO PARKING" curb sign and a glass entrance door fail.  In
-the reproducible eval, a query takes **13-14 ms** once the text encoder is warm
-(the first is 92 ms in that process); detector calls are zero.
+windows were chosen from a contact sheet before scoring, the six-prompt
+ensemble below reached top-1 **7/8** and top-3 **8/8**.  Two prompts (`trees`,
+`path`) are visible for the whole clip, so the informative subset is **5/6** at
+top-1: stairs, person, building, cup, and the painted "NO PARKING" curb sign
+(30.2 s) succeed; a glass entrance door is ranked first at 59.4 s but is still
+in the top-3 at 8.6 s.  The detector is never loaded; a new term costs six
+cached text encodes and no image or storage work.
+
+The prompt frame matters.  A bare `{term}` scored AUC .719 and top-1 6/8;
+individual generic templates ranged from .719 to .875 AUC, but the
+highest-AUC template (`a scene containing {term}`, .875) retrieved only 5/8 at
+top-1.  Averaging six generic variants (bare term, photo, close-up,
+first-person, scene-containing, view) gave the best top-1, **7/8**, at AUC
+**0.823**.  A 3×3 tile max-pool also reached .875 AUC but only 6/8 top-1 and
+would require nine scene embeddings per keyframe, so it was rejected.  The
+ensemble is a retrieval improvement, not a storage trade.
 
 The more important result is calibration.  A probe with twelve absent terms
 (elephant, kitchen, swimming pool, toaster, laptop, bicycle, dog, beach,
 office, car, train station, basketball court) produced top-1 scores of
-.145-.259.  Eleven of twelve exceeded the .15 gate and seven exceeded .20,
-overlapping the successful present terms (.209-.297).  The pairwise AUC for
-present versus absent top-1 scores is only **.72**.  Absolute CLIP similarity
-therefore cannot decide whether a term is present; a threshold that suppresses
-absent terms also suppresses most real ones.  Scene recall is a **ranking
-primitive for a term already known to be present**, not an open-ended
-verifier.  It is consequently disabled by default (`scene_recall=False`), and
-the natural-language visibility path requires an external check before it can
-be treated as an answer.
+.189-.275.  **All twelve** exceeded the .15 gate and nine exceeded .20,
+overlapping the successful present terms (.237-.319).  The pairwise AUC for
+present versus absent top-1 scores is **0.823**, up from .719 for the bare
+term, but still insufficient to decide presence.  Z-score, margin-over-mean,
+margin-over-median, ratio, temporal-concentration, and mean-centred-embedding
+probes did not help; the z-score variant fell to .438 AUC.  Absolute CLIP
+similarity therefore cannot verify absence: a threshold that suppresses absent
+terms also suppresses most real ones.  Scene recall is a **ranking primitive
+for a term already known to be present**, not an open-ended verifier.  It is
+consequently disabled by default (`scene_recall=False`), and the
+natural-language visibility path requires an external check before it can be
+treated as an answer.
 
 The remaining failure mode is resolution and semantics: global CLIP embeddings
-capture large scene structure but not small text or an ambiguous entrance.
-OCR on raw frames did not recover the curb text (Tesseract psm 11 returned
-noise; perspective crop/rectification would be needed), so scene-text memory
-is future work.  This is a place-memory retrieval tool, not a replacement for
+capture large scene structure but not an ambiguous entrance.  OCR on raw
+frames did not recover the curb text (Tesseract psm 11 returned noise;
+perspective crop/rectification would be needed), so scene-text memory is
+future work.  This is a place-memory retrieval tool, not a replacement for
 object binding, and it is not included in the main QA table.
 
 ### 5.13 Detector-only versus CLIP fallback
@@ -1083,8 +1096,9 @@ long-video evidence storage still needs an explicit budget.
 `context_fusion_spread=.4`, `context_sweep_frames=5`, `query_capsules=8`,
 `query_views=2`, `count_contexts=32`, `count_track_gap=20`,
 `count_peak_confidence=.45`, `clip_margin_center=.16`,
-`scene_recall=False`, `scene_recall_top_k=3`, `scene_recall_min_score=.15`
-(opt-in; absolute scores are not calibrated for absence).
+`scene_recall=False`, `scene_recall_top_k=3`, `scene_recall_min_score=.15`,
+`scene_prompt_templates` = six generic variants (opt-in; absolute scores are
+not calibrated for absence).
 
 ## Appendix B: What not to claim
 
