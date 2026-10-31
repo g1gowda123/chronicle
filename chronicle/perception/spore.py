@@ -3651,11 +3651,18 @@ def extract_terms(question: str) -> list[str]:
     """
     text = question.strip().lower()
     text = re.sub(r"[^a-z0-9\-\s']", " ", text)
-    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\b(where|what|who|how)'s\b", r"\1 is", text)
+    text = re.sub(r"\s+", " ", text).strip()
     if not text:
         return []
     patterns = (
+        r"\b(?:can|could|would) you (?:please )?tell me where (?:the |a |an )?(.+?) (?:is|are|was|were)\b",
+        r"\bwhere (?:is|are|was|were) (?:the |a |an )?(.+?) located\b",
+        r"\bwhat (?:is|was) the (?:colour|color) of (?:the |a |an )?(.+)$",
+        r"\bwhen (?:was|were) (?:the |a |an )?(.+?) (?:first )?(?:touched|used|picked up|grabbed|held)\b",
+        r"\bwhere did (?:the |a |an )?(.+?) end up\b",
         r"\bwhere (?:is|are|was|were) (?:the |a |an )?(.+)$",
+        r"\b(?:which|what) (?:surface|place|location) (?:is|are|was|were) (?:the |a |an )?(.+?) (?:on|at|in)$",
         r"\bwhere (?:did|does|do) (?:the |a |an )?(.+?) go\b",
         r"\bwhere did .*?\b(?:put|place|attach|insert|remove|open|press|replace|use|handle)\b (?:the |a |an )?(.+?)(?: at | in | on | into | after | before | with | from |$)",
         r"\bwhat did .*?\b(?:put|place|attach|insert|remove|open|press|replace|use|handle)\b (?:the |a |an )?(.+?)(?: to | into | on | after | before | at | with | from |$)",

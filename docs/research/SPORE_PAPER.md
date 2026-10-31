@@ -504,7 +504,12 @@ count) also gave 3/12 with unchanged predictions.  Several matched intervals
 have zero object displacement, so kinematic features cannot separate grab,
 hold, slide, place, insert, withdraw, and align.  A useful verb model needs
 object trajectory/state recorded during ingest, not hand kinematics or
-post-hoc sparse detections.
+post-hoc sparse detections.  A zero-shot CLIP ViT-B/32 probe over matched
+action midpoints was no better: full-context and object-crop prompts each
+scored **1/12**, and predictions collapsed onto align/grab/place/insert.  CLIP
+stills and hand geometry are the wrong representation for verbs; a learned
+video/action encoder or object-state trajectories recorded at ingest are
+required.
 
 ### 5.7 Query latency and vocabulary switching
 
@@ -699,6 +704,17 @@ detector calls.  Mean calls fall from 5.0 to 4.75 while semantic (1.00), loc@.3
 no table target, so this is a routing-robustness check, not a localisation
 gain, and the main results table is unchanged.  The support alias set is a
 small ontology, not a query-specific lookup.
+
+The query parser also normalises common natural-language variants before term
+extraction: contractions such as "where's", polite forms ("can you tell me
+where the knife is"), "located" suffixes, "what is the colour/color of X",
+"when was X first touched", and "where did X end up".  Eight parser tests cover
+these forms.  On the saved stores the paraphrases return the same bindings as
+their canonical counterparts (for example "Where's the knife?" and "Where is
+the knife located?" both answer `knife on the shelf at 44.2s`), and all four
+benchmark scores are unchanged.  This is query-interface robustness, not a
+perception gain; the plate destination still returns shelf because the bowl is
+not detected.
 
 ### 5.12 Detector-free scene recall (exploratory, opt-in)
 

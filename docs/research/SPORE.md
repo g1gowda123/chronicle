@@ -103,6 +103,13 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   Play, a fresh engine now answers "table at 2.0s" instead of abstaining, at
   4.75 vs 5.0 mean calls and unchanged semantic/loc/IoU; there is no dense
   table target, so this is routing robustness, not a localisation gain.
+- The query parser handles common natural-language variants before term
+  extraction: contractions, "can you tell me where ...", "located" suffixes,
+  "what is the colour/color of ...", "when was ... first touched", and "where
+  did ... end up". Eight parser tests cover these forms; paraphrases return
+  the same bindings as canonical questions, and all saved-store benchmark
+  scores are unchanged. This is an interface robustness measure, not a
+  perception gain.
 - A detector-free scene-recall path ranks explicit "when did I see X?" /
   "when was X visible?" questions by cosine-scoring text against retained
   `SceneCapsule` embeddings. On a 60 s outdoor walk it retrieved 4/6
@@ -374,8 +381,10 @@ upgrade; it needs co-designed ingest, routing, and evaluation.
   remains the merge gate. A leave-one-out verb probe over the same 12 events
   scored only **3/12** with hand kinematics (duration, displacement, speed,
   path length); adding sparse object displacement from dense detections also
-  scored 3/12. Verbs need object trajectory/state recorded during ingest, not
-  post-hoc hand deltas or sparse detector rows.
+  scored 3/12. A zero-shot CLIP ViT-B/32 probe over matched action midpoints
+  and object crops also scored 1/12 in each condition, collapsing onto
+  align/grab/place/insert. Verbs need object trajectory/state recorded during
+  ingest, not post-hoc hand deltas, CLIP stills, or sparse detector rows.
 - Two Cook capability probes remain blocked by the detector: the generic
   46-label bank found no tomato during the slicing interval (10.5-14.5 s), so
   the `tomatoes` activity answer is an ungrounded CLIP fallback; at 44.2 s the
