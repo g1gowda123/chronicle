@@ -306,6 +306,16 @@ The floor and endpoint sampling were chosen after inspecting Cook, so this is
 still a post-hoc probe; query-time vocabulary expansion is a diagnostic, not a
 general safe recall mechanism.
 
+The score shift is **architectural, not a post-processing artefact**. The
+YOLO-World-v2 `WorldModel` contains four text-conditioned `C2fAttn` layers, so
+changing the prompt set changes the image features as well as the class
+weights. On the same Cook frame, the target text embedding is unchanged, yet
+the target score rises from .146 (term alone) to .343 (term plus the
+calibration bank); rebuilding the predictor gives the same scores, and
+`agnostic_nms` does not change them. The prompt set is therefore part of the
+model's visual computation, which is why no score normalisation removes the
+effect; the .22 floor is a pragmatic workaround, not a mechanism fix.
+
 **Detector capacity.** A query-time YOLO-World-L swap without rebuilding
 memory is negative on short clips: Cook semantic .70→.20, Switch .875→.625,
 and Play loc@.3 .667→.333, with 2.17 GB peak VRAM. The larger model adds

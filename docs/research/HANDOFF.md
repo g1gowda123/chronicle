@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `060efc7` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `eb648a8` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -363,6 +363,9 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   reproduces .70, while .25 drops to .60.  The bank was a proxy for the lower
   floor and has been removed from the shipped path.  Treat query-time
   vocabulary expansion as diagnostic, not a safe general recall mechanism.
+  The score shift is architectural: `WorldModel` has four text-conditioned
+  `C2fAttn` layers, so prompt-set changes alter image features; rebuilding the
+  predictor leaves the shift unchanged and NMS is not involved.
 - Next: independent object-trajectory/state experiment. Do not tune the
   eat_0/clean_0/walk_0/walk_60 questions, run another z210 prompt/threshold
   sweep, or tune Cook-specific failures.

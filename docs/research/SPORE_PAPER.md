@@ -839,6 +839,14 @@ to 14/32 at .20; the shipped alias-only .22 run reproduced .70, and .25 fell
 to .60.  The bank was a proxy for a lower detection floor and is not used
 in the shipped path.  Adding an alias can still suppress a detection instead of
 adding one, so query-time vocabulary expansion stays opt-in and diagnostic.
+Mechanistically, the shift is architectural: YOLO-World-v2's `WorldModel` has
+four text-conditioned `C2fAttn` layers, so a prompt set changes image features
+as well as class weights.  On one Cook frame the target text embedding was
+identical while the target score moved from .146 (term alone) to .343 (term
+plus the calibration bank); resetting the predictor reproduced the scores and
+NMS was not involved.  The prompt set is therefore part of the visual
+computation, not a removable post-processing bias; the .22 floor is a pragmatic
+workaround.
 
 ### 5.14 Held-out human QA: eating domain
 
