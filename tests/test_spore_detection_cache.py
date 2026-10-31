@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 
 from chronicle.perception.capsules import CapsuleStore, ContextFrame
@@ -48,6 +50,45 @@ def test_detection_cache_reuses_keyframes_and_tracks_hits() -> None:
 
     # A different prompt set is a different computation.
     engine._detect_cached(frame, ["cup"], frame_index=7, timestamp=0.7)
+    assert detector.calls == 2
+
+
+class ThresholdDetector(CountingDetector):
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = SimpleNamespace(confidence=0.30)
+
+    def detect(self, frame, frame_index=0, timestamp=0.0):
+        self.calls += 1
+        return [
+            Detection(
+                label=self.vocabulary[0],
+                bbox=BBox(1, 2, 3, 4),
+                confidence=self.config.confidence,
+            )
+        ]
+
+
+def test_detection_confidence_override_is_scoped_and_cached() -> None:
+    frame = np.zeros((32, 32, 3), dtype=np.uint8)
+    detector = ThresholdDetector()
+    engine = SporeQueryEngine(
+        CapsuleStore(),
+        SporeConfig(detect_cache=True),
+        detector=detector,
+    )
+
+    low = engine._detect_cached(
+        frame, ["mug"], frame_index=1, timestamp=0.1, confidence=0.20
+    )
+    assert low[0].confidence == 0.20
+    assert detector.config.confidence == 0.30
+
+    # A different floor is a different computation and must not reuse the box.
+    high = engine._detect_cached(
+        frame, ["mug"], frame_index=1, timestamp=0.1, confidence=0.30
+    )
+    assert high[0].confidence == 0.30
     assert detector.calls == 2
 
 

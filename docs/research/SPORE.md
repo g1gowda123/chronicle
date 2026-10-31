@@ -272,13 +272,10 @@ the detector actually emits (for example rice cooker → instant pot), but only
 after the alias appears in at least two retained contexts and the crop passes a
 CLIP similarity check (.22). The current probe samples up to 32 contexts across
 the whole store, including both endpoints, because the Cook cutting board is
-visible at 0 s and 35.6 s while the query is at 12 s. It detects with the term,
-its aliases, and five calibration labels (`bowl`, `plate`, `knife`, `toaster`,
-`cup`); support labels are applied in a second pass on the winning frame. The
-labels restore the prompt-set context the detector needs, without using support
-labels that suppress the detection. They are a fixed calibration bank, not a
-tabletop prior: a controlled ablation found that any three unrelated labels
-have the same effect.
+visible at 0 s and 35.6 s while the query is at 12 s. It detects with the term
+and its aliases at a **.22 detector floor** (the global floor is .30); support
+labels are applied in a second pass on the winning frame, because adding them
+to the synonym prompt suppresses the alias.
 
 On Cook detector-only this lifts semantic from .50 to **.70**, grounding both
 the rice cooker (confidence .49) and the cutting board (.28) with countertop
@@ -297,10 +294,14 @@ term+aliases+five random labels 2. Five independent 3-label banks
 `object/item/thing` also produced 2, while colour words produced 4 and shape
 words 1. Rice cooker was more stable: aliases alone 17 hits, support labels 16,
 calibration labels 14. The effect is therefore **prompt-set calibration**, not
-semantic tabletop anchoring; support labels are the specific failure. The exact
-bank and whole-store sampling were chosen after inspecting Cook, so this is a
-post-hoc probe; query-time vocabulary expansion is a diagnostic, not a general
-safe recall mechanism.
+semantic tabletop anchoring; support labels are the specific failure. A
+threshold sweep then showed the bank was only a proxy for a lower detection
+floor: alias-only hits rise from 5/32 at .30 to 14/32 at .20, and the
+end-to-end alias-only .22 run matches .70 (while .25 falls to .60). The bank
+has therefore been removed from the shipped path; the floor is the mechanism.
+The floor and endpoint sampling were chosen after inspecting Cook, so this is
+still a post-hoc probe; query-time vocabulary expansion is a diagnostic, not a
+general safe recall mechanism.
 
 **Detector capacity.** A query-time YOLO-World-L swap without rebuilding
 memory is negative on short clips: Cook semantic .70→.20, Switch .875→.625,

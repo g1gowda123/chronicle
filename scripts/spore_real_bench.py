@@ -250,6 +250,8 @@ def evaluate(args: argparse.Namespace) -> dict:
         rescan=args.rescan,
         synonym_binding=args.synonym_binding,
     )
+    if args.synonym_confidence is not None:
+        config.synonym_detector_confidence = args.synonym_confidence
     if args.context_gap is not None:
         config.context_min_gap = args.context_gap
     if args.clip_center is not None:
@@ -664,6 +666,12 @@ def main() -> None:
         "--synonym-binding",
         action="store_true",
         help="Ground undetected queries through repeated detector synonyms with a CLIP check.",
+    )
+    parser.add_argument(
+        "--synonym-confidence",
+        type=float,
+        default=None,
+        help="Detector floor for the synonym pass; defaults to SporeConfig.",
     )
     parser.add_argument("--rescan", action="store_true")
     parser.add_argument(

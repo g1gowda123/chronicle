@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `a08c43c` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in anchored synonym binding (post-hoc Cook probe) + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `a08c43c` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -346,19 +346,21 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 - The opt-in synonym probe (`203a12e`, refined in `a08c43c`) raises
   detector-only Cook semantic .50→**.70** by grounding both the rice
   cooker and cutting board, at 14.3 calls/query.  It samples up to 32 contexts
-  across the whole store and detects with the term, aliases, and five
-  calibration labels (`bowl`, `plate`, `knife`, `toaster`, `cup`); support labels
-  run in a second pass, because they suppress the aliases.  Hybrid remains .70
-  (7.9 calls), clean remains 0/6, Play3 .333, Switch .75; no false alias hits in
-  36 sampled clean/play/walk contexts.  Not default and not a headline gain.
-  The calibration labels and endpoint sampling were chosen after inspecting
-  Cook, so this is a post-hoc probe.  A controlled 32-context ablation shows
-  the labels are not semantically special: cutting-board hits were 0 term-only,
-  1 term+aliases, 0 with support labels, 2 with calibration labels, and 2 with
-  five random labels; five independent 3-label banks each also produced 2 hits.
-  The effect is prompt-set calibration, not tabletop anchoring.  Treat
-  query-time vocabulary expansion as diagnostic, not a safe general recall
-  mechanism.
+  across the whole store and detects with the term and aliases at a **.22
+  detector floor**; support labels run in a second pass, because they suppress
+  the aliases.  Hybrid remains .70 (7.9 calls), clean remains 0/6, Play3 .333,
+  Switch .75; no false alias hits in 36 sampled clean/play/walk contexts.  Not
+  default and not a headline gain.
+  The endpoint sampling and .22 floor were chosen after inspecting Cook, so
+  this is a post-hoc probe.  A controlled 32-context ablation shows the
+  earlier five-label calibration bank was not semantically special:
+  cutting-board hits were 0 term-only, 1 term+aliases, 0 with support labels,
+  2 with calibration labels, and 2 with five random labels; five independent
+  3-label banks each also produced 2 hits.  A threshold sweep found alias-only
+  hits rise from 5/32 at .30 to 14/32 at .20; the shipped alias-only .22
+  reproduces .70, while .25 drops to .60.  The bank was a proxy for the lower
+  floor and has been removed from the shipped path.  Treat query-time
+  vocabulary expansion as diagnostic, not a safe general recall mechanism.
 - Next: independent object-trajectory/state experiment. Do not tune the
   eat_0/clean_0/walk_0/walk_60 questions, run another z210 prompt/threshold
   sweep, or tune Cook-specific failures.

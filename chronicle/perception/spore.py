@@ -126,14 +126,6 @@ _DETECTOR_SYNONYMS = {
     "fridge": ("refrigerator",),
 }
 
-# YOLO-World's class scores depend on the whole prompt set: a synonym can
-# disappear when support labels are added and return when a few unrelated
-# labels are present.  These are a fixed calibration bank, not a semantic
-# tabletop prior -- random and generic banks have the same effect in the Cook
-# ablation.  Support is resolved in a second pass after the object box is
-# chosen.
-_SYNONYM_CALIBRATION_LABELS = ("bowl", "plate", "knife", "toaster", "cup")
-
 # OpenCV hue is 0..179.  Ranges are deliberately coarse: the point is a
 # verifiable attribute answer from retained pixels, not a colour taxonomy.
 _COLOUR_RANGES = (
@@ -312,6 +304,12 @@ class SporeConfig:
     synonym_contexts: int = 32
     synonym_min_contexts: int = 2
     synonym_clip_threshold: float = 0.22
+    # The detector's global threshold is tuned for precision on a fixed prompt
+    # set.  A synonym pass can use a lower floor because persistence and CLIP
+    # still gate every binding; None keeps the detector default.  The Cook
+    # ablation showed that a prompt-set calibration bank was only a proxy for
+    # this lower floor.
+    synonym_detector_confidence: float | None = 0.22
     rescan: bool = False
     rescan_window: float = 1.0
     rescan_fps: float = 12.0
@@ -1618,29 +1616,44 @@ class SporeQueryEngine:
         frame_index: int,
         timestamp: float,
         cache_tag: Any | None = None,
+        confidence: float | None = None,
     ) -> list[Detection]:
         """Detect with a bounded cache over immutable keyframes.
 
         Repeated questions about the same moment (for example a location, a
         colour and an activity question at one timestamp) otherwise re-run the
-        same detector pass.  Cache keys include the exact prompt set because a
-        different vocabulary is a different computation.
+        same detector pass.  Cache keys include the exact prompt set and
+        confidence floor because either change is a different computation.
         """
         assert self._detector is not None
+
+        def run_detector() -> list[Detection]:
+            if confidence is None or getattr(self._detector, "config", None) is None:
+                return self._detector.detect(
+                    frame, frame_index=frame_index, timestamp=timestamp
+                )
+            detector_config = self._detector.config
+            previous = detector_config.confidence
+            detector_config.confidence = float(confidence)
+            try:
+                return self._detector.detect(
+                    frame, frame_index=frame_index, timestamp=timestamp
+                )
+            finally:
+                detector_config.confidence = previous
+
         if not self.config.detect_cache:
             self._detector.set_vocabulary(list(vocabulary))
             self.detector_calls += 1
-            return self._detector.detect(
-                frame, frame_index=frame_index, timestamp=timestamp
-            )
+            return run_detector()
         tag = frame_index if cache_tag is None else cache_tag
-        key = (tag, tuple(vocabulary))
+        key = (tag, tuple(vocabulary), confidence)
         cached = self._detection_cache.get(key)
         if cached is not None:
             self.detection_cache_hits += 1
             self._detection_cache[key] = self._detection_cache.pop(key)
             return cached
-        if tag == frame_index:
+        if tag == frame_index and confidence is None:
             requested = {str(label).strip().lower() for label in vocabulary}
             for (index, prefetched_labels), detections in self._prefetch.items():
                 if index != frame_index:
@@ -1656,9 +1669,7 @@ class SporeQueryEngine:
                         )
                     ]
         self._detector.set_vocabulary(list(vocabulary))
-        detections = self._detector.detect(
-            frame, frame_index=frame_index, timestamp=timestamp
-        )
+        detections = run_detector()
         self.detector_calls += 1
         self._detection_cache[key] = detections
         while len(self._detection_cache) > max(1, self.config.detect_cache_entries):
@@ -2399,11 +2410,7 @@ class SporeQueryEngine:
         indices = np.linspace(0, len(self.store.contexts) - 1, count, dtype=int)
         contexts = [self.store.contexts[int(index)] for index in indices]
         term_vector = self._embed_text(term)
-        vocabulary = list(
-            dict.fromkeys(
-                [term, *aliases, *_SYNONYM_CALIBRATION_LABELS]
-            )
-        )
+        vocabulary = list(dict.fromkeys([term, *aliases]))
         support_set = {label.lower() for label in self.config.support_labels}
         best: Binding | None = None
         best_frame: np.ndarray | None = None
@@ -2419,6 +2426,7 @@ class SporeQueryEngine:
                 frame_index=context.frame_index,
                 timestamp=context.timestamp,
                 cache_tag=context.frame_index,
+                confidence=self.config.synonym_detector_confidence,
             )
             alias_detections = [
                 detection
