@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "dataset": "chronicle-aria-eat-heldout",
+  "description": "Zero-shot human QA over the held-out 45 s Aria eating clip. Questions and expected answers were visually annotated before the first run of the system on this clip; this is not dense-pseudo-GT auto-eval. The television and window questions intentionally probe background/support-surface generalization beyond the current tabletop support ontology.",
+  "video_id": "aria_eat_0_45s",
+  "zone_label": "Dining",
+  "questions": [
+    {
+      "video_id": "aria_eat_0_45s",
+      "query": "Where is the table?",
+      "answer": "table",
+      "answers": ["table", "dining table"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_eat_0_45s",
+      "query": "Where is the cup?",
+      "answer": "table",
+      "answers": ["table", "dining table"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_eat_0_45s",
+      "query": "Where is the plate?",
+      "answer": "table",
+      "answers": ["table", "dining table"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_eat_0_45s",
+      "query": "What colour is the cup?",
+      "answer": "red",
+      "answers": ["red", "orange", "pink"],
+      "timestamp": 20.0,
+      "category": "attribute"
+    },
+    {
+      "video_id": "aria_eat_0_45s",
+      "query": "Where is the TV?",
+      "answer": "wall",
+      "answers": ["wall"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_eat_0_45s",
+      "query": "Where is the window?",
+      "answer": "wall",
+      "answers": ["wall"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    }
+  ],
+  "vocabulary": [
+    "table",
+    "cup",
+    "plate",
+    "person",
+    "tv",
+    "window",
+    "wall",
+    "sofa",
+    "shelf",
+    "cabinet"
+  ]
+}
