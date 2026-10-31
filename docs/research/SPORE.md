@@ -97,6 +97,12 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   inventory remains 8/8. It is a grounded listing operator, not a general
   captioner; the main results table keeps the base Switch score and reports
   the inventory variant separately.
+- Support surfaces are also queryable targets: when a support term routes no
+  object capsule, the engine runs context fusion and accepts an unattributed
+  support track, with aliases mapping table/work table/desk/countertop. On
+  Play, a fresh engine now answers "table at 2.0s" instead of abstaining, at
+  4.75 vs 5.0 mean calls and unchanged semantic/loc/IoU; there is no dense
+  table target, so this is routing robustness, not a localisation gain.
 - A detector-free scene-recall path ranks explicit "when did I see X?" /
   "when was X visible?" questions by cosine-scoring text against retained
   `SceneCapsule` embeddings. On a 60 s outdoor walk it retrieved 4/6

@@ -101,6 +101,16 @@ _SUPPORT_ALIASES = {
     "table": "countertop",
 }
 
+# Support surfaces are detector labels, not a strict ontology.  A question
+# about "the table" should find the desk/work-table/countertop detection that
+# actually exists in the scene instead of silently abstaining.
+_SUPPORT_QUERY_ALIASES = {
+    "table": ("table", "work table", "desk", "countertop", "counter top"),
+    "work table": ("work table", "desk", "table"),
+    "desk": ("desk", "work table", "table"),
+    "countertop": ("countertop", "counter top", "table"),
+}
+
 # OpenCV hue is 0..179.  Ranges are deliberately coarse: the point is a
 # verifiable attribute answer from retained pixels, not a colour taxonomy.
 _COLOUR_RANGES = (
@@ -1788,8 +1798,29 @@ class SporeQueryEngine:
             return []
         self._ensure_backends()
         capsules = self.route([term], budget=budget, at_time=at_time)
-        if not capsules:
+        support_target = term.lower() in {
+            label.lower() for label in self.config.support_labels
+        }
+        if not capsules and not support_target:
             return []
+        if support_target and not capsules:
+            # Furniture and other support surfaces are stored as context
+            # detections, not object capsules.  They are still valid targets:
+            # bind the surface directly from the keyframe instead of treating
+            # it only as a predicate on another object.
+            query_time = at_time
+            if query_time is None and self.store.contexts:
+                query_time = self.store.contexts[-1].timestamp
+            bindings: list[Binding] = []
+            if (
+                query_time is not None
+                and self._detector is not None
+                and self.store.contexts
+                and self.config.context_binding
+            ):
+                bindings = self._bind_context_fused(term, [], at_time=query_time)
+                bindings.sort(key=lambda item: item.confidence, reverse=True)
+            return bindings
         mode = self.config.binding_mode.lower()
         bindings: list[Binding] = []
         if (
@@ -1837,6 +1868,8 @@ class SporeQueryEngine:
                 bindings = clip_bindings
         if self.config.infer_support:
             for binding in bindings:
+                if binding.provenance == "support_track":
+                    continue
                 self._infer_support(binding)
         bindings.sort(key=lambda item: item.confidence, reverse=True)
         if self.config.propagate_labels and bindings:
@@ -1961,6 +1994,8 @@ class SporeQueryEngine:
         if self.config.support_labels:
             vocabulary.extend(self.config.support_labels)
         support_set = {label.lower() for label in self.config.support_labels}
+        support_target = term.lower() in support_set
+        term_aliases = _support_aliases(term) if support_target else (term,)
 
         contexts = [
             context
@@ -1992,7 +2027,9 @@ class SporeQueryEngine:
             frame_width, frame_height = int(frame_size[0]), int(frame_size[1])
             diagonal = math.hypot(frame_width, frame_height)
             for detection in detections:
-                if not _label_matches(detection.label, term):
+                if not any(
+                    _label_matches(detection.label, alias) for alias in term_aliases
+                ):
                     continue
                 if detection.confidence < self.config.query_detector_confidence:
                     continue
@@ -2075,30 +2112,37 @@ class SporeQueryEngine:
                         capsule = candidate
                         capsule_score = utility
                         capsule_view = view
-            if capsule is None:
+            if capsule is None and not support_target:
                 continue
             if any(binding.bbox.iou(box) >= 0.5 for binding in bindings):
                 continue
+            view_score = capsule_view.score if capsule_view else 0.0
             confidence = (
                 track.temporal_score(at_time)
                 * (0.70 + 0.30 * min(1.0, len(track.stamps) / 2.0))
-                * (0.82 + 0.18 * (capsule_view.score if capsule_view else 0.0))
+                * (0.82 + 0.18 * view_score)
             )
             binding = Binding(
                 term=term,
                 label=track.detections[best_index].label.strip().lower(),
-                capsule_id=capsule.capsule_id,
+                capsule_id=capsule.capsule_id if capsule is not None else "",
                 confidence=float(confidence),
                 timestamp=track.stamps[best_index],
                 bbox=box,
                 support=(
-                    track.supports[best_index] if representative else track.best_support()
+                    None
+                    if support_target
+                    else (
+                        track.supports[best_index]
+                        if representative
+                        else track.best_support()
+                    )
                 ),
                 detector_confidence=track.mean_confidence,
                 clip_similarity=0.0,
                 views_agree=len(track.stamps),
                 views_tried=len(contexts),
-                provenance="context_track",
+                provenance="support_track" if support_target else "context_track",
             )
             bindings.append(binding)
             self._attach(binding)
@@ -3549,8 +3593,9 @@ class SporeQueryEngine:
         if abstained or not bindings:
             return "not enough evidence"
         best = bindings[0]
+        label = best.term if best.provenance == "support_track" else best.label
         if colour and ("colour" in lowered or "color" in lowered):
-            return f"{best.label} is {colour} at {best.timestamp:.1f}s"
+            return f"{label} is {colour} at {best.timestamp:.1f}s"
         location = ""
         if best.support:
             alias = _SUPPORT_ALIASES.get(best.support)
@@ -3558,7 +3603,7 @@ class SporeQueryEngine:
             if alias and alias not in best.support:
                 location += f" ({alias})"
         if lowered.startswith("where"):
-            return f"{best.label}{location} at {best.timestamp:.1f}s"
+            return f"{label}{location} at {best.timestamp:.1f}s"
         if lowered.startswith("how many"):
             return f"{len(bindings)} candidate(s) for {best.term} at {best.timestamp:.1f}s"
         if lowered.startswith("when did") or lowered.startswith("when was"):
@@ -3583,6 +3628,12 @@ def _label_matches(predicted: str, term: str) -> bool:
     # ("blue hex nut" for "hex nut"); accept that without accepting "cup" for
     # "cupboard" (require the term to be a meaningful substring).
     return len(term) >= 4 and term in predicted
+
+
+def _support_aliases(term: str) -> tuple[str, ...]:
+    """Detector labels that can satisfy a support-surface question."""
+    lowered = term.strip().lower()
+    return _SUPPORT_QUERY_ALIASES.get(lowered, (lowered,))
 
 
 # ---------------------------------------------------------------------------

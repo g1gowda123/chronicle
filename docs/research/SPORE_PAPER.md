@@ -651,7 +651,29 @@ therefore a grounded listing capability, not a general captioner, and the
 main results table keeps the .875 Switch number without it; the 1.00 variant
 is reported separately.
 
-### 5.11 Detector-free scene recall (exploratory, opt-in)
+### 5.11 Support surfaces as query targets
+
+Support surfaces already enter memory as context detections, but the object
+router originally routed only object capsules.  A question such as "where is
+the table?" therefore abstained even though the table had been detected
+repeatedly.  The query engine now treats a routed support label as a target:
+when no capsule matches, `bind()` runs the same context-fusion pass at query
+time (using the last retained context when no time is given) and accepts a
+track without an attributable object capsule.  The binding is marked
+`support_track`, carries no capsule id, and is not given itself as a support
+predicate.  Alias-aware matching maps `table` to `work table`, `desk`, and
+`countertop`, so a detector that emits `desk` can answer a question phrased as
+`table`.
+
+On Play, a fresh engine previously returned "not enough evidence" for "where
+is the table?"; it now answers "table at 2.0s" (confidence .514) with no extra
+detector calls.  Mean calls fall from 5.0 to 4.75 while semantic (1.00), loc@.3
+(.667), loc@.5 (.667), and IoU (.475) are unchanged.  The dense reference has
+no table target, so this is a routing-robustness check, not a localisation
+gain, and the main results table is unchanged.  The support alias set is a
+small ontology, not a query-specific lookup.
+
+### 5.12 Detector-free scene recall (exploratory, opt-in)
 
 Object capsules answer "where is X"; scene capsules can answer a complementary
 question: "when was X visible?"  `SporeQueryEngine.scene_recall` cosine-scores
