@@ -238,7 +238,8 @@ retain both pixel sets are 5.00/3.75/5.98/13.35 MB, and monolithic stores are
 
 Calls/query use the default context-first binding, which does not re-detect
 retained crops; batch prefetch is a separate session-level optimisation
-(Section 5.7).
+(Section 5.7).  The default is hybrid detector plus CLIP fallback; Section
+5.13 separates the two sources.
 
 Adaptive box fusion explains the Cook localisation gain.  A track whose five
 context detections agree (mean pairwise IoU at least .4) keeps the smoother
@@ -711,6 +712,38 @@ noise; perspective crop/rectification would be needed), so scene-text memory
 is future work.  This is a place-memory retrieval tool, not a replacement for
 object binding, and it is not included in the main QA table.
 
+### 5.13 Detector-only versus CLIP fallback
+
+The hybrid answer path can recover an object from a CLIP-scored capsule view
+when the query-time detector does not fire.  This is useful for objects at the
+edge of the open-vocabulary detector's vocabulary, but it changes what a
+semantic score means: an answer can be supported by a visual crop rather than
+a detector box.  To measure the contribution, the three short clips were
+re-run with `--mode detector`, which disables the CLIP binding fallback while
+keeping context binding, temporal scans, counting, and inventory unchanged.
+The detector-only runs used the same saved stores and QA sets.
+
+| Domain | Detector-only semantic | Hybrid semantic | Difference | Detector-only loc@.3 / IoU | Detector-only calls/query |
+|---|---:|---:|---:|---:|---:|
+| Cook 45 s | .50 | .70 | +.20 | 1.00 / .825 | 7.7 |
+| Switch 34 s | .75 | .875 | +.125 | .75 / .611 | 8.0 |
+| Play 45 s | .75 | 1.00 | +.25 | .667 / .443 | 4.5 |
+
+The four recovered answers are Cook's rice cooker and cutting board, the
+Switch console, and the Play shoe.  In each case the detector-only run
+abstains or returns no binding, while the hybrid run attaches a CLIP-scored
+capsule view.  The four answers are semantically correct on these clips, but
+the sample is small; CLIP fallback is a recall mechanism, not independent
+evidence that the label is right.
+
+Localisation is nearly unchanged on Cook and Switch and slightly lower on
+Play (mean IoU .475 -> .443), so the fallback mainly adds recall.  Call counts
+are not a clean comparison here because the fallback changes routing; they
+range from 4.5 to 8.0 calls/query, still far below the 128-150 dense passes.
+The main results table keeps the hybrid default because the fallback is part
+of the deployed query path.  Papers using these numbers should report the
+detector-only row as the more conservative grounding baseline.
+
 ## 6. Discussion
 
 SPORE shows that **retained full context**, not better crops, is the dominant
@@ -744,6 +777,10 @@ objects are sensitive to its smoothing.
   that CLIP cannot recognise; it is not evidence of semantic ability.
 - Same-label instance ambiguity is not solved in general; the any-instance
   metric exposes the gap.
+- Four of the 22 short-clip answers depend on CLIP fallback rather than a
+  query-time detector. Detector-only semantic scores are .50 Cook, .75 Switch,
+  and .75 Play (Section 5.13); the hybrid scores should not be read as pure
+  detector accuracy.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 

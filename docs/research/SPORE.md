@@ -199,6 +199,17 @@ regressions are a shelf/countertop support error and a plate-destination
 tracking error; they are general failure modes, not reasons to tune on Cook.
 See `docs/research/DOMAINS.md` for the comparison table.
 
+**Detector-only ablation.** The hybrid default can rescue an object from a
+CLIP-scored capsule view when the query detector does not fire. Re-running the
+three short clips with `--mode detector` gives semantic .50 Cook, .75 Switch,
+and .75 Play, versus .70/.875/1.00 hybrid. The four recovered answers are the
+Cook rice cooker and cutting board, the Switch console, and the Play shoe.
+Localisation is essentially unchanged (Cook IoU .825, Switch .611, Play .443),
+so the fallback mainly adds recall. The four answers are correct on these
+clips, but this is a small sample; report detector-only as the conservative
+grounding baseline rather than treating hybrid scores as pure detector
+accuracy.
+
 - Ablation call counts below predate disabling the redundant crop fallback;
   absolute calls are higher there, while accuracy/storage trends are unchanged.
   Cook IoU values of .692 in older ablations predate adaptive fusion; the
