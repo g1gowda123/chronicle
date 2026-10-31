@@ -126,11 +126,13 @@ _DETECTOR_SYNONYMS = {
     "fridge": ("refrigerator",),
 }
 
-# YOLO-World's class scores depend on the whole prompt set, so a synonym can
-# disappear when support labels are added.  These generic tabletop anchors
-# keep the vocabulary close to the detector's training distribution; support
-# is resolved in a second pass after the object box is chosen.
-_SYNONYM_ANCHORS = ("bowl", "plate", "knife", "toaster", "cup")
+# YOLO-World's class scores depend on the whole prompt set: a synonym can
+# disappear when support labels are added and return when a few unrelated
+# labels are present.  These are a fixed calibration bank, not a semantic
+# tabletop prior -- random and generic banks have the same effect in the Cook
+# ablation.  Support is resolved in a second pass after the object box is
+# chosen.
+_SYNONYM_CALIBRATION_LABELS = ("bowl", "plate", "knife", "toaster", "cup")
 
 # OpenCV hue is 0..179.  Ranges are deliberately coarse: the point is a
 # verifiable attribute answer from retained pixels, not a colour taxonomy.
@@ -2399,7 +2401,7 @@ class SporeQueryEngine:
         term_vector = self._embed_text(term)
         vocabulary = list(
             dict.fromkeys(
-                [term, *aliases, *_SYNONYM_ANCHORS]
+                [term, *aliases, *_SYNONYM_CALIBRATION_LABELS]
             )
         )
         support_set = {label.lower() for label in self.config.support_labels}

@@ -273,10 +273,12 @@ after the alias appears in at least two retained contexts and the crop passes a
 CLIP similarity check (.22). The current probe samples up to 32 contexts across
 the whole store, including both endpoints, because the Cook cutting board is
 visible at 0 s and 35.6 s while the query is at 12 s. It detects with the term,
-its aliases, and five generic tabletop anchors (`bowl`, `plate`, `knife`,
-`toaster`, `cup`); support labels are applied in a second pass on the winning
-frame. The anchors restore the prompt-set context the detector needs, without
-using support labels that suppress the detection.
+its aliases, and five calibration labels (`bowl`, `plate`, `knife`, `toaster`,
+`cup`); support labels are applied in a second pass on the winning frame. The
+labels restore the prompt-set context the detector needs, without using support
+labels that suppress the detection. They are a fixed calibration bank, not a
+tabletop prior: a controlled ablation found that any three unrelated labels
+have the same effect.
 
 On Cook detector-only this lifts semantic from .50 to **.70**, grounding both
 the rice cooker (confidence .49) and the cutting board (.28) with countertop
@@ -286,13 +288,19 @@ Switch is unchanged at .75. No cutting-board or rice-cooker alias hits appeared
 in 36 sampled clean/play/walk contexts. The gain is a detector-only diagnostic,
 not the headline default.
 
-The probe also shows that YOLO-World is not compositional: at Cook t=0,
-`chopping board` fires at .43 with the five-anchor bank and .34 with a broad
-nine-label bank, but not with the narrow synonym-only vocabulary, not alone,
-and not when support labels are added. Adding an alias can suppress a detection
-instead of adding one. The anchor bank and whole-store sampling were chosen
-after inspecting Cook, so this is a post-hoc probe; query-time vocabulary
-expansion is a diagnostic, not a general safe recall mechanism.
+The probe also shows that YOLO-World is not compositional. On 32 sampled Cook
+contexts, cutting-board hits were: term alone 0, term+aliases 1,
+term+aliases+support labels 0, term+aliases+five calibration labels 2, and
+term+aliases+five random labels 2. Five independent 3-label banks
+(`laptop/book/shoe`, `bottle/plant/chair`, `car/tree/building`,
+`phone/keys/bag`, `remote/monitor/cable`) each produced 2 hits at .30–.44;
+`object/item/thing` also produced 2, while colour words produced 4 and shape
+words 1. Rice cooker was more stable: aliases alone 17 hits, support labels 16,
+calibration labels 14. The effect is therefore **prompt-set calibration**, not
+semantic tabletop anchoring; support labels are the specific failure. The exact
+bank and whole-store sampling were chosen after inspecting Cook, so this is a
+post-hoc probe; query-time vocabulary expansion is a diagnostic, not a general
+safe recall mechanism.
 
 **Detector capacity.** A query-time YOLO-World-L swap without rebuilding
 memory is negative on short clips: Cook semantic .70→.20, Switch .875→.625,

@@ -793,10 +793,12 @@ label: YOLO-World-S often calls the Cook rice cooker an ``instant pot``.  An
 opt-in `synonym_binding` path samples up to 32 retained contexts across the
 whole store, including both endpoints, requires the alias in at least two, and
 requires a CLIP cosine of at least .22 between the crop and the asked term.
-The detector receives the term, aliases, and five generic tabletop anchors
+The detector receives the term, aliases, and five calibration labels
 (``bowl/plate/knife/toaster/cup``); support labels are applied in a second
 pass on the winning frame.  A resulting binding has provenance
 `synonym_track` and no capsule id, so it is visible as a weaker source.
+The labels are a fixed calibration bank, not a tabletop prior; the ablation
+below shows that unrelated banks have the same effect.
 
 On Cook detector-only, the refined probe raises semantic from .50 to **.70**
 by grounding both the rice cooker (confidence .49) and the cutting board
@@ -805,18 +807,24 @@ unchanged at .70 with 7.9 calls because CLIP already grounds both objects.
 Clean and Play3 detector-only are unchanged at **0/6** and **.333**, Switch is
 unchanged at .75, and no cutting-board or rice-cooker alias hits appeared in 36
 sampled clean/play/walk contexts.  The gain is a detector-only diagnostic, not
-a headline improvement.  The anchor bank and whole-store sampling were chosen
-after inspecting Cook, so this is a post-hoc probe rather than a preregistered
-generalisation result.
+a headline improvement.  The calibration bank and whole-store sampling were
+chosen after inspecting Cook, so this is a post-hoc probe rather than a
+preregistered generalisation result.
 
 The probe also exposed a property of the detector that matters beyond this
 feature: YOLO-World scores are **not compositional with respect to the prompt
-set**.  At Cook t=0, ``chopping board`` fires at .43 with the five-anchor bank
-and .34 with a broad nine-label bank, but not with the narrower
-``cutting board/chopping board/wooden board`` vocabulary, not alone, and not
-when support labels are added.  Adding an alias can suppress a detection
-instead of adding one.  Query-time vocabulary expansion therefore needs
-prompt-set validation; this path stays opt-in and diagnostic.
+set**.  A controlled 32-context ablation on Cook gives cutting-board hits of
+0 for the term alone, 1 for term+aliases, 0 with support labels, 2 with the five
+calibration labels, and 2 with five random labels.  Five independent 3-label
+banks (``laptop/book/shoe``, ``bottle/plant/chair``, ``car/tree/building``,
+``phone/keys/bag``, ``remote/monitor/cable``) each produced 2 hits at .30--.44;
+``object/item/thing`` also produced 2, colour words 4, and shape words 1.
+Rice-cooker hits were 17 with aliases alone, 16 with support labels, and 14 with
+calibration labels.  The effect is therefore **prompt-set calibration**, not
+semantic tabletop anchoring; support labels are the specific failure.  Adding
+an alias can suppress a detection instead of adding one.  Query-time
+vocabulary expansion therefore needs prompt-set validation; this path stays
+opt-in and diagnostic.
 
 ### 5.14 Held-out human QA: eating domain
 
