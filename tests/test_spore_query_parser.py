@@ -32,3 +32,11 @@ def test_when_was_first_touched_extracts_object() -> None:
 
 def test_where_did_end_up_extracts_object() -> None:
     assert extract_terms("Where did the plate end up?") == ["plate"]
+
+
+def test_possessive_colour_question_uses_person() -> None:
+    assert extract_terms("What colour is the person's shirt?") == ["person"]
+
+
+def test_first_see_question_extracts_object() -> None:
+    assert extract_terms("When did I first see the person?") == ["person"]

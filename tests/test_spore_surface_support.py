@@ -25,3 +25,9 @@ def test_weak_wall_fraction_is_ignored() -> None:
 
 def test_empty_support_can_take_strong_surface() -> None:
     assert choose_support("plate", None, {"table": 0.60}) == "table"
+
+
+def test_outdoor_object_can_take_road() -> None:
+    assert choose_support("car", None, {"road": 0.75}) == "road"
+    assert choose_support("person", None, {"road": 0.58}) == "road"
+    assert choose_support("person", None, {"road": 0.20}) is None

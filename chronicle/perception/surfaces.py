@@ -21,6 +21,7 @@ _WALL = frozenset({"wall", "windowpane", "painting", "blind", "door"})
 _FLOOR = frozenset({"floor", "rug"})
 _TABLE = frozenset({"table", "coffee table", "desk", "counter", "countertop"})
 _SHELF = frozenset({"shelf", "cabinet", "bookcase"})
+_ROAD = frozenset({"road", "sidewalk", "earth", "ground", "grass", "pavement", "parking lot"})
 _GROUPS = {"wall": _WALL, "floor": _FLOOR, "table": _TABLE, "shelf": _SHELF}
 
 _WALL_OBJECTS = frozenset(
@@ -28,6 +29,9 @@ _WALL_OBJECTS = frozenset(
 )
 _FURNITURE = frozenset({"sofa", "couch", "chair", "armchair", "bench", "stool"})
 _TABLETOP_OBJECTS = frozenset({"plate", "cup", "mug", "bowl", "glass", "bottle", "knife", "fork", "spoon"})
+_OUTDOOR_OBJECTS = frozenset(
+    {"car", "truck", "bus", "bicycle", "motorcycle", "person", "people"}
+)
 
 
 def _group_fractions(fractions: Mapping[str, float]) -> dict[str, float]:
@@ -61,6 +65,7 @@ def choose_support(
     """
 
     wallish, furniture, tabletop = _object_kind(label)
+    outdoor = any(token in label.strip().lower() for token in _OUTDOOR_OBJECTS)
     current = (current or "").strip().lower()
     groups = _group_fractions(fractions)
     wall = max(
@@ -72,6 +77,7 @@ def choose_support(
     floor = groups["floor"]
     table = groups["table"]
     shelf = groups["shelf"]
+    road = sum(fractions.get(name, 0.0) for name in _ROAD)
 
     # A wall-mounted object is the one case where a dense surface model beats
     # the box detector: the wall is behind the object, not below it.
@@ -79,6 +85,10 @@ def choose_support(
         return "wall"
     if wallish and current == "wall":
         return None
+    if current == "road":
+        return None
+    if outdoor and not current and road >= 0.35:
+        return "road"
 
     if current in {"table", "countertop", "work table", "desk", "shelf"}:
         if furniture and current in {"desk", "shelf"} and floor >= 0.08:

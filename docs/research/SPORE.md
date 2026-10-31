@@ -280,11 +280,15 @@ was committed as `2b61849` before the run. The default engine scores **0/5**:
 the dense detector has no person target, the query detector misses the person
 at 24.0 s, the car is detected at 8.0 s but has no outdoor support label, and
 the parser treats `person's shirt` and `first see` as object terms. An opt-in
-`--context-fallback` path binds unrouted objects directly from keyframes; it
-recovers `person at 24.0s` and `car at 8.0s`, but semantic remains **0/5**
-because the expected answers are `parking lot`/`road`, which are not detected.
-This is a held-out diagnostic, not a headline gain; object memory transfers
-outdoors, while the support ontology and parser do not.
+`--context-fallback` path binds unrouted objects directly from keyframes. A
+post-hoc rerun combining fallback, a road/sidewalk surface rule, and two
+parser fixes reaches **2/5 semantic**: `person on the road at 24.0s` and
+`car on the road at 8.0s` (loc@.30/.50 .75/.75, IoU .614, 8.4 calls/query).
+Shirt colour is still blue instead of green/teal, first appearance is 0.8 s
+instead of 24.0 s, and count is 2 instead of 3. Because the parser and outdoor
+rule were written after inspecting this QA set, the 2/5 is a post-hoc
+diagnostic, not a clean held-out estimate; a second outdoor clip is needed.
+Fallback and surface support stay opt-in and out of the headline table.
 
 - Ablation call counts below predate disabling the redundant crop fallback;
   absolute calls are higher there, while accuracy/storage trends are unchanged.

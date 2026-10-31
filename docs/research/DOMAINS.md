@@ -182,20 +182,21 @@ abstains on all five (**0/5 semantic**); the car is detected at 8.0 s (IoU
 support ontology, and the parser extracts `person's shirt` and `first see` as
 object terms.
 
-| question | expected | baseline | context fallback |
+| question | expected | baseline | post-hoc fallback + road |
 |---|---|---|---|
-| Where is the person? | parking lot/road | abstain | `person at 24.0s` |
-| What colour is the person's shirt? | green/teal | abstain | `person's shirt is blue at 28.2s` |
-| When did I first see the person? | person | abstain | `first interaction with first see at 24.0s` |
+| Where is the person? | parking lot/road | abstain | `person on the road at 24.0s` |
+| What colour is the person's shirt? | green/teal | abstain | `person is blue at 24.0s` (wrong) |
+| When did I first see the person? | person | abstain | `first interaction with person at 0.8s` (wrong time) |
 | How many people did I see? | 3 | abstain | `2 person` |
-| Where is the car? | parking lot/road | abstain | `car at 8.0s` |
+| Where is the car? | parking lot/road | abstain | `car on the road at 8.0s` |
 
-The fallback is opt-in (`--context-fallback`) and still scores **0/5**
-semantically: it grounds object boxes, not the expected outdoor support. The
-person detection at 24 s was absent in a direct query-detector probe, and
-adding `parking lot`/`road`/`sidewalk` produced no detections. Report this as a
-transfer failure, not a tuned result; do not use it to add outdoor labels
-without a separate held-out check.
+The post-hoc path combines opt-in `--context-fallback`, `--surface-support`
+with a road/sidewalk rule, and parser fixes. It scores **2/5 semantic**
+(person and car) with loc@.30/.50 .75/.75, IoU .614, and 8.4 calls/query.
+Because the parser and outdoor rule were written after seeing these questions,
+this is a **post-hoc diagnostic, not a clean held-out estimate**; the first
+appearance (0.8 s), shirt colour (blue), and count (2) remain wrong. Do not
+tune further on this clip; validate on a second outdoor clip.
 
 ### Wall-support probe (negative)
 

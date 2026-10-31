@@ -916,14 +916,19 @@ so two questions never reach the right object.  People counting returns 2
 rather than the annotated 3.
 
 An opt-in `context_fallback` path now binds an unrouted object directly from
-retained keyframes.  In a post-hoc rerun it grounds the person at 24.0 s and
-the car at 8.0 s, but the QA score remains **0/5**: the expected answers are
-outdoor support labels (`parking lot`, `road`), which the detector did not
-produce, and the parser defects remain.  This is evidence that object memory
-can transfer outdoors while the support vocabulary and question parser do not.
-The fallback is off by default (`--context-fallback` enables it) and is not
-part of the headline table.  The five-question set is descriptive and was not
-used to tune the default path.
+retained keyframes.  A post-hoc rerun on the same store, combining that
+fallback with a road/sidewalk surface rule (road fraction >=.35) and two
+parser fixes, reaches **2/5 semantic** (person 24.0 s, car 8.0 s), loc@.30/.50
+.75/.75, mean IoU .614, 8.4 detector calls/query.  The shirt colour is still
+blue instead of green/teal, first appearance is returned as 0.8 s instead of
+24.0 s, and counting returns 2 instead of 3.
+
+Because the parser changes and outdoor rule were written after inspecting
+this five-question set, the 2/5 is a **post-hoc diagnostic, not a clean
+held-out estimate**.  A second outdoor clip is needed before treating outdoor
+support as a general capability.  The fallback and surface head are opt-in
+(`--context-fallback`, `--surface-support`) and are not part of the headline
+table.
 
 SPORE shows that **retained full context**, not better crops, is the dominant
 factor for late-binding localisation. Capsule crops alone are too tight and too

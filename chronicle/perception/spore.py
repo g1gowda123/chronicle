@@ -3717,10 +3717,23 @@ def extract_terms(question: str) -> list[str]:
     text = re.sub(r"\s+", " ", text).strip()
     if not text:
         return []
+    colour_of = re.search(
+        r"\b(?:what (?:is|was) the (?:colour|color) of"
+        r"|what (?:colour|color) (?:is|was)) (?:the |a |an )?(.+)$",
+        text,
+    )
+    if colour_of:
+        phrase = _clean_phrase(colour_of.group(1))
+        owner = re.match(r"^([a-z]+)'s\b", phrase)
+        if owner and owner.group(1) in _PERSON_QUERY_TERMS:
+            phrase = owner.group(1)
+        if phrase:
+            return [phrase]
     patterns = (
         r"\b(?:can|could|would) you (?:please )?tell me where (?:the |a |an )?(.+?) (?:is|are|was|were)\b",
         r"\bwhere (?:is|are|was|were) (?:the |a |an )?(.+?) located\b",
         r"\bwhat (?:is|was) the (?:colour|color) of (?:the |a |an )?(.+)$",
+        r"\bwhen did .*?(?:see|notice|spot|observe) (?:the |a |an )?(.+)$",
         r"\bwhen (?:was|were) (?:the |a |an )?(.+?) (?:first )?(?:touched|used|picked up|grabbed|held)\b",
         r"\bwhere did (?:the |a |an )?(.+?) end up\b",
         r"\bwhere (?:is|are|was|were) (?:the |a |an )?(.+)$",
