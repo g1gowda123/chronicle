@@ -270,14 +270,29 @@ accuracy.
 **Synonym probe (opt-in).** `synonym_binding` bridges a query noun to labels
 the detector actually emits (for example rice cooker → instant pot), but only
 after the alias appears in at least two retained contexts and the crop passes a
-CLIP similarity check (.22). On Cook detector-only it lifts semantic from .50
-to .60 by grounding the rice cooker (confidence .365); the cutting board still
-abstains, hybrid stays .70 because CLIP already binds both, and clean held-out
-stays 0/6 with no false positives. It is not a default path. The probe also
-shows that YOLO-World is not compositional: `chopping board` fires at Cook t=0
-with a broad nine-label bank but not with a narrow synonym-only vocabulary, so
-adding aliases can suppress detections. Query-time vocabulary expansion is a
-diagnostic, not a safe recall mechanism.
+CLIP similarity check (.22). The current probe samples up to 32 contexts across
+the whole store, including both endpoints, because the Cook cutting board is
+visible at 0 s and 35.6 s while the query is at 12 s. It detects with the term,
+its aliases, and five generic tabletop anchors (`bowl`, `plate`, `knife`,
+`toaster`, `cup`); support labels are applied in a second pass on the winning
+frame. The anchors restore the prompt-set context the detector needs, without
+using support labels that suppress the detection.
+
+On Cook detector-only this lifts semantic from .50 to **.70**, grounding both
+the rice cooker (confidence .49) and the cutting board (.28) with countertop
+support, at 14.3 detector calls/query. The hybrid run is unchanged at .70 with
+7.9 calls, clean and Play3 detector-only are unchanged (0/6 and .333), and
+Switch is unchanged at .75. No cutting-board or rice-cooker alias hits appeared
+in 36 sampled clean/play/walk contexts. The gain is a detector-only diagnostic,
+not the headline default.
+
+The probe also shows that YOLO-World is not compositional: at Cook t=0,
+`chopping board` fires at .43 with the five-anchor bank and .34 with a broad
+nine-label bank, but not with the narrow synonym-only vocabulary, not alone,
+and not when support labels are added. Adding an alias can suppress a detection
+instead of adding one. The anchor bank and whole-store sampling were chosen
+after inspecting Cook, so this is a post-hoc probe; query-time vocabulary
+expansion is a diagnostic, not a general safe recall mechanism.
 
 **Detector capacity.** A query-time YOLO-World-L swap without rebuilding
 memory is negative on short clips: Cook semantic .70→.20, Switch .875→.625,

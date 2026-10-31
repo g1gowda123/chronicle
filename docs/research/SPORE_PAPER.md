@@ -790,27 +790,33 @@ detector-only row as the more conservative grounding baseline.
 
 Open-vocabulary detectors sometimes name an object only under a neighbouring
 label: YOLO-World-S often calls the Cook rice cooker an ``instant pot``.  An
-opt-in `synonym_binding` path samples up to twelve retained contexts, requires
-the alias in at least two, and requires a CLIP cosine of at least .22 between
-the crop and the asked term.  A resulting binding has provenance
+opt-in `synonym_binding` path samples up to 32 retained contexts across the
+whole store, including both endpoints, requires the alias in at least two, and
+requires a CLIP cosine of at least .22 between the crop and the asked term.
+The detector receives the term, aliases, and five generic tabletop anchors
+(``bowl/plate/knife/toaster/cup``); support labels are applied in a second
+pass on the winning frame.  A resulting binding has provenance
 `synonym_track` and no capsule id, so it is visible as a weaker source.
 
-On Cook detector-only, the probe raises semantic from .50 to **.60** by
-grounding the rice cooker (confidence .365, countertop support); the cutting
-board still abstains.  The hybrid run is unchanged at .70 because CLIP already
-grounds the rice cooker and cutting board, and the clean held-out
-detector-only run is unchanged at **0/6** with no false positives.  The gain
-is therefore one detector-only answer, not a headline improvement.
+On Cook detector-only, the refined probe raises semantic from .50 to **.70**
+by grounding both the rice cooker (confidence .49) and the cutting board
+(.28) with countertop support, at 14.3 detector calls/query.  The hybrid run is
+unchanged at .70 with 7.9 calls because CLIP already grounds both objects.
+Clean and Play3 detector-only are unchanged at **0/6** and **.333**, Switch is
+unchanged at .75, and no cutting-board or rice-cooker alias hits appeared in 36
+sampled clean/play/walk contexts.  The gain is a detector-only diagnostic, not
+a headline improvement.  The anchor bank and whole-store sampling were chosen
+after inspecting Cook, so this is a post-hoc probe rather than a preregistered
+generalisation result.
 
 The probe also exposed a property of the detector that matters beyond this
 feature: YOLO-World scores are **not compositional with respect to the prompt
-set**.  At Cook t=0, ``chopping board`` fires at .34 with a broad nine-label
-bank, but not with the narrower ``cutting board/chopping board/wooden board``
-vocabulary, not alone, and not when support labels are added.  Adding an
-alias can suppress a detection instead of adding one, which explains why the
-rice cooker succeeds while the cutting board fails.  Query-time vocabulary
-expansion therefore needs prompt-set validation; this path stays opt-in and
-diagnostic.
+set**.  At Cook t=0, ``chopping board`` fires at .43 with the five-anchor bank
+and .34 with a broad nine-label bank, but not with the narrower
+``cutting board/chopping board/wooden board`` vocabulary, not alone, and not
+when support labels are added.  Adding an alias can suppress a detection
+instead of adding one.  Query-time vocabulary expansion therefore needs
+prompt-set validation; this path stays opt-in and diagnostic.
 
 ### 5.14 Held-out human QA: eating domain
 

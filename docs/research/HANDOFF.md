@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `203a12e` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym binding + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `a08c43c` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in anchored synonym binding (post-hoc Cook probe) + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -343,14 +343,20 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   fallback+surface both score **0/5**; the person is detected at 54.2 s but
   the stairs do not meet the road rule, cup/sign are never detected, first
   appearance is 0.0 s and count is 2. Do not tune either outdoor clip.
-- The opt-in synonym probe (`203a12e`) raises detector-only Cook semantic
-  .50→.60 by grounding the rice cooker through `instant pot`; the cutting board
-  still abstains, hybrid is unchanged at .70, and clean detector-only remains
-  0/6 with no false positives. It is not default and not a headline gain.  The
-  probe also showed YOLO-World prompt sets are non-compositional: `chopping
-  board` fires at Cook t=0 with a broad nine-label bank but not with the narrow
-  synonym vocabulary, so adding aliases can suppress detections.  Treat
-  query-time vocabulary expansion as diagnostic, not a safe recall mechanism.
+- The opt-in synonym probe (`203a12e`, refined in `a08c43c`) raises
+  detector-only Cook semantic .50→**.70** by grounding both the rice
+  cooker and cutting board, at 14.3 calls/query.  It samples up to 32 contexts
+  across the whole store and detects with the term, aliases, and five tabletop
+  anchors (`bowl`, `plate`, `knife`, `toaster`, `cup`); support labels run in a
+  second pass, because they suppress the aliases.  Hybrid remains .70 (7.9
+  calls), clean remains 0/6, Play3 .333, Switch .75; no false alias hits in 36
+  sampled clean/play/walk contexts.  Not default and not a headline gain.  The
+  anchors and endpoint sampling were chosen after inspecting Cook, so this is a
+  post-hoc probe.  The probe also showed YOLO-World prompt sets are
+  non-compositional: at Cook t=0 `chopping board` fires .43 with the five-anchor
+  bank but not with the narrow synonym vocabulary or support labels, so adding
+  aliases can suppress detections.  Treat query-time vocabulary expansion as
+  diagnostic, not a safe general recall mechanism.
 - Next: independent object-trajectory/state experiment. Do not tune the
   eat_0/clean_0/walk_0/walk_60 questions, run another z210 prompt/threshold
   sweep, or tune Cook-specific failures.
