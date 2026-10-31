@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `8e3bfb2` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `76f2dde` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -288,13 +288,24 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   benchmarks, context frames, fused tracks, counting, inventory, compact
   stores, temporal scans, detector-free scene recall, and support-surface
   query targets are implemented. Multi-domain manifest/fetch/aggregate scripts
-  and tests are present; branch tip `f0048ed` adds support-surface answers,
-  and earlier `8e3bfb2` includes the four-domain held-out run, the person-query
-  fix, the SPORE/main comparison, and `scripts/fetch_lfs_clips.py`.
+  and tests are present. Branch tip `76f2dde` documents the first held-out
+  human QA (eating domain, 3/6 human-judged, 4/6 lenient), committed as
+  `ec501bb` before the run. Earlier `8e3bfb2` includes the four-domain
+  held-out automatic run, the person-query fix, the SPORE/main comparison, and
+  `scripts/fetch_lfs_clips.py`.
 - `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
   untracked; no 1280 run executed.
 - `research/long-video-qa`: `990013e`, clean.
-- The next agent should either validate the Aria scene-annotation alignment or
-  add a small human-checked QA subset for the new domains, then test whether
-  SPORE's support/destination errors are general. Do not run another z210
-  prompt/threshold sweep, and do not tune Cook-specific failures.
+- The held-out eating QA is the first independent check: lenient semantic
+  4/6, human-judged 3/6. The table query passes via support-track routing; the
+  plate support is wrong (desk instead of dining table) but the lenient
+  substring matcher accepts “table” inside “work table”; the TV is detected
+  at IoU .609 but supported as a desk because `wall` is not in the support
+  ontology; the window is an ungrounded CLIP fallback.
+- Next: add a human-checked QA subset for `clean_0` or `walk_0` **before**
+  changing the support ontology. Test a general `wall` support label on that
+  separate clip and re-run the existing short clips for regressions; report
+  the eat_0 result as post-hoc, not held-out. Also consider tightening the
+  semantic matcher or always reporting human-judged support correctness.
+  Do not tune the eat_0 questions, run another z210 prompt/threshold sweep, or
+  tune Cook-specific failures.
