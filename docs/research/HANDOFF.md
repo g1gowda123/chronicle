@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `3f74c24` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `d846843` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -300,8 +300,8 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   benchmarks, context frames, fused tracks, counting, inventory, compact
   stores, temporal scans, detector-free scene recall, support-surface query
   targets, and an optional semantic surface head are implemented. Multi-domain
-  manifest/fetch/aggregate scripts and tests are present. Branch tip `3f74c24`
-  (play_3 docs pending) adds the opt-in SegFormer-B0 surface head: clean
+  manifest/fetch/aggregate scripts and tests are present. Branch tip `d846843`
+  adds the opt-in SegFormer-B0 surface head: clean
   held-out 0/6→3/6, eating 4/6 lenient (3/6 human)→6/6, and play_3 2/6→4/6
   lenient (1/6→3/6 human) with a media-console TV overridden shelf→wall;
   Cook/Switch/original-Play unchanged, +~0.18 GB VRAM and 0.2–0.5 s/query.
