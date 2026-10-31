@@ -611,6 +611,21 @@ retrieval-bound, and the temporal/activity questions cannot be grounded by
 this capture regardless of the question parser.  A higher-resolution capture
 is required before a stronger detector can help.
 
+The same drop-in is not a free upgrade on short clips.  Holding the S-built
+stores and S dense ground truth fixed, re-running only query-time detection
+with YOLO-World-L at confidence .22 drops Cook semantic accuracy .70 to .20
+(IoU .826 to .645), Switch .875 to .625 (loc@.3 .75 to 0), and Play loc@.3
+.667 to .333 (IoU .475 to .342); Play semantic stays 1.00 because the correct
+object labels are still returned, but its localization degrades.  Raising Cook
+confidence to .35 or .50 makes semantic accuracy .10.  A direct 47-context probe at .20 shows what the larger model
+adds -- cutting board from 1 to 42 contexts and tomato from 2 to 30 -- but it
+also picks a different knife instance and supports it with "box", and no Cook
+query detection attributes to a stored capsule (routed retention 0; Switch
+.25).  Detector recall is therefore not the only bottleneck: cross-model
+detections must be co-designed with capsule routing and support assignment,
+and the dense ground truth is still the small model.  Treat a model swap as a
+new system, not a configuration change.
+
 ### 5.10 Scene inventory
 
 Object binding answers "where is X", but not "what is on the work table": the

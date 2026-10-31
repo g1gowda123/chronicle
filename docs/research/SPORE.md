@@ -210,6 +210,13 @@ clips, but this is a small sample; report detector-only as the conservative
 grounding baseline rather than treating hybrid scores as pure detector
 accuracy.
 
+**Detector capacity.** A query-time YOLO-World-L swap without rebuilding
+memory is negative on short clips: Cook semantic .70→.20, Switch .875→.625,
+and Play loc@.3 .667→.333, with 2.17 GB peak VRAM. The larger model adds
+cutting-board and tomato recall, but its boxes and support choices do not
+attribute to S-built capsules. A larger detector is not a free upgrade; it
+needs co-designed ingest, routing, and evaluation.
+
 - Ablation call counts below predate disabling the redundant crop fallback;
   absolute calls are higher there, while accuracy/storage trends are unchanged.
   Cook IoU values of .692 in older ablations predate adaptive fusion; the
