@@ -300,10 +300,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   benchmarks, context frames, fused tracks, counting, inventory, compact
   stores, temporal scans, detector-free scene recall, support-surface query
   targets, and an optional semantic surface head are implemented. Multi-domain
-  manifest/fetch/aggregate scripts and tests are present. Branch tip `d846843`
-  adds the opt-in SegFormer-B0 surface head: clean
-  held-out 0/6→3/6, eating 4/6 lenient (3/6 human)→6/6, and play_3 2/6→4/6
-  lenient (1/6→3/6 human) with a media-console TV overridden shelf→wall;
+  manifest/fetch/aggregate scripts and tests are present. Branch tip `224ee7d`
+  adds an opt-in open-world context fallback and the walk_0 held-out result.
+  The opt-in SegFormer-B0 surface head (`d846843`) gives clean held-out
+  0/6→3/6, eating 4/6 lenient (3/6 human)→6/6, and play_3 2/6→4/6 lenient
+  (1/6→3/6 human) with a media-console TV overridden shelf→wall;
   Cook/Switch/original-Play unchanged, +~0.18 GB VRAM and 0.2–0.5 s/query.
   Earlier `3f34b5b` records the rejected wall-label probe; eating QA was
   committed as `ec501bb` before the run, clean QA as `c85be76`, play_3 QA as
@@ -325,10 +326,17 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   .70→.60 with cup counting 2→1. The code change was reverted; do not retry
   a label-only wall fix.
 - The support/place **selection** bottleneck now has an opt-in head (above).
-  It is not in the default headline. Next: validate on `walk_0` or a new human
-  QA set committed before the change, and measure whether a cheaper mask pass
-  is worthwhile. Keep reporting lenient semantic and human-judged support
-  correctness separately; the plate “work table” case is a known substring
-  false positive.
-- Do not tune the eat_0/clean_0 questions, run another z210 prompt/threshold
-  sweep, or tune Cook-specific failures.
+  It is not in the default headline. Keep reporting lenient semantic and
+  human-judged support correctness separately; the plate “work table” case is
+  a known substring false positive.
+- Held-out `walk_0` QA (`2b61849`) is a transfer failure: **0/5** baseline.
+  Object memory can be recovered with the opt-in `--context-fallback`
+  (`person at 24.0s`, `car at 8.0s`), but semantic stays 0/5 because the
+  expected outdoor supports (`parking lot`/`road`) are not detected and the
+  parser still treats `person's shirt`/`first see` as object terms. Do not add
+  outdoor labels without a separate held-out check.
+- Next: either fix the possessive/temporal parser and evaluate whether a
+  cheap outdoor surface pass can ground `parking lot`/`road`, or move to an
+  independent object-trajectory/state experiment. Do not tune the
+  eat_0/clean_0/walk_0 questions, run another z210 prompt/threshold sweep, or
+  tune Cook-specific failures.
