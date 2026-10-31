@@ -149,6 +149,29 @@ matcher accepts a wrong support. Report both the lenient and human-judged
 scores, and do not tune these questions after the run. A wall-support change
 must be evaluated on a different clip before it is claimed as a gain.
 
+### Human QA check (play_3)
+
+A third six-question set was written for the held-out `aria_play_3_45s`
+social/board-game clip and committed (`3f74c24`) before the surface-head run.
+It probes sofa/chair→floor, TV→shelf, book→table, window→wall, and sofa colour.
+The TV sits on a media console; the row deliberately checks that the wall rule
+does not over-fire.
+
+| question | expected | baseline | surface head | outcome |
+|---|---|---|---|---|
+| Where is the sofa? | floor | `sofa on desk` | `sofa on floor` | fixed |
+| Where is the chair? | floor | `chair on desk` | `chair on floor` | fixed |
+| Where is the TV? | shelf | `tv on shelf` | `tv on wall` | **regressed** |
+| Where is the book? | table | `book on desk` | `book on desk` | not fixed |
+| Where is the window? | wall | `window on desk` | `window on wall` | fixed |
+| What colour is the sofa? | grey | orange | orange | not fixed |
+
+Lenient semantic **2/6→4/6**; human-judged **1/6→3/6**. The TV is truncated at
+the left frame edge, its black console is not segmented, and the wall fraction
+dominates; the game box’s table fraction is only .045. These are limits of the
+dense surface head, not rows to tune. The original four-question Play clip is
+unchanged by the head.
+
 ### Wall-support probe (negative)
 
 A second six-question human set was written for `aria_clean_0_45s` (living

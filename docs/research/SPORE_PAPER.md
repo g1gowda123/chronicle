@@ -869,22 +869,31 @@ naive mask override would cause.
 |---|---:|---:|---:|---:|---:|
 | clean (held-out) | 0/6 | **3/6** | 1.00 | .762 | 3.33 |
 | eat (held-out) | 4/6 lenient, 3/6 human | **6/6** | .80 | .64 | 4.5 |
+| play_3 (held-out) | 2/6 lenient, 1/6 human | **4/6 lenient, 3/6 human** | 1.00 | .573 | 4.0 |
 | Cook | .70 | .70 | 1.00 | .826 | 7.9 |
 | Switch (inventory) | 1.00 | 1.00 | .75 | .611 | 8.38 |
-| Play | 1.00 | 1.00 | .667 | .475 | 4.75 |
+| Play (original) | 1.00 | 1.00 | .667 | .475 | 4.75 |
 
 On the eating clip the surface head fixes the two failures that motivated it:
 the plate becomes `plate on the table` and the window becomes `window on the
 wall`; the TV, cup, and table answers remain correct.  On the clean clip it
 fixes TV→wall, sofa→floor, and chair→floor, but the table
 question still answers via the support track (expected “floor”), the window has
-no object detection, and the sofa colour is wrong.  Cook, Switch, and Play are
-unchanged, so the head does not buy accuracy there; it is a generalisation
-mechanism for rooms with wall/floor relations the detector cannot name.
+no object detection, and the sofa colour is wrong.  Cook, Switch, and the
+original Play clip are unchanged.
+
+A new held-out social clip (`play_3`) is mixed.  The head fixes
+sofa/chair→floor and window→wall, but changes a media-console TV from `shelf`
+to `wall`; the TV is truncated at the left frame edge, and its black console is
+not segmented, so the wall fraction dominates.  It also leaves the game
+box (detected as `book`) on a desk because the table fraction below the box is
+only .045.  Lenient semantic is 2/6→4/6 and human-judged 1/6→3/6, with the TV
+as a real regression.  This is a limitation of using dense wall/floor labels
+around truncated objects, not a row to tune.
 
 The cost is measurable: peak VRAM rises from 1.34 GB to about 1.52 GB on the
 eating clip, and mean query time rises by roughly 0.2–0.5 s depending on how
-many bindings need a mask.  With two held-out clips and five to six questions
+many bindings need a mask.  With three held-out clips and five to six questions
 each, these are descriptive results, not a benchmark estimate.  The clean
 table ambiguity also shows that “where is the table?” is not consistently a
 support-target or an object-location question; do not tune that row.
@@ -934,6 +943,10 @@ objects are sensitive to its smoothing.
   object memory to a new room, but the TV/window failures are support-ontology
   and CLIP-fallback failures, not evidence that the answers are generally
   grounded.
+- The optional surface head is validated on three small held-out QA sets. It
+  improves wall/floor relations but can override a media-console TV at a frame
+  edge, and it does not ground a game box on a low-table-fraction crop; it is
+  not a general support-relation model.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 

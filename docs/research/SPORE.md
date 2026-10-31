@@ -248,7 +248,11 @@ on a desk/shelf may move to `floor`, and tabletop objects on a desk/shelf may
 move to `table`; a specific horizontal support is never replaced by another
 horizontal support. Held-out eating QA rises from 4/6 lenient (3/6 human) to
 **6/6** (plate and window fixed), and held-out clean rises from **0/6** to
-**3/6** (TV, sofa, chair); Cook, Switch, and Play are unchanged. Cost is about
+**3/6** (TV, sofa, chair); Cook, Switch, and the original Play clip are
+unchanged. On a new held-out `play_3` social clip the head goes from 2/6
+lenient (1/6 human) to **4/6 lenient (3/6 human)**: sofa/chair→floor and
+window→wall are fixed, but a media-console TV at the frame edge is wrongly
+changed from shelf to wall, and the game box remains on a desk. Cost is about
 0.2–0.5 s per query and +0.18 GB peak VRAM, so the feature is off by default
 and is not part of the headline table.
 

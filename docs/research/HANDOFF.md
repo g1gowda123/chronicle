@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `75fa0c5` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `3f74c24` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -115,9 +115,11 @@ objects may use `wall`, furniture on a desk/shelf may use `floor`, and tabletop
 objects on a desk/shelf may use `table`; a specific horizontal support is never
 replaced by a different horizontal one. On the held-out QA it raises clean
 0/6→3/6 (TV, sofa, chair) and eat 4/6 lenient (3/6 human)→6/6 (plate and window
-fixed), with Cook/Switch/Play unchanged. It costs ~0.18 GB peak VRAM and
-0.2–0.5 s/query, so it stays opt-in and out of the headline table. See paper
-§5.15.
+fixed), with Cook/Switch/original-Play unchanged. On held-out `play_3` it
+goes 2/6→4/6 lenient (1/6→3/6 human), but overrides a media-console TV from
+shelf to wall; the TV is truncated at the frame edge and the console is not
+segmented. It costs ~0.18 GB peak VRAM and 0.2–0.5 s/query, so it stays opt-in
+and out of the headline table. See paper §5.15 and `DOMAINS.md`.
 
 
 ## 3. Main branch: what is already shipped
@@ -298,17 +300,20 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   benchmarks, context frames, fused tracks, counting, inventory, compact
   stores, temporal scans, detector-free scene recall, support-surface query
   targets, and an optional semantic surface head are implemented. Multi-domain
-  manifest/fetch/aggregate scripts and tests are present. Branch tip `75fa0c5`
-  adds the opt-in SegFormer-B0 surface head: clean held-out 0/6→3/6, eating
-  4/6 lenient (3/6 human)→6/6, Cook/Switch/Play unchanged, +~0.18 GB VRAM and
-  0.2–0.5 s/query. Earlier `3f34b5b` records the rejected wall-label probe;
-  eating QA was committed as `ec501bb` before the run, clean QA as `c85be76`.
+  manifest/fetch/aggregate scripts and tests are present. Branch tip `3f74c24`
+  (play_3 docs pending) adds the opt-in SegFormer-B0 surface head: clean
+  held-out 0/6→3/6, eating 4/6 lenient (3/6 human)→6/6, and play_3 2/6→4/6
+  lenient (1/6→3/6 human) with a media-console TV overridden shelf→wall;
+  Cook/Switch/original-Play unchanged, +~0.18 GB VRAM and 0.2–0.5 s/query.
+  Earlier `3f34b5b` records the rejected wall-label probe; eating QA was
+  committed as `ec501bb` before the run, clean QA as `c85be76`, play_3 QA as
+  `3f74c24` before its run.
   `8e3bfb2` includes the four-domain held-out automatic run, the person-query
   fix, the SPORE/main comparison, and `scripts/fetch_lfs_clips.py`.
 - `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
   untracked; no 1280 run executed.
 - `research/long-video-qa`: `990013e`, clean.
-- The held-out eating QA is the first independent check: lenient semantic
+- The held-out eating QA was the first independent check: lenient semantic
   4/6, human-judged 3/6. The table query passes via support-track routing; the
   plate support is wrong (desk instead of dining table) but the lenient
   substring matcher accepts “table” inside “work table”; the TV is detected
