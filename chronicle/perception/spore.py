@@ -126,6 +126,12 @@ _DETECTOR_SYNONYMS = {
     "fridge": ("refrigerator",),
 }
 
+# YOLO-World's class scores depend on the whole prompt set, so a synonym can
+# disappear when support labels are added.  These generic tabletop anchors
+# keep the vocabulary close to the detector's training distribution; support
+# is resolved in a second pass after the object box is chosen.
+_SYNONYM_ANCHORS = ("bowl", "plate", "knife", "toaster", "cup")
+
 # OpenCV hue is 0..179.  Ranges are deliberately coarse: the point is a
 # verifiable attribute answer from retained pixels, not a colour taxonomy.
 _COLOUR_RANGES = (
@@ -301,7 +307,7 @@ class SporeConfig:
     # CLIP check against the asked term, so a single spurious alias cannot
     # create evidence.
     synonym_binding: bool = False
-    synonym_contexts: int = 12
+    synonym_contexts: int = 32
     synonym_min_contexts: int = 2
     synonym_clip_threshold: float = 0.22
     rescan: bool = False
@@ -2383,23 +2389,23 @@ class SporeQueryEngine:
         alias_set = {label.strip().lower() for label in aliases}
         if not alias_set or not self.store.contexts:
             return []
-        if at_time is not None:
-            contexts = sorted(
-                self.store.contexts,
-                key=lambda context: abs(context.timestamp - at_time),
-            )
-        else:
-            stride = max(1, len(self.store.contexts) // self.config.synonym_contexts)
-            contexts = list(self.store.contexts)[::stride]
-        contexts = contexts[: self.config.synonym_contexts]
+        # Sample the whole store, including both endpoints.  A synonym can be
+        # visible far from the query timestamp (the cutting board is at the
+        # start and end of Cook, not at the queried 12 s), so nearest-only
+        # sampling misses the persistence the check requires.
+        count = min(len(self.store.contexts), max(2, self.config.synonym_contexts))
+        indices = np.linspace(0, len(self.store.contexts) - 1, count, dtype=int)
+        contexts = [self.store.contexts[int(index)] for index in indices]
         term_vector = self._embed_text(term)
         vocabulary = list(
             dict.fromkeys(
-                [term, *aliases, *self.config.support_labels]
+                [term, *aliases, *_SYNONYM_ANCHORS]
             )
         )
         support_set = {label.lower() for label in self.config.support_labels}
         best: Binding | None = None
+        best_frame: np.ndarray | None = None
+        best_context: ContextFrame | None = None
         hits = 0
         for context in contexts:
             frame = context.image()
@@ -2440,7 +2446,7 @@ class SporeQueryEngine:
                     confidence=confidence,
                     timestamp=context.timestamp,
                     bbox=detection.bbox,
-                    support=self._support_for(detections, detection.bbox, support_set),
+                    support=None,
                     detector_confidence=float(detection.confidence),
                     clip_similarity=float(clip_similarity),
                     views_agree=hits,
@@ -2449,8 +2455,21 @@ class SporeQueryEngine:
                 )
                 if best is None or binding.confidence > best.confidence:
                     best = binding
+                    best_frame = frame
+                    best_context = context
         if best is None or hits < self.config.synonym_min_contexts:
             return []
+        if best_frame is not None and best_context is not None and support_set:
+            support_detections = self._detect_cached(
+                best_frame,
+                list(dict.fromkeys(self.config.support_labels)),
+                frame_index=best_context.frame_index,
+                timestamp=best_context.timestamp,
+                cache_tag=best_context.frame_index,
+            )
+            best.support = self._support_for(
+                support_detections, best.bbox, support_set
+            )
         best.views_agree = hits
         best.views_tried = len(contexts)
         self._attach(best)
