@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `a08c43c` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `0456b92` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
