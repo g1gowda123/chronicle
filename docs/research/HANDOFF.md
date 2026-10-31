@@ -286,10 +286,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 - `main`: `1200f84`, clean, CI green.
 - `research/spore-perception`: based on `1200f84`; perceiver, query engine,
   benchmarks, context frames, fused tracks, counting, inventory, compact
-  stores, temporal scans, and detector-free scene recall are implemented.
-  Multi-domain manifest/fetch/aggregate scripts and tests are present; branch
-  tip `8e3bfb2` includes the four-domain held-out run, the person-query fix,
-  the SPORE/main comparison, and `scripts/fetch_lfs_clips.py`.
+  stores, temporal scans, detector-free scene recall, and support-surface
+  query targets are implemented. Multi-domain manifest/fetch/aggregate scripts
+  and tests are present; branch tip `f0048ed` adds support-surface answers,
+  and earlier `8e3bfb2` includes the four-domain held-out run, the person-query
+  fix, the SPORE/main comparison, and `scripts/fetch_lfs_clips.py`.
 - `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
   untracked; no 1280 run executed.
 - `research/long-video-qa`: `990013e`, clean.
