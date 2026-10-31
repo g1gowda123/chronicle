@@ -1,5 +1,23 @@
 # Real clip provenance
 
+## Git LFS clips
+
+`aria_cook_45s.mp4`, `aria_play_45s.mp4`, `aria_walk_60s.mp4`, and
+`holoassist_switch_34s.mp4` are tracked through Git LFS. A plain checkout
+without `git-lfs` leaves 132-byte pointer files. Restore the real media with:
+
+```bash
+python scripts/fetch_lfs_clips.py --dry-run
+python scripts/fetch_lfs_clips.py --all
+```
+
+The fetcher reads the pointer's SHA-256 and size, downloads the media from
+GitHub's `media.githubusercontent.com` endpoint, and verifies both before
+replacing the pointer. Downloaded media remains ignored by git and is not
+committed to the repository.
+
+## HoloAssist
+
 - Dataset: **HoloAssist** — <https://holoassist.github.io/>
 - Session: `z210-sep-29-22-switch`
 - Device: Microsoft HoloLens 2 (first-person egocentric video)

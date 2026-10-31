@@ -184,6 +184,15 @@ relations remain noisy (`sofa on the basket`). One general parser fix came out
 of the outdoor clip: bare “Where is the person?” is now a valid people query
 instead of being dropped as a stopword.
 
+On the same hand-written QA used by the research branch, SPORE scores Cook
+7/10, Switch 7/8, and Play 4/4; the corresponding `main` numbers were Cook
+8/10 and Switch 7/8. SPORE therefore does **not** beat `main` on accuracy in
+this comparison. Its measured advantage is efficiency: ~5–8 detector calls per
+query versus 128–150 dense calls, with 4.7–7.7 MB capsule stores. The Cook
+regressions are a shelf/countertop support error and a plate-destination
+tracking error; they are general failure modes, not reasons to tune on Cook.
+See `docs/research/DOMAINS.md` for the comparison table.
+
 - Ablation call counts below predate disabling the redundant crop fallback;
   absolute calls are higher there, while accuracy/storage trends are unchanged.
   Cook IoU values of .692 in older ablations predate adaptive fusion; the

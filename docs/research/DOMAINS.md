@@ -67,6 +67,17 @@ Use a Python environment with Ultralytics, MediaPipe, and OpenCLIP installed.
 On this machine that is `/home/g1/projects/chronicle/.venv/bin/python`; the
 SPORE project venv is not sufficient for real footage.
 
+The older Cook/Play/Walk/Switch demo clips are Git LFS pointers in a plain
+checkout. Restore them without installing `git-lfs`:
+
+```bash
+python scripts/fetch_lfs_clips.py --dry-run
+python scripts/fetch_lfs_clips.py --all
+```
+
+The fetcher verifies the pointer's SHA-256 and byte size. The four new Aria
+clips above are fetched separately with `scripts/fetch_aria_clip.py`.
+
 Results go to `runs/spore_domains/` (ignored): per-clip JSON plus
 `summary.json` / `summary.md`. Metrics are semantic accuracy, localization at
 IoU .30, mean IoU, detector calls per query, and dense calls. Because the
@@ -106,6 +117,43 @@ These numbers are deliberately **not** a headline accuracy claim:
   box; the current metric does not score relations.
 - The four clips are short windows from one capture rig. Report them as
   held-out development domains, not a benchmark.
+
+## Comparison with the original `main` perception path
+
+The same human-written QA sets were run with SPORE on the real clips recovered
+from Git LFS. The `main` numbers are the research-branch results reported
+before SPORE (Cook 8/10, Switch 7/8); the Play set has only four questions.
+
+| clip | main | SPORE | SPORE calls/query | dense calls | capsule store |
+|---|---:|---:|---:|---:|---:|
+| Cook | 8/10 | 7/10 | 7.9 | 150 | 6.46 MB |
+| Switch | 7/8 | 7/8 | 7.38 | 128 | 4.69 MB |
+| Play | n/a | 4/4 | 5.0 | 150 | 7.74 MB |
+
+SPORE is **not an accuracy improvement** over `main` on this comparison. It is
+one question worse on Cook (cup support and plate destination resolve to the
+shelf), equal on Switch, and perfect on the tiny four-question Play set. Its
+measured advantage is compute and storage: roughly 5–8 detector calls per
+query instead of one call per sampled frame (128–150), with 4.7–7.7 MB capsule
+stores. Ingest is not free: SPORE spends ~19–27 s building the store per 34–45 s
+clip, while the dense pass takes 5–6 s.
+
+The Cook failures are informative rather than a reason to tune on Cook: the
+support classifier confuses a shelf with the countertop, and the plate
+destination tracker follows the plate to the shelf. Those are general
+support/track problems, not Aria-specific quirks.
+
+## Independent annotation check (not yet valid)
+
+`scripts/aria_scene_eval.py` asks questions selected from Aria's scene
+annotations instead of dense YOLO tracks. On the three clips with downloaded
+metadata it scored 33 questions at semantic .848, loc@.30 .061, mean IoU .078,
+and center .212. Those numbers are **not** an accuracy verdict: the released
+Aria 2D boxes are projections of 3D scene cuboids, the boxes are coarse, and
+the `214-1` stream/camera alignment with the preview is unverified. Overlay
+checks show a `table` box over the TV/window and a `sofa` box covering the rug
+and coffee table. Keep this path as an alignment diagnostic; do not quote it as
+SPORE localization accuracy.
 
 ## Reading the result
 

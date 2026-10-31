@@ -304,6 +304,15 @@ bare "person" was a stopword, so seven people questions returned no bindings;
 the parser now recognizes bare person/people location questions, and all seven
 are grounded.
 
+The automatic Aria table is not comparable to the hand-written QA table: the
+latter includes activity, counting, destination, and false-premise questions.
+On the hand-written sets, SPORE scores Cook 7/10, Switch 7/8, and Play 4/4;
+`main` scored Cook 8/10 and Switch 7/8. The efficiency claim is the robust
+result (5–8 calls/query versus 128–150 dense calls); the accuracy claim is
+not. Cook's two extra failures are a shelf/countertop support error and a
+plate-destination tracking error. The paper should report these as general
+perception limitations, not tune them away on one clip.
+
 ### 5.2 Ablations and negative results
 
 Unless noted, these ablations were run before the redundant crop fallback was
