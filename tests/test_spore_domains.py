@@ -47,6 +47,7 @@ def test_aggregate_weights_by_question_count() -> None:
     assert eating["semantic_accuracy"] == 0.25
     assert eating["localization_30"] == 0.25
     assert eating["mean_iou"] == 0.25
+    assert eating["dense_calls"] == 100
 
 
 def test_markdown_mentions_every_clip() -> None:

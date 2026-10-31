@@ -67,6 +67,8 @@ _STOPWORDS = frozenset(
     """.split()
 )
 
+_PERSON_QUERY_TERMS = frozenset({"person", "persons", "people"})
+
 _VERBS = frozenset(
     """
     pick picked picking put putting place placed placing move moved moving
@@ -3608,6 +3610,15 @@ def extract_terms(question: str) -> list[str]:
             phrase = _clean_phrase(match.group(1))
             if phrase:
                 return [phrase]
+            # ``person`` is deliberately a stopword for object queries: it
+            # rarely identifies a specific object.  When it is the entire
+            # target phrase ("Where is the person?"), however, it is a valid
+            # people query and late binding can ground it like any other term.
+            if any(
+                word in _PERSON_QUERY_TERMS
+                for word in re.findall(r"[a-z]+", match.group(1).lower())
+            ):
+                return ["person"]
     tokens = [token for token in text.split() if token not in _STOPWORDS and token not in _VERBS]
     if not tokens:
         return []

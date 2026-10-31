@@ -286,6 +286,24 @@ questions are simpler ("Where is X?") and because the dense tracker only asks
 about objects it can see. They are useful for measuring routing and instance
 ambiguity, not for claiming general video understanding.
 
+Automatic held-out Aria domains (12 per 45 s clip, budget 8):
+
+| Domain | Semantic | loc@.3 | mean IoU | Calls/query | Dense calls |
+|---|---:|---:|---:|---:|---:|
+| Eating (`eat_0`) | 1.00 | .917 | .711 | 3.33 | 150 |
+| Cleaning (`clean_0`) | 1.00 | .833 | .678 | 4.50 | 150 |
+| Social (`play_3`) | 1.00 | .917 | .719 | 4.75 | 150 |
+| Outdoor (`walk_0`) | 1.00 | .833 | .617 | 5.25 | 150 |
+| All | 1.00 | .875 | .681 | 4.46 | 150/clip |
+
+These clips were chosen before any SPORE run and are not used for tuning.
+The same dense YOLO-World detector supplies the questions and the reference
+boxes, so semantic 1.00 measures retention and re-binding, not discovery of
+objects the detector missed. The outdoor clip exposed one genuine parser bug:
+bare "person" was a stopword, so seven people questions returned no bindings;
+the parser now recognizes bare person/people location questions, and all seven
+are grounded.
+
 ### 5.2 Ablations and negative results
 
 Unless noted, these ablations were run before the redundant crop fallback was

@@ -87,7 +87,7 @@ def aggregate(summaries: list[dict]) -> dict:
         bucket["loc30"] += float(summary["localization_30"]) * n
         bucket["iou"] += float(summary["mean_iou"]) * n
         bucket["calls"] += float(summary["mean_calls"]) * n
-        bucket["dense"] += float(summary["dense_calls"]) * n
+        bucket["dense"] += float(summary["dense_calls"])
 
     rows = []
     for domain, bucket in sorted(by_domain.items()):

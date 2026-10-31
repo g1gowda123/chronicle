@@ -36,10 +36,9 @@ are ~483 MB each with `moov` at the end, so remote `ffmpeg -ss` seeking is
 unreliable. Download once into a cache, then trim locally:
 
 ```bash
-.venv/bin/python scripts/fetch_aria_clip.py --sequence eat_0 --dry-run
-.venv/bin/python scripts/fetch_aria_clip.py --sequence eat_0
-# after charging / when network is cheap:
-.venv/bin/python scripts/fetch_aria_clip.py --sequence clean_0 --sequence play_3
+python scripts/fetch_aria_clip.py --sequence eat_0 --dry-run
+python scripts/fetch_aria_clip.py --sequence eat_0
+python scripts/fetch_aria_clip.py --sequence clean_0 --sequence play_3
 ```
 
 The trimmed clip is written to the path in the manifest under `data/footage/`
@@ -64,18 +63,56 @@ evaluator across the manifest and aggregates by domain:
 .venv/bin/python scripts/spore_domains.py --sequence eat_0
 ```
 
+Use a Python environment with Ultralytics, MediaPipe, and OpenCLIP installed.
+On this machine that is `/home/g1/projects/chronicle/.venv/bin/python`; the
+SPORE project venv is not sufficient for real footage.
+
 Results go to `runs/spore_domains/` (ignored): per-clip JSON plus
 `summary.json` / `summary.md`. Metrics are semantic accuracy, localization at
 IoU .30, mean IoU, detector calls per query, and dense calls. Because the
 questions come from the dense detector, they measure memory/retention and
 instance selection, not open-world recall of undetected objects.
 
+## First held-out run (2026-10-31)
+
+Each clip was trimmed to a 45 s window from the manifest, sampled at 4 fps
+(150 dense frames), and evaluated with 12 automatically generated questions.
+The detector budget was 8 capsules per query.
+
+| domain | clip | questions | semantic | loc@.30 | mean IoU | calls/query | dense calls |
+|---|---|---:|---:|---:|---:|---:|---:|
+| eating | `aria_eat_0_45s.mp4` | 12 | 1.000 | .917 | .711 | 3.33 | 150 |
+| cleaning | `aria_clean_0_45s.mp4` | 12 | 1.000 | .833 | .678 | 4.50 | 150 |
+| social | `aria_play_3_45s.mp4` | 12 | 1.000 | .917 | .719 | 4.75 | 150 |
+| outdoor | `aria_walk_0_45s.mp4` | 12 | 1.000 | .833 | .617 | 5.25 | 150 |
+| **all four** | | **48** | **1.000** | **.875** | **.681** | **4.46** | **150/clip** |
+
+The outdoor clip includes seven `person` questions. Before the run, `person`
+was a stopword in the question parser, so those queries returned no bindings;
+the parser now treats a bare “person/people” location question as a people
+query, and all seven are grounded. This is a general capability, not a
+clip-specific rule.
+
+These numbers are deliberately **not** a headline accuracy claim:
+
+- Dense YOLO-World supplies both the questions and the reference boxes. A
+  semantic score of 1.000 means SPORE retained and re-bound the detector's
+  labels, not that it discovered objects the detector missed.
+- Localization is against the dense track box at the question timestamp. It
+  measures instance selection and retention, not semantic correctness against
+  human annotation.
+- Support relations are noisy. Some clean/play answers say “sofa on the
+  basket” or “chair on the basket” because the support detector chose a nearby
+  box; the current metric does not score relations.
+- The four clips are short windows from one capture rig. Report them as
+  held-out development domains, not a benchmark.
+
 ## Reading the result
 
 - Report domains separately. A single micro-average over clips with different
   vocabularies hides failure.
-- `walk_0` has almost no manipulable objects. It tests scene retention and the
-  detector-free scene path, not hand-object binding.
+- `walk_0` has almost no manipulable objects. It tests people, vehicles,
+  street furniture, scene retention, and the detector-free scene path.
 - The `clean_0` and `play_3` windows overlap in room appearance. Treat their
   results as social/indoor evidence, not two independent households.
 - These are four short windows from one capture rig, not a benchmark claim.

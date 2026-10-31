@@ -59,6 +59,16 @@ into their same-hand neighbour (24 actions for 12 annotated switch events;
 recall 12/12 at IoU .1, 11/12 at .2-.3; precision .917 at .1, .792 at .2), and
 counting uses a 32-frame uniform temporal grid so action-boundary changes do
 not change counts.
+Held-out Aria domains (2026-10-31): four 45 s windows (`eat_0`, `clean_0`,
+`play_3`, `walk_0`) were selected before any SPORE run, then scored with 12
+automatic questions each. Aggregate semantic 1.000, loc@.30 .875, mean IoU
+.681, 4.46 detector calls/query versus 150 dense calls per clip. This is
+retention/routing against dense YOLO-World pseudo-GT, not independent
+open-world accuracy; see `DOMAINS.md`. The outdoor clip exposed a parser bug:
+bare "Where is the person?" was dropped because `person` is a stopword. The
+parser now accepts bare person/people location questions and all seven people
+questions are grounded.
+
 z210 257 s is a scaling diagnostic: the 454x256 capture cannot resolve the
 fine objects being counted (temporal/activity questions also need verbs/speech
 not present), and only joy-con/console are detectable. The 300-capsule hard
@@ -213,9 +223,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
      the headline is not purely pseudo-GT; report variance over seeds;
    - multi-domain transfer beyond Cook/Switch/Play, without tuning to z210:
      `data/aria_gen2pilot.json`, `scripts/fetch_aria_clip.py`, and
-     `scripts/spore_domains.py` add four held-out Aria windows (eating,
-     cleaning, social, outdoor). They are not downloaded or scored yet; fetch
-     when the laptop is charged, then run `spore_domains.py --allow-missing`;
+     `scripts/spore_domains.py` now cover four held-out Aria windows (eating,
+     cleaning, social, outdoor). Initial result: 48/48 semantic agreement,
+     loc@.30 .875, mean IoU .681, 4.46 calls/query. Next, replace dense
+     YOLO-World pseudo-GT with the independent Aria scene boxes (or a small
+     human-checked subset) so semantic correctness is not circular;
    - activity questions that genuinely synthesise a verb from hand motion and
      contact, not just an action-start timestamp;
    - a stronger fine-object detector path, since YOLO-World returns zero for

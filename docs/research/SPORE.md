@@ -164,6 +164,26 @@ omitted; context frames and scene crops remain. Full split stores with view
 pixels are 5.00/3.75/5.98/13.35 MB; monolithic stores are 6.46/4.69/7.74/17.07
 MB.
 
+### Held-out Aria domains (automatic pseudo-GT)
+
+Four windows selected before any SPORE run: eating, cleaning, social, and
+outdoor. Each is 45 s at 4 fps; questions are generated from dense YOLO-World
+tracks, 12 per clip, budget 8.
+
+| domain | clip | semantic | loc@.30 | mean IoU | calls/query | dense calls |
+|---|---|---:|---:|---:|---:|---:|
+| eating | `aria_eat_0_45s` | 1.000 | .917 | .711 | 3.33 | 150 |
+| cleaning | `aria_clean_0_45s` | 1.000 | .833 | .678 | 4.50 | 150 |
+| social | `aria_play_3_45s` | 1.000 | .917 | .719 | 4.75 | 150 |
+| outdoor | `aria_walk_0_45s` | 1.000 | .833 | .617 | 5.25 | 150 |
+| **all** | | **1.000** | **.875** | **.681** | **4.46** | **150/clip** |
+
+This is a retention/routing result, not independent open-world accuracy:
+the same dense detector supplies the questions and reference boxes. Support
+relations remain noisy (`sofa on the basket`). One general parser fix came out
+of the outdoor clip: bare “Where is the person?” is now a valid people query
+instead of being dropped as a stopword.
+
 - Ablation call counts below predate disabling the redundant crop fallback;
   absolute calls are higher there, while accuracy/storage trends are unchanged.
   Cook IoU values of .692 in older ablations predate adaptive fusion; the
@@ -321,11 +341,12 @@ MB.
   are always present in the answer; the remaining error is choosing the wrong
   instance of a repeated object. Question generation is automatic, so these
   numbers are not tuned to a hand-written QA list.
-- Four held-out Aria windows (eating, cleaning, social, outdoor) are specified
-  in `data/aria_gen2pilot.json`; use `scripts/fetch_aria_clip.py` and
-  `scripts/spore_domains.py`. They are **not yet downloaded or scored** on this
-  branch. The harness is deliberately separated from the current four-clip
-  development table so the new domains stay held out until the first run.
+- The four held-out Aria windows are now downloaded and scored; see the
+  dedicated table above and `docs/research/DOMAINS.md`. The harness remains
+  separate from the original four-clip development table so future changes can
+  be checked for domain transfer. The current headline is 48/48 semantic
+  agreement, loc@.30 .875, mean IoU .681, 4.46 calls/query, but semantic
+  agreement is against the same dense detector that generated the questions.
 - The store now has two tiers. `CapsuleStore.save(path, split=True)` writes a
   compact index plus a sibling `*_evidence/` directory; `load` resolves the
   references transparently. Current compact indexes are Cook .99 MB, Switch
