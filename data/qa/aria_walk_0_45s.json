@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "dataset": "chronicle-aria-walk-heldout",
+  "description": "Zero-shot human QA over the held-out 45 s Aria outdoor walking clip. Questions were visually annotated from six frames before the first system run on this clip; this is not dense-pseudo-GT auto-eval. The location questions intentionally probe outdoor support surfaces (parking lot/road) that are outside the current tabletop support ontology.",
+  "video_id": "aria_walk_0_45s",
+  "zone_label": "Campus",
+  "questions": [
+    {
+      "video_id": "aria_walk_0_45s",
+      "query": "Where is the person?",
+      "answer": "parking lot",
+      "answers": ["parking lot", "road", "pavement"],
+      "timestamp": 24.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_walk_0_45s",
+      "query": "What colour is the person's shirt?",
+      "answer": "green",
+      "answers": ["green", "teal"],
+      "timestamp": 24.0,
+      "category": "attribute"
+    },
+    {
+      "video_id": "aria_walk_0_45s",
+      "query": "When did I first see the person?",
+      "answer": "person",
+      "answers": ["person"],
+      "timestamp": 24.0,
+      "category": "temporal"
+    },
+    {
+      "video_id": "aria_walk_0_45s",
+      "query": "How many people did I see?",
+      "answer": "3",
+      "answers": ["3"],
+      "timestamp": 38.0,
+      "category": "counting"
+    },
+    {
+      "video_id": "aria_walk_0_45s",
+      "query": "Where is the car?",
+      "answer": "parking lot",
+      "answers": ["parking lot", "road"],
+      "timestamp": 8.0,
+      "category": "object_location"
+    }
+  ],
+  "vocabulary": [
+    "person",
+    "car",
+    "parking lot",
+    "road",
+    "sidewalk",
+    "shirt"
+  ]
+}
