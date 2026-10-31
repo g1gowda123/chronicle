@@ -371,7 +371,17 @@ upgrade; it needs co-designed ingest, routing, and evaluation.
   .917), so .8 s is a conservative default rather than a tuned point.
   Merging across capsule identities by hand-box
   proximity still over-merges (7 actions, recall .58/.25/.17/.17), so identity
-  remains the merge gate.
+  remains the merge gate. A leave-one-out verb probe over the same 12 events
+  scored only **3/12** with hand kinematics (duration, displacement, speed,
+  path length); adding sparse object displacement from dense detections also
+  scored 3/12. Verbs need object trajectory/state recorded during ingest, not
+  post-hoc hand deltas or sparse detector rows.
+- Two Cook capability probes remain blocked by the detector: the generic
+  46-label bank found no tomato during the slicing interval (10.5-14.5 s), so
+  the `tomatoes` activity answer is an ungrounded CLIP fallback; at 44.2 s the
+  final plate context has no bowl detection (S finds shelf/plates/toaster/
+  knife/countertop), so `plate -> bowl` destination reasoning is not grounded.
+  Do not count either as solved.
 - Sampling is not monotonically better. On Cook, semantic/loc@.3/IoU are
   .60/.60/.632 at 2 fps, .70/1.00/.826 at 4 fps, and .40/.80/.524 at 8 fps;
   Switch is .75/.75/.649, .875/.75/.611, .75/.75/.573. More frames change the

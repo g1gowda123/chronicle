@@ -494,6 +494,18 @@ cut recall to .58/.25/.17/.17 at IoU .1-.5 (mean best IoU .194).  Hand
 proximity is not an identity signal: different objects handled in the same
 place chain together.  The primary-capsule gate is retained.
 
+A verb probe tested whether those intervals can be named without a learned
+encoder.  The 12 timeline events were matched to the nearest action by
+temporal IoU, then classified with leave-one-out nearest centroids over
+duration, normalised hand displacement, hand speed, and path length: **3/12**.
+Dropping duration also gave 3/12.  Adding object displacement from the sparse
+dense-track detections (first/last joy-con centre delta, scale change, sample
+count) also gave 3/12 with unchanged predictions.  Several matched intervals
+have zero object displacement, so kinematic features cannot separate grab,
+hold, slide, place, insert, withdraw, and align.  A useful verb model needs
+object trajectory/state recorded during ingest, not hand kinematics or
+post-hoc sparse detections.
+
 ### 5.7 Query latency and vocabulary switching
 
 Capsule crops are attention records, not detector inputs.  Once keyframes are
@@ -808,6 +820,16 @@ support label alone does not fix support selection, and the mixed result is
 not worth a regression on the established QA.  `wall` support should be
 revisited only with a place/support-selection model that can choose between a
 nearby shelf, floor, and wall, and it must be tested on a separate clip.
+
+Two Cook questions remain detector-bound.  A generic 46-label bank found no
+`tomato` detection during the slicing interval (10.5--14.5 s), although it
+found tomatoes elsewhere; the benchmark's `tomatoes` answer is a CLIP
+fallback and cannot be grounded by a tool+nearby-object operator.  At 44.2 s,
+the final plate context, a YOLO-World-S probe found shelf, two plates,
+toaster, knife, and countertop but no bowl; a low-confidence bowl on
+YOLO-World-L overlapped the cup, not the plate.  The destination question
+(`plate -> bowl`) is therefore blocked by detector/support labels rather than
+by query routing, and is not counted as a solved capability.
 
 ## 6. Discussion
 
