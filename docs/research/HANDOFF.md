@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `b850636` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `3207d53` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -300,9 +300,10 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   benchmarks, context frames, fused tracks, counting, inventory, compact
   stores, temporal scans, detector-free scene recall, support-surface query
   targets, and an optional semantic surface head are implemented. Multi-domain
-  manifest/fetch/aggregate scripts and tests are present. Branch tip `b850636`
-  adds opt-in outdoor road support and the post-hoc walk_0 result; `224ee7d`
-  added the open-world context fallback. The opt-in SegFormer-B0 surface head
+  manifest/fetch/aggregate scripts and tests are present. Branch tip `3207d53`
+  records the second outdoor QA negative; `b850636` adds opt-in outdoor road
+  support and the post-hoc walk_0 result; `224ee7d` added the open-world
+  context fallback. The opt-in SegFormer-B0 surface head
   (`75fa0c5`) gives clean held-out
   0/6→3/6, eating 4/6 lenient (3/6 human)→6/6, and play_3 2/6→4/6 lenient
   (1/6→3/6 human) with a media-console TV overridden shelf→wall;
@@ -336,9 +337,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   `car on the road at 8.0s`; loc .75/.75, IoU .614, 8.4 calls/query). Shirt
   colour (blue), first appearance (0.8 s), and people count (2) remain wrong.
   The parser and road rule were written after seeing this QA set, so this is
-  a post-hoc diagnostic, not a clean held-out result. Validate on a second
-  outdoor clip before promoting road support; do not tune this clip further.
-- Next: independent object-trajectory/state experiment, or a second outdoor
-  clip to test whether road support generalises. Do not tune the
-  eat_0/clean_0/walk_0 questions, run another z210 prompt/threshold sweep, or
-  tune Cook-specific failures.
+  a post-hoc diagnostic, not a clean held-out result. A second 60 s clip
+  (`aria_walk_60s`, QA `4af714c`) did not replicate it: baseline and
+  fallback+surface both score **0/5**; the person is detected at 54.2 s but
+  the stairs do not meet the road rule, cup/sign are never detected, first
+  appearance is 0.0 s and count is 2. Do not tune either outdoor clip.
+- Next: independent object-trajectory/state experiment. Do not tune the
+  eat_0/clean_0/walk_0/walk_60 questions, run another z210 prompt/threshold
+  sweep, or tune Cook-specific failures.
