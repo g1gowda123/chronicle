@@ -220,6 +220,10 @@ class SporeConfig:
     context_max_frames: int = 400
     context_max_gap: float = 1.5
     context_binding: bool = True
+    # If late binding routes no capsule, still look for the object directly in
+    # retained keyframes.  This is useful for open-world objects that were seen
+    # but never became capsules; it is opt-in because it can add detector calls.
+    context_fallback: bool = False
     context_fusion: bool = True
     context_fusion_iou: float = 0.20
     context_fusion_center: float = 0.06
@@ -1810,13 +1814,13 @@ class SporeQueryEngine:
         support_target = term.lower() in {
             label.lower() for label in self.config.support_labels
         }
-        if not capsules and not support_target:
+        if not capsules and not (support_target or self.config.context_fallback):
             return []
-        if support_target and not capsules:
-            # Furniture and other support surfaces are stored as context
-            # detections, not object capsules.  They are still valid targets:
-            # bind the surface directly from the keyframe instead of treating
-            # it only as a predicate on another object.
+        if not capsules:
+            # Support surfaces and opt-in open-world fallbacks are stored as
+            # context detections, not object capsules.  They are still valid
+            # targets: bind directly from the keyframe instead of treating the
+            # term only as a predicate on another object.
             query_time = at_time
             if query_time is None and self.store.contexts:
                 query_time = self.store.contexts[-1].timestamp
@@ -2121,7 +2125,9 @@ class SporeQueryEngine:
                         capsule = candidate
                         capsule_score = utility
                         capsule_view = view
-            if capsule is None and not support_target:
+            if capsule is None and not (
+                support_target or self.config.context_fallback
+            ):
                 continue
             if any(binding.bbox.iou(box) >= 0.5 for binding in bindings):
                 continue

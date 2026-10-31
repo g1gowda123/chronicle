@@ -274,6 +274,18 @@ cutting-board and tomato recall, but its boxes and support choices are not
 interchangeable with the small-model memory. A larger detector is not a free
 upgrade; it needs co-designed ingest, routing, and evaluation.
 
+**Held-out outdoor transfer.** A five-question human set on
+`aria_walk_0_45s` (person, shirt colour, first appearance, people count, car)
+was committed as `2b61849` before the run. The default engine scores **0/5**:
+the dense detector has no person target, the query detector misses the person
+at 24.0 s, the car is detected at 8.0 s but has no outdoor support label, and
+the parser treats `person's shirt` and `first see` as object terms. An opt-in
+`--context-fallback` path binds unrouted objects directly from keyframes; it
+recovers `person at 24.0s` and `car at 8.0s`, but semantic remains **0/5**
+because the expected answers are `parking lot`/`road`, which are not detected.
+This is a held-out diagnostic, not a headline gain; object memory transfers
+outdoors, while the support ontology and parser do not.
+
 - Ablation call counts below predate disabling the redundant crop fallback;
   absolute calls are higher there, while accuracy/storage trends are unchanged.
   Cook IoU values of .692 in older ablations predate adaptive fusion; the

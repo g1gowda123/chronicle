@@ -380,6 +380,7 @@ def evaluate(args: argparse.Namespace) -> dict:
             ),
             context_fusion_box=args.context_fusion_box,
             context_fusion_spread=args.context_fusion_spread,
+            context_fallback=args.context_fallback,
             surface_support=args.surface_support,
             surface_model=args.surface_model,
         )
@@ -659,6 +660,11 @@ def main() -> None:
     parser.add_argument("--query-detector-imgsz", type=int, default=None)
     parser.add_argument("--view-binding", action="store_true")
     parser.add_argument("--rescan", action="store_true")
+    parser.add_argument(
+        "--context-fallback",
+        action="store_true",
+        help="Bind unrouted objects directly from retained keyframes.",
+    )
     parser.add_argument(
         "--surface-support",
         action="store_true",

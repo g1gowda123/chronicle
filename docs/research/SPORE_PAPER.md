@@ -898,7 +898,32 @@ each, these are descriptive results, not a benchmark estimate.  The clean
 table ambiguity also shows that “where is the table?” is not consistently a
 support-target or an object-location question; do not tune that row.
 
-## 6. Discussion
+### 5.16 Held-out outdoor transfer and open-world fallback
+
+A five-question human QA set was written for the 45 s outdoor campus clip
+(`aria_walk_0_45s`: person, shirt colour, first appearance, people count, car)
+and committed as `2b61849` before the first run.  The baseline is a clear
+negative: **0/5 semantic**, 26.4 s ingest, 279 capsules, 5.59 MB store, 70
+detector calls (14/query), loc@.30 1.00 on the one dense target, mean IoU
+.661.  All five answers abstained.
+
+The diagnosis is more useful than the score.  The dense detector has no person
+target in this clip, and the query detector also misses the person at 24.0 s;
+the car is detected at 8.0 s (IoU .661) but has no support route because the
+support ontology is indoor-only.  The parser also treats `"person's shirt"` as
+one object term and extracts `"first see"` from the first-appearance question,
+so two questions never reach the right object.  People counting returns 2
+rather than the annotated 3.
+
+An opt-in `context_fallback` path now binds an unrouted object directly from
+retained keyframes.  In a post-hoc rerun it grounds the person at 24.0 s and
+the car at 8.0 s, but the QA score remains **0/5**: the expected answers are
+outdoor support labels (`parking lot`, `road`), which the detector did not
+produce, and the parser defects remain.  This is evidence that object memory
+can transfer outdoors while the support vocabulary and question parser do not.
+The fallback is off by default (`--context-fallback` enables it) and is not
+part of the headline table.  The five-question set is descriptive and was not
+used to tune the default path.
 
 SPORE shows that **retained full context**, not better crops, is the dominant
 factor for late-binding localisation. Capsule crops alone are too tight and too

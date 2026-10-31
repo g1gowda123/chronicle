@@ -172,6 +172,31 @@ dominates; the game box’s table fraction is only .045. These are limits of the
 dense surface head, not rows to tune. The original four-question Play clip is
 unchanged by the head.
 
+### Human QA check (walk_0)
+
+A five-question set was written for the held-out outdoor `aria_walk_0_45s`
+clip and committed (`2b61849`) before its first run. It probes the person,
+shirt colour, first appearance, people count, and car. The default engine
+abstains on all five (**0/5 semantic**); the car is detected at 8.0 s (IoU
+.661) but its expected support (`parking lot`/`road`) is outside the indoor
+support ontology, and the parser extracts `person's shirt` and `first see` as
+object terms.
+
+| question | expected | baseline | context fallback |
+|---|---|---|---|
+| Where is the person? | parking lot/road | abstain | `person at 24.0s` |
+| What colour is the person's shirt? | green/teal | abstain | `person's shirt is blue at 28.2s` |
+| When did I first see the person? | person | abstain | `first interaction with first see at 24.0s` |
+| How many people did I see? | 3 | abstain | `2 person` |
+| Where is the car? | parking lot/road | abstain | `car at 8.0s` |
+
+The fallback is opt-in (`--context-fallback`) and still scores **0/5**
+semantically: it grounds object boxes, not the expected outdoor support. The
+person detection at 24 s was absent in a direct query-detector probe, and
+adding `parking lot`/`road`/`sidewalk` produced no detections. Report this as a
+transfer failure, not a tuned result; do not use it to add outdoor labels
+without a separate held-out check.
+
 ### Wall-support probe (negative)
 
 A second six-question human set was written for `aria_clean_0_45s` (living

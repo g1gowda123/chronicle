@@ -82,3 +82,21 @@ def test_non_support_term_still_abstains_without_capsules() -> None:
     engine = _engine()
 
     assert engine.bind("shoe", at_time=1.0) == []
+
+
+def test_context_fallback_binds_unrouted_object() -> None:
+    store = CapsuleStore()
+    store.contexts = [_context(1.0, 1)]
+    engine = SporeQueryEngine(
+        store,
+        SporeConfig(late_binding=False, context_fallback=True),
+        embedder=_Embedder(),
+        detector=_DeskDetector(),
+    )
+
+    bindings = engine.bind("cup", at_time=1.0)
+
+    assert len(bindings) == 1
+    assert bindings[0].label == "cup"
+    assert bindings[0].capsule_id == ""
+    assert bindings[0].provenance == "context_track"
