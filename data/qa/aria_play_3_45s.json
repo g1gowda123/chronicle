@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "dataset": "chronicle-aria-play3-heldout",
+  "description": "Zero-shot human QA over the held-out 45 s Aria social/board-game clip. Questions and expected answers were written from sampled scene frames and committed before the surface-head run; auto-eval labels were consulted only to keep object labels detectable, not to choose answers. The TV is on a media console, so its correct support is shelf, not wall; this row deliberately tests the conservative rule.",
+  "video_id": "aria_play_3_45s",
+  "zone_label": "Living room",
+  "questions": [
+    {
+      "video_id": "aria_play_3_45s",
+      "query": "Where is the sofa?",
+      "answer": "floor",
+      "answers": ["floor"],
+      "timestamp": 10.5,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_play_3_45s",
+      "query": "Where is the chair?",
+      "answer": "floor",
+      "answers": ["floor"],
+      "timestamp": 23.1,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_play_3_45s",
+      "query": "Where is the TV?",
+      "answer": "shelf",
+      "answers": ["shelf", "cabinet"],
+      "timestamp": 9.6,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_play_3_45s",
+      "query": "Where is the book?",
+      "answer": "table",
+      "answers": ["table", "coffee table"],
+      "timestamp": 33.9,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_play_3_45s",
+      "query": "Where is the window?",
+      "answer": "wall",
+      "answers": ["wall"],
+      "timestamp": 20.0,
+      "category": "object_location"
+    },
+    {
+      "video_id": "aria_play_3_45s",
+      "query": "What colour is the sofa?",
+      "answer": "grey",
+      "answers": ["grey", "gray"],
+      "timestamp": 10.5,
+      "category": "attribute"
+    }
+  ],
+  "vocabulary": [
+    "sofa",
+    "chair",
+    "tv",
+    "book",
+    "window",
+    "table",
+    "floor",
+    "shelf",
+    "cabinet",
+    "wall",
+    "person"
+  ]
+}
