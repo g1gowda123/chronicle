@@ -239,6 +239,19 @@ still used the shelf and the window still abstained. Cook then regressed
 missing label is not the whole bug; support selection needs place geometry or
 a learned support model, and any retry must be validated on separate QA.
 
+**Semantic-segmentation support head (opt-in).** The wall-label experiment
+showed that support *selection*, not just the label vocabulary, is the
+bottleneck. A 3.75 M-parameter ADE20K SegFormer-B0 now supplies dense
+wall/floor/table/shelf masks behind an opt-in `--surface-support` flag. The
+override is conservative: wall-mounted objects may move to `wall`, furniture
+on a desk/shelf may move to `floor`, and tabletop objects on a desk/shelf may
+move to `table`; a specific horizontal support is never replaced by another
+horizontal support. Held-out eating QA rises from 4/6 lenient (3/6 human) to
+**6/6** (plate and window fixed), and held-out clean rises from **0/6** to
+**3/6** (TV, sofa, chair); Cook, Switch, and Play are unchanged. Cost is about
+0.2–0.5 s per query and +0.18 GB peak VRAM, so the feature is off by default
+and is not part of the headline table.
+
 **Detector-only ablation.** The hybrid default can rescue an object from a
 CLIP-scored capsule view when the query detector does not fire. Re-running the
 three short clips with `--mode detector` gives semantic .50 Cook, .75 Switch,

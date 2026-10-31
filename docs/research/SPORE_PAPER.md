@@ -847,6 +847,48 @@ YOLO-World-L overlapped the cup, not the plate.  The destination question
 (`plate -> bowl`) is therefore blocked by detector/support labels rather than
 by query routing, and is not counted as a solved capability.
 
+### 5.15 Optional semantic-segmentation support head
+
+The negative wall-label result above isolates the failure: the detector can find
+an object, but it cannot reliably name the background surface behind or below
+it.  A small ADE20K SegFormer-B0 (3.75 M parameters, 150 classes) supplies
+dense `wall`/`floor`/`table`/`shelf` labels.  It is **opt-in**
+(`surface_support=True`, `--surface-support`) because it adds a model
+dependency and a query-time forward pass; the default SPORE path is unchanged.
+
+The rule is deliberately conservative.  It overrides only three cases:
+wall-mounted objects (TV, monitor, window, painting) with wall fraction
+>= .25; furniture currently on a desk/shelf with floor fraction >= .08; and
+tabletop objects currently on a desk/shelf with table fraction >= .35.  A
+specific horizontal support is never replaced by a different horizontal
+support, and support-track, action, counting, scene, and inventory bindings are
+skipped.  This prevents the kitchen `countertop -> shelf` regression that a
+naive mask override would cause.
+
+| Clip | Baseline semantic | Surface semantic | loc@.30 | IoU | Calls/query |
+|---|---:|---:|---:|---:|---:|
+| clean (held-out) | 0/6 | **3/6** | 1.00 | .762 | 3.33 |
+| eat (held-out) | 4/6 lenient, 3/6 human | **6/6** | .80 | .64 | 4.5 |
+| Cook | .70 | .70 | 1.00 | .826 | 7.9 |
+| Switch (inventory) | 1.00 | 1.00 | .75 | .611 | 8.38 |
+| Play | 1.00 | 1.00 | .667 | .475 | 4.75 |
+
+On the eating clip the surface head fixes the two failures that motivated it:
+the plate becomes `plate on the table` and the window becomes `window on the
+wall`; the TV, cup, and table answers remain correct.  On the clean clip it
+fixes TV→wall, sofa→floor, and chair→floor, but the table
+question still answers via the support track (expected “floor”), the window has
+no object detection, and the sofa colour is wrong.  Cook, Switch, and Play are
+unchanged, so the head does not buy accuracy there; it is a generalisation
+mechanism for rooms with wall/floor relations the detector cannot name.
+
+The cost is measurable: peak VRAM rises from 1.34 GB to about 1.52 GB on the
+eating clip, and mean query time rises by roughly 0.2–0.5 s depending on how
+many bindings need a mask.  With two held-out clips and five to six questions
+each, these are descriptive results, not a benchmark estimate.  The clean
+table ambiguity also shows that “where is the table?” is not consistently a
+support-target or an object-location question; do not tune that row.
+
 ## 6. Discussion
 
 SPORE shows that **retained full context**, not better crops, is the dominant

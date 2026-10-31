@@ -380,6 +380,8 @@ def evaluate(args: argparse.Namespace) -> dict:
             ),
             context_fusion_box=args.context_fusion_box,
             context_fusion_spread=args.context_fusion_spread,
+            surface_support=args.surface_support,
+            surface_model=args.surface_model,
         )
         mode_results: list[QueryResult] = []
         engine = SporeQueryEngine(
@@ -657,6 +659,15 @@ def main() -> None:
     parser.add_argument("--query-detector-imgsz", type=int, default=None)
     parser.add_argument("--view-binding", action="store_true")
     parser.add_argument("--rescan", action="store_true")
+    parser.add_argument(
+        "--surface-support",
+        action="store_true",
+        help="Refine wall/floor supports with an ADE20K SegFormer-B0 pass.",
+    )
+    parser.add_argument(
+        "--surface-model",
+        default="nvidia/segformer-b0-finetuned-ade-512-512",
+    )
     args = parser.parse_args()
     torch.set_grad_enabled(False)
     if torch.cuda.is_available():

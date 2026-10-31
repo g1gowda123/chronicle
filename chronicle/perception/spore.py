@@ -47,6 +47,7 @@ from chronicle.perception.embedder import EmbeddingService, build_embedder
 from chronicle.perception.hands import BaseHands, build_hands
 from chronicle.perception.motion import AffineMotionEstimator
 from chronicle.perception.sources import VideoSource
+from chronicle.perception.surfaces import SurfaceSegmenter
 from chronicle.types import BBox, Detection, HandObservation, MotionEstimate
 
 LOGGER = logging.getLogger(__name__)
@@ -262,6 +263,11 @@ class SporeConfig:
     colour_min_chromatic_fraction: float = 0.10
     support_labels: tuple[str, ...] = _SUPPORT_LABELS
     infer_support: bool = True
+    # Optional dense surface segmentation for wall/floor support relations.
+    # Off by default: it adds a small ADE20K model and a query-time forward
+    # pass, but no effect when the detector already names the surface.
+    surface_support: bool = False
+    surface_model: str = "nvidia/segformer-b0-finetuned-ade-512-512"
     inventory_labels: tuple[str, ...] = ()
     inventory_contexts: int = 12
     inventory_max_contexts: int = 48
@@ -1502,6 +1508,7 @@ class SporeQueryEngine:
         self.source = source
         self._owns_embedder = embedder is None
         self._owns_detector = detector is None
+        self._surface: SurfaceSegmenter | None = None
         self._text_cache: dict[str, np.ndarray | None] = {}
         self._detection_cache: dict[tuple[Any, tuple[str, ...]], list[Detection]] = {}
         self._prefetch: dict[tuple[Any, tuple[str, ...]], list[Detection]] = {}
@@ -1513,6 +1520,8 @@ class SporeQueryEngine:
             self._embedder.close()
         if self._owns_detector and self._detector is not None:
             self._detector.close()
+        if self._surface is not None:
+            self._surface.close()
 
     def __enter__(self) -> SporeQueryEngine:
         return self
@@ -2951,6 +2960,50 @@ class SporeQueryEngine:
             capsule.label_confidence = binding.confidence
             capsule.label_views = binding.views_agree
 
+    def _apply_surface_support(self, bindings: list[Binding]) -> int:
+        """Refine wall/floor supports with an optional ADE20K pass.
+
+        The detector is good at object identity but frequently cannot name the
+        surface under an object (especially ``wall`` and ``floor``).  This is
+        deliberately post-assembly: it changes only the support string, never
+        the object label, confidence, or provenance.
+        """
+
+        if not self.config.surface_support or not bindings or not self.store.contexts:
+            return 0
+        if self._surface is None:
+            self._surface = SurfaceSegmenter(self.config.surface_model)
+        skip = {
+            "support_track",
+            "scene",
+            "inventory",
+            "temporal_scan",
+            "count_peak",
+            "count_track",
+            "action_scan",
+        }
+        changed = 0
+        for binding in bindings:
+            if binding.provenance in skip:
+                continue
+            context = self.store.context_at(binding.timestamp, max_gap=1.0)
+            if context is None:
+                continue
+            image = context.image()
+            if image is None:
+                continue
+            support = self._surface.support(
+                image,
+                binding.bbox,
+                binding.label,
+                binding.support,
+                key=(context.frame_index, 0),
+            )
+            if support is not None and support != binding.support:
+                binding.support = support
+                changed += 1
+        return changed
+
     def _propagate(self, source: Binding, skip: set[str]) -> list[Binding]:
         origin = self.store.capsules.get(source.capsule_id)
         if origin is None:
@@ -3548,6 +3601,9 @@ class SporeQueryEngine:
             answer.bindings = [action_binding] + [
                 item for item in answer.bindings if item is not action_binding
             ]
+        surface_overrides = self._apply_surface_support(answer.bindings)
+        if surface_overrides:
+            answer.stats["surface_overrides"] = surface_overrides
         answer.capsules_considered = len(
             self.route(resolved, budget=total_budget, at_time=at_time)
         )

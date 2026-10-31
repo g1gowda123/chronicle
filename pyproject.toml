@@ -51,6 +51,13 @@ perception = [
     "torchvision>=0.17",
     "pillow>=10.0",
 ]
+# Optional ADE20K surface segmentation for wall/floor support relations.
+surface = [
+  "transformers>=4.44",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "pillow>=10.0",
+]
 # NiceGUI dashboard (`chronicle serve`).
 ui = [
   "nicegui>=3.0",
