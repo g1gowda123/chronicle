@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | pushed (see `git log`) | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `8e3bfb2` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -68,6 +68,21 @@ open-world accuracy; see `DOMAINS.md`. The outdoor clip exposed a parser bug:
 bare "Where is the person?" was dropped because `person` is a stopword. The
 parser now accepts bare person/people location questions and all seven people
 questions are grounded.
+
+On the same hand-written QA, SPORE scores Cook 7/10, Switch 7/8, and Play
+4/4; `main` scored Cook 8/10 and Switch 7/8. SPORE is therefore not an
+accuracy win over `main` in this comparison. Its measured advantage is
+efficiency: 5-8 detector calls/query vs 128-150 dense calls, with 4.7-7.7 MB
+capsule stores and 19-27 s ingest per 34-45 s clip. The Cook regressions are
+general support/destination errors (shelf vs countertop; plate tracked to the
+shelf), not a reason to tune on Cook.
+
+Data provenance: `aria_cook_45s.mp4`, `aria_play_45s.mp4`,
+`aria_walk_60s.mp4`, and `holoassist_switch_34s.mp4` are Git LFS pointers in a
+plain checkout. `scripts/fetch_lfs_clips.py` restores them without git-lfs and
+verifies the pointer SHA-256/size. Aria scene annotations are downloaded
+separately; the current independent box check is an alignment diagnostic, not
+a valid localization benchmark.
 
 z210 257 s is a scaling diagnostic: the 454x256 capture cannot resolve the
 fine objects being counted (temporal/activity questions also need verbs/speech
@@ -225,9 +240,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
      `data/aria_gen2pilot.json`, `scripts/fetch_aria_clip.py`, and
      `scripts/spore_domains.py` now cover four held-out Aria windows (eating,
      cleaning, social, outdoor). Initial result: 48/48 semantic agreement,
-     loc@.30 .875, mean IoU .681, 4.46 calls/query. Next, replace dense
-     YOLO-World pseudo-GT with the independent Aria scene boxes (or a small
-     human-checked subset) so semantic correctness is not circular;
+     loc@.30 .875, mean IoU .681, 4.46 calls/query. The independent Aria scene
+     boxes are not yet usable as strict GT: their 2D boxes are projected 3D
+     cuboids, and the `214-1` stream/camera alignment with the preview is
+     unverified. Next, either verify/fix that alignment or add a small
+     human-checked subset; do not quote the current .061 loc@.30 as accuracy;
    - activity questions that genuinely synthesise a verb from hand motion and
      contact, not just an action-start timestamp;
    - a stronger fine-object detector path, since YOLO-World returns zero for
@@ -270,10 +287,12 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   benchmarks, context frames, fused tracks, counting, inventory, compact
   stores, temporal scans, and detector-free scene recall are implemented.
   Multi-domain manifest/fetch/aggregate scripts and tests are present; branch
-  tip `73c1b95` includes the first four-domain held-out run and the person
-  query fix.
+  tip `8e3bfb2` includes the four-domain held-out run, the person-query fix,
+  the SPORE/main comparison, and `scripts/fetch_lfs_clips.py`.
 - `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
   untracked; no 1280 run executed.
 - `research/long-video-qa`: `990013e`, clean.
-- The next agent should improve count attribution/attribute answers or try a
-  stronger fine-object detector, not another z210 prompt/threshold sweep.
+- The next agent should either validate the Aria scene-annotation alignment or
+  add a small human-checked QA subset for the new domains, then test whether
+  SPORE's support/destination errors are general. Do not run another z210
+  prompt/threshold sweep, and do not tune Cook-specific failures.
