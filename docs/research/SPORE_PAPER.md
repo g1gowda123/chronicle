@@ -786,6 +786,32 @@ The main results table keeps the hybrid default because the fallback is part
 of the deployed query path.  Papers using these numbers should report the
 detector-only row as the more conservative grounding baseline.
 
+#### 5.13.1 Query-time synonym probe (opt-in)
+
+Open-vocabulary detectors sometimes name an object only under a neighbouring
+label: YOLO-World-S often calls the Cook rice cooker an ``instant pot``.  An
+opt-in `synonym_binding` path samples up to twelve retained contexts, requires
+the alias in at least two, and requires a CLIP cosine of at least .22 between
+the crop and the asked term.  A resulting binding has provenance
+`synonym_track` and no capsule id, so it is visible as a weaker source.
+
+On Cook detector-only, the probe raises semantic from .50 to **.60** by
+grounding the rice cooker (confidence .365, countertop support); the cutting
+board still abstains.  The hybrid run is unchanged at .70 because CLIP already
+grounds the rice cooker and cutting board, and the clean held-out
+detector-only run is unchanged at **0/6** with no false positives.  The gain
+is therefore one detector-only answer, not a headline improvement.
+
+The probe also exposed a property of the detector that matters beyond this
+feature: YOLO-World scores are **not compositional with respect to the prompt
+set**.  At Cook t=0, ``chopping board`` fires at .34 with a broad nine-label
+bank, but not with the narrower ``cutting board/chopping board/wooden board``
+vocabulary, not alone, and not when support labels are added.  Adding an
+alias can suppress a detection instead of adding one, which explains why the
+rice cooker succeeds while the cutting board fails.  Query-time vocabulary
+expansion therefore needs prompt-set validation; this path stays opt-in and
+diagnostic.
+
 ### 5.14 Held-out human QA: eating domain
 
 The automatic held-out questions in Section 4.4 are generated from dense

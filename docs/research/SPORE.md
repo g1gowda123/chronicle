@@ -267,6 +267,18 @@ clips, but this is a small sample; report detector-only as the conservative
 grounding baseline rather than treating hybrid scores as pure detector
 accuracy.
 
+**Synonym probe (opt-in).** `synonym_binding` bridges a query noun to labels
+the detector actually emits (for example rice cooker → instant pot), but only
+after the alias appears in at least two retained contexts and the crop passes a
+CLIP similarity check (.22). On Cook detector-only it lifts semantic from .50
+to .60 by grounding the rice cooker (confidence .365); the cutting board still
+abstains, hybrid stays .70 because CLIP already binds both, and clean held-out
+stays 0/6 with no false positives. It is not a default path. The probe also
+shows that YOLO-World is not compositional: `chopping board` fires at Cook t=0
+with a broad nine-label bank but not with a narrow synonym-only vocabulary, so
+adding aliases can suppress detections. Query-time vocabulary expansion is a
+diagnostic, not a safe recall mechanism.
+
 **Detector capacity.** A query-time YOLO-World-L swap without rebuilding
 memory is negative on short clips: Cook semantic .70→.20, Switch .875→.625,
 and Play loc@.3 .667→.333, with 2.17 GB peak VRAM. The larger model adds
