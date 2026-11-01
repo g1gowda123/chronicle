@@ -3900,6 +3900,18 @@ class SporeQueryEngine:
         surface_overrides = self._apply_surface_support(answer.bindings)
         if surface_overrides:
             answer.stats["surface_overrides"] = surface_overrides
+        support_qualifier = (
+            extract_support_qualifier(question) if answer.count is None else None
+        )
+        if support_qualifier:
+            before = len(answer.bindings)
+            answer.bindings = [
+                item
+                for item in answer.bindings
+                if _binding_matches_support(item, support_qualifier)
+            ]
+            answer.stats["support_qualifier"] = support_qualifier
+            answer.stats["support_filtered"] = before - len(answer.bindings)
         answer.capsules_considered = len(
             self.route(resolved, budget=total_budget, at_time=at_time)
         )
@@ -3988,6 +4000,40 @@ def _support_aliases(term: str) -> tuple[str, ...]:
     return _SUPPORT_QUERY_ALIASES.get(lowered, (lowered,))
 
 
+def _normalise_surface(term: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", term.strip().lower())
+
+
+def extract_support_qualifier(question: str) -> str | None:
+    """Extract a trailing ``on/at/in the <surface>`` qualifier.
+
+    Only known support surfaces are returned.  This keeps phrases such as
+    "on the left" from silently filtering a binding, while allowing the
+    detector's surface aliases (table/work table/desk/countertop) to match.
+    """
+    text = re.sub(r"\s+", " ", question.strip().lower())
+    if not re.search(r"\b(?:where|which|what|is|are|was|were)\b", text):
+        return None
+    match = re.search(
+        r"\b(?:on|at|in)\s+(?:(?:the|a|an)\s+)?([a-z][a-z0-9 _-]*?)\s*[?.!]*$",
+        text,
+    )
+    if match is None:
+        return None
+    surface = match.group(1).strip()
+    known = set(_SUPPORT_LABELS) | set(_SUPPORT_QUERY_ALIASES)
+    return surface if surface in known else None
+
+
+def _binding_matches_support(binding: Binding, surface: str) -> bool:
+    if not binding.support:
+        return False
+    aliases = {
+        _normalise_surface(alias) for alias in _support_aliases(surface)
+    }
+    return _normalise_surface(binding.support) in aliases
+
+
 def _query_synonyms(term: str) -> tuple[str, ...]:
     """Detector labels that may denote the queried object under another name."""
     lowered = term.strip().lower()
@@ -4034,6 +4080,8 @@ def extract_terms(question: str) -> list[str]:
         r"\bwhere did (?:the |a |an )?(.+?) end up\b",
         r"\bwhere (?:is|are|was|were) (?:the |a |an )?(.+)$",
         r"\b(?:which|what) (?:surface|place|location) (?:is|are|was|were) (?:the |a |an )?(.+?) (?:on|at|in)$",
+        r"\b(?:which|what) (.+?) (?:is|are|was|were) (?:on|at|in) (?:the |a |an )?[a-z][a-z0-9 _-]*$",
+        r"\b(?:is|are|was|were) (?:the |a |an )?(.+?) (?:on|at|in) (?:the |a |an )?[a-z][a-z0-9 _-]*$",
         r"\bwhere (?:did|does|do) (?:the |a |an )?(.+?) go\b",
         r"\bwhere did .*?\b(?:put|place|attach|insert|remove|open|press|replace|use|handle)\b (?:the |a |an )?(.+?)(?: at | in | on | into | after | before | with | from |$)",
         r"\bwhat did .*?\b(?:put|place|attach|insert|remove|open|press|replace|use|handle)\b (?:the |a |an )?(.+?)(?: to | into | on | after | before | at | with | from |$)",

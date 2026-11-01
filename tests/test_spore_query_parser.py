@@ -1,4 +1,10 @@
-from chronicle.perception.spore import extract_terms
+from chronicle.perception.spore import (
+    Binding,
+    _binding_matches_support,
+    extract_support_qualifier,
+    extract_terms,
+)
+from chronicle.types import BBox
 
 
 def test_where_contraction_is_normalised() -> None:
@@ -40,3 +46,30 @@ def test_possessive_colour_question_uses_person() -> None:
 
 def test_first_see_question_extracts_object() -> None:
     assert extract_terms("When did I first see the person?") == ["person"]
+
+
+def test_which_object_on_surface_extracts_object() -> None:
+    assert extract_terms("Which cup is on the shelf?") == ["cup"]
+    assert extract_terms("Is the cup on the shelf?") == ["cup"]
+
+
+def test_support_qualifier_extracts_known_surface() -> None:
+    assert extract_support_qualifier("Where is the cup on the shelf?") == "shelf"
+    assert extract_support_qualifier("Which cup is on the table?") == "table"
+    assert extract_support_qualifier("Where is the cup?") is None
+    assert extract_support_qualifier("Where is the cup on the left?") is None
+
+
+def test_support_qualifier_matches_detector_aliases() -> None:
+    binding = Binding(
+        term="cup",
+        label="cup",
+        capsule_id="capsule-1",
+        confidence=0.8,
+        timestamp=1.0,
+        bbox=BBox(0, 0, 10, 10),
+        support="countertop",
+    )
+    assert _binding_matches_support(binding, "table")
+    assert not _binding_matches_support(binding, "shelf")
+    assert not _binding_matches_support(binding, "unknown")
