@@ -302,8 +302,9 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   benchmarks, context frames, fused tracks, counting, inventory, compact
   stores, temporal scans, detector-free scene recall, support-surface query
   targets, and an optional semantic surface head are implemented. Multi-domain
-  manifest/fetch/aggregate scripts and tests are present. Branch tip `203a12e`
-  adds the opt-in synonym probe; `3207d53` records the second outdoor QA
+  manifest/fetch/aggregate scripts and tests are present. Branch tip `bc62cda`
+  adds spatial support qualifiers; earlier `203a12e` added the opt-in synonym
+  probe; `3207d53` records the second outdoor QA
   negative; `b850636` adds opt-in outdoor road support and the post-hoc walk_0
   result; `224ee7d` added the open-world context fallback. The opt-in
   SegFormer-B0 surface head
@@ -376,6 +377,13 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   untouched coin false positive from camera parallax; contact filtering made it
   worse (5/8), and translation-only compensation made it 4–6/8.  Diagnostic
   only: apparent motion, not world motion or absence.
+- Spatial support qualifiers (`bc62cda`) parse a trailing "on/at/in the
+  <surface>" for non-count questions and filter bindings by the detector's
+  support aliases; unknown surfaces are ignored.  Tests cover extraction,
+  alias matching, and wrong-surface rejection.  On the saved `debug_cook`
+  store, "plate on the table" returns `countertop` and "plate on the shelf"
+  abstains; no benchmark delta.  Support-qualified counting is not yet
+  implemented, so a how-many question still ignores the qualifier.
 - Next: independent state/absence experiment. Do not tune the
   eat_0/clean_0/walk_0/walk_60 questions, run another z210 prompt/threshold
   sweep, or tune Cook-specific failures.

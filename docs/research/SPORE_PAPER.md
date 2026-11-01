@@ -718,6 +718,15 @@ benchmark scores are unchanged.  This is query-interface robustness, not a
 perception gain; by default the plate destination still returns shelf because
 the bowl is not detected.
 
+A trailing spatial qualifier ("on/at/in the table", "on the shelf") is
+extracted for non-count questions and filters bindings by the detector's
+support aliases (table/work table/desk/countertop); unknown surfaces such as
+"on the left" are ignored rather than guessed.  Unit tests cover extraction,
+alias matching, and rejection of a cup on the wrong surface.  On the saved
+`debug_cook` store, "plate on the table" returns `countertop` and "plate on the
+shelf" abstains.  This constrains an existing support label; it is not a new
+perception signal, and support-qualified counting is not implemented yet.
+
 **Support re-measurement (opt-in).** The target and support prompts compete for
 detector capacity: on the Cook plate frame the fused answer retained a distant
 shelf box while a support-only pass found the countertop underneath the plate.

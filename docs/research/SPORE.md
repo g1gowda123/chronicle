@@ -119,6 +119,15 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   the same bindings as canonical questions, and all saved-store benchmark
   scores are unchanged. This is an interface robustness measure, not a
   perception gain.
+- A trailing spatial qualifier ("on/at/in the table", "on the shelf") is
+  extracted for non-count questions and filters bindings by the detector's
+  support aliases (table/work table/desk/countertop). Unknown surfaces such as
+  "on the left" are ignored rather than guessed. Unit tests cover extraction,
+  alias matching, and rejection of a cup on the wrong surface; on the saved
+  `debug_cook` store, "plate on the table" returns `countertop` and "plate on
+  the shelf" abstains. This is a query constraint on an existing support label,
+  not a new perception signal, and support-qualified counting is not yet
+  implemented.
 - A detector-free scene-recall path ranks explicit "when did I see X?" /
   "when was X visible?" questions by cosine-scoring text against retained
   `SceneCapsule` embeddings. The default text side averages six generic
