@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `eb648a8` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `142f907` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + capsule trajectory metadata + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -366,6 +366,16 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   The score shift is architectural: `WorldModel` has four text-conditioned
   `C2fAttn` layers, so prompt-set changes alter image features; rebuilding the
   predictor leaves the shift unchanged and NMS is not involved.
-- Next: independent object-trajectory/state experiment. Do not tune the
+- Support remeasurement is opt-in (`c0af771`, `--support-remeasure`): when the
+  chosen support box is distant from the object, one support-only detector pass
+  re-measures it.  Cook plate `shelf`→`countertop`, semantic .70 unchanged
+  (QA expects `bowl`), calls 7.9→8.1; Switch/Play unchanged.  It repairs the
+  support phrase, not the destination; one-clip validation, so opt-in.
+- Capsule trajectory metadata (`142f907`) derives a frame-normalised path from
+  the five retained views.  Synthetic seed 7: 7/8 moved classification, with an
+  untouched coin false positive from camera parallax; contact filtering made it
+  worse (5/8), and translation-only compensation made it 4–6/8.  Diagnostic
+  only: apparent motion, not world motion or absence.
+- Next: independent state/absence experiment. Do not tune the
   eat_0/clean_0/walk_0/walk_60 questions, run another z210 prompt/threshold
   sweep, or tune Cook-specific failures.
