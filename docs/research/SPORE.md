@@ -21,6 +21,18 @@ while the video is ingested, and bind semantics only when a query needs them.
 This is a perception-layer change, not a new memory architecture. Chronicle keeps
 its existing graph, timeline, query engine, provenance, and local-first runtime.
 
+### Host boundary
+
+SPORE is intentionally a perception engine, not a second memory system. The core
+(`capsules.py`, `spore.py`) does not import `chronicle.graph`,
+`chronicle.semantic`, or `chronicle.integration`; it uses only shared primitive
+types. `SporeAnswer.citations` exposes portable evidence rows (time, capsule id,
+label, bbox, support, confidence, provenance), and a host adapter maps those to
+its own answer/graph citations. Chronicle remains canonical for entities and
+state; the SPORE store is an evidence cache, not a parallel graph. This keeps
+the engine benchmarkable standalone while giving the product one query, UI, and
+provenance path.
+
 ## Why the current layer fails
 
 - Dense detectors spend compute on frames with no relevant evidence.

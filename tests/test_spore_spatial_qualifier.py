@@ -19,6 +19,15 @@ def _cup_on_shelf() -> Binding:
     )
 
 
+def test_binding_citation_is_host_portable() -> None:
+    citation = _cup_on_shelf().citation()
+
+    assert citation["capsule_id"] == "capsule-1"
+    assert citation["timestamp"] == 1.0
+    assert citation["support"] == "shelf"
+    assert citation["bbox"] == [0.0, 0.0, 10.0, 10.0]
+
+
 def test_answer_rejects_a_binding_on_the_wrong_surface(monkeypatch) -> None:
     engine = SporeQueryEngine(CapsuleStore(), SporeConfig(surface_support=False))
     binding = _cup_on_shelf()

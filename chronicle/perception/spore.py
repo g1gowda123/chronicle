@@ -417,6 +417,18 @@ class Binding:
             "provenance": self.provenance,
         }
 
+    def citation(self) -> dict[str, Any]:
+        """Host-facing evidence record without host-specific types."""
+        return {
+            "timestamp": round(float(self.timestamp), 3),
+            "capsule_id": self.capsule_id,
+            "label": self.label,
+            "support": self.support,
+            "confidence": round(float(self.confidence), 4),
+            "bbox": [round(float(value), 1) for value in self.bbox.xyxy],
+            "provenance": self.provenance,
+        }
+
 
 @dataclass(slots=True)
 class _DetectionTrack:
@@ -504,6 +516,11 @@ class SporeAnswer:
     @property
     def best(self) -> Binding | None:
         return self.bindings[0] if self.bindings else None
+
+    @property
+    def citations(self) -> list[dict[str, Any]]:
+        """Portable evidence rows for a host runtime (e.g. Chronicle)."""
+        return [binding.citation() for binding in self.bindings]
 
     def as_dict(self) -> dict[str, Any]:
         return {
