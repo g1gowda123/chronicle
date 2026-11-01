@@ -249,6 +249,39 @@ ablations, and caveats are in
 [`docs/RESEARCH_RESULTS.md`](docs/RESEARCH_RESULTS.md). EgoTempo and Ego4D
 evaluation harnesses live on `experiment/egotempo-benchmark`.
 
+### Experimental: SPORE perception layer
+
+[`research/spore-perception`](https://github.com/g1gowda123/chronicle/tree/research/spore-perception)
+tests a different perception strategy: **perceive less, name later**. Instead
+of running YOLO-World on every sampled frame, SPORE keeps a small label-free
+capsule store (hands, motion, contact proposals, scene embeddings) and runs
+open-vocabulary detection only on the best views selected for a query. It is a
+research branch, not part of `main`.
+
+On the same hand-written QA used above:
+
+| System | Cook | Switch | Play | Detector calls/query |
+|---|---:|---:|---:|---:|
+| `main` research path | **8/10** | **7/8** | n/a | dense (one per frame) |
+| SPORE | 7/10 | 7/8 | 4/4 | **5.0–7.9** |
+
+SPORE is **not an accuracy improvement** over the current path in this
+comparison: it is one question worse on Cook and equal on Switch. Its measured
+advantage is compute and storage—roughly 5–8 detector calls per query instead
+of 128–150 dense calls, with 4.7–7.7 MB capsule stores. Ingest is not free:
+building the store takes about 19–27 s for a 34–45 s clip. The Cook regressions
+are a shelf/countertop support error and a plate-destination tracking error,
+not a reason to tune on Cook.
+
+A separate four-domain held-out check (eating, cleaning, social, outdoor Aria
+Gen 2 windows) produced 48 automatic questions at semantic 1.000, loc@.30
+.875, mean IoU .681, and 4.46 detector calls/query. Those questions and
+reference boxes both come from dense YOLO-World, so they measure retention and
+routing, not independent accuracy. See
+[`docs/research/DOMAINS.md`](docs/research/DOMAINS.md) and
+[`docs/research/SPORE.md`](docs/research/SPORE.md) for caveats and negative
+results.
+
 ## Repository layout
 
 ```text
@@ -278,6 +311,8 @@ tests/            model-free unit + integration suite
 - [Action calibration](docs/CALIBRATION.md)
 - [Demo preflight](docs/DEMO_PREFLIGHT.md)
 - [Research results and audit](docs/RESEARCH_RESULTS.md)
+- [SPORE perception design](docs/research/SPORE.md)
+- [Held-out egocentric domains](docs/research/DOMAINS.md)
 - [Contributing](CONTRIBUTING.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
@@ -297,6 +332,9 @@ Chronicle is a **research framework**, not a production service.
 - The deterministic semantic verifier matters even when captions are disabled;
   “VLM optional” refers to caption content on grounded questions, not to
   removing the verifier.
+- SPORE is an experimental branch. It demonstrates a large query-time compute
+  reduction, but not an accuracy improvement over `main`; its independent
+  annotation check is still unresolved.
 - APIs may change before a stable release.
 
 ## Citation
