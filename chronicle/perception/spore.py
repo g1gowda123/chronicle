@@ -2928,7 +2928,12 @@ class SporeQueryEngine:
         return answer
 
     def _inventory(
-        self, place: str, at_time: float | None = None
+        self,
+        place: str,
+        at_time: float | None = None,
+        labels: Sequence[str] | None = None,
+        strict_place: bool = False,
+        per_instance: bool = False,
     ) -> tuple[list[str], list[Binding], int]:
         """List object labels detected on a support surface.
 
@@ -2945,7 +2950,7 @@ class SporeQueryEngine:
         labels = tuple(
             dict.fromkeys(
                 str(label).strip().lower()
-                for label in self.config.inventory_labels
+                for label in (labels or self.config.inventory_labels)
                 if str(label).strip()
             )
         )
@@ -2958,6 +2963,7 @@ class SporeQueryEngine:
         contexts = list(self.store.contexts)
         place_lower = place.strip().lower()
         best: dict[str, tuple[float, Binding]] = {}
+        observations: list[Binding] = []
         hit_contexts: dict[str, set[int]] = {}
         min_hits = max(1, int(self.config.inventory_min_hits))
         persistent_confidence = float(self.config.inventory_persistent_confidence)
@@ -2982,6 +2988,17 @@ class SporeQueryEngine:
                 if detection.label.strip().lower() in support
                 and detection.confidence >= self.config.inventory_min_confidence
             ]
+            if strict_place:
+                aliases = _support_aliases(place_lower)
+                anchors = [
+                    detection
+                    for detection in anchors
+                    if any(
+                        alias in detection.label.strip().lower()
+                        or detection.label.strip().lower() in alias
+                        for alias in aliases
+                    )
+                ]
             if not anchors:
                 return
             anchors.sort(
@@ -3004,23 +3021,23 @@ class SporeQueryEngine:
                 if not inside and detection.bbox.iou(anchor.bbox) <= 0.01:
                     continue
                 hit_contexts.setdefault(label, set()).add(context.frame_index)
+                binding = Binding(
+                    term=label,
+                    label=label,
+                    capsule_id="",
+                    confidence=detection.confidence,
+                    timestamp=context.timestamp,
+                    bbox=detection.bbox,
+                    support=anchor.label,
+                    detector_confidence=detection.confidence,
+                    provenance="inventory",
+                )
+                if per_instance:
+                    observations.append(binding)
                 previous = best.get(label)
                 if previous is not None and previous[0] >= detection.confidence:
                     continue
-                best[label] = (
-                    detection.confidence,
-                    Binding(
-                        term=label,
-                        label=label,
-                        capsule_id="",
-                        confidence=detection.confidence,
-                        timestamp=context.timestamp,
-                        bbox=detection.bbox,
-                        support=anchor.label,
-                        detector_confidence=detection.confidence,
-                        provenance="inventory",
-                    ),
-                )
+                best[label] = (detection.confidence, binding)
 
         limit = max(1, int(self.config.inventory_contexts))
         max_contexts = max(limit, int(self.config.inventory_max_contexts))
@@ -3050,6 +3067,36 @@ class SporeQueryEngine:
                 scan_context(context)
             if any(len(indices) >= min_hits for indices in hit_contexts.values()):
                 break
+        if per_instance:
+            by_time: dict[float, list[Binding]] = {}
+            for binding in observations:
+                by_time.setdefault(binding.timestamp, []).append(binding)
+            best_clusters: list[list[Binding]] = []
+            for group in by_time.values():
+                clusters: list[list[Binding]] = []
+                for binding in sorted(
+                    group, key=lambda item: item.confidence, reverse=True
+                ):
+                    for cluster in clusters:
+                        if binding.bbox.iou(cluster[0].bbox) >= 0.25:
+                            cluster.append(binding)
+                            break
+                    else:
+                        clusters.append([binding])
+                clusters = [
+                    cluster
+                    for cluster in clusters
+                    if len(cluster) >= min_hits
+                    or max(item.confidence for item in cluster)
+                    >= persistent_confidence
+                ]
+                if len(clusters) > len(best_clusters):
+                    best_clusters = clusters
+            return (
+                [cluster[0].label for cluster in best_clusters],
+                [cluster[0] for cluster in best_clusters],
+                scanned,
+            )
         ordered = sorted(
             (
                 (label, item)
@@ -3892,8 +3939,44 @@ class SporeQueryEngine:
         total_budget = budget or self.config.query_capsules
         shared = max(2, int(math.ceil(total_budget / max(1, len(resolved)))))
         lowered_question = question.lower()
+        support_qualifier = extract_support_qualifier(question)
         action_binding = None
         if "how many" in lowered_question and len(resolved) == 1:
+            if support_qualifier:
+                labels, bindings, scanned = self._inventory(
+                    support_qualifier,
+                    at_time,
+                    labels=(resolved[0],),
+                    strict_place=True,
+                    per_instance=True,
+                )
+                matches = [
+                    binding
+                    for binding in bindings
+                    if _label_matches(binding.label, resolved[0])
+                ]
+                answer.count = len(matches)
+                answer.bindings = matches
+                answer.abstained = not matches
+                unit = resolved[0]
+                if (
+                    len(matches) == 1
+                    and unit.endswith("s")
+                    and not unit.endswith("ss")
+                ):
+                    unit = unit[:-1]
+                answer.answer = (
+                    f"{len(matches)} {unit} on the {support_qualifier}"
+                    if matches
+                    else "not enough evidence"
+                )
+                answer.capsules_considered = scanned
+                answer.detector_calls = self.detector_calls - calls_before
+                answer.evidence_bytes = self._evidence_bytes(matches)
+                answer.stats["inventory"] = labels
+                answer.stats["support_qualifier"] = support_qualifier
+                answer.elapsed_s = time.perf_counter() - start
+                return answer
             answer.count, answer.bindings = self._count_term(resolved[0], at_time)
         else:
             for term in resolved:
@@ -3917,10 +4000,7 @@ class SporeQueryEngine:
         surface_overrides = self._apply_surface_support(answer.bindings)
         if surface_overrides:
             answer.stats["surface_overrides"] = surface_overrides
-        support_qualifier = (
-            extract_support_qualifier(question) if answer.count is None else None
-        )
-        if support_qualifier:
+        if support_qualifier and answer.count is None:
             before = len(answer.bindings)
             answer.bindings = [
                 item

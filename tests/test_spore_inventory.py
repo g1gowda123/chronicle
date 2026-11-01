@@ -24,6 +24,15 @@ class SceneDetector(BaseDetector):
         ]
 
 
+class TwoPlateDetector(SceneDetector):
+    def detect(self, frame, frame_index=0, timestamp=0.0):
+        return [
+            Detection(label="desk", bbox=BBox(0, 40, 100, 100), confidence=0.70),
+            Detection(label="plates", bbox=BBox(10, 60, 30, 80), confidence=0.90),
+            Detection(label="plates", bbox=BBox(60, 60, 80, 80), confidence=0.85),
+        ]
+
+
 class LateSceneDetector(SceneDetector):
     def detect(self, frame, frame_index=0, timestamp=0.0):
         if frame_index not in (3, 4):
@@ -97,6 +106,56 @@ def test_inventory_lists_objects_on_support() -> None:
     assert "person" not in answer.answer
     assert answer.detector_calls >= 1
     assert answer.stats["inventory"] == ["joy-con"]
+
+
+def test_inventory_count_filters_by_support_qualifier() -> None:
+    store = CapsuleStore()
+    store.contexts.extend([_context(1.0, 1), _context(2.0, 2)])
+    engine = SporeQueryEngine(
+        store,
+        SporeConfig(inventory_contexts=2, inventory_min_hits=1),
+        detector=SceneDetector(),
+    )
+
+    answer = engine.answer("How many joy-con are on the desk?")
+
+    assert answer.abstained is False
+    assert answer.count == 1
+    assert answer.answer == "1 joy-con on the desk"
+    assert answer.stats["support_qualifier"] == "desk"
+    assert answer.stats["inventory"] == ["joy-con"]
+
+
+def test_inventory_count_keeps_distinct_instances() -> None:
+    store = CapsuleStore()
+    store.contexts.extend([_context(1.0, 1), _context(2.0, 2)])
+    engine = SporeQueryEngine(
+        store,
+        SporeConfig(inventory_contexts=2, inventory_min_hits=1),
+        detector=TwoPlateDetector(),
+    )
+
+    answer = engine.answer("How many plates are on the desk?")
+
+    assert answer.abstained is False
+    assert answer.count == 2
+    assert answer.answer == "2 plates on the desk"
+
+
+def test_inventory_count_abstains_when_support_has_no_match() -> None:
+    store = CapsuleStore()
+    store.contexts.extend([_context(1.0, 1), _context(2.0, 2)])
+    engine = SporeQueryEngine(
+        store,
+        SporeConfig(inventory_contexts=2, inventory_min_hits=1),
+        detector=SceneDetector(),
+    )
+
+    answer = engine.answer("How many joy-con are on the shelf?")
+
+    assert answer.abstained is True
+    assert answer.count == 0
+    assert answer.answer == "not enough evidence"
 
 
 def test_inventory_builds_detector_on_first_question(monkeypatch) -> None:
