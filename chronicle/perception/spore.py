@@ -292,6 +292,11 @@ class SporeConfig:
     colour_min_chromatic_fraction: float = 0.10
     support_labels: tuple[str, ...] = _SUPPORT_LABELS
     infer_support: bool = True
+    # Re-measure a distant support with a support-only vocabulary.  The target
+    # and support prompts compete for detector capacity, so a shelf can suppress
+    # the countertop under an object.  Off by default: it costs one extra call
+    # only on the affected binding, but is still a small post-hoc validation.
+    support_remeasure: bool = False
     # Optional dense surface segmentation for wall/floor support relations.
     # Off by default: it adds a small ADE20K model and a query-time forward
     # pass, but no effect when the detector already names the surface.
@@ -422,18 +427,21 @@ class _DetectionTrack:
     confidences: list[float] = field(default_factory=list)
     detections: list[Detection] = field(default_factory=list)
     supports: list[str | None] = field(default_factory=list)
+    support_boxes: list[BBox | None] = field(default_factory=list)
 
     def add(
         self,
         detection: Detection,
         timestamp: float,
         support: str | None,
+        support_box: BBox | None = None,
     ) -> None:
         self.boxes.append(detection.bbox)
         self.stamps.append(float(timestamp))
         self.confidences.append(float(detection.confidence))
         self.detections.append(detection)
         self.supports.append(support)
+        self.support_boxes.append(support_box)
 
     @property
     def last_box(self) -> BBox:
@@ -2141,7 +2149,11 @@ class SporeQueryEngine:
                     continue
                 if detection.confidence < self.config.query_detector_confidence:
                     continue
-                support = self._support_for(detections, detection.bbox, support_set)
+                support_info = self._support_with_box(
+                    detections, detection.bbox, support_set
+                )
+                support = support_info[0] if support_info is not None else None
+                support_box = support_info[1] if support_info is not None else None
                 matched: _DetectionTrack | None = None
                 matched_score = -1.0
                 for track in tracks:
@@ -2163,7 +2175,7 @@ class SporeQueryEngine:
                 if matched is None:
                     matched = _DetectionTrack()
                     tracks.append(matched)
-                matched.add(detection, context.timestamp, support)
+                matched.add(detection, context.timestamp, support, support_box)
 
         if not tracks:
             return []
@@ -2178,6 +2190,7 @@ class SporeQueryEngine:
         bindings: list[Binding] = []
         for _score, track in scored[: self.config.context_fusion_max_tracks]:
             representative = self.config.context_fusion_box == "representative"
+
             if self.config.context_fusion_box == "adaptive":
                 representative = track.mean_pair_iou() < self.config.context_fusion_spread
             if representative:
@@ -2232,6 +2245,31 @@ class SporeQueryEngine:
                 * (0.70 + 0.30 * min(1.0, len(track.stamps) / 2.0))
                 * (0.82 + 0.18 * view_score)
             )
+            support: str | None = None
+            support_box: BBox | None = None
+            if not support_target:
+                if representative:
+                    support = track.supports[best_index]
+                    support_box = track.support_boxes[best_index]
+                else:
+                    support_index = max(
+                        range(len(track.detections)),
+                        key=lambda item: track.confidences[item],
+                    )
+                    support = track.supports[support_index]
+                    support_box = track.support_boxes[support_index]
+                if (
+                    self.config.infer_support
+                    and self.config.support_remeasure
+                    and self._support_is_distant(support_box, box)
+                ):
+                    context = min(
+                        contexts,
+                        key=lambda item: abs(item.timestamp - track.stamps[best_index]),
+                    )
+                    measured = self._support_from_context(context, box)
+                    if measured is not None:
+                        support = measured
             binding = Binding(
                 term=term,
                 label=track.detections[best_index].label.strip().lower(),
@@ -2239,15 +2277,7 @@ class SporeQueryEngine:
                 confidence=float(confidence),
                 timestamp=track.stamps[best_index],
                 bbox=box,
-                support=(
-                    None
-                    if support_target
-                    else (
-                        track.supports[best_index]
-                        if representative
-                        else track.best_support()
-                    )
-                ),
+                support=support,
                 detector_confidence=track.mean_confidence,
                 clip_similarity=0.0,
                 views_agree=len(track.stamps),
@@ -3145,7 +3175,16 @@ class SporeQueryEngine:
     def _support_for(
         detections: Sequence[Any], object_box: BBox, support_set: set[str]
     ) -> str | None:
-        best: tuple[float, str] | None = None
+        best = SporeQueryEngine._support_with_box(
+            detections, object_box, support_set
+        )
+        return best[0] if best is not None else None
+
+    @staticmethod
+    def _support_with_box(
+        detections: Sequence[Any], object_box: BBox, support_set: set[str]
+    ) -> tuple[str, BBox] | None:
+        best: tuple[float, str, BBox] | None = None
         for detection in detections:
             label = detection.label.strip().lower()
             if label not in support_set:
@@ -3162,8 +3201,46 @@ class SporeQueryEngine:
                     continue
                 score = max(0.0, 1.0 - distance / (2.5 * reach))
             if score > 0 and (best is None or score > best[0]):
-                best = (score, label)
-        return best[1] if best is not None else None
+                best = (score, label, detection.bbox)
+        return (best[1], best[2]) if best is not None else None
+
+    @staticmethod
+    def _support_is_distant(support_box: BBox | None, object_box: BBox) -> bool:
+        if support_box is None:
+            return False
+        if support_box.iou(object_box) >= 0.02:
+            return False
+        ox, oy = object_box.centroid
+        sx, sy = support_box.centroid
+        distance = math.hypot(ox - sx, oy - sy)
+        reach = max(support_box.width, support_box.height, object_box.width)
+        return distance > 1.5 * reach
+
+    def _support_from_context(
+        self, context: ContextFrame, object_box: BBox
+    ) -> str | None:
+        """Measure support with a support-only vocabulary.
+
+        Target and support labels in one prompt set compete for detector
+        capacity: a target can suppress the very surface under it.  Re-running
+        the selected keyframe with only support labels is one call and names
+        the surface without changing the object detection.
+        """
+        if self._detector is None or not self.config.support_labels:
+            return None
+        frame = context.image()
+        if frame is None:
+            return None
+        detections = self._detect_cached(
+            frame,
+            self.config.support_labels,
+            frame_index=context.frame_index,
+            timestamp=context.timestamp,
+            cache_tag=("support", context.frame_index),
+            confidence=self.config.query_detector_confidence,
+        )
+        support_set = {label.lower() for label in self.config.support_labels}
+        return self._support_for(detections, object_box, support_set)
 
     def _attach(self, binding: Binding) -> None:
         capsule = self.store.capsules.get(binding.capsule_id)

@@ -54,6 +54,10 @@ def _engine() -> SporeQueryEngine:
     )
 
 
+def test_support_remeasure_is_opt_in() -> None:
+    assert SporeConfig().support_remeasure is False
+
+
 def test_table_binds_to_desk_support_surface() -> None:
     engine = _engine()
 

@@ -249,6 +249,7 @@ def evaluate(args: argparse.Namespace) -> dict:
         view_binding=args.view_binding,
         rescan=args.rescan,
         synonym_binding=args.synonym_binding,
+        support_remeasure=args.support_remeasure,
     )
     if args.synonym_confidence is not None:
         config.synonym_detector_confidence = args.synonym_confidence
@@ -678,6 +679,11 @@ def main() -> None:
         "--context-fallback",
         action="store_true",
         help="Bind unrouted objects directly from retained keyframes.",
+    )
+    parser.add_argument(
+        "--support-remeasure",
+        action="store_true",
+        help="Re-detect distant supports with a support-only prompt set.",
     )
     parser.add_argument(
         "--surface-support",

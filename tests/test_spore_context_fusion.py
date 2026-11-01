@@ -29,3 +29,15 @@ def test_moving_track_has_low_pair_iou() -> None:
 
 def test_single_detection_is_stable() -> None:
     assert _track([BBox(10, 10, 30, 30)]).mean_pair_iou() == 1.0
+
+
+def test_support_box_is_distant_only_when_surface_is_far_away() -> None:
+    from chronicle.perception.spore import SporeQueryEngine
+
+    object_box = BBox(239, 361, 349, 459)
+    assert not SporeQueryEngine._support_is_distant(
+        BBox(12, 232, 633, 480), object_box
+    )
+    assert SporeQueryEngine._support_is_distant(
+        BBox(451, 0, 640, 203), object_box
+    )
