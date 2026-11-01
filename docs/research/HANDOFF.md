@@ -385,8 +385,14 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   support aliases; unknown surfaces are ignored.  Tests cover extraction,
   alias matching, and wrong-surface rejection.  On the saved `debug_cook`
   store, "plate on the table" returns `countertop` and "plate on the shelf"
-  abstains; no benchmark delta.  Support-qualified counting is not yet
-  implemented, so a how-many question still ignores the qualifier.
+  abstains; no benchmark delta.
+- Support-qualified counting (`78b2577`) uses the inventory detector with the
+  caller's count term, a strict support-anchor match, and per-frame instance
+  clustering.  It reports the largest simultaneous count rather than a union
+  over time.  On the compact Cook store "how many plates are on the table?"
+  returns "2 plates on the table" in 16 detector calls, while the shelf query
+  abstains after 31.  A zero is a lack of supported evidence, not verified
+  absence; the path is opt-in through the question.
 - Next: independent state/absence experiment. Do not tune the
   eat_0/clean_0/walk_0/walk_60 questions, run another z210 prompt/threshold
   sweep, or tune Cook-specific failures.
