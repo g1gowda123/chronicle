@@ -30,7 +30,7 @@ Hard requirements:
 | `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
 | `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
 | `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `5762247` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `4dbb26e` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 | `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
 
@@ -375,6 +375,14 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   re-measures it.  Cook plate `shelf`→`countertop`, semantic .70 unchanged
   (QA expects `bowl`), calls 7.9→8.1; Switch/Play unchanged.  It repairs the
   support phrase, not the destination; one-clip validation, so opt-in.
+- Detector transfer is **not** established.  Re-running the same compact Cook
+  store with `yolov8l-worldv2.pt` (`--query-detector-model`) gives semantic
+  **.20** (vs .70 with S), loc@.30 1.0, loc@.50 .75, IoU .645, 7.2 calls.
+  Object labels transfer, but support attribution becomes `shelf`/`desk`/`box`
+  (knife, toaster, cup, plate; cutting board desk); enabling
+  `support_remeasure` made the knife answer `box`, and `surface_support=True`
+  did not change the score.  Do not use L as an independent annotator or claim
+  detector-scale robustness; the .70 headline is S-specific and pseudo-GT.
 - Capsule trajectory metadata (`142f907`) derives a frame-normalised path from
   the five retained views.  Synthetic seed 7: 7/8 moved classification, with an
   untouched coin false positive from camera parallax; contact filtering made it

@@ -1070,6 +1070,12 @@ objects are sensitive to its smoothing.
   it accepts “desk (work table)” for the expected “table,” so the reported
   .667 is higher than the human-judged 3/6. Report both when support
   attribution matters.
+- Detector-scale transfer is unverified and currently fails. On the same
+  compact Cook store, YOLO-World-L scores semantic .20 (loc@.30 1.0, IoU .645,
+  7.2 calls) versus .70 for S; object labels transfer, but support phrases
+  become shelf/desk/box. Support remeasurement and the surface head did not
+  recover them. The headline is therefore detector-specific and pseudo-GT,
+  not evidence of cross-detector robustness.
 - Held-out human QA is six questions from one clip. It shows transfer of
   object memory to a new room, but the TV/window failures are support-ontology
   and CLIP-fallback failures, not evidence that the answers are generally
