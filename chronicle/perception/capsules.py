@@ -290,6 +290,55 @@ class ObjectCapsule:
     def last_contact(self) -> float | None:
         return self.contact_windows[-1][1] if self.contact_windows else None
 
+    @property
+    def trajectory(self) -> dict[str, Any] | None:
+        """Frame-normalised path through the retained views.
+
+        This is intentionally derived from the stored views rather than a new
+        ingest stream: the five best views already span the capsule lifetime,
+        and a few normalised coordinates let a text consumer answer simple
+        state questions ("did it move?", "which way?") without decoding
+        pixels.  Coordinates are fractions of the frame, so the result is
+        resolution independent.  It is *not* camera-compensated: on a moving
+        egocentric camera this is apparent motion, not world motion.
+        """
+        views = [
+            view
+            for view in self.best_views
+            if view.metadata.get("frame_size") and len(view.metadata["frame_size"]) >= 2
+        ]
+        if len(views) < 2:
+            return None
+        views.sort(key=lambda view: view.timestamp)
+        points: list[tuple[float, float, float]] = []
+        for view in views:
+            width, height = (float(v) for v in view.metadata["frame_size"][:2])
+            if width <= 1.0 or height <= 1.0:
+                continue
+            cx, cy = view.bbox.centroid
+            points.append((cx / width, cy / height, float(view.timestamp)))
+        if len(points) < 2:
+            return None
+        start_x, start_y, start_t = points[0]
+        end_x, end_y, end_t = points[-1]
+        path = 0.0
+        for first, second in zip(points, points[1:], strict=False):
+            path += math.hypot(second[0] - first[0], second[1] - first[1])
+        dx = end_x - start_x
+        dy = end_y - start_y
+        displacement = math.hypot(dx, dy)
+        return {
+            "start": [round(start_x, 4), round(start_y, 4)],
+            "end": [round(end_x, 4), round(end_y, 4)],
+            "direction": [round(dx, 4), round(dy, 4)],
+            "displacement": round(displacement, 4),
+            "path": round(path, 4),
+            "start_time": round(start_t, 3),
+            "end_time": round(end_t, 3),
+            "samples": len(points),
+            "moved": displacement >= 0.05,
+        }
+
     def add_view(self, view: SporeView) -> bool:
         """Insert a view, keeping only the highest-scoring ``max_views``.
 
@@ -328,6 +377,7 @@ class ObjectCapsule:
             "last_seen": round(float(self.last_seen), 4),
             "observations": int(self.observations),
             "max_views": int(self.max_views),
+            "trajectory": self.trajectory,
             "contact_windows": [
                 [round(float(start), 4), round(float(end), 4)]
                 for start, end in self.contact_windows

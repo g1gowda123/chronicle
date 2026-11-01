@@ -6,7 +6,7 @@ import base64
 
 import numpy as np
 
-from chronicle.perception.capsules import ActionCapsule, CapsuleStore, SporeView
+from chronicle.perception.capsules import ActionCapsule, CapsuleStore, ObjectCapsule, SporeView
 from chronicle.types import BBox
 
 
@@ -182,3 +182,70 @@ def test_consolidate_actions_does_not_fold_across_hands() -> None:
 
     assert removed == 0
     assert set(store.actions) == {"action-1", "action-2"}
+
+
+def test_capsule_trajectory_is_normalised_and_roundtrips() -> None:
+    capsule = ObjectCapsule(
+        capsule_id="spore-1",
+        created_at=0.0,
+        last_seen=4.0,
+        best_views=[
+            SporeView(
+                timestamp=0.0,
+                frame_index=0,
+                bbox=BBox(100, 100, 200, 200),
+                score=0.8,
+                metadata={"frame_size": [1000, 500]},
+            ),
+            SporeView(
+                timestamp=2.0,
+                frame_index=20,
+                bbox=BBox(250, 100, 350, 200),
+                score=0.7,
+                metadata={"frame_size": [1000, 500]},
+            ),
+            SporeView(
+                timestamp=4.0,
+                frame_index=40,
+                bbox=BBox(400, 150, 500, 250),
+                score=0.6,
+                metadata={"frame_size": [1000, 500]},
+            ),
+        ],
+    )
+
+    trajectory = capsule.trajectory
+    assert trajectory is not None
+    assert trajectory["start"] == [0.15, 0.3]
+    assert trajectory["end"] == [0.45, 0.4]
+    assert trajectory["direction"] == [0.3, 0.1]
+    assert trajectory["displacement"] == 0.3162
+    assert trajectory["path"] == 0.3303
+    assert trajectory["start_time"] == 0.0
+    assert trajectory["end_time"] == 4.0
+    assert trajectory["samples"] == 3
+    assert trajectory["moved"] is True
+
+    payload = capsule.as_dict(include_images=False)
+    assert payload["trajectory"] == trajectory
+    restored = ObjectCapsule.from_dict(payload)
+    assert restored.trajectory == trajectory
+
+
+def test_capsule_trajectory_needs_two_sized_views() -> None:
+    capsule = ObjectCapsule(
+        capsule_id="spore-1",
+        created_at=0.0,
+        last_seen=1.0,
+        best_views=[
+            SporeView(
+                timestamp=0.0,
+                frame_index=0,
+                bbox=BBox(10, 10, 20, 20),
+                score=0.8,
+                metadata={"frame_size": [640, 480]},
+            )
+        ],
+    )
+
+    assert capsule.trajectory is None

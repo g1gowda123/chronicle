@@ -350,6 +350,8 @@ the direction of each effect is unchanged.
 | Split index/evidence | Cook index .99 MB in compact store | keep |
 | Drop view pixels, keep contexts | compact stores 25-41% smaller; all four QAs/calls unchanged | keep (dump default) |
 | Drop scene thumbnails, keep embeddings | compact stores 7-24% smaller; all four QAs/calls unchanged; evidence resolves from nearest context | keep (dump default) |
+| Support re-measure (opt-in) | Cook plate `shelf` → `countertop`; semantic .70 unchanged; calls 7.9 → 8.1; Switch/Play unchanged | opt-in |
+| Capsule trajectory metadata | synthetic moved 7/8; untouched coin false positive; camera compensation 4–6/8 | diagnostic only |
 
 ### 5.3 Storage breakdown
 
@@ -713,8 +715,20 @@ these forms.  On the saved stores the paraphrases return the same bindings as
 their canonical counterparts (for example "Where's the knife?" and "Where is
 the knife located?" both answer `knife on the shelf at 44.2s`), and all four
 benchmark scores are unchanged.  This is query-interface robustness, not a
-perception gain; the plate destination still returns shelf because the bowl is
-not detected.
+perception gain; by default the plate destination still returns shelf because
+the bowl is not detected.
+
+**Support re-measurement (opt-in).** The target and support prompts compete for
+detector capacity: on the Cook plate frame the fused answer retained a distant
+shelf box while a support-only pass found the countertop underneath the plate.
+`--support-remeasure` triggers only when the selected support box has IoU < .02
+with the object and its centre is more than 1.5× the object's reach away; it
+then runs one support-only pass on the nearest retained context and overrides
+only if a support label is found.  The plate changes from `shelf` to
+`countertop`, semantic stays .70 (the QA expects `bowl`), and mean calls rise
+7.9 → 8.1; Switch with inventory and Play are unchanged.  This repairs the
+support phrase, not the destination, and is validated on one clip, so it stays
+opt-in rather than entering the default result table.
 
 ### 5.12 Detector-free scene recall (exploratory, opt-in)
 
@@ -1104,6 +1118,7 @@ long-video evidence storage still needs an explicit budget.
 `context_fusion_spread=.4`, `context_sweep_frames=5`, `query_capsules=8`,
 `query_views=2`, `count_contexts=32`, `count_track_gap=20`,
 `count_peak_confidence=.45`, `clip_margin_center=.16`,
+`support_remeasure=False` (opt-in support-only repair),
 `scene_recall=False`, `scene_recall_top_k=3`, `scene_recall_min_score=.15`,
 `scene_prompt_templates` = six generic variants (opt-in; absolute scores are
 not calibrated for absence).

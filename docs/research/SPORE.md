@@ -103,6 +103,15 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   Play, a fresh engine now answers "table at 2.0s" instead of abstaining, at
   4.75 vs 5.0 mean calls and unchanged semantic/loc/IoU; there is no dense
   table target, so this is routing robustness, not a localisation gain.
+- Support selection can be re-measured on demand (`--support-remeasure`). The
+  target and support prompts compete for detector capacity, so a shelf can
+  suppress the countertop under a plate. When the selected support box has
+  IoU < .02 and its centre is more than 1.5× the object's reach away, the engine
+  runs a support-only detector pass on the nearest context and overrides only
+  when that pass returns a label. On Cook the plate changes from `shelf` to
+  `countertop`; semantic stays .70 because the QA expects `bowl` and calls rise
+  7.9 → 8.1. Switch (inventory) and Play are unchanged. This is opt-in and
+  validated on one clip; it repairs the support phrase, not the destination.
 - The query parser handles common natural-language variants before term
   extraction: contractions, "can you tell me where ...", "located" suffixes,
   "what is the colour/color of ...", "when was ... first touched", and "where
@@ -381,6 +390,13 @@ opt-in and out of the headline table.
   box overlapping a cup on a shelf no longer counts as contact. The same
   fingertip rule in action segmentation reduced recall and was rejected;
   actions still use hand-box/palm contact.
+- `ObjectCapsule.trajectory` derives a frame-normalised path from the retained
+  views, so an LLM can read direction/displacement without decoding pixels.
+  On the synthetic world (seed 7) it classified 7/8 matched objects as moved;
+  an untouched coin was a false positive from camera parallax, and requiring
+  contact dropped it to 5/8. Translational camera compensation made the result
+  worse (4–6/8), so it was reverted. Keep the field as diagnostic metadata
+  only: it describes apparent motion, not world motion or absence.
 - Capsule crops are attention records, not detector inputs. With keyframes
   retained, the crop detector fallback changed zero answer strings on
   Cook/Switch/Play and only two wrong timestamps on z210. Disabling it by
