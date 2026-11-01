@@ -685,6 +685,17 @@ therefore a grounded listing capability, not a general captioner, and the
 main results table keeps the .875 Switch number without it; the 1.00 variant
 is reported separately.
 
+Support-qualified counting reuses the inventory detector with the count term
+as its only candidate label, but adds two constraints: the support anchor must
+match the requested place (rather than falling back to the strongest visible
+support), and detections are clustered per frame so the answer is the largest
+simultaneous instance count, not a union over time.  On the compact Cook
+store, "how many plates are on the table?" returns "2 plates on the table" in
+16 detector calls; the same question about the shelf abstains after 31 calls.
+This is a query-time constraint on existing evidence, not a new perception
+signal.  A zero count means no supported instance was found, not that absence
+has been verified, and the count path remains opt-in through the question.
+
 ### 5.11 Support surfaces as query targets
 
 Support surfaces already enter memory as context detections, but the object

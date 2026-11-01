@@ -97,8 +97,11 @@ Scene inventory is opt-in: 12 contexts, support-box filtering, confidence-gated
 persistence, and alias/duplicate-box suppression. A generic 43-label
 household/office bank answers the Switch inventory question as "joy-con on the
 work table" (12 calls, semantic 1.00, up from .875); caller-label inventory
-remains 8/8. It is a grounded listing operator, not a captioner. See `SPORE.md`
-and `SPORE_PAPER.md` for ablations, threats to validity, and open issues.
+remains 8/8. Support-qualified counting reuses this detector with the count
+term, a strict place match, and per-frame instance clustering; Cook answers
+"2 plates on the table" and abstains for the shelf. It is a grounded listing
+and counting operator, not a captioner. See `SPORE.md` and `SPORE_PAPER.md`
+for ablations, threats to validity, and open issues.
 
 A detector-free scene-recall path ranks explicit "when did I see X?" /
 "when was X visible?" questions from retained `SceneCapsule` embeddings. The

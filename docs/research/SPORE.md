@@ -138,8 +138,17 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   alias matching, and rejection of a cup on the wrong surface; on the saved
   `debug_cook` store, "plate on the table" returns `countertop` and "plate on
   the shelf" abstains. This is a query constraint on an existing support label,
-  not a new perception signal, and support-qualified counting is not yet
-  implemented.
+  not a new perception signal.
+- Support-qualified counting uses the same grounded inventory path with the
+  caller's count term as its candidate label: "how many plates are on the
+  table?" runs a strict support-only anchor match, clusters detections per
+  frame, and returns the largest simultaneous instance count rather than a
+  temporal union. On the compact Cook store it answers "2 plates on the
+  table" in 16 detector calls; the same question about the shelf abstains
+  after 31 calls. The count is evidence-backed and does not claim absence:
+  a zero means the inventory found no supported instance, not proof that none
+  existed. It is opt-in through the question, with no change to the default
+  QA path.
 - A detector-free scene-recall path ranks explicit "when did I see X?" /
   "when was X visible?" questions by cosine-scoring text against retained
   `SceneCapsule` embeddings. The default text side averages six generic
