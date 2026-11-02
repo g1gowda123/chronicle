@@ -248,10 +248,13 @@ On the same hand-written QA used by the research branch, SPORE scores Cook
 7/10, Switch 7/8, and Play 4/4; the corresponding `main` numbers were Cook
 8/10 and Switch 7/8. SPORE therefore does **not** beat `main` on accuracy in
 this comparison. Its measured advantage is efficiency: ~5–8 detector calls per
-query versus 128–150 dense calls, with 1.95–3.11 MB compact stores. The Cook
-regressions are a shelf/countertop support error and a plate-destination
-tracking error; they are general failure modes, not reasons to tune on Cook.
-See `docs/research/DOMAINS.md` for the comparison table.
+query versus 128–150 dense calls, with 1.95–3.11 MB compact stores. A post-hoc
+frame audit found two Cook silver-label errors (the cup is on the shelf, the
+plate is on the countertop); correcting only those labels gives a diagnostic
+9/10 (.90), while the remaining “slicing” miss is a genuine action-grounding
+gap. The audit is not independent and the original .70 stays the comparable
+headline; see `docs/research/QA_AUDIT.md`. Do not tune on Cook. See
+`docs/research/DOMAINS.md` for the comparison table.
 
 **Held-out human QA (eating).** A six-question set was annotated from visual
 inspection of `aria_eat_0_45s` and committed (`ec501bb`) before the first run,

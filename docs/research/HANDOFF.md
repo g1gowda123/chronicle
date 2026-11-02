@@ -27,12 +27,13 @@ Hard requirements:
 
 | Path | Branch | HEAD | State |
 |---|---|---|---|
-| `/home/g1/projects/chronicle` | `main` | `1200f84` | clean, pushed, CI green |
-| `/home/g1/projects/chronicle-hires` | `research/high-res-longvideo` | `803eed7` | pushed; one untracked config |
-| `/home/g1/projects/chronicle-longvideo` | `research/long-video-qa` | `990013e` | clean |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `4dbb26e` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + LFS fetch |
+| `/home/g1/projects/chronicle` | `main` | `b86f5aa` | clean, pushed |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `7bb43ca` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + local-crop support remeasure + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + post-hoc audited Cook QA + LFS fetch |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
-| `/home/g1/projects/chronicle-packaging` | `feat/model-free-demo` | `1638606` | old merged packaging branch |
+
+`research/high-res-longvideo`, `research/long-video-qa`, `research/vfm-merged`,
+and `task/nb-08-real-calibration` were consolidated into `main` and their
+worktrees/branches removed. SPORE remains separate until it is more developed.
 
 Do not reset or overwrite `/home/g1/projects/chronicle-vfm`: it contains
 another agent's uncommitted `chronicle/belief/` prototype, `docs/BELIEF.md`,
@@ -73,9 +74,11 @@ On the same hand-written QA, SPORE scores Cook 7/10, Switch 7/8, and Play
 4/4; `main` scored Cook 8/10 and Switch 7/8. SPORE is therefore not an
 accuracy win over `main` in this comparison. Its measured advantage is
 efficiency: 5-8 detector calls/query vs 128-150 dense calls, with 4.7-7.7 MB
-capsule stores and 19-27 s ingest per 34-45 s clip. The Cook regressions are
-general support/destination errors (shelf vs countertop; plate tracked to the
-shelf), not a reason to tune on Cook.
+capsule stores and 19-27 s ingest per 34-45 s clip. A post-hoc frame audit
+found two Cook silver-label errors (cup on shelf, plate on countertop);
+correcting only those gives a diagnostic 9/10, while the remaining slicing
+miss is a genuine action-grounding gap. This audit is not independent; the
+original .70 remains the comparable headline. See `QA_AUDIT.md`.
 
 Data provenance: `aria_cook_45s.mp4`, `aria_play_45s.mp4`,
 `aria_walk_60s.mp4`, and `holoassist_switch_34s.mp4` are Git LFS pointers in a
@@ -150,7 +153,7 @@ Current state:
   demo database, doctor read-only check, model-free ask/eval, time-window
   queries, temporal location, counts, object source/destination, ordinals,
   confirmations, and evaluation-scope documentation.
-- Latest CI for `1200f84` is green.
+- Latest CI for `b86f5aa` is green.
 - README/docs distinguish product, GraphRAG, research video QA, and long-video
   diagnostics. Do not quote 60/60 as general video understanding.
 
@@ -300,29 +303,20 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
 
 ## 9. Current immediate state
 
-- `main`: `1200f84`, clean, CI green.
-- `research/spore-perception`: based on `1200f84`; perceiver, query engine,
-  benchmarks, context frames, fused tracks, counting, inventory, compact
-  stores, temporal scans, detector-free scene recall, support-surface query
-  targets, and an optional semantic surface head are implemented. Multi-domain
-  manifest/fetch/aggregate scripts and tests are present. Branch tip `bc62cda`
-  adds spatial support qualifiers; earlier `203a12e` added the opt-in synonym
-  probe; `3207d53` records the second outdoor QA
-  negative; `b850636` adds opt-in outdoor road support and the post-hoc walk_0
-  result; `224ee7d` added the open-world context fallback. The opt-in
-  SegFormer-B0 surface head
-  (`75fa0c5`) gives clean held-out
-  0/6→3/6, eating 4/6 lenient (3/6 human)→6/6, and play_3 2/6→4/6 lenient
-  (1/6→3/6 human) with a media-console TV overridden shelf→wall;
-  Cook/Switch/original-Play unchanged, +~0.18 GB VRAM and 0.2–0.5 s/query.
-  Earlier `3f34b5b` records the rejected wall-label probe; eating QA was
-  committed as `ec501bb` before the run, clean QA as `c85be76`, play_3 QA as
-  `3f74c24` before its run.
-  `8e3bfb2` includes the four-domain held-out automatic run, the person-query
-  fix, the SPORE/main comparison, and `scripts/fetch_lfs_clips.py`.
-- `research/high-res-longvideo`: `803eed7`; `config_longvideo_1280.yaml`
-  untracked; no 1280 run executed.
-- `research/long-video-qa`: `990013e`, clean.
+- `main`: `b86f5aa`, clean, pushed. Consolidates `research/vfm-merged`,
+  `research/high-res-longvideo`/`research/long-video-qa`, and
+  `experiment/egotempo-benchmark`; `task/nb-08-real-calibration` was
+  superseded and dropped.
+- `research/spore-perception`: based on `1200f84`, tip `7bb43ca` at the last
+  code commit; perceiver, query engine, benchmarks, context frames, fused
+  tracks, counting, inventory, compact stores, temporal scans,
+  detector-free scene recall, support-surface query targets, and an optional
+  semantic surface head. The latest additions are local-crop support
+  remeasurement (`7bb43ca`) and a post-hoc audited Cook QA set
+  (`.90` diagnostic; original `.70` headline). Spatial support qualifiers,
+  portable citations, and support-qualified counting are also on the branch.
+  Original headline: Cook .70 / IoU .826 / 7.9 calls; compact store 3.11 MB.
+  The `.90` audited result is not independent; see `QA_AUDIT.md`.
 - The held-out eating QA was the first independent check: lenient semantic
   4/6, human-judged 3/6. The table query passes via support-track routing; the
   plate support is wrong (desk instead of dining table) but the lenient

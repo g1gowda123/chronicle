@@ -316,9 +316,14 @@ latter includes activity, counting, destination, and false-premise questions.
 On the hand-written sets, SPORE scores Cook 7/10, Switch 7/8, and Play 4/4;
 `main` scored Cook 8/10 and Switch 7/8. The efficiency claim is the robust
 result (5–8 calls/query versus 128–150 dense calls); the accuracy claim is
-not. Cook's two extra failures are a shelf/countertop support error and a
-plate-destination tracking error. The paper should report these as general
-perception limitations, not tune them away on one clip.
+not. A post-hoc frame audit found that two of Cook's three misses are silver
+label errors: the cup at 19.6 s is on the shelf, not the countertop, and the
+plate at 44.2 s is on the countertop, not in a bowl. Correcting only those two
+labels raises the diagnostic to 9/10 (.90); the remaining miss is the
+“slicing” activity question, which names the support but not the sliced
+object. The audit was performed after inspecting the failures, is not an
+independent annotation set, and does not replace the original .70 headline
+for comparability. See `docs/research/QA_AUDIT.md`; do not tune on Cook.
 
 ### 5.2 Ablations and negative results
 

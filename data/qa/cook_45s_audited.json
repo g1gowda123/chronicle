@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "dataset": "chronicle-cook-audited",
+  "description": "Temporal QA over the 45 s Aria kitchen clip. Two silver labels were corrected after frame inspection; all other questions and timestamps are unchanged from data/qa/cook_45s.json.",
+  "video_id": "aria_cook_45s",
+  "zone_label": "Kitchen",
+  "questions": [
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the knife?",
+      "answer": "countertop",
+      "timestamp": 12.0,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "kitchen",
+        "counter"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the rice cooker?",
+      "answer": "countertop",
+      "timestamp": 12.0,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "kitchen",
+        "counter"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the toaster?",
+      "answer": "countertop",
+      "timestamp": 12.0,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "kitchen",
+        "counter"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the cutting board?",
+      "answer": "countertop",
+      "timestamp": 12.0,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "kitchen",
+        "counter"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where is the cup?",
+      "answer": "shelf",
+      "timestamp": 20.0,
+      "category": "object_location",
+      "answers": [
+        "shelf",
+        "cabinet",
+        "cupboard"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "What is the person slicing?",
+      "answer": "tomatoes",
+      "timestamp": 12.0,
+      "category": "activity"
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "When did the person first touch the cup?",
+      "answer": "4.5 seconds",
+      "timestamp": 44.8,
+      "category": "temporal",
+      "tolerance_s": 1.0
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where did the plate go?",
+      "answer": "countertop",
+      "timestamp": 44.8,
+      "category": "object_location",
+      "answers": [
+        "countertop",
+        "counter",
+        "kitchen"
+      ]
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "How many cups are in the memory?",
+      "answer": "2",
+      "timestamp": 44.8,
+      "category": "counting"
+    },
+    {
+      "video_id": "aria_cook_45s",
+      "query": "Where are my keys?",
+      "answer": "I don't have that in my memory.",
+      "timestamp": 20.0,
+      "category": "unknown",
+      "kind": "unknown"
+    }
+  ],
+  "vocabulary": [
+    "cutting board",
+    "rice cooker",
+    "toaster",
+    "knife",
+    "cup",
+    "bowl",
+    "plate",
+    "countertop",
+    "tomato",
+    "person",
+    "cabinet",
+    "box",
+    "rice"
+  ],
+  "audit": {
+    "source": "data/qa/cook_45s.json",
+    "method": "Post-hoc frame inspection of the saved 45 s Cook clip.",
+    "corrections": [
+      {
+        "query": "Where is the cup?",
+        "old": "countertop",
+        "new": "shelf",
+        "evidence": "At 19.6 s the binding bbox (319.6,49.5,350.2,84.6) is a mug inside the cabinet/shelf."
+      },
+      {
+        "query": "Where did the plate go?",
+        "old": "bowl",
+        "new": "countertop",
+        "evidence": "At 44.2 s the plate is visibly on the countertop; the 44.8 s frame also shows it there."
+      }
+    ],
+    "caveat": "Post-hoc audit, not an independent annotation set. The original file is unchanged."
+  }
+}
