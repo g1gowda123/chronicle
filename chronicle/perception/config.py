@@ -257,6 +257,14 @@ class DetectorConfig:
     # prompt engineering over a fixed class list, not test-set vocabulary.
     prompt_aliases: dict[str, tuple[str, ...]] = field(default_factory=dict)
     min_label_area: dict[str, float] = field(default_factory=dict)
+    # Multi-scale tiling for small-object recall.  A 2x2 grid gives each
+    # quarter ~4x the pixels at the detector input; this is what recovers
+    # cards, straps and buttons that vanish in a full-frame resize.  Tiling is
+    # restricted to ``tile_labels`` so large-object tracks are unchanged.
+    tile_grid: int = 1
+    tile_overlap: float = 0.15
+    tile_confidence: float | None = None
+    tile_labels: tuple[str, ...] = ()
     dedup_iou: float = 0.55
     dedup_ios: float = 0.80
     max_per_label: int = 3

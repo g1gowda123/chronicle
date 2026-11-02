@@ -13,6 +13,10 @@ VIDEO = ROOT / "data/real/cook/aria_cook_45s.mp4"
 
 def test_score_answer_variants() -> None:
     assert score_answer("The cup was last seen in the Kitchen.", "The cup is in the Kitchen.")[0]
+    ok, value, reason = score_answer("", "The cup is in the Kitchen.")
+    assert not ok
+    assert value == 0.0
+    assert reason == "empty prediction"
     assert score_answer("At t=4.5s the cup was touched.", "4.5 seconds")[0]
     assert score_answer("I don't have that in my memory.", "unknown")[0]
     assert not score_answer("I don't have that in my memory.", "The cup is in the Kitchen.")[0]

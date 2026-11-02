@@ -1,0 +1,111 @@
+{
+  "video_id": "z210-sep-29-22-switch",
+  "model": "openai/whisper-medium.en",
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 9.0,
+      "text": "Let's do another switch up. Please take two controllers. Put it on the other hand-held."
+    },
+    {
+      "start": 9.0,
+      "end": 28.0,
+      "text": "So you take the hand-held from the table, with the right controller, insert from top to top. The controller is called very top."
+    },
+    {
+      "start": 42.0,
+      "end": 80.0,
+      "text": "Very very top. Now please change the controller to the pad. Yes."
+    },
+    {
+      "start": 102.0,
+      "end": 108.0,
+      "text": "Alright, now place the controller controller to 226. There are plus and minus in both controller and sticks, they should match"
+    },
+    {
+      "start": 108.0,
+      "end": 114.0,
+      "text": "So right now you are holding the right controller, it has plus"
+    },
+    {
+      "start": 114.0,
+      "end": 121.0,
+      "text": "Take another sticks, yes, joysticks on top"
+    },
+    {
+      "start": 121.0,
+      "end": 126.0,
+      "text": "Joysticks from top, no don't flip it. That's right."
+    },
+    {
+      "start": 126.0,
+      "end": 132.0,
+      "text": "Okay, now lock the white part at the bottom. Lock the white part."
+    },
+    {
+      "start": 132.0,
+      "end": 138.0,
+      "text": "The white at the very very bottom. Push it up. The white."
+    },
+    {
+      "start": 138.0,
+      "end": 141.0,
+      "text": "That's right."
+    },
+    {
+      "start": 141.0,
+      "end": 150.0,
+      "text": "And now do the other."
+    },
+    {
+      "start": 152.0,
+      "end": 154.0,
+      "text": "All good. Now please leave those on the table."
+    },
+    {
+      "start": 156.0,
+      "end": 158.0,
+      "text": "Leave it on the table."
+    },
+    {
+      "start": 158.0,
+      "end": 160.0,
+      "text": "You can take the pad."
+    },
+    {
+      "start": 160.0,
+      "end": 164.0,
+      "text": "Make it stand up with the kickstand at the back."
+    },
+    {
+      "start": 165.0,
+      "end": 170.0,
+      "text": "Just open it and put it on the table."
+    },
+    {
+      "start": 170.0,
+      "end": 175.0,
+      "text": "And now please change the game card."
+    },
+    {
+      "start": 178.0,
+      "end": 207.0,
+      "text": "From the top. Flip it to the SD card."
+    },
+    {
+      "start": 207.0,
+      "end": 247.0,
+      "text": "It's under the kickstand. Okay, now please by pressing the longer."
+    },
+    {
+      "start": 247.0,
+      "end": 248.0,
+      "text": "Oh good."
+    },
+    {
+      "start": 248.0,
+      "end": 253.0,
+      "text": "Now I can memorize it and stop the recording."
+    }
+  ]
+}

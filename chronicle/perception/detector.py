@@ -170,6 +170,29 @@ class ColorDetector(BaseDetector):
         )[: self.config.max_detections]
 
 
+def _tile_windows(
+    width: int, height: int, grid: int, overlap: float
+) -> list[tuple[int, int, int, int]]:
+    """Overlapping tile windows covering the frame, ending exactly at the edge."""
+    grid = max(1, int(grid))
+    if grid == 1 or width <= 0 or height <= 0:
+        return [(0, 0, width, height)]
+    step_x = width / grid
+    step_y = height / grid
+    pad_x = step_x * max(0.0, min(0.5, float(overlap)))
+    pad_y = step_y * max(0.0, min(0.5, float(overlap)))
+    windows: list[tuple[int, int, int, int]] = []
+    for row in range(grid):
+        y1 = max(0, int(round(row * step_y - pad_y)))
+        y2 = min(height, int(round((row + 1) * step_y + pad_y)))
+        for col in range(grid):
+            x1 = max(0, int(round(col * step_x - pad_x)))
+            x2 = min(width, int(round((col + 1) * step_x + pad_x)))
+            if x2 > x1 and y2 > y1:
+                windows.append((x1, y1, x2, y2))
+    return windows
+
+
 class YoloWorldDetector(BaseDetector):
     """Ultralytics YOLO-World open-vocabulary detector."""
 
@@ -304,6 +327,42 @@ class YoloWorldDetector(BaseDetector):
                 detections.extend(
                     self._parse_result(results[0], frame_index, name)
                 )
+                tile_labels = set(self.config.tile_labels)
+                if int(self.config.tile_grid) > 1 and tile_labels:
+                    tile_conf = (
+                        float(self.config.tile_confidence)
+                        if self.config.tile_confidence is not None
+                        else float(self.config.confidence)
+                    )
+                    height, width = frame.shape[:2]
+                    for x1, y1, x2, y2 in _tile_windows(
+                        width, height, int(self.config.tile_grid), float(self.config.tile_overlap)
+                    ):
+                        tile = frame[y1:y2, x1:x2]
+                        if tile.size == 0:
+                            continue
+                        tile_results = model.predict(  # type: ignore[attr-defined]
+                            tile,
+                            conf=tile_conf,
+                            iou=float(self.config.iou),
+                            imgsz=int(self.config.imgsz),
+                            max_det=int(self.config.max_detections),
+                            verbose=False,
+                            device=None if self._root.device == "auto" else self._root.device,
+                        )
+                        if not tile_results:
+                            continue
+                        for detection in self._parse_result(tile_results[0], frame_index, f"{name}:tile"):
+                            if detection.label not in tile_labels:
+                                continue
+                            detection.bbox = BBox(
+                                detection.bbox.x1 + x1,
+                                detection.bbox.y1 + y1,
+                                detection.bbox.x2 + x1,
+                                detection.bbox.y2 + y1,
+                            )
+                            detection.metadata["tile"] = (x1, y1, x2, y2)
+                            detections.append(detection)
         detections = filter_min_area(detections, self.config.min_label_area)
         return deduplicate_detections(
             detections,

@@ -731,6 +731,13 @@ class ChronicleEngine:
         )
         cfg.detector.confidence = float(section.get("detector_confidence", cfg.detector.confidence))
         cfg.detector.imgsz = int(section.get("detector_imgsz", cfg.detector.imgsz))
+        cfg.detector.tile_grid = max(1, int(section.get("tile_grid", getattr(cfg.detector, "tile_grid", 1))))
+        cfg.detector.tile_overlap = float(section.get("tile_overlap", getattr(cfg.detector, "tile_overlap", 0.15)))
+        tile_conf = section.get("tile_confidence")
+        cfg.detector.tile_confidence = None if tile_conf in (None, "") else float(tile_conf)
+        cfg.detector.tile_labels = tuple(
+            str(v).strip().lower() for v in (section.get("tile_labels") or []) if str(v).strip()
+        )
         raw_prompt_aliases = section.get("prompt_aliases") or {}
         if isinstance(raw_prompt_aliases, dict):
             cfg.detector.prompt_aliases = {
@@ -900,7 +907,15 @@ class ChronicleEngine:
         self.semantic_config = self._semantic_config()
         runtime_section = _section(self.raw_config, "runtime")
         semantic_section = _section(self.raw_config, "semantic")
+        audio_section = _section(self.raw_config, "audio")
         semantic_enabled = bool(semantic_section.get("enabled", True))
+        transcript = None
+        if bool(audio_section.get("enabled", False)):
+            from chronicle.audio import TranscriptIndex
+
+            transcript_path = Path(str(audio_section.get("transcript_path", "")))
+            if transcript_path.exists():
+                transcript = TranscriptIndex.from_json(transcript_path)
 
         semantic = None
         if semantic_enabled:
@@ -937,6 +952,7 @@ class ChronicleEngine:
             semantic=semantic,
             semantic_config=self.semantic_config,
             semantic_enabled=semantic_enabled,
+            transcript=transcript,
             perception_config=self.perception_config,
             zone_label=runtime_section.get("zone_label"),
             zone_id=runtime_section.get("zone_id"),
@@ -1288,6 +1304,8 @@ def score_answer(predicted: str, expected: str, *, raw: Mapping[str, Any] | None
     raw = raw or {}
     if not exp_norm:
         return False, 0.0, "empty expected answer"
+    if not pred_norm:
+        return False, 0.0, "empty prediction"
 
     must = raw.get("must_contain")
     if isinstance(must, Sequence) and not isinstance(must, (str, bytes)):
