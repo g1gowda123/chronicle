@@ -297,6 +297,10 @@ class SporeConfig:
     # the countertop under an object.  Off by default: it costs one extra call
     # only on the affected binding, but is still a small post-hoc validation.
     support_remeasure: bool = False
+    # Re-measure support on a crop around the object instead of the full frame.
+    # The crop keeps the surface under the object while removing distant
+    # surfaces that compete for detector capacity.  Zero disables cropping.
+    support_crop_margin: float = 0.75
     # Optional dense surface segmentation for wall/floor support relations.
     # Off by default: it adds a small ADE20K model and a query-time forward
     # pass, but no effect when the detector already names the surface.
@@ -3295,16 +3299,52 @@ class SporeQueryEngine:
         frame = context.image()
         if frame is None:
             return None
+        cropped = self._support_crop(frame, object_box)
+        if cropped is None:
+            detector_frame = frame
+            detector_box = object_box
+            cache_tag: tuple[Any, ...] = ("support", context.frame_index)
+        else:
+            detector_frame, detector_box, crop_box = cropped
+            cache_tag = ("support-crop", context.frame_index, *crop_box.int_xyxy)
         detections = self._detect_cached(
-            frame,
+            detector_frame,
             self.config.support_labels,
             frame_index=context.frame_index,
             timestamp=context.timestamp,
-            cache_tag=("support", context.frame_index),
+            cache_tag=cache_tag,
             confidence=self.config.query_detector_confidence,
         )
         support_set = {label.lower() for label in self.config.support_labels}
-        return self._support_for(detections, object_box, support_set)
+        return self._support_for(detections, detector_box, support_set)
+
+    def _support_crop(
+        self, frame: np.ndarray, object_box: BBox
+    ) -> tuple[np.ndarray, BBox, BBox] | None:
+        """Crop around an object, returning the crop, local box, and crop box."""
+        margin = max(0.0, float(self.config.support_crop_margin))
+        height, width = frame.shape[:2]
+        box = object_box.clipped(width, height)
+        if margin <= 0.0 or box.width <= 0 or box.height <= 0:
+            return None
+        pad_x = int(round(box.width * margin))
+        pad_y = int(round(box.height * margin))
+        x1 = max(0, int(box.x1) - pad_x)
+        y1 = max(0, int(box.y1) - pad_y)
+        x2 = min(width, int(box.x2) + pad_x)
+        y2 = min(height, int(box.y2) + pad_y)
+        if x2 <= x1 or y2 <= y1:
+            return None
+        crop = frame[y1:y2, x1:x2]
+        if crop.size == 0:
+            return None
+        local_box = BBox(
+            box.x1 - x1,
+            box.y1 - y1,
+            box.x2 - x1,
+            box.y2 - y1,
+        )
+        return crop, local_box, BBox(x1, y1, x2, y2)
 
     def _attach(self, binding: Binding) -> None:
         capsule = self.store.capsules.get(binding.capsule_id)

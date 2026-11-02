@@ -119,11 +119,16 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   target and support prompts compete for detector capacity, so a shelf can
   suppress the countertop under a plate. When the selected support box has
   IoU < .02 and its centre is more than 1.5× the object's reach away, the engine
-  runs a support-only detector pass on the nearest context and overrides only
-  when that pass returns a label. On Cook the plate changes from `shelf` to
-  `countertop`; semantic stays .70 because the QA expects `bowl` and calls rise
-  7.9 → 8.1. Switch (inventory) and Play are unchanged. This is opt-in and
-  validated on one clip; it repairs the support phrase, not the destination.
+  runs a support-only detector pass on a crop around the object
+  (`support_crop_margin=.75`; zero falls back to the full frame), then
+  overrides only when that pass returns a label. On compact Cook with S the
+  plate changes from `shelf` to `countertop`; semantic stays .70 because the QA
+  expects `bowl`, and calls rise 7.9 → 8.1. With L the crop also corrects the
+  plate, but QA stays .20 and the knife is still `shelf`; the QA labels are
+  noisy (the “cup” at 19.6 s is a mug on the shelf, the plate at 44.2 s is on
+  the countertop). Switch (inventory) and Play are unchanged. This is opt-in
+  and validated on one clip; it repairs the support phrase, not the
+  destination.
 - The query parser handles common natural-language variants before term
   extraction: contractions, "can you tell me where ...", "located" suffixes,
   "what is the colour/color of ...", "when was ... first touched", and "where

@@ -372,9 +372,13 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   predictor leaves the shift unchanged and NMS is not involved.
 - Support remeasurement is opt-in (`c0af771`, `--support-remeasure`): when the
   chosen support box is distant from the object, one support-only detector pass
-  re-measures it.  Cook plate `shelf`→`countertop`, semantic .70 unchanged
-  (QA expects `bowl`), calls 7.9→8.1; Switch/Play unchanged.  It repairs the
-  support phrase, not the destination; one-clip validation, so opt-in.
+  on a crop around the object (`support_crop_margin=.75`) re-measures it.  Cook
+  plate `shelf`→`countertop`, semantic .70 unchanged (QA expects `bowl`), calls
+  7.9→8.1; Switch/Play unchanged.  Under YOLO-World-L the crop also corrects the
+  plate, but QA stays .20 and the knife is still `shelf`; the QA labels are
+  noisy (cup at 19.6 s is on the shelf, plate at 44.2 s is on the countertop).
+  It repairs the support phrase, not the destination; one-clip validation, so
+  opt-in.
 - Detector transfer is **not** established.  Re-running the same compact Cook
   store with `yolov8l-worldv2.pt` (`--query-detector-model`) gives semantic
   **.20** (vs .70 with S), loc@.30 1.0, loc@.50 .75, IoU .645, 7.2 calls.

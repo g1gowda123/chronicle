@@ -1145,6 +1145,7 @@ long-video evidence storage still needs an explicit budget.
 `query_views=2`, `count_contexts=32`, `count_track_gap=20`,
 `count_peak_confidence=.45`, `clip_margin_center=.16`,
 `support_remeasure=False` (opt-in support-only repair),
+`support_crop_margin=.75` (local crop for support re-measurement),
 `scene_recall=False`, `scene_recall_top_k=3`, `scene_recall_min_score=.15`,
 `scene_prompt_templates` = six generic variants (opt-in; absolute scores are
 not calibrated for absence).
