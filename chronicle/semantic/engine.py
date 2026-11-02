@@ -115,7 +115,7 @@ class SemanticEngine:
         )
         self.verifier = ActionVerifier(
             captioner=self.captioner,
-            chat_client=self.chat_client,
+            chat_client=self.chat_client if self.config.action_llm_enabled else None,
             config=self.config,
             channel_order=self.channel_order,
         )

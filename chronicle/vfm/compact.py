@@ -140,6 +140,50 @@ def unpack_events(blob: bytes, table: StringTable) -> list[dict[str, Any]]:
     return events
 
 
+def encode_events(events: Iterable[dict[str, Any]], table: StringTable, mode: str = "packed") -> bytes:
+    """Encode an event ledger with the requested storage layout.
+
+    ``packed`` is the production layout (~16 B/event).  ``zlib-json`` and
+    ``json`` exist so the storage ablation can measure the packed layout
+    against the obvious baselines without changing the query reader.
+    """
+
+    rows = list(events)
+    if mode == "packed":
+        return pack_events(rows, table)
+    import json
+
+    raw = json.dumps(rows, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    if mode == "zlib-json":
+        return zlib.compress(raw, 9)
+    if mode == "json":
+        return raw
+    raise ValueError(f"unknown event encoding: {mode!r}")
+
+
+def decode_events(blob: bytes, table: StringTable) -> list[dict[str, Any]]:
+    """Decode any layout produced by :func:`encode_events`.
+
+    The leading ``VFM2`` magic distinguishes the packed struct layout from the
+    JSON baselines, so a vault remains self-describing.
+    """
+
+    if not blob:
+        return []
+    if blob[:4] == MAGIC:
+        return unpack_events(blob, table)
+    import json
+
+    try:
+        raw = zlib.decompress(blob)
+    except zlib.error:
+        raw = blob
+    payload = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError("JSON event blob must be a list")
+    return payload
+
+
 def compress_json(payload: Any) -> bytes:
     """zlib-compress a JSON-serialisable payload."""
 

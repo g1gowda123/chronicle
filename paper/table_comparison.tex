@@ -1,0 +1,20 @@
+% Requires \usepackage{booktabs}
+\begin{table}[t]
+  \centering
+  \caption{Corrected primary comparison. Chronicle uses the leak-free scene
+  vocabulary, YOLO-World-L, the deterministic event planner and Florence-2 at
+  caption stride 4. Dense 1 FPS captions every sampled frame. Query latency is
+  the graph answer time; wall time is end-to-end ingestion plus QA.}
+  \label{tab:chronicle-vs-dense}
+  \begin{tabular}{llccccc}
+    \toprule
+    Dataset & Method & Recall@1 & VLM Calls & Wall time (s) & Query (ms) & VRAM (MB) \\
+    \midrule
+    Cook 45 s & Chronicle (final) & \textbf{80.0\%} (8/10) & 26 & 35.8 & 1.13 & 1960.4 \\
+    Cook 45 s & Dense 1 FPS & 40.0\% (4/10) & 45 & 15.0 & 262.9 & 819.2 \\
+    \midrule
+    HoloAssist 34 s & Chronicle (final) & \textbf{87.5\%} (7/8) & 13 & 38.5 & 0.69 & 1960.7 \\
+    HoloAssist 34 s & Dense 1 FPS & 12.5\% (1/8) & 34 & 10.9 & 228.8 & 817.2 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

@@ -1,0 +1,36 @@
+% Requires \usepackage{booktabs}
+\begin{table}[t]
+  \centering
+  \caption{Cumulative ablation on the two QA suites. Each row adds one change.
+  Stars mark pre-fix HoloAssist runs that include the false switch-console pass
+  removed by strict entity resolution.}
+  \label{tab:ablation}
+  \begin{tabular}{lcc}
+    \toprule
+    Stage & Cook 45 s & HoloAssist 34 s \\
+    \midrule
+    Leak-free baseline (YOLO-World-S) & 40.0\% & 62.5\% \\
+    + deterministic planner & 40.0\% & 100\%$^{*}$ \\
+    + scene vocabulary & 50.0\% & 100\%$^{*}$ \\
+    + strict resolution and fixed synonyms & 70.0\% & 87.5\% \\
+    + large detector (final) & \textbf{80.0\%} & \textbf{87.5\%} \\
+    + two-scale ensemble (rejected) & 80.0\% & 62.5\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[t]
+  \centering
+  \caption{Detector-scale ablation with final synonyms and caption stride 4.
+  Strict location is the Cook support audit (gold support noun must appear).}
+  \label{tab:detector-scale}
+  \begin{tabular}{lcccccc}
+    \toprule
+    Detector & Cook & Holo & Pooled & VLM (C/H) & VRAM (MB) & Strict Cook loc. \\
+    \midrule
+    YOLO-World-S & 70.0\% & 87.5\% & 77.8\% & 25/9 & 1830 & 2/6 \\
+    YOLO-World-L (final) & \textbf{80.0\%} & \textbf{87.5\%} & \textbf{83.3\%} & 26/13 & 1960 & 1/6 \\
+    S + L ensemble & 80.0\% & 62.5\% & 72.2\% & 30/14 & 2009 & 1/6 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

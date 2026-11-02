@@ -22,6 +22,12 @@ ASSETS: dict[str, str] = {
         "https://github.com/ultralytics/assets/releases/download/v8.3.0/"
         "yolov8s-worldv2.pt"
     ),
+    # Default detector in config.yaml; the small model is kept for the
+    # efficiency ablation and the optional S+L ensemble.
+    "yolov8l-worldv2.pt": (
+        "https://github.com/ultralytics/assets/releases/download/v8.4.0/"
+        "yolov8l-worldv2.pt"
+    ),
     "hand_landmarker.task": (
         "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
         "hand_landmarker/float16/1/hand_landmarker.task"
@@ -69,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     models.mkdir(parents=True, exist_ok=True)
     selected = {
         "all": list(ASSETS),
-        "yolo": ["yolov8s-worldv2.pt"],
+        "yolo": ["yolov8s-worldv2.pt", "yolov8l-worldv2.pt"],
         "hands": ["hand_landmarker.task"],
     }[args.only]
 

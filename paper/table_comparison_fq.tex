@@ -1,0 +1,14 @@
+% Requires \usepackage{booktabs}
+\begin{table}[t]
+  \centering
+  \caption{Episodic memory QA under a fixed local model budget.}
+  \label{tab:chronicle-vs-dense}
+  \begin{tabular}{lcccc}
+    \toprule
+    Method & Recall@1 & VLM Calls & Avg Latency (ms) & Peak VRAM (MB) \\
+    \midrule
+    Chronicle (florence, ollama) & 50.0\% & 37 & 17.3 & 3336.3 \\
+    Dense 1 FPS (florence, ollama) & 25.0\% & 34 & 232.4 & 2062.3 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

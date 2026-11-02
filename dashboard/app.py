@@ -48,6 +48,12 @@ def index() -> None:
     build_dashboard()
 
 
+@app.get("/ask", include_in_schema=False)
+async def ask_landing() -> FileResponse:
+    """Minimal one-box landing page for hosted demos (e.g. Render)."""
+    return FileResponse(STATIC_DIR / "ask.html", media_type="text/html")
+
+
 # --------------------------------------------------------------------------- #
 # API helpers
 # --------------------------------------------------------------------------- #
@@ -399,8 +405,18 @@ async def event_clip_artifact(request: Request) -> Any:
 
 
 @app.get("/api/export/graphs.zip")
-async def export_graphs() -> Response:
-    payload = transfer.build_export_zip(runtime, DATA_DIR)
+async def export_graphs(request: Request) -> Response:
+    clip = str(request.query_params.get("clip") or "").strip()
+    vfm_dir = None
+    if clip:
+        source = memory.resolve(clip, DATA_DIR)
+        if source is not None:
+            manager = memory.manager(DATA_DIR)
+            if manager.has_memory(source):
+                vfm_dir = manager.job_dir(source)
+    payload = await run_in_threadpool(
+        transfer.build_export_zip, runtime, DATA_DIR, vfm_dir=vfm_dir
+    )
     return Response(
         payload,
         media_type="application/zip",

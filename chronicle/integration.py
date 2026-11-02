@@ -57,6 +57,7 @@ from chronicle.frames import (
 )
 from chronicle.graph.ids import raw_entity_id
 from chronicle.graph.memory import ChronicleMemory
+from chronicle.graph.planner import answer_query_plan
 from chronicle.graph.query import QueryResult, is_event_query
 from chronicle.perception.config import PerceptionConfig
 from chronicle.perception.pipeline import PerceptionPipeline
@@ -558,6 +559,36 @@ class ChronicleRuntime:
         with self._lock:
             self._transitions += len(transitions)
             self._detections += len(result.detections)
+
+    # ------------------------------------------------------ headless ingestion API
+    # These are the small, UI-free seams used by the research harness
+    # (eval_pipeline.py) when it owns the frame loop instead of calling
+    # ingest_video(). They do not change any lifecycle/gating behaviour.
+    def attach_pipeline(self, pipeline: PerceptionPipeline) -> None:
+        """Give the runtime the pipeline that will feed :meth:`observe_frame`."""
+        self._pipeline = pipeline
+
+    def detach_pipeline(self) -> None:
+        self._pipeline = None
+
+    def observe_frame(self, result: FrameResult) -> None:
+        """Apply one post-perception frame to the lifecycle and dual graphs."""
+        self._observe_result(result)
+        with self._lock:
+            self._frames += 1
+            self._last_timestamp = result.timestamp
+
+    def submit_clip(self, clip: InteractionClip) -> None:
+        """Queue an interaction clip for semantic verification."""
+        self._queue_clip(clip)
+
+    def publish_perception_event(self, event: PerceptionTelemetryEvent) -> None:
+        """Forward a Role A telemetry event onto the runtime bus (no UI needed)."""
+        self._on_perception_event(event)
+
+    def drain_verifications(self) -> None:
+        """Verify every queued clip on the calling thread."""
+        self._drain_clips()
 
     def _queue_clip(self, clip: InteractionClip) -> None:
         self._clip_queue.submit(clip)
@@ -2777,6 +2808,21 @@ class ChronicleRuntime:
                     result = self.memory.query_entity(str(best_person.get("node_id", "")), question=query)
 
             if result is None:
+                planned = answer_query_plan(query, engine=self.memory.query_engine)
+                if planned is not None:
+                    return RuntimeAnswer(
+                        query=query,
+                        answer=planned.answer,
+                        citations=planned.citations,
+                        source="graph",
+                        grounded=planned.grounded,
+                        method=planned.method,
+                        elapsed=time.monotonic() - started,
+                        entity=planned.entity,
+                        state=planned.state,
+                        zone=planned.zone,
+                        last_seen=planned.last_seen,
+                    )
                 return RuntimeAnswer(
                     query=query,
                     answer="I don't have that in my memory.",
@@ -3255,7 +3301,11 @@ class ChronicleRuntime:
         return {
             "detector": getattr(pipeline.detector, "name", self.perception_config.detector.backend),
             "hands": getattr(pipeline.hands, "name", self.perception_config.hands.backend),
-            "embedder": getattr(pipeline.embedder, "name", self.perception_config.embedder.backend),
+            "embedder": getattr(
+                pipeline.embedder,
+                "backend",
+                getattr(pipeline.embedder, "name", self.perception_config.embedder.backend),
+            ),
             "attributes": getattr(
                 pipeline.attributes,
                 "name",

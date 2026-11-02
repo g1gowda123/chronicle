@@ -30,6 +30,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -441,6 +442,7 @@ def build_ledger(
     timeout: float = 300.0,
     mode: str = "per-frame",
     synth_model: str = DEFAULT_SYNTH_MODEL,
+    workers: int = 1,
 ) -> dict[str, Any]:
     if not video.is_file():
         raise SystemExit(f"video not found: {video}")
@@ -478,10 +480,24 @@ def build_ledger(
                 parsed = parse_caption(raw, model)
                 parsed["frame_times"] = times
             else:
-                frame_rows = [
-                    caption_frame(model, image, t, host=host, timeout=timeout)
-                    for t, image in zip(times, blobs, strict=False)
-                ]
+                pairs = list(zip(times, blobs, strict=False))
+                if workers > 1 and len(pairs) > 1:
+                    # Ollama runs the model on the GPU; a handful of concurrent
+                    # frames cuts wall-clock time ~2x on a laptop GPU.
+                    with ThreadPoolExecutor(max_workers=min(workers, len(pairs))) as pool:
+                        frame_rows = list(
+                            pool.map(
+                                lambda pair: caption_frame(
+                                    model, pair[1], pair[0], host=host, timeout=timeout
+                                ),
+                                pairs,
+                            )
+                        )
+                else:
+                    frame_rows = [
+                        caption_frame(model, image, t, host=host, timeout=timeout)
+                        for t, image in pairs
+                    ]
                 synthesized = synthesize_window(
                     frame_rows,
                     start,

@@ -239,12 +239,23 @@ class MotionConfig:
 class DetectorConfig:
     backend: str = "auto"  # auto | yolo-world | color
     model: str = "yolov8s-worldv2.pt"
+    # Optional multi-model ensemble.  Different YOLO-World scales disagree on
+    # open-vocabulary classes (a large model grounds wooden boards, a small one
+    # keeps small bowls), so running both and merging their boxes recovers
+    # recall that either model misses alone.  Empty means "just `model`".
+    models: tuple[str, ...] = ()
     confidence: float = 0.30
     iou: float = 0.45
     imgsz: int = 640
     max_detections: int = 50
     prompts: tuple[str, ...] | None = None
     label_aliases: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_ALIASES))
+    # Prompt ensembling: an open-vocabulary detector may need a different
+    # surface form than the label a user asks for (``mug`` rather than ``cup``).
+    # Each canonical vocabulary term maps to fixed extra prompts; detections
+    # from those prompts are renamed back to the canonical term.  This is
+    # prompt engineering over a fixed class list, not test-set vocabulary.
+    prompt_aliases: dict[str, tuple[str, ...]] = field(default_factory=dict)
     min_label_area: dict[str, float] = field(default_factory=dict)
     dedup_iou: float = 0.55
     dedup_ios: float = 0.80

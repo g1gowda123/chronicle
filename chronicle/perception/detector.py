@@ -178,15 +178,46 @@ class YoloWorldDetector(BaseDetector):
     def __init__(self, config: DetectorConfig, config_root: PerceptionConfig) -> None:
         self.config = config
         self._root = config_root
-        self._model: object | None = None
+        # ``models`` is an optional ensemble; a single model keeps the original
+        # one-model code path and the same label output.
+        self._model_names: tuple[str, ...] = tuple(config.models) or (config.model,)
+        self._models: list[tuple[str, object]] = []
+        self.name = (
+            "yolo-world-ensemble" if len(self._model_names) > 1 else "yolo-world"
+        )
         self._lock = threading.RLock()
-        self._prompts: tuple[str, ...] = tuple(config.prompts or config_root.vocabulary)
-        self._labels: set[str] = set(config_root.vocabulary)
-        self._aliases = {str(k).lower(): str(v).lower() for k, v in config.label_aliases.items()}
+        self._base_labels: tuple[str, ...] = tuple(config.prompts or config_root.vocabulary)
+        self._labels: set[str] = set(self._base_labels)
+        self._prompt_aliases = {
+            str(key).strip().lower(): tuple(
+                dict.fromkeys(
+                    str(value).strip().lower()
+                    for value in (values if isinstance(values, (list, tuple)) else (values,))
+                    if str(value).strip()
+                )
+            )
+            for key, values in config.prompt_aliases.items()
+        }
+        self._prompts, self._aliases = self._expand_prompts(self._base_labels)
 
-    def _ensure_model(self) -> None:
-        if self._model is not None:
-            return
+    def _expand_prompts(self, labels: Iterable[str]) -> tuple[tuple[str, ...], dict[str, str]]:
+        """Expand canonical labels with prompt aliases and build the reverse map."""
+
+        aliases = {str(k).lower(): str(v).lower() for k, v in self.config.label_aliases.items()}
+        prompts: list[str] = []
+        for label in labels:
+            canonical = str(label).strip().lower()
+            if not canonical:
+                continue
+            prompts.append(canonical)
+            for prompt in self._prompt_aliases.get(canonical, ()):
+                prompts.append(prompt)
+                aliases.setdefault(prompt, canonical)
+        return tuple(dict.fromkeys(prompts)), aliases
+
+    def _ensure_models(self) -> list[tuple[str, object]]:
+        if self._models:
+            return self._models
         try:
             from ultralytics import YOLOWorld
         except Exception as exc:  # pragma: no cover - optional dependency
@@ -194,42 +225,30 @@ class YoloWorldDetector(BaseDetector):
                 "YOLO-World is not installed. Install perception dependencies with "
                 "`uv sync` or set detector.backend='color' for the synthetic demo."
             ) from exc
-        model_path = self._root.resolve_model(self.config.model)
-        LOGGER.info("Loading YOLO-World model %s", model_path)
-        model = YOLOWorld(model_path)
-        model.set_classes(list(self._prompts))
-        self._model = model
+        loaded: list[tuple[str, object]] = []
+        for name in self._model_names:
+            model_path = self._root.resolve_model(name)
+            LOGGER.info("Loading YOLO-World model %s", model_path)
+            model = YOLOWorld(model_path)
+            model.set_classes(list(self._prompts))
+            loaded.append((name, model))
+        self._models = loaded
+        return loaded
 
     def set_vocabulary(self, vocabulary: Iterable[str]) -> None:
         labels = tuple(dict.fromkeys(str(v).strip().lower() for v in vocabulary if str(v).strip()))
-        if not labels or labels == tuple(self._prompts):
+        if not labels or labels == self._base_labels:
             return
-        self._prompts = labels
+        self._base_labels = labels
         self._labels = set(labels)
+        self._prompts, self._aliases = self._expand_prompts(labels)
         with self._lock:
-            if self._model is not None:
-                self._model.set_classes(list(labels))  # type: ignore[attr-defined]
+            for _, model in self._models:
+                model.set_classes(list(self._prompts))  # type: ignore[attr-defined]
 
-    def detect(
-        self, frame: np.ndarray, frame_index: int = 0, timestamp: float = 0.0
+    def _parse_result(
+        self, result: object, frame_index: int, model_name: str
     ) -> list[Detection]:
-        if frame is None or frame.size == 0:
-            return []
-        with self._lock:
-            self._ensure_model()
-            assert self._model is not None
-            results = self._model.predict(  # type: ignore[attr-defined]
-                frame,
-                conf=float(self.config.confidence),
-                iou=float(self.config.iou),
-                imgsz=int(self.config.imgsz),
-                max_det=int(self.config.max_detections),
-                verbose=False,
-                device=None if self._root.device == "auto" else self._root.device,
-            )
-        if not results:
-            return []
-        result = results[0]
         boxes = getattr(result, "boxes", None)
         if boxes is None or len(boxes) == 0:
             return []
@@ -253,9 +272,38 @@ class YoloWorldDetector(BaseDetector):
                     bbox=BBox(float(x1), float(y1), float(x2), float(y2)),
                     confidence=float(confidence),
                     source=self.name,
-                    metadata={"frame": frame_index, "prompt": raw_label},
+                    metadata={
+                        "frame": frame_index,
+                        "prompt": raw_label,
+                        "model": model_name,
+                    },
                 )
             )
+        return detections
+
+    def detect(
+        self, frame: np.ndarray, frame_index: int = 0, timestamp: float = 0.0
+    ) -> list[Detection]:
+        if frame is None or frame.size == 0:
+            return []
+        with self._lock:
+            models = self._ensure_models()
+            detections: list[Detection] = []
+            for name, model in models:
+                results = model.predict(  # type: ignore[attr-defined]
+                    frame,
+                    conf=float(self.config.confidence),
+                    iou=float(self.config.iou),
+                    imgsz=int(self.config.imgsz),
+                    max_det=int(self.config.max_detections),
+                    verbose=False,
+                    device=None if self._root.device == "auto" else self._root.device,
+                )
+                if not results:
+                    continue
+                detections.extend(
+                    self._parse_result(results[0], frame_index, name)
+                )
         detections = filter_min_area(detections, self.config.min_label_area)
         return deduplicate_detections(
             detections,
@@ -266,7 +314,7 @@ class YoloWorldDetector(BaseDetector):
 
     def close(self) -> None:
         with self._lock:
-            self._model = None
+            self._models = []
 
 
 def build_detector(config: PerceptionConfig, *, source_name: str = "") -> BaseDetector:

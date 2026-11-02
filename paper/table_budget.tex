@@ -1,0 +1,16 @@
+% Requires \usepackage{booktabs}
+\begin{table}[t]
+  \centering
+  \caption{VLM budget ablation. Values are Recall@1; parentheses are measured
+  Florence-2 calls. Recall is flat from zero calls to every-trigger, so the
+  default uses stride 4.}
+  \label{tab:vlm-budget}
+  \begin{tabular}{lccccc}
+    \toprule
+    Dataset & off & every 8th & every 4th & every 2nd & every trigger \\
+    \midrule
+    Cook 45 s & 80.0\% (0) & 80.0\% (13) & 80.0\% (26) & 80.0\% (51) & 80.0\% (102) \\
+    HoloAssist 34 s & 87.5\% (0) & 87.5\% (7) & 87.5\% (13) & 87.5\% (26) & 87.5\% (51) \\
+    \bottomrule
+  \end{tabular}
+\end{table}

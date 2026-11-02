@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .compact import StringTable, decompress_json, unpack_events
+from .compact import StringTable, decode_events, decompress_json
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 _NUMBER = re.compile(
@@ -72,6 +72,13 @@ _QUERY_SYNONYMS = {
     "someone": "person",
     "rucksack": "backpack",
     "bag": "backpack",
+    # Headwear: captioners alternate between hat/beret/beanie for the same
+    # object, and a query for a "red hat" must find a "red beret".
+    "beret": "hat",
+    "beanie": "hat",
+    "headwear": "hat",
+    "headgear": "hat",
+    "cap": "hat",
 }
 _STOPWORDS = {
     "the", "a", "an", "is", "was", "were", "are", "am", "did", "do", "does",
@@ -82,7 +89,7 @@ _STOPWORDS = {
     "first", "before", "after", "then", "tell", "show", "memory",
 }
 #: Bump when answer wording or canonicalisation changes, so stale answers miss.
-CACHE_VERSION = "v3.8"
+CACHE_VERSION = "v4.2"
 
 
 @dataclass
@@ -161,6 +168,16 @@ def _singular(token: str) -> str:
     return token
 
 
+def _term_pattern(token: str) -> re.Pattern[str]:
+    """Match a word and its common inflections, not arbitrary prefixes.
+
+    ``arch`` should find ``arched`` / ``arches`` but not ``architecture``;
+    plain substring or prefix matching made rare nouns collide with unrelated
+    words and skewed caption ranking.
+    """
+    return re.compile(rf"\b{re.escape(token.lower())}(?:s|es|ed|ing)?\b")
+
+
 def load_store(con: sqlite3.Connection) -> EventStore:
     con.row_factory = sqlite3.Row
     table = StringTable()
@@ -173,7 +190,7 @@ def load_store(con: sqlite3.Connection) -> EventStore:
     try:
         row = con.execute("select blob from event_pack where id=1").fetchone()
         if row is not None:
-            events = unpack_events(bytes(row["blob"]), table)
+            events = decode_events(bytes(row["blob"]), table)
     except sqlite3.Error:
         events = []
     if not events:
@@ -372,17 +389,31 @@ def caption_for(event: dict[str, Any]) -> str:
 
 
 def _match_entity(store: EventStore, query: str) -> dict[str, Any] | None:
-    tokens = _normal_tokens(query)
+    # Stopwords must never score: with them, a caption-derived label such as
+    # "bus parked near the curb" matched *any* question containing "the".
+    tokens = _normal_tokens(query) - _STOPWORDS
     lower = query.lower()
     best: tuple[float, float, dict[str, Any]] | None = None
     for entity in store.entities:
         label = str(entity["label"]).lower()
-        label_tokens = _normal_tokens(label)
+        label_tokens = _normal_tokens(label) - _STOPWORDS
+        label_norm = {_singular(token) for token in label_tokens}
+        # When the query carries distinctive words, all of them must appear in
+        # the label. Otherwise "where is the city arch" matched "city skyline"
+        # on the shared "city" alone.
+        distinctive = {
+            _singular(token) for token in (tokens - _GENERIC_LABEL_TOKENS)
+        }
+        if distinctive and not distinctive <= label_norm:
+            continue
+        overlap = {_singular(token) for token in tokens} & label_norm
+        if not overlap:
+            continue
         score = 0.0
         if label and re.search(rf"\b{re.escape(label)}\b", lower):
             score += 3.0
-        score += len(tokens & label_tokens) * 2.0
-        if not score and label:
+        score += len(overlap) * 2.0
+        if not score and label_tokens:
             singular = _singular(label)
             if singular in tokens or any(_singular(token) == singular for token in tokens):
                 score += 1.5
@@ -395,6 +426,73 @@ def _match_entity(store: EventStore, query: str) -> dict[str, Any] | None:
         if best is None or rank > (best[0], best[1]):
             best = (score, last_seen, entity)
     return best[2] if best else None
+
+
+_GENERIC_LABEL_TOKENS = {
+    "person", "man", "woman", "people", "pedestrian", "someone", "guy",
+    "lady", "child", "wearing", "holding", "carrying",
+    "go", "went", "gone", "last", "first",
+} | set().union(*_ACTION_WORDS.values())
+
+
+def _merge_aliases(
+    store: EventStore, entity: dict[str, Any], query: str
+) -> dict[str, Any]:
+    """Merge fragmented caption labels that describe the same thing.
+
+    Caption-first memories name the same person differently across frames
+    ("person in red hat" at t=96, "man wearing red hat" at t=157). Matching
+    only the best label hides the earlier sighting, so cluster labels that
+    contain every distinctive query token and merge their event histories.
+    """
+
+    distinctive = (_normal_tokens(query) - _STOPWORDS) - _GENERIC_LABEL_TOKENS
+    if len(distinctive) < 2:
+        return entity
+    aliases = []
+    for candidate in store.entities:
+        label_tokens = _normal_tokens(str(candidate["label"])) - _STOPWORDS
+        if distinctive <= label_tokens:
+            aliases.append(candidate)
+    if len(aliases) < 2:
+        return entity
+
+    label = str(entity["label"])
+    merged: list[dict[str, Any]] = []
+    for candidate in aliases:
+        merged.extend(_events_for(store, str(candidate["label"])))
+    if not merged:
+        return entity
+    merged.sort(key=lambda event: float(event["t"]))
+    zones = [str(item.get("zone") or "") for item in merged if item.get("zone")]
+    firsts = [
+        float(item["first_seen"])
+        for item in aliases
+        if item.get("first_seen") is not None and float(item["first_seen"]) > 0
+    ]
+    lasts = [
+        float(item["last_seen"])
+        for item in aliases
+        if item.get("last_seen") is not None and float(item["last_seen"]) > 0
+    ]
+    result = dict(entity)
+    if firsts:
+        result["first_seen"] = min(firsts)
+    if lasts:
+        result["last_seen"] = max(lasts)
+    if zones:
+        result["zone"] = max(set(zones), key=zones.count)
+    # Speak the user's vocabulary: "beret" normalises to "hat" in answers.
+    display = label
+    for synonym in ("beret", "beanie", "headwear", "headgear", "cap"):
+        display = re.sub(rf"\b{synonym}\b", "hat", display, flags=re.IGNORECASE)
+    # Answer helpers look up history by label; point the chosen label at the
+    # merged rows so "where/when" sees every alias.
+    store.by_subject[label.lower()] = merged
+    if display != label:
+        store.by_subject[display.lower()] = merged
+        result["label"] = display
+    return result
 
 
 def _events_for(store: EventStore, label: str, *, before: float | None = None) -> list[dict[str, Any]]:
@@ -450,7 +548,10 @@ def _matches_action(event: dict[str, Any], action: str) -> bool:
     if action == "place":
         return kind == "anchor" and relation in {"PLACED_ON", "PLACED_IN", "RESTING_ON", "INSIDE"}
     if action == "see":
-        return relation in {"APPEARED", "VISIBLE_STATIC"} or kind == "relation"
+        return (
+            relation in {"APPEARED", "VISIBLE_STATIC", "SEEN"}
+            or kind in {"relation", "seen"}
+        )
     if action == "lost":
         return relation == "LOST"
     return True
@@ -509,11 +610,32 @@ def answer_where(
     # playhead must not be answered with a future "last seen" time.
     if now_t is not None and seen_t > now_t + 0.4:
         if now_t + 0.4 < first_t:
+            # The memory is built from sampled frames, so "not appeared yet"
+            # would overclaim. Report the earliest *recorded* sighting instead.
             return Answer(
                 query,
-                f"At t={now_t:.1f}s, the {label.lower()} has not appeared yet.",
+                f"No sighting of the {label.lower()} is recorded before "
+                f"t={now_t:.1f}s. The earliest recorded sighting is at "
+                f"t={first_t:.1f}s.",
+                citations=[
+                    {
+                        "t": round(first_t, 3),
+                        "kind": "seen",
+                        "subject": label,
+                        "relation": "SEEN",
+                        "object": "",
+                        "zone": zone,
+                        "caption": (
+                            f"{label.capitalize()} first recorded at "
+                            f"t={first_t:.1f}s"
+                            + (f" in the {zone}" if zone else "")
+                            + "."
+                        ),
+                    }
+                ],
+                evidence=_evidence_list(store, first_t),
                 method="vault-where-current",
-                confidence=0.7,
+                confidence=0.6,
             )
         known = [event for event in history if float(event["t"]) <= now_t + 0.05]
         latest_known = _latest(known)
@@ -536,11 +658,27 @@ def answer_where(
             for item in _evidence_list(store, evidence_t)
             if float(item.get("distance_s", 999.0)) <= 8.0
         ]
+        went = bool(re.search(r"\b(go|gone|went|disappear\w*|missing)\b", query.lower()))
+        # A later sighting proves the entity exists in the episode, not that it
+        # is on screen right now. Only call it visible when the nearest
+        # observation is close to the playhead.
+        if abs(now_t - evidence_t) <= 8.0:
+            text = (
+                ("It hasn't gone anywhere yet: " if went else "")
+                + f"at t={now_t:.1f}s the {label.lower()} is visible"
+                + (f" in the {zone}" if zone else "")
+                + "."
+            )
+        else:
+            text = (
+                f"At t={now_t:.1f}s, the {label.lower()} is not visible. "
+                f"It was last seen at t={evidence_t:.1f}s"
+                + (f" in the {zone}" if zone else "")
+                + "."
+            )
         return Answer(
             query,
-            f"At t={now_t:.1f}s, the {label.lower()} is visible"
-            + (f" in the {zone}" if zone else "")
-            + ".",
+            text,
             citations=citations,
             evidence=evidence,
             confidence=0.8,
@@ -646,17 +784,63 @@ def answer_where(
     )
 
 
-def answer_when(store: EventStore, query: str, entity: dict[str, Any], action: str) -> Answer:
+def answer_when(
+    store: EventStore,
+    query: str,
+    entity: dict[str, Any],
+    action: str,
+    *,
+    now: float | None = None,
+) -> Answer:
     label = str(entity["label"])
     # "When was the cup last seen?" is a first/last-seen question. The salience
     # ledger may only contain the appearance event, so use the entity bounds that
     # the compiler kept from observations (first_seen/last_seen) instead.
-    if action in {"see", ""} and re.search(r"\b(seen|see|spotted)\b", query.lower()):
-        first = "first" in query.lower()
+    lowered = query.lower()
+    # "When did the man appear?" is the same first-seen question as "when was
+    # the man first seen?". Caption-first memories may have no salience event
+    # for the appearance, so prefer the entity bounds.
+    if action in {"see", ""} and re.search(
+        r"\b(seen|see|spotted|appear|appeared|show up|showed up)\b", lowered
+    ):
+        first = "first" in lowered or ("appear" in lowered and "last" not in lowered)
         value = entity.get("first_seen") if first else entity.get("last_seen")
         if value is not None:
             seen_t = float(value)
             zone = str(entity.get("zone") or "")
+            now_t = float(now) if now is not None else None
+            first_t = float(entity.get("first_seen") or 0.0)
+            # The vault covers the whole episode. A question asked at an earlier
+            # playhead must not claim the object's future last-seen time.
+            if now_t is not None and seen_t > now_t + 0.05:
+                if now_t + 0.05 < first_t:
+                    return Answer(
+                        query,
+                        f"At t={now_t:.1f}s, the {label.lower()} has not appeared yet.",
+                        method="vault-when-current",
+                        confidence=0.7,
+                    )
+                known = [
+                    event
+                    for event in _events_for(store, label)
+                    if float(event["t"]) <= now_t + 0.05
+                ]
+                latest_known = _latest(known)
+                citations = [_citation(latest_known)] if latest_known is not None else [{
+                    "t": round(first_t, 3),
+                    "kind": "seen",
+                    "caption": f"{label} first seen at t={first_t:.1f}s",
+                }]
+                return Answer(
+                    query,
+                    f"At t={now_t:.1f}s, the {label.lower()} is still visible"
+                    + (f" in the {zone}" if zone else "")
+                    + "; there is no disappearance recorded before then.",
+                    citations=citations,
+                    evidence=_evidence_list(store, now_t),
+                    confidence=0.8,
+                    method="vault-when-current",
+                )
             window = _window_caption(store, seen_t)
             frame = None
             if window is not None:
@@ -673,14 +857,21 @@ def answer_when(store: EventStore, query: str, entity: dict[str, Any], action: s
                 + (f" in the {zone}" if zone else "")
                 + "."
             )
-            if frame is not None and abs(frame_t - seen_t) <= 8.0:
-                text += f" Nearest caption frame at t={frame_t:.1f}s: {frame.get('caption') or ''}"
+            frame_caption = str(frame.get("caption") or "") if frame is not None else ""
+            frame_ok = bool(
+                frame is not None
+                and abs(frame_t - seen_t) <= 8.0
+                and frame_t <= seen_t + 0.05
+                and label.lower() in frame_caption.lower()
+            )
+            if frame_ok:
+                text += f" Nearest caption frame at t={frame_t:.1f}s: {frame_caption}"
             citations = [{
                 "t": round(seen_t, 3),
                 "kind": "seen",
                 "caption": f"{label} {prefix} seen at t={seen_t:.1f}s",
             }]
-            if frame is not None:
+            if frame_ok:
                 citations.append({
                     "t": round(frame_t, 3),
                     "kind": "frame",
@@ -1176,44 +1367,114 @@ def answer_holding(
     )
 
 
+_GENERIC_KEYWORD_TOKENS = {
+    "person", "people", "man", "woman", "men", "women", "group", "someone",
+    "somebody", "guy", "girl", "boy", "lady", "individual", "wearing", "wear",
+    "wears", "scene", "video", "memory", "street", "city", "building",
+}
+
+
 def answer_keyword(store: EventStore, query: str) -> Answer:
     tokens = sorted(
         _normal_tokens(query) - _STOPWORDS
     )
     if not tokens:
         return Answer(query, "I don't have that in my memory.", method="no-match")
-    scored: list[tuple[int, dict[str, Any]]] = []
-    for caption in store.ledger_windows:
-        text = " ".join(
+    # "red cap", "blue coat", "yellow shirt": the attribute words must actually
+    # occur in the caption. Without this, a question about an absent red cap is
+    # answered with every caption that mentions "person".
+    required = [token for token in tokens if token not in _GENERIC_KEYWORD_TOKENS]
+
+    def _row_text(row: dict[str, Any]) -> str:
+        return " ".join(
             [
-                str(caption.get("caption") or caption.get("text") or ""),
-                " ".join(str(tag) for tag in caption.get("tags") or []),
-                " ".join(str(tag) for tag in caption.get("objects") or []),
-                " ".join(str(tag) for tag in caption.get("actions") or []),
+                str(row.get("caption") or row.get("text") or ""),
+                " ".join(str(tag) for tag in row.get("tags") or []),
+                " ".join(str(tag) for tag in row.get("objects") or []),
+                " ".join(str(tag) for tag in row.get("actions") or []),
             ]
         ).lower()
-        hits = sum(1 for token in tokens if token in text)
-        if hits:
-            scored.append((hits * 2, caption))
-    for caption in store.captions:
-        text = str(caption.get("text") or "").lower()
-        hits = sum(1 for token in tokens if token in text)
-        if hits:
-            scored.append((hits, caption))
+
+    candidates: list[tuple[dict[str, Any], str, bool]] = []
+    for window in store.ledger_windows:
+        candidates.append((window, _row_text(window), True))
+        # Per-frame captions are finer-grained than the window summary and
+        # often mention something the synthesis dropped.
+        for frame in window.get("frames") or []:
+            if not isinstance(frame, dict):
+                continue
+            row = {**frame, "kind": "frame"}
+            candidates.append((row, _row_text(row), False))
+    candidates.extend(
+        (caption, str(caption.get("text") or "").lower(), False)
+        for caption in store.captions
+    )
+    # Rare tokens are the informative ones: "arch" should outrank the many
+    # captions that merely mention "city".
+    patterns = {token: _term_pattern(token) for token in tokens}
+    document_freq = {
+        token: sum(1 for _, text, _ in candidates if patterns[token].search(text))
+        for token in tokens
+    }
+    weights = {token: 1.0 / (max(1, document_freq[token]) ** 2) for token in tokens}
+
+    scored: list[tuple[float, dict[str, Any]]] = []
+    for row, text, is_window in candidates:
+        if required and not all(patterns[token].search(text) for token in required):
+            continue
+        matched = [token for token in tokens if patterns[token].search(text)]
+        if not matched:
+            continue
+        score = sum(weights[token] for token in matched)
+        scored.append((score * (2.0 if is_window else 1.0), row))
     if not scored:
         # Fall back to structured events only when the dense ledger has no hit.
         for event in store.events:
             text = caption_for(event).lower()
-            hits = sum(1 for token in tokens if token in text)
-            if hits:
-                scored.append((hits, {**event, "caption": caption_for(event)}))
+            if required and not all(patterns[token].search(text) for token in required):
+                continue
+            matched = [token for token in tokens if patterns[token].search(text)]
+            if matched:
+                scored.append(
+                    (sum(weights[token] for token in matched), {**event, "caption": caption_for(event)})
+                )
     if not scored:
+        if required:
+            phrase = " ".join(required)
+            return Answer(
+                query,
+                f"I don't have anything about {phrase} in this memory.",
+                method="no-match",
+            )
         return Answer(query, "I don't have that in my memory.", method="no-match")
-    scored.sort(key=lambda item: (item[0], float(item[1].get("t_start", item[1].get("t", 0.0)))), reverse=True)
-    rows = scored[:5]
+    scored.sort(
+        key=lambda item: (
+            item[0],
+            float(item[1].get("t_start", item[1].get("t", 0.0))),
+        ),
+        reverse=True,
+    )
+    if required:
+        _, row = scored[0]
+        text = str(row.get("caption") or row.get("text") or caption_for(row)).strip()
+        t = float(row.get("t_start", row.get("t", 0.0)))
+        still = _nearest_evidence(store, t)
+        return Answer(
+            query,
+            f"At t={t:.1f}s, " + (text[:1].lower() + text[1:] if text else ""),
+            citations=[{
+                "t": round(t, 3),
+                "kind": str(row.get("kind") or "caption"),
+                "caption": text[:500],
+            }],
+            evidence=[still] if still else [],
+            confidence=0.7,
+            method="vault-keyword-match",
+        )
+    rows = [row for _, row in scored[:5]]
     lines = ["Here is what the memory contains:"]
     citations: list[dict[str, Any]] = []
-    for _, row in rows:
+    for row in rows:
         text = str(row.get("caption") or row.get("text") or caption_for(row))
         t = float(row.get("t_start", row.get("t", 0.0)))
         lines.append(f"- [t={t:.1f}s] {text.splitlines()[0][:240]}")
@@ -1264,7 +1525,7 @@ def _ledger_has(store: EventStore, query: str) -> bool:
     if not tokens:
         return False
     text = _ledger_text(store)
-    return any(re.search(rf"\b{re.escape(token)}\b", text) for token in tokens)
+    return any(_term_pattern(token).search(text) for token in tokens)
 
 
 def classify(
@@ -1403,8 +1664,10 @@ def answer(
         return Answer(query, "Ask a question about the episode.", method="empty")
 
     intent, entity, t, action = classify(store, query)
+    if entity is not None:
+        entity = _merge_aliases(store, entity, query)
     key = canonical_key(intent, entity, t, action, store, query)
-    if now is not None and intent == "where":
+    if now is not None and intent in {"where", "when"}:
         key += f":now={round(float(now), 1)}"
     if use_cache:
         cached = _cache_get(store.con, key, query)
@@ -1435,7 +1698,7 @@ def answer(
         if entity is None:
             result = Answer(query, "I don't have that in my memory.", method="no-match")
         else:
-            result = answer_when(store, query, entity, action)
+            result = answer_when(store, query, entity, action, now=now)
     elif intent == "yesno":
         result = answer_yesno(store, query, entity, action)
     elif intent == "history":
