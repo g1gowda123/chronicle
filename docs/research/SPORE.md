@@ -574,6 +574,10 @@ opt-in and out of the headline table.
   evidence only when it needs pixels. Scene thumbnails are omitted because
   nearly every scene (188/189 on z210; all on the short clips) is within 0.5 s
   of a retained context; scene evidence resolves from that context.
+  `research/spore/results/debug_cook/store.json` is a 3.9 MB **context-free
+  ablation** store (0 contexts), not the compact benchmark; QA on it falls to
+  .10. The compact QA point is `cook_300_split` (196 capsules, 47 contexts,
+  6.34 MB), which reproduces the .70/7.9 headline.
 - Capsule/scene crops use WebP q82; context keyframes stay JPEG. This cuts
   monolithic stores from 8.22 to 6.41 MB (Cook), 6.16 to 4.69 MB (Switch), and
   11.45 to 7.68 MB (Play) with identical QA. Recoding contexts to WebP is not
