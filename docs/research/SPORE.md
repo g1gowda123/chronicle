@@ -144,6 +144,13 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   `debug_cook` store, "plate on the table" returns `countertop` and "plate on
   the shelf" abstains. This is a query constraint on an existing support label,
   not a new perception signal.
+- Explicit spatial relations ("next to", "near", "beside", "left/right of",
+  "above/below") are parsed into a target and anchor. The anchor is bound
+  separately, then target bindings are filtered by frame-relative box geometry
+  (edge gap relative to object size, with a side check for directional
+  relations). This is a heuristic query-time constraint, not calibrated 3-D
+  reasoning; it is tested with synthetic boxes and a saved-store smoke test,
+  but has no benchmark claim. "What is next to the cup?" is not yet handled.
 - Support-qualified counting uses the same grounded inventory path with the
   caller's count term as its candidate label: "how many plates are on the
   table?" runs a strict support-only anchor match, clusters detections per

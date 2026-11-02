@@ -3980,6 +3980,7 @@ class SporeQueryEngine:
         shared = max(2, int(math.ceil(total_budget / max(1, len(resolved)))))
         lowered_question = question.lower()
         support_qualifier = extract_support_qualifier(question)
+        relation = extract_relation_qualifier(question)
         action_binding = None
         if "how many" in lowered_question and len(resolved) == 1:
             if support_qualifier:
@@ -4049,6 +4050,23 @@ class SporeQueryEngine:
             ]
             answer.stats["support_qualifier"] = support_qualifier
             answer.stats["support_filtered"] = before - len(answer.bindings)
+        if relation is not None and answer.count is None:
+            anchor_bindings = self.bind(
+                relation[2], budget=shared, at_time=at_time
+            )
+            before = len(answer.bindings)
+            answer.bindings = [
+                item
+                for item in answer.bindings
+                if _binding_matches_relation(item, anchor_bindings, relation[1])
+            ]
+            answer.stats["relation"] = {
+                "target": relation[0],
+                "relation": relation[1],
+                "anchor": relation[2],
+                "anchor_bindings": len(anchor_bindings),
+                "filtered": before - len(answer.bindings),
+            }
         answer.capsules_considered = len(
             self.route(resolved, budget=total_budget, at_time=at_time)
         )
@@ -4076,6 +4094,10 @@ class SporeQueryEngine:
             count=answer.count,
             colour=colour,
         )
+        if relation is not None and not answer.abstained:
+            answer.answer = (
+                f"{answer.answer} ({relation[1]} the {relation[2]})"
+            )
         answer.elapsed_s = time.perf_counter() - start
         return answer
 
@@ -4162,6 +4184,34 @@ def extract_support_qualifier(question: str) -> str | None:
     return surface if surface in known else None
 
 
+_RELATION_RE = re.compile(
+    r"\bwhere\s+(?:is|are|was|were)\s+(?:(?:the|a|an)\s+)?"
+    r"(?P<target>.+?)\s+"
+    r"(?P<relation>next\s+to|near|beside|left\s+of|right\s+of|above|below)\s+"
+    r"(?:(?:the|a|an)\s+)?(?P<anchor>.+?)\s*[?.!]*$"
+)
+
+
+def extract_relation_qualifier(question: str) -> tuple[str, str, str] | None:
+    """Extract a spatial relation from ``where is <target> <rel> <anchor>``.
+
+    Returns ``(target, relation, anchor)`` or ``None``.  This deliberately
+    handles only explicit spatial phrasing; a trailing ``on the table`` is
+    still handled by :func:`extract_support_qualifier`.
+    """
+    text = re.sub(r"\s+", " ", question.strip().lower())
+    text = re.sub(r"\bwhere's\b", "where is", text)
+    match = _RELATION_RE.search(text)
+    if match is None:
+        return None
+    target = _clean_phrase(match.group("target"))
+    anchor = _clean_phrase(match.group("anchor"))
+    relation = re.sub(r"\s+", " ", match.group("relation")).strip()
+    if not target or not anchor:
+        return None
+    return target, relation, anchor
+
+
 def _binding_matches_support(binding: Binding, surface: str) -> bool:
     if not binding.support:
         return False
@@ -4169,6 +4219,49 @@ def _binding_matches_support(binding: Binding, surface: str) -> bool:
         _normalise_surface(alias) for alias in _support_aliases(surface)
     }
     return _normalise_surface(binding.support) in aliases
+
+
+def _binding_gap(box: BBox, other: BBox) -> float:
+    """Shortest edge-to-edge distance between two boxes, in pixels."""
+    dx = max(0.0, max(box.x1 - other.x2, other.x1 - box.x2))
+    dy = max(0.0, max(box.y1 - other.y2, other.y1 - box.y2))
+    return math.hypot(dx, dy)
+
+
+def _binding_matches_relation(
+    binding: Binding,
+    anchors: Sequence[Binding],
+    relation: str,
+) -> bool:
+    """Cheap geometric test for a target binding against anchor bindings.
+
+    This is intentionally frame-relative: no camera calibration is available,
+    and the feature is only used when the question explicitly names a spatial
+    relation.  ``near``/``next to`` use edge distance relative to the larger
+    object; directional relations additionally require the correct side.
+    """
+    if not anchors:
+        return False
+    box = binding.bbox
+    anchor = min(anchors, key=lambda item: _binding_gap(box, item.bbox))
+    other = anchor.bbox
+    scale = max(box.width, box.height, other.width, other.height, 1.0)
+    gap = _binding_gap(box, other)
+    if relation == "near":
+        return gap <= 1.25 * scale
+    if relation in {"next to", "beside"}:
+        return gap <= 0.75 * scale
+    dx = box.centroid[0] - other.centroid[0]
+    dy = box.centroid[1] - other.centroid[1]
+    if relation == "left of":
+        return dx <= -0.25 * other.width and gap <= 1.5 * scale
+    if relation == "right of":
+        return dx >= 0.25 * other.width and gap <= 1.5 * scale
+    if relation == "above":
+        return dy <= -0.25 * other.height and gap <= 1.5 * scale
+    if relation == "below":
+        return dy >= 0.25 * other.height and gap <= 1.5 * scale
+    return False
 
 
 def _query_synonyms(term: str) -> tuple[str, ...]:
@@ -4196,6 +4289,9 @@ def extract_terms(question: str) -> list[str]:
     text = re.sub(r"\s+", " ", text).strip()
     if not text:
         return []
+    relation = extract_relation_qualifier(question)
+    if relation is not None:
+        return [relation[0]]
     colour_of = re.search(
         r"\b(?:what (?:is|was) the (?:colour|color) of"
         r"|what (?:colour|color) (?:is|was)) (?:the |a |an )?(.+)$",

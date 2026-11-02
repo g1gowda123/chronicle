@@ -741,7 +741,16 @@ support aliases (table/work table/desk/countertop); unknown surfaces such as
 alias matching, and rejection of a cup on the wrong surface.  On the saved
 `debug_cook` store, "plate on the table" returns `countertop` and "plate on the
 shelf" abstains.  This constrains an existing support label; it is not a new
-perception signal, and support-qualified counting is not implemented yet.
+perception signal.
+
+Explicit spatial relations ("next to", "near", "beside", "left/right of",
+"above/below") are parsed into a target and anchor.  The anchor is bound
+separately, then target bindings are filtered by frame-relative box geometry:
+the shortest edge gap relative to the larger object, with a side check for
+directional relations.  This is a heuristic query constraint, not calibrated
+3-D reasoning.  Unit tests cover parsing and synthetic geometry, and a saved
+Cook store smoke test returns "cup on the shelf at 14.0 s (next to the plate)";
+there is no benchmark claim and "What is next to the cup?" is not handled.
 
 **Support re-measurement (opt-in).** The target and support prompts compete for
 detector capacity: on the Cook plate frame the fused answer retained a distant
