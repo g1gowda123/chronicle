@@ -66,5 +66,14 @@ SPORE ingest. It is fetched with:
 python scripts/fetch_aria_clip.py --sequence cook_0
 ```
 
+A second living-room window (`play_2`, 144 s + 45 s) is the pre-registered state
+replication. Its manifest entry and 14-question probe
+(`data/qa/play_2_state_45s.json`) were committed before the first ingest. It is
+fetched with:
+
+```bash
+python scripts/fetch_aria_clip.py --sequence play_2
+```
+
 Like the walking clip, these are locally trimmed research windows and are not
 redistributed. The full source datasets remain with Meta.

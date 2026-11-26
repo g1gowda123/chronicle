@@ -33,8 +33,9 @@ labelled before the first SPORE run, but it was committed with the analysis, not
 before the run. `ABSENCE.md` uses the stricter standard (probe file committed
 before the first ingest); by that standard the `cook_0` result is post-hoc and
 the 19-question number is a protocol-defined diagnostic, not a held-out
-pre-registered estimate. The new `play_2` replication is committed before its
-first run and is the clean pre-registered check.
+pre-registered estimate. The `play_2` replication was committed before its
+first run and is the clean pre-registered check; it fails (**5/14**), which
+bounds every positive claim below.
 
 - Clip: Aria Gen 2 Pilot `cook_0`, window 50--95 s, 640x480, 10 fps after trim.
   This is the fifth Aria window after the four in `DOMAINS.md`; it was not used
@@ -134,7 +135,44 @@ passes only; the end-of-clip `still` questions happen to land on frames where
 the same surface is labelled `table`. This is the same support-attribution
 failure reported in Section 5.17, not a new one.
 
-## Result 3: competing labels remove the one false presence
+## Result 3: pre-registered replication on `play_2` is negative
+
+The `play_2` probe (14 questions, committed as `032b2dd` before the first
+ingest) is a living-room card-game scene: a round coffee table with an orange
+game box and a book, a gray sofa, a leather armchair and a woven basket on the
+floor.
+
+| mode | scored | correct | strict support | false presence | missed presence |
+|---|---:|---:|---:|---:|---:|
+| state (pre-registered) | 14 | **5/14 (0.357)** | 5/14 | **0/5** | **7/7** |
+| default binding | 10 | 6/10 (0.600) | 6/10 | 0/5 | 4/5 |
+
+All five absent-object probes are answered correctly, so the safety result
+survives. **Every positive is missed** by the state path: box, book, sofa,
+chair, basket, still-box and still-basket. The default path finds the book but
+misses the other four positives.
+
+Post-hoc diagnosis (no default, threshold, or question was changed):
+
+- Across 48 contexts the support detections are `desk` 66, `table` 14,
+  `basket` 12, `shelf` 1, and **`floor` 0**. The living-room floor is never
+  detected, and the round coffee table is usually labelled `desk`.
+- Raw term hits at floor .30: `box` 0, `book` 8 (1 supported), `sofa` 85 (62
+  supported, all `desk`), `chair` 43 (21 supported, `desk`/`basket`), `basket`
+  12 (all supported by its own `basket` label), and 0 for every absence term.
+- So the failure is **not retention**: sofa and chair are detected and even
+  supported, but never on `floor`; `desk` cannot satisfy a floor query. The
+  basket is its own support because `basket` is both an object and a support
+  label. The orange game box is never detected at all. The book has one .35
+  hit, rejected by the two-observation persistence rule.
+
+This refutes the assumption that the `cook_0`/`eat_0` state behaviour transfers
+to a new room. False-presence safety transfers; positive recall does not,
+because it depends on a support label that the scene's detector does not emit.
+The state path is tabletop/kitchen-specific until the support vocabulary and
+detector cover the room's actual surfaces.
+
+## Result 4: competing labels remove the one false presence
 
 The first run without label competition produced **15/19 (0.789)** with
 **1/6 false presence**: `Is there a kettle on the countertop?` answered "yes"
@@ -155,7 +193,7 @@ text-conditioned layers let a target-only prompt inflate a confusable label, and
 the competing pass is a cheap way to expose it. It is a verification filter,
 not a calibrated absence test.
 
-## Result 4: support geometry matters; missing support detections remain
+## Result 5: support geometry matters; missing support detections remain
 
 The original `_support_with_box` assigned the **shelf above the toaster** as its
 support at the final frame, turning `still_toaster` into a false "moved" answer.
@@ -186,6 +224,11 @@ This is an evidence-coverage limit, not a selection bug.
 - One protocol-defined clip (19 questions) plus one post-hoc transfer clip (9
   questions), one detector stack. The 0/6 and 0/4 false-presence results are
   bounded safety checks on those clips, not calibrated absence guarantees.
+- The pre-registered `play_2` replication is negative on positives (0/7
+  found). Its 0/5 false-presence result therefore shows only that the path
+  stays silent when it cannot ground a support, not that it can answer state
+  questions in a new room. Positive recall depends on the support detector
+  emitting the scene's surfaces; the living room's floor is never detected.
 - Annotation was vision-assistant-assisted, not by an independent human
   annotator. It is independent of YOLO-World but shares the usual
   image-understanding biases of the assistant. The probe file was written
@@ -227,5 +270,14 @@ python scripts/spore_state_eval.py \
   --qa data/qa/eat_0_state_45s.json \
   --dump research/spore/results/eat0_state/store.json \
   --out research/spore/results/eat0_state/report.json \
+  --compare
+
+# Pre-registered replication (living room; negative on positives)
+python scripts/fetch_aria_clip.py --sequence play_2
+python scripts/spore_state_eval.py \
+  --clip data/footage/aria_play_2_45s.mp4 \
+  --qa data/qa/play_2_state_45s.json \
+  --dump research/spore/results/play2_state/store.json \
+  --out research/spore/results/play2_state/report.json \
   --compare
 ```

@@ -213,7 +213,14 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   presences, 9/9 lenient) but only 6/9 strict supports: the wooden dining table
   is labelled `desk` in the clip-level scan, the same support bottleneck as
   `eat_1`. The state path withholds bottle/laptop/hammer/fork on the table;
-  the default path answers the bottle question.
+  the default path answers the bottle question. A pre-registered living-room
+  replication (`play_2`, 14 questions, committed before the first ingest) is
+  negative on positives: **5/14 overall, 0/5 false presences, 0/7 positives**.
+  The room's floor is never detected as a support, the coffee table is usually
+  `desk`, the basket is supported by its own label, and the orange box is never
+  detected. Positive state recall is therefore tabletop-specific; the safety
+  result is conservative silence, not general state tracking. See
+  [`STATE.md`](STATE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

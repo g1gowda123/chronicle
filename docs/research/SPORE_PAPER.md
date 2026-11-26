@@ -1169,6 +1169,7 @@ questions) reproduces the verdict behaviour but not the support attribution:
 |---|---:|---:|---:|---:|
 | `cook_0` (protocol-defined) | 19 | 16/19 (.842) | 16/19 (.842) | 0/6 |
 | `eat_0` (post-hoc) | 9 | 9/9 (1.000) | 6/9 (.667) | 0/4 |
+| `play_2` (pre-registered) | 14 | 5/14 (.357) | 5/14 (.357) | 0/5 |
 
 The state path correctly withholds every absent object on the table (laptop,
 hammer, fork, bottle), while the default binding path answers the bottle
@@ -1177,6 +1178,17 @@ called `desk` in the clip-level scan; the end-of-clip `still` questions land on
 frames where it is called `table`.  This is the support-selection failure of
 Section 5.17, not a new one, and it is why the strict column is reported next to
 the lenient one.
+
+The pre-registered `play_2` replication is the boundary case.  The probe file
+and manifest entry were committed before the first ingest.  All five absent
+probes are answered correctly, but **every one of the seven positive probes is
+missed**: the living room's floor is never detected as a support, the round
+coffee table is usually labelled `desk`, the sofa and chair are detected but
+supported by `desk`, the basket is supported by its own label, and the orange
+game box is never detected at all.  Positive recall therefore depends on the
+support detector emitting the scene's surfaces, not just on the object
+detector.  The state path is a tabletop/kitchen operator, not a general state
+tracker, until the support ontology and detector cover the room.
 
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same
@@ -1269,14 +1281,16 @@ objects are sensitive to its smoothing.
 - The fixed-label COCO comparison is post hoc, uses different operating points,
   and covers 20 of 26 probes; it is a diagnostic pointing at class competition,
   not a second calibrated benchmark.
-- The opt-in state path is one protocol-defined clip and 19 questions plus one
-  post-hoc transfer clip and nine questions, annotated with
-  vision-assistant assistance rather than independent human labelling.  Its
-  0/6 and 0/4 false-presence results are bounded safety checks on those clips,
-  not absence guarantees.  The competing bank is a household/office prior, the
-  context scan covers 32 of 47 frames, and the support-under rule uses 2-D
-  geometry, not depth or hand contact, so a "held" state is still not
-  represented.
+- The opt-in state path is one protocol-defined clip (19 questions), one
+  post-hoc transfer clip (9 questions) and one pre-registered replication
+  (14 questions), annotated with vision-assistant assistance rather than
+  independent human labelling.  The pre-registered replication answers all five
+  absent probes correctly but misses all seven positives, because the living
+  room's floor is never a detected support; its 0/5 false-presence result is
+  therefore conservative silence, not recall.  The competing bank is a
+  household/office prior, the context scan covers 32 of 47 frames, and the
+  support-under rule uses 2-D geometry, not depth or hand contact, so a "held"
+  state is still not represented.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 
@@ -1325,8 +1339,12 @@ SPORE is a working sparse perception layer for Chronicle: it stores
 interaction-centric evidence without committing to a vocabulary, binds names
 only when asked, and keeps a compact index that an LLM can read while evidence
 stays in cheap sidecar blobs. The current limits are clear and measurable:
-fine objects are detector-bound, same-label instances remain ambiguous, and
-long-video evidence storage still needs an explicit budget.
+fine objects are detector-bound, same-label instances remain ambiguous,
+long-video evidence storage still needs an explicit budget, absence is not
+verifiable, and grounded state answers are support-bound -- a pre-registered
+living-room replication detected four of the five positive objects but could
+not ground the room's floor, so positive state recall does not yet transfer
+beyond tabletop scenes.
 
 ## Appendix A: Default configuration
 

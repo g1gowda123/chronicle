@@ -442,12 +442,21 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   labelling. A post-hoc transfer check on the eating room (`eat_0`, 9 state
   questions) stays safe (0/4 false presences) and 9/9 lenient, but only 6/9
   strict supports because the dining table is labelled `desk`; the default path
-  answers the absent-bottle question.
+  answers the absent-bottle question. The pre-registered living-room
+  replication (`play_2`, 14 questions committed as `032b2dd` before the first
+  ingest) is **negative on positives: 5/14 overall, 0/5 false presences, 0/7
+  positives**. The room's floor is never detected as a support, the coffee
+  table is usually `desk`, the basket self-supports, and the orange box is
+  never detected. Positive state recall is tabletop-specific; do not present
+  the safety result as general state tracking.
 - Next: the two blocking gaps are (a) an absence path that uses a fixed-label
   detector for covered classes and reserves the open-vocabulary detector for
   exploration (the post-hoc COCO result is the starting evidence), and (b) a
-  real "held / on-surface" state. The opt-in state path now answers grounded
-  yes/no/still/moved questions, but it still cannot represent "held" and its
-  support comes from a detected 2-D surface, not depth or hand contact. Do not
-  tune the `eat_1`/`cook_0` terms or thresholds, re-run the absence scan with
-  another k to chase a headline, or tune Cook-specific failures.
+  real "held / on-surface" state. The opt-in state path answers grounded
+  yes/no/still/moved questions in tabletop scenes, but it still cannot represent
+  "held", and its support comes from a detected 2-D surface, not depth or hand
+  contact. The `play_2` replication makes support detection the binding
+  constraint: the floor is never emitted and the coffee table is called `desk`.
+  Do not tune the `eat_1`/`cook_0`/`play_2` terms or thresholds, re-run the
+  absence scan with another k to chase a headline, or tune Cook-specific
+  failures.
