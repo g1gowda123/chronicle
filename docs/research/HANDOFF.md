@@ -28,7 +28,7 @@ Hard requirements:
 | Path | Branch | HEAD | State |
 |---|---|---|---|
 | `/home/g1/projects/chronicle` | `main` | `b86f5aa` | clean, pushed |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `7bb43ca` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + local-crop support remeasure + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + post-hoc audited Cook QA + LFS fetch |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `0ea49e8` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + local-crop support remeasure + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + post-hoc audited Cook QA + LFS fetch + unseen `eat_1` presence/absence calibration (detector-bound; no absence verifier) |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 
 `research/high-res-longvideo`, `research/long-video-qa`, `research/vfm-merged`,
@@ -307,11 +307,12 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   `research/high-res-longvideo`/`research/long-video-qa`, and
   `experiment/egotempo-benchmark`; `task/nb-08-real-calibration` was
   superseded and dropped.
-- `research/spore-perception`: based on `1200f84`, tip `7bb43ca` at the last
-  code commit; perceiver, query engine, benchmarks, context frames, fused
+- `research/spore-perception`: based on `1200f84`, tip `0ea49e8` at the last
+  research commit; perceiver, query engine, benchmarks, context frames, fused
   tracks, counting, inventory, compact stores, temporal scans,
   detector-free scene recall, support-surface query targets, and an optional
-  semantic surface head. The latest additions are local-crop support
+  semantic surface head. The latest additions are the unseen-`eat_1`
+  presence/absence calibration (`0ea49e8`, `ABSENCE.md`), local-crop support
   remeasurement (`7bb43ca`) and a post-hoc audited Cook QA set
   (`.90` diagnostic; original `.70` headline). Spatial support qualifiers,
   portable citations, and support-qualified counting are also on the branch.
@@ -399,6 +400,30 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   returns "2 plates on the table" in 16 detector calls, while the shelf query
   abstains after 31.  A zero is a lack of supported evidence, not verified
   absence; the path is opt-in through the question.
-- Next: independent state/absence experiment. Do not tune the
-  eat_0/clean_0/walk_0/walk_60 questions, run another z210 prompt/threshold
-  sweep, or tune Cook-specific failures.
+- Presence/absence calibration on a fifth, unseen Aria window (`eat_1`,
+  30–75 s; `ABSENCE.md`): a 26-term human probe set was committed before the
+  first ingest. All 47 retained contexts x 26 terms at a .05 floor (1,222
+  detector calls, 13.5 s): 10/14 present terms found somewhere, 7/12 absent
+  terms clean, max-confidence AUC .685. The absent-term detections are category
+  substitutions on real objects (glass->`mug` .77 and ->`bottle` .62,
+  plate-of-chips->`bowl` .60), not noise. Scanning 4 vs 48 contexts moves
+  term-level false negatives only .351->.286 and leaves false positives at
+  .33–.42; per-context sensitivity is flat at .66, so detector grounding, not
+  the sampling budget, is the limit. The shipped query path is not a negative
+  test: detector-only abstains on 5/14 present terms and answers 4/12 absent;
+  hybrid abstains on 2/14 but answers 8/12 absent. Support attribution is
+  degenerate on this clip: eight of nine supported detector answers say
+  `shelf`, including `person` and `refrigerator`, because background cabinets
+  overlap subjects in 2-D. The dining table is detected in the raw scan (34/47,
+  max .57) but `where is the table?` abstains via support-target routing,
+  replicating the clean-clip ambiguity. State probes are 3/5 found-match with
+  the one non-trivial support check wrong; held pitcher/fork are missed. A
+  post-hoc audit found the wall-mounted TV is real (one absent label wrong):
+  11/15 present, 7/11 clean, detector 3/11 absent answered, hybrid 7/11. The
+  pre-registered numbers stay the headline.
+- Next: the two blocking gaps are (a) a prompt-free presence/absence verifier
+  (objectness or a second detector with independent human labels) and (b) a
+  real "held / on-surface" state whose support does not prefer the background
+  surface behind the object. Do not tune the `eat_1` terms/thresholds, re-run
+  the absence scan with another k to chase a headline, or tune Cook-specific
+  failures.
