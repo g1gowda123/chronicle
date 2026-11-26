@@ -185,8 +185,12 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   4/12 absent terms; the hybrid CLIP fallback answers 8/12 absent terms.
   Support attribution is degenerate on this clip (eight of nine supported
   detector answers say `shelf`, including `person`), because background
-  cabinets overlap subjects in 2-D. Do not claim absence, and do not use hybrid
-  answers for state questions. See [`ABSENCE.md`](ABSENCE.md).
+  cabinets overlap subjects in 2-D. A post-hoc COCO YOLOv8-S pass over the same
+  20 covered terms leaves 10/10 absent terms clean at .50 (YOLO-World 8/10) and
+  finds `sandwich`/`table` in 47/47 contexts, but has no class for six probes;
+  this points to a two-detector design (fixed-label negatives, open-vocabulary
+  exploration), not threshold tuning. Do not claim absence, and do not use
+  hybrid answers for state questions. See [`ABSENCE.md`](ABSENCE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

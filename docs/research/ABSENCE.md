@@ -180,6 +180,42 @@ five to four terms, and the detector still answers three absent terms and
 misses four present ones. As with the Cook QA audit, the pre-registered numbers
 stay the headline; the audited numbers are a diagnostic.
 
+## Post-hoc: fixed-label detector check
+
+The false positives above are prompt-conditioned: YOLO-World is asked for
+`mug` and scores a glass. A fixed-label detector cannot substitute arbitrary
+categories, so the same 26 probes were scanned once with COCO YOLOv8-S
+(`yolov8s.pt`, 80 classes, one 47-context pass, floor .05, thresholds applied
+post hoc). This was run after the main result and is a diagnostic, not part of
+the pre-registered protocol. Six probes have no COCO class (`plate`, `napkin`,
+`cabinet`, `window`, `pitcher`, `mug`), so the comparison is restricted to the
+20 covered terms, with `television` moved to present after the audit:
+
+| detector (floor) | present found (of 10) | absent clean (of 10) |
+|---|---:|---:|
+| YOLO-World-S, .22 | 8/10 | 7/10 |
+| YOLO-World-S, .30 | 8/10 | 7/10 |
+| YOLO-World-S, .50 | 7/10 | 8/10 |
+| COCO YOLOv8-S, .25 | 9/10 | 8/10 |
+| COCO YOLOv8-S, .50 | 8/10 | **10/10** |
+
+At .50 the fixed-label detector returns no detections for any of the ten
+absent terms, while still finding 8/10 present terms. Its remaining misses are
+`glass` (the label is `wine glass`; the tumblers fire only once, at .27) and
+`fork` (max .21). The world model keeps `bowl` (.59 on the plate of chips) and
+`bottle` (.62 on a glass) even at .50. COCO also confirms the audit: it detects
+`tv` at .73.
+
+The gain is not only precision. On the same frames COCO finds `sandwich` in
+47/47 contexts (max .82) and `dining table` in 47/47 (max .89), versus 1/47
+(max .31) and 34/47 (max .57) for YOLO-World-S. Fixed-label supervision is
+much better on the classes it knows, and it has a usable high-precision
+operating point for negative answers. The cost is coverage: a user term outside
+the 80 classes cannot be checked at all. A practical system could therefore
+allow absence claims only from a fixed-label detector on covered classes, and
+use the open-vocabulary path for presence/exploration -- the opposite of the
+current single-model design.
+
 ## Interpretation
 
 1. **Absence is bounded by detector semantics, not by memory size or sampling
@@ -198,11 +234,18 @@ stay the headline; the audited numbers are a diagnostic.
    current 2-D containment heuristic collapses to the background surface behind
    the object. An explicit "held / on <surface>" state, backed by hand contact
    and depth, is the missing capstone; it cannot be recovered by prompt tuning.
-5. **What would change the conclusion:** independent human labels per context
-   (rather than intervals), a second detector with a different label space, or
-   a prompt-free objectness/verifier model. Until then, the honest claim is
-   "SPORE stores evidence that can confirm presence, but cannot certify
-   absence".
+5. **A fixed-label detector is a viable absence substrate on its own classes.**
+   The post-hoc COCO check reaches zero false positives on 10/10 covered absent
+   terms at .50 while finding 8/10 present terms, and it fixes the `sandwich`
+   and `table` recall holes. It cannot answer the six probes outside its 80
+   classes. This points to a two-detector design -- fixed-label for negative
+   claims, open-vocabulary for exploration -- rather than a single model.
+6. **What would still change the conclusion:** independent human labels per
+   context (rather than intervals), a second fixed-label detector with a
+   different class list, or a prompt-free objectness/verifier model evaluated
+   on the full 26-term bank. Until then, the honest claim is "SPORE stores
+   evidence that can confirm presence, but cannot certify absence with its
+   open-vocabulary detector".
 
 ## Reproduce
 
@@ -213,10 +256,18 @@ python scripts/spore_absence.py \
   --probes data/qa/eat_1_absence.json \
   --dump research/spore/results/eat1_absence/store.json \
   --out research/spore/results/eat1_absence/report.json
+
+# Post-hoc fixed-label check (downloads yolov8s.pt if absent)
+python scripts/spore_absence_fixed.py \
+  --store research/spore/results/eat1_absence/store.json \
+  --probes data/qa/eat_1_absence.json \
+  --world-report research/spore/results/eat1_absence/report.json \
+  --out research/spore/results/eat1_absence/fixed_label.json
 ```
 
-The script writes a JSON report and a markdown summary. Store dumps and run
-artifacts are gitignored; only this note and the probe file are committed.
+The first script writes a JSON report and a markdown summary; the second adds
+the fixed-label comparison. Store dumps and run artifacts are gitignored; only
+this note and the probe file are committed.
 
 ## Threats to validity
 
@@ -231,6 +282,10 @@ artifacts are gitignored; only this note and the probe file are committed.
   genuinely absent at a context even if present elsewhere. Per-context
   sensitivity/specificity use the annotated intervals, which are coarse
   (±2 s).
+- The COCO check is post hoc, uses a different label space and operating
+  points, and covers only 20 of the 26 probes; the `glass -> wine glass`
+  mapping is loose. It is evidence that class competition matters, not a
+  calibrated second benchmark.
 - Pseudo-GT is not used here: ground truth is human presence labels, not
   YOLO-World. That is the point of the experiment, but it is still a small
   human sample.

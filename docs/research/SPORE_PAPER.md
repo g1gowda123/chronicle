@@ -1109,7 +1109,21 @@ so state questions cannot be answered reliably yet.
 The annotation audit changes one absent label to present: 11/15 present terms
 found, 7/11 absent terms clean (false-negative .267, detector mode 3/11 absent
 answered, hybrid 7/11).  The pre-registered numbers remain the headline; the
-audited numbers are a diagnostic.  The practical conclusion is that a negative
+audited numbers are a diagnostic.
+
+A post-hoc fixed-label check isolates the cause.  The same 20 terms that exist
+in the COCO class list were scanned once with YOLOv8-S (80 classes, 47
+contexts).  At .50 it answers 8/10 present and leaves **10/10 absent terms
+clean**, while YOLO-World-S at .50 leaves 8/10 clean and still fires `bowl`
+(.59) and `bottle` (.62) on the plate and glasses.  COCO also finds `sandwich`
+in 47/47 contexts (max .82) and `dining table` in 47/47 (max .89), versus 1/47
+(.31) and 34/47 (.57) for the world model.  The cost is coverage: six probes
+(`plate`, `napkin`, `cabinet`, `window`, `pitcher`, `mug`) have no COCO class,
+and `glass`/`fork` are still missed.  This suggests a two-detector design --
+fixed-label for negative claims, open-vocabulary for exploration -- rather than
+tuning the world model's prompt thresholds.
+
+The practical conclusion is that a negative
 answer must be expressed as "the query detector found no X in N retained
 contexts", with the measured error rates attached, not as a fact about the
 world.  Full protocol, tables and threats are in
@@ -1179,6 +1193,9 @@ objects are sensitive to its smoothing.
   `refrigerator`), because background cabinets overlap the subject in 2-D.
   State-at-time answers inherit this failure and a "held" state does not exist
   in the answer path.
+- The fixed-label COCO comparison is post hoc, uses different operating points,
+  and covers 20 of 26 probes; it is a diagnostic pointing at class competition,
+  not a second calibrated benchmark.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 

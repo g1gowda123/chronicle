@@ -420,9 +420,14 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   the one non-trivial support check wrong; held pitcher/fork are missed. A
   post-hoc audit found the wall-mounted TV is real (one absent label wrong):
   11/15 present, 7/11 clean, detector 3/11 absent answered, hybrid 7/11. The
-  pre-registered numbers stay the headline.
-- Next: the two blocking gaps are (a) a prompt-free presence/absence verifier
-  (objectness or a second detector with independent human labels) and (b) a
+  pre-registered numbers stay the headline. A post-hoc COCO YOLOv8-S pass over
+  the 20 covered terms reaches 10/10 absent clean at .50 (YOLO-World 8/10) and
+  fixes `sandwich`/`table` recall, but six probes have no COCO class; this is
+  the first evidence that a fixed-label detector is a usable absence substrate
+  on its own classes, not a calibrated benchmark.
+- Next: the two blocking gaps are (a) an absence path that uses a fixed-label
+  detector for covered classes and reserves the open-vocabulary detector for
+  exploration (the post-hoc COCO result is the starting evidence), and (b) a
   real "held / on-surface" state whose support does not prefer the background
   surface behind the object. Do not tune the `eat_1` terms/thresholds, re-run
   the absence scan with another k to chase a headline, or tune Cook-specific
