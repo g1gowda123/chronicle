@@ -1,0 +1,45 @@
+{
+  "clip": "data/footage/aria_eat_1_45s.mp4",
+  "sequence": "eat_1",
+  "window": {"start_s": 30.0, "duration_s": 45.0},
+  "annotation": {
+    "annotator": "human visual inspection (agent) of a 2 s contact sheet plus full-resolution frames at 0, 8, 16, 24, 32, 40 and 44 s",
+    "tolerance_s": 2.0,
+    "notes": "Presence intervals are coarse and describe when the object is visible anywhere in the frame. Background appliances are annotated as present because they are persistently visible. This file was written and committed before the first SPORE ingest or detector scan of this clip."
+  },
+  "probes": [
+    {"term": "plate", "present": true, "intervals": [[0.0, 45.0]], "note": "White plates on the table throughout."},
+    {"term": "cup", "present": true, "intervals": [[0.0, 45.0]], "note": "Tall pink-drink vessels; detector term 'cup'."},
+    {"term": "glass", "present": true, "intervals": [[0.0, 45.0]], "note": "Same vessels named as glasses; tests label synonymy."},
+    {"term": "napkin", "present": true, "intervals": [[0.0, 45.0]], "note": "White paper napkins on the table."},
+    {"term": "sandwich", "present": true, "intervals": [[0.0, 45.0]], "note": "Sandwiches on plates and in hands."},
+    {"term": "table", "present": true, "intervals": [[0.0, 45.0]], "note": "Wooden dining table fills the foreground."},
+    {"term": "person", "present": true, "intervals": [[0.0, 45.0]], "note": "Two/three people seated at the table."},
+    {"term": "refrigerator", "present": true, "intervals": [[0.0, 45.0]], "note": "Stainless refrigerator, back left."},
+    {"term": "microwave", "present": true, "intervals": [[0.0, 45.0]], "note": "Above the stove, background centre."},
+    {"term": "oven", "present": true, "intervals": [[0.0, 45.0]], "note": "Stainless range/oven, background centre."},
+    {"term": "cabinet", "present": true, "intervals": [[0.0, 45.0]], "note": "White kitchen cabinets on the back wall."},
+    {"term": "window", "present": true, "intervals": [[0.0, 45.0]], "note": "Window with white blinds, right wall."},
+    {"term": "pitcher", "present": true, "intervals": [[6.0, 10.0], [41.0, 45.0]], "note": "Large pink-drink pitcher, held at ~8 s and visible again at the end."},
+    {"term": "fork", "present": true, "intervals": [[0.0, 2.5]], "note": "Fork held by the right-hand diner at the start only."},
+    {"term": "bowl", "present": false, "intervals": [], "note": "No bowl visible."},
+    {"term": "mug", "present": false, "intervals": [], "note": "Drinks are tall glasses, not mugs."},
+    {"term": "bottle", "present": false, "intervals": [], "note": "No bottle visible on the table; background jars are not bottles."},
+    {"term": "knife", "present": false, "intervals": [], "note": "No knife visible."},
+    {"term": "spoon", "present": false, "intervals": [], "note": "No spoon visible."},
+    {"term": "laptop", "present": false, "intervals": [], "note": "No laptop."},
+    {"term": "phone", "present": false, "intervals": [], "note": "No phone."},
+    {"term": "book", "present": false, "intervals": [], "note": "No book."},
+    {"term": "sofa", "present": false, "intervals": [], "note": "Kitchen/dining room, no sofa."},
+    {"term": "television", "present": false, "intervals": [], "note": "No TV."},
+    {"term": "bicycle", "present": false, "intervals": [], "note": "Indoor scene, no bicycle."},
+    {"term": "umbrella", "present": false, "intervals": [], "note": "No umbrella."}
+  ],
+  "state_questions": [
+    {"question": "where is the cup at 24 seconds?", "at_time": 24.0, "term": "cup", "expected_found": true, "expected_support": "table", "note": "Glass on a coaster on the table."},
+    {"question": "where is the pitcher at 24 seconds?", "at_time": 24.0, "term": "pitcher", "expected_found": false, "expected_support": null, "note": "Pitcher is not visible at 24 s."},
+    {"question": "where is the pitcher at 8 seconds?", "at_time": 8.0, "term": "pitcher", "expected_found": true, "expected_support": null, "note": "Pitcher is held in the camera wearer's hand, not resting on a surface."},
+    {"question": "where is the fork at 0 seconds?", "at_time": 0.0, "term": "fork", "expected_found": true, "expected_support": null, "note": "Fork is held by the right-hand diner, not on a surface."},
+    {"question": "where is the fork at 24 seconds?", "at_time": 24.0, "term": "fork", "expected_found": false, "expected_support": null, "note": "Fork is no longer visible."}
+  ]
+}

@@ -42,6 +42,18 @@
       "notes": "Two people talking and playing a board game at a coffee table."
     },
     {
+      "name": "cook_0",
+      "domain": "cooking",
+      "sequence": "cook_0",
+      "start_s": 50.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_cook_0_45s.mp4",
+      "zone": "Kitchen",
+      "main_stream": "214-1",
+      "vocabulary": "toaster,rice cooker,plate,bowl,knife,cutting board,bread,tomato,avocado,mug,sink,cabinet,window",
+      "notes": "Second cooking sequence, 50-95 s: stable sink counter with toaster, rice cooker, plate, white bowl, knife, cutting board, bread, and a glass-front cabinet holding mugs and bowls."
+    },
+    {
       "name": "walk_0",
       "domain": "outdoor",
       "sequence": "walk_0",
@@ -52,6 +64,18 @@
       "main_stream": "214-1",
       "vocabulary": "tree,plant,building,car,bicycle,sign,hydrant,bench,door,sidewalk,road,person",
       "notes": "Outdoor campus walk; building, path, hedges, hydrant, and strong sunlight."
+    },
+    {
+      "name": "eat_1",
+      "domain": "eating",
+      "sequence": "eat_1",
+      "start_s": 30.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_eat_1_45s.mp4",
+      "zone": "Dining Room",
+      "main_stream": "214-1",
+      "vocabulary": "plate,bowl,cup,mug,bottle,sandwich,fork,knife,spoon,table,chair,napkin,food",
+      "notes": "Fifth unseen window, added for the independent presence/absence calibration. Window (30 s + 45 s) and vocabulary were fixed before the first download or ingest; the clip was not used to develop SPORE defaults."
     }
   ]
 }
