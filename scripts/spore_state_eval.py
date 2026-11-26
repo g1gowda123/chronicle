@@ -68,6 +68,20 @@ def support_matches(actual: str | None, expected: str | None) -> bool:
     return _normalise_surface(actual) in aliases
 
 
+def support_matches_strict(actual: str | None, expected: str | None) -> bool:
+    """Exact support label, without the routing aliases.
+
+    ``table``/``desk``/``work table``/``countertop`` are deliberately one
+    routing bucket, but a state answer that says "desk" for a dining table is
+    still wrong.  This second metric keeps that distinction visible.
+    """
+    if expected is None:
+        return actual is None
+    if actual is None:
+        return False
+    return _normalise_surface(actual) == _normalise_surface(expected)
+
+
 def score_state(question: dict, answer) -> tuple[bool | None, str]:
     expected = str(question.get("expected", "")).lower()
     verdict = answer.verdict
@@ -151,6 +165,17 @@ def run_questions(engine, questions: list[dict], scorer) -> list[dict]:
         )
         calls = engine.detector_calls - calls_before
         correct, error = scorer(question, answer)
+        support = (answer.stats.get("state") or {}).get("support")
+        if correct is None:
+            correct_strict = None
+        elif not correct:
+            correct_strict = False
+        elif answer.verdict in {"present", "stayed"} and question.get("expected_support"):
+            correct_strict = support_matches_strict(
+                support, question.get("expected_support")
+            )
+        else:
+            correct_strict = True
         rows.append(
             {
                 "id": question.get("id"),
@@ -162,10 +187,11 @@ def run_questions(engine, questions: list[dict], scorer) -> list[dict]:
                 "answer": answer.answer,
                 "abstained": bool(answer.abstained),
                 "verdict": answer.verdict,
-                "support": (answer.stats.get("state") or {}).get("support"),
+                "support": support,
                 "state": answer.stats.get("state", {}),
                 "bindings": len(answer.bindings),
                 "correct": correct,
+                "correct_strict": correct_strict,
                 "error": error,
                 "detector_calls": calls,
                 "elapsed_s": round(time.perf_counter() - started, 3),
@@ -175,8 +201,8 @@ def run_questions(engine, questions: list[dict], scorer) -> list[dict]:
         print(
             f"  {question.get('id', '')[:28]:28s} "
             f"exp={question.get('expected'):7s} verdict={str(answer.verdict):13s} "
-            f"support={str((answer.stats.get('state') or {}).get('support')):10s} "
-            f"correct={correct} {error} calls={calls}",
+            f"support={str(support):10s} "
+            f"correct={correct} strict={correct_strict} {error} calls={calls}",
             flush=True,
         )
     return rows
@@ -214,8 +240,21 @@ def summarise(rows: list[dict], *, label: str) -> dict:
         "questions": len(rows),
         "scored": len(scored),
         "correct": sum(bool(row["correct"]) for row in scored),
+        "strict_correct": sum(
+            bool(row.get("correct_strict")) for row in scored
+        ),
         "accuracy": round(
             sum(bool(row["correct"]) for row in scored) / max(1, len(scored)), 3
+        ),
+        "strict_accuracy": round(
+            sum(bool(row.get("correct_strict")) for row in scored)
+            / max(1, len(scored)),
+            3,
+        ),
+        "strict_support_errors": sum(
+            1
+            for row in scored
+            if row["correct"] and row.get("correct_strict") is False
         ),
         "errors": errors,
         "false_presence": sum(
@@ -248,21 +287,25 @@ def markdown(summary: dict, rows: list[dict], *, clip: str) -> str:
         "",
         f"- questions: {summary['questions']} ({summary['scored']} scored)",
         f"- accuracy: **{summary['accuracy']}** ({summary['correct']}/{summary['scored']})",
+        f"- strict-support accuracy: **{summary['strict_accuracy']}** "
+        f"({summary['strict_correct']}/{summary['scored']}; "
+        f"{summary['strict_support_errors']} lenient passes)",
         f"- false presence on absent probes: **{summary['false_presence']}/{summary['absence_questions']}**",
         f"- missed presence on positive probes: **{summary['missed_presence']}/{summary['positive_questions']}**",
         f"- detector calls: {summary['total_detector_calls']} "
         f"({summary['mean_detector_calls']}/question)",
         f"- mean latency: {summary['mean_elapsed_s']} s/question",
         "",
-        "| id | expected | verdict | support | correct | answer |",
-        "|---|---|---|---|---|---|",
+        "| id | expected | verdict | support | correct | strict | answer |",
+        "|---|---|---|---|---|---|---|",
     ]
     for row in rows:
         correct = "n/a" if row["correct"] is None else ("yes" if row["correct"] else f"no ({row['error']})")
+        strict = "n/a" if row.get("correct_strict") is None else ("yes" if row["correct_strict"] else "no")
         answer = str(row["answer"]).replace("|", "\\|")
         lines.append(
             f"| {row['id']} | {row['expected']} | {row['verdict'] or '-'} | "
-            f"{row['support'] or '-'} | {correct} | {answer} |"
+            f"{row['support'] or '-'} | {correct} | {strict} | {answer} |"
         )
     lines.append("")
     return "\n".join(lines)

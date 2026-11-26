@@ -46,6 +46,9 @@ This is the same epistemic rule as `ABSENCE.md`, made operational.
   later probes (kettle detections, competing-label check, support geometry) were
   post-hoc diagnostics and are reported as such; the original 19-question result
   is the headline.
+- A second, **post-hoc** transfer check uses nine questions on `eat_0`, a
+  dining room that was already part of the held-out location QA. It is reported
+  separately and is not counted as a pre-registered result.
 
 ## Setup
 
@@ -99,7 +102,31 @@ The three misses are detector-bound:
   vocabulary.
 - `still rice cooker`: same detector miss near the end.
 
-## Result 2: competing labels remove the one false presence
+## Result 2: transfer check on a second room (`eat_0`, post-hoc)
+
+The same harness was then run on the earlier eating window (`eat_0`, 30–75 s)
+with nine state questions. This clip was already used for the held-out location
+QA in Section 5.14, so the check is post-hoc rather than pre-registered; the
+questions were written from fresh frame inspection before the state run and the
+labels were not produced by the detector. The dining table is the target
+surface; the room also contains a shelving unit with a kettle and coffee maker,
+so "no kettle on the table" would be a place-qualified absence.
+
+| mode | questions | lenient correct | strict support correct | false presence |
+|---|---:|---:|---:|---:|
+| state | 9 | **9/9 (1.000)** | **6/9 (0.667)** | **0/4** |
+| default binding | 6 | 5/6 (0.833) | 5/6 | 1/4 |
+
+The verdict behaviour transfers: the state path claims no absent object on the
+table (laptop, hammer, fork, bottle), and the default binding path answers the
+bottle question (false presence). The strict-support column exposes the
+remaining bottleneck: at the clip-level scan the detector labels the wooden
+dining table as `desk`, so `plate on the desk` and `cup on the desk` are lenient
+passes only; the end-of-clip `still` questions happen to land on frames where
+the same surface is labelled `table`. This is the same support-attribution
+failure reported in Section 5.17, not a new one.
+
+## Result 3: competing labels remove the one false presence
 
 The first run without label competition produced **15/19 (0.789)** with
 **1/6 false presence**: `Is there a kettle on the countertop?` answered "yes"
@@ -120,7 +147,7 @@ text-conditioned layers let a target-only prompt inflate a confusable label, and
 the competing pass is a cheap way to expose it. It is a verification filter,
 not a calibrated absence test.
 
-## Result 3: support geometry matters; missing support detections remain
+## Result 4: support geometry matters; missing support detections remain
 
 The original `_support_with_box` assigned the **shelf above the toaster** as its
 support at the final frame, turning `still_toaster` into a false "moved" answer.
@@ -148,8 +175,9 @@ This is an evidence-coverage limit, not a selection bug.
 
 ## Threats to validity
 
-- One clip, 19 questions, one detector stack. The 0/6 false-presence result is a
-  lower bound on this clip, not a calibrated absence guarantee.
+- One pre-registered clip (19 questions) plus one post-hoc transfer clip (9
+  questions), one detector stack. The 0/6 and 0/4 false-presence results are
+  bounded safety checks on those clips, not calibrated absence guarantees.
 - Annotation was vision-assistant-assisted, not by an independent human
   annotator. It is independent of YOLO-World but shares the usual
   image-understanding biases of the assistant. The probe file was written
@@ -184,4 +212,12 @@ python scripts/spore_state_eval.py \
   --store research/spore/results/cook0_state/store.json \
   --out research/spore/results/cook0_state/report_noverify.json \
   --no-verify
+
+# Post-hoc transfer check (eating room)
+python scripts/spore_state_eval.py \
+  --clip data/footage/aria_eat_0_45s.mp4 \
+  --qa data/qa/eat_0_state_45s.json \
+  --dump research/spore/results/eat0_state/store.json \
+  --out research/spore/results/eat0_state/report.json \
+  --compare
 ```

@@ -1,0 +1,93 @@
+{
+  "clip": "data/footage/aria_eat_0_45s.mp4",
+  "domain": "eating",
+  "source_sequence": "eat_0",
+  "window": {
+    "start_s": 30.0,
+    "duration_s": 45.0
+  },
+  "protocol": "Transfer check, not a pre-registered anchor experiment: this clip was already used for the held-out location QA in 5.14. These state questions were written from visual inspection of sampled frames (3 s contact sheet plus full frames at 10, 20, 30 and 40 s) before the first state-path run on this clip. Labels were not produced by the query detector. The room contains a shelving unit with a kettle and a coffee maker, so 'no kettle on the table' is a place-qualified absence, not a claim that no kettle exists in the room.",
+  "questions": [
+    {
+      "id": "presence_plate",
+      "query": "Is there a plate on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "Four white plates with sandwiches/chips are on the wooden dining table at 20 s."
+    },
+    {
+      "id": "presence_cup",
+      "query": "Is there a cup on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "Four red/pink drink cups are visible on the table at 20 s."
+    },
+    {
+      "id": "absence_laptop",
+      "query": "Is there a laptop on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No laptop on the table or in the room in any sampled frame."
+    },
+    {
+      "id": "absence_hammer",
+      "query": "Is there a hammer on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No hammer in any sampled frame."
+    },
+    {
+      "id": "absence_fork",
+      "query": "Is there a fork on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No utensils are visible; the food is eaten by hand. This is a detector-hard absence because forks are thin and cluttered."
+    },
+    {
+      "id": "absence_bottle",
+      "query": "Is there a bottle on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "Only red/pink drink cups are on the table; there is no bottle."
+    },
+    {
+      "id": "still_plate",
+      "query": "Is the plate still on the table?",
+      "kind": "still",
+      "timestamp": 40.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "Multiple plates with food remain on the table at 40 s."
+    },
+    {
+      "id": "still_cup",
+      "query": "Is the cup still on the table?",
+      "kind": "still",
+      "timestamp": 40.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "At least one red drink cup sits on the table at 40 s; another is held by a person."
+    },
+    {
+      "id": "moved_plate",
+      "query": "Did the plate move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "stayed",
+      "expected_support": "table",
+      "human_evidence": "Plates are used in place on the table; at the support level they do not move to another surface."
+    }
+  ]
+}

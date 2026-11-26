@@ -1159,6 +1159,22 @@ cooker is detected once at .32 and correctly rejected by the two-observation
 rule (a competing bank calls the same box `toaster` at .57), the cutting board
 is never detected, and the rice cooker is still missed at the end.
 
+A post-hoc transfer check on the earlier dining-room window (`eat_0`, nine
+questions) reproduces the verdict behaviour but not the support attribution:
+
+| clip | questions | lenient | strict support | false presence |
+|---|---:|---:|---:|---:|
+| `cook_0` (pre-registered) | 19 | 16/19 (.842) | 16/19 (.842) | 0/6 |
+| `eat_0` (post-hoc) | 9 | 9/9 (1.000) | 6/9 (.667) | 0/4 |
+
+The state path correctly withholds every absent object on the table (laptop,
+hammer, fork, bottle), while the default binding path answers the bottle
+question.  The three strict-support failures are all the dining table being
+called `desk` in the clip-level scan; the end-of-clip `still` questions land on
+frames where it is called `table`.  This is the support-selection failure of
+Section 5.17, not a new one, and it is why the strict column is reported next to
+the lenient one.
+
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same
 crop with a generic 43-label bank puts `toaster` at .50 and `kettle` at .35, so
@@ -1250,10 +1266,11 @@ objects are sensitive to its smoothing.
 - The fixed-label COCO comparison is post hoc, uses different operating points,
   and covers 20 of 26 probes; it is a diagnostic pointing at class competition,
   not a second calibrated benchmark.
-- The opt-in state path is one clip and 19 questions, annotated with
+- The opt-in state path is one pre-registered clip and 19 questions plus one
+  post-hoc transfer clip and nine questions, annotated with
   vision-assistant assistance rather than independent human labelling.  Its
-  0/6 false-presence result is a bounded safety check on that clip, not an
-  absence guarantee.  The competing bank is a household/office prior, the
+  0/6 and 0/4 false-presence results are bounded safety checks on those clips,
+  not absence guarantees.  The competing bank is a household/office prior, the
   context scan covers 32 of 47 frames, and the support-under rule uses 2-D
   geometry, not depth or hand contact, so a "held" state is still not
   represented.

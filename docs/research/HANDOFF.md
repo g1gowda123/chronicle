@@ -439,7 +439,10 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   where the correct surface is not detected still cannot be grounded. Cost is
   27.6 detector calls/query versus 3.7 for the default path, so it is not the
   default. Annotation was vision-assistant-assisted, not independent human
-  labelling.
+  labelling. A post-hoc transfer check on the eating room (`eat_0`, 9 state
+  questions) stays safe (0/4 false presences) and 9/9 lenient, but only 6/9
+  strict supports because the dining table is labelled `desk`; the default path
+  answers the absent-bottle question.
 - Next: the two blocking gaps are (a) an absence path that uses a fixed-label
   detector for covered classes and reserves the open-vocabulary detector for
   exploration (the post-hoc COCO result is the starting evidence), and (b) a

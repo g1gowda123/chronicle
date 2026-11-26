@@ -208,7 +208,12 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   detected. The three remaining misses are detector-bound (rice cooker,
   cutting board, still rice cooker). Cost is 27.6 detector calls/query versus
   3.7 for the default path; the path is opt-in and does not change any shipped
-  benchmark. See [`STATE.md`](STATE.md).
+  benchmark. See [`STATE.md`](STATE.md). A post-hoc transfer check on the
+  eating room (`eat_0`, 9 questions) keeps the safety result (0/4 false
+  presences, 9/9 lenient) but only 6/9 strict supports: the wooden dining table
+  is labelled `desk` in the clip-level scan, the same support bottleneck as
+  `eat_1`. The state path withholds bottle/laptop/hammer/fork on the table;
+  the default path answers the bottle question.
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object
