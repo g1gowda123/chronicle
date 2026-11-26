@@ -26,7 +26,15 @@ through "where is X?" binding:
 A negative verdict is always **not observed**, never "absent from the world".
 This is the same epistemic rule as `ABSENCE.md`, made operational.
 
-## Pre-registration
+## Protocol and provenance
+
+**This is not a strict pre-registration.** The 19-question file was written and
+labelled before the first SPORE run, but it was committed with the analysis, not
+before the run. `ABSENCE.md` uses the stricter standard (probe file committed
+before the first ingest); by that standard the `cook_0` result is post-hoc and
+the 19-question number is a protocol-defined diagnostic, not a held-out
+pre-registered estimate. The new `play_2` replication is committed before its
+first run and is the clean pre-registered check.
 
 - Clip: Aria Gen 2 Pilot `cook_0`, window 50--95 s, 640x480, 10 fps after trim.
   This is the fifth Aria window after the four in `DOMAINS.md`; it was not used
@@ -175,14 +183,14 @@ This is an evidence-coverage limit, not a selection bug.
 
 ## Threats to validity
 
-- One pre-registered clip (19 questions) plus one post-hoc transfer clip (9
+- One protocol-defined clip (19 questions) plus one post-hoc transfer clip (9
   questions), one detector stack. The 0/6 and 0/4 false-presence results are
   bounded safety checks on those clips, not calibrated absence guarantees.
 - Annotation was vision-assistant-assisted, not by an independent human
   annotator. It is independent of YOLO-World but shares the usual
   image-understanding biases of the assistant. The probe file was written
   before the first run but committed with the analysis, so it is not a
-  pre-registration commit.
+  strict pre-registration commit.
 - The clip-level scan samples 32 of 47 retained contexts. `ABSENCE.md` shows
   that more contexts do not fix the detector's category substitutions; the same
   limit applies here.

@@ -1144,7 +1144,10 @@ presence, 4 persistence, 3 movement), with labels from visual frame inspection
 independent of the query detector.  The clip is a stable kitchen counter with a
 toaster, rice cooker, plates, knife, cutting board and a glass cabinet of mugs.
 Absent controls are a kettle, blender, laptop, hammer, toothbrush and basketball,
-none visible in the clip.
+none visible in the clip.  The probe file was committed with the analysis rather
+than before the run, so by the strict standard of Section 5.17 this result is
+protocol-defined but **post-hoc**; the `play_2` replication is committed before
+its first run and is the pre-registered check.
 
 | mode | scored | correct | false presence (absent probes) | missed presence (positive probes) |
 |---|---:|---:|---:|---:|
@@ -1164,7 +1167,7 @@ questions) reproduces the verdict behaviour but not the support attribution:
 
 | clip | questions | lenient | strict support | false presence |
 |---|---:|---:|---:|---:|
-| `cook_0` (pre-registered) | 19 | 16/19 (.842) | 16/19 (.842) | 0/6 |
+| `cook_0` (protocol-defined) | 19 | 16/19 (.842) | 16/19 (.842) | 0/6 |
 | `eat_0` (post-hoc) | 9 | 9/9 (1.000) | 6/9 (.667) | 0/4 |
 
 The state path correctly withholds every absent object on the table (laptop,
@@ -1266,7 +1269,7 @@ objects are sensitive to its smoothing.
 - The fixed-label COCO comparison is post hoc, uses different operating points,
   and covers 20 of 26 probes; it is a diagnostic pointing at class competition,
   not a second calibrated benchmark.
-- The opt-in state path is one pre-registered clip and 19 questions plus one
+- The opt-in state path is one protocol-defined clip and 19 questions plus one
   post-hoc transfer clip and nine questions, annotated with
   vision-assistant assistance rather than independent human labelling.  Its
   0/6 and 0/4 false-presence results are bounded safety checks on those clips,
