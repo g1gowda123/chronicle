@@ -1129,6 +1129,60 @@ contexts", with the measured error rates attached, not as a fact about the
 world.  Full protocol, tables and threats are in
 [`ABSENCE.md`](ABSENCE.md).
 
+### 5.18 Grounded presence and state answers (opt-in)
+
+The absence study measures what the detector can see; it does not give the
+query path a way to answer "is the toaster still on the counter?".  A new
+opt-in path (`state_queries=True`) parses explicit presence, persistence and
+movement questions and returns a verdict (`present`, `moved`, `stayed`,
+`not_observed`, `unknown`) with a timestamp, support and citations.  A negative
+verdict is always `not_observed`; it never asserts absence.
+
+The probe set was written before the first run on a sixth unseen Aria window
+(`cook_0`, 50--95 s): 19 questions (6 positive presence, 6 absent-object
+presence, 4 persistence, 3 movement), with labels from visual frame inspection
+independent of the query detector.  The clip is a stable kitchen counter with a
+toaster, rice cooker, plates, knife, cutting board and a glass cabinet of mugs.
+Absent controls are a kettle, blender, laptop, hammer, toothbrush and basketball,
+none visible in the clip.
+
+| mode | scored | correct | false presence (absent probes) | missed presence (positive probes) |
+|---|---:|---:|---:|---:|
+| state (opt-in) | 19 | **16 (0.842)** | **0/6** | 3/10 |
+| default binding | 12 | 11 (0.917) | 0/6 | 1/6 |
+
+The default score covers only the 12 presence questions and counts a
+non-abstained location string with the right support as a pass; it cannot
+represent "still" or "moved", and it has no negative verdict.  The state path
+answers all 19 explicitly.  The three misses are detector-bound: the rice
+cooker is detected once at .32 and correctly rejected by the two-observation
+rule (a competing bank calls the same box `toaster` at .57), the cutting board
+is never detected, and the rice cooker is still missed at the end.
+
+Two mechanisms are doing the work.  First, a **competing-label check**: the
+target-only prompt scored a toaster as a `kettle` at .51; re-running the same
+crop with a generic 43-label bank puts `toaster` at .50 and `kettle` at .35, so
+the answer is downgraded to "ambiguous evidence: toaster outscores kettle".
+Without the check the path scores 15/19 with **1/6** false presences; with it,
+16/19 with **0/6**.  True positives survive the same pass (`toaster` .60,
+`plate` .75, `knife` .40, `mug` .70).  This is the query-path counterpart of the
+prompt-set effect in Section 5.13: the detector's text-conditioned layers make a
+target-only prompt poorly calibrated, and a competing pass exposes the
+confusion.  Second, **support-under geometry**: the original 2-D containment
+rule assigned a shelf above the toaster as its support, producing a false
+`moved` answer.  A support is now accepted only if it contains the object centre
+or lies below it.  This is the same failure mode as `person on the shelf` in
+Section 5.17, but here the geometric rule is enough when the correct surface is
+detected somewhere nearby.
+
+The cost is explicit: 525 detector calls for 19 questions (27.6/query) versus
+71 (3.7/query) for the default binding path, mean latency 0.43 s versus 0.19 s,
+plus one verification call per positive answer.  The path is opt-in and does
+not change any existing benchmark.  The result is one clip and 19 questions,
+annotated with vision-assistant assistance, so the 0/6 false-presence figure is
+a bounded safety result on this clip, not an absence guarantee.  Full protocol
+and threats are in [`STATE.md`](STATE.md).
+
 SPORE shows that **retained full context**, not better crops, is the dominant
 factor for late-binding localisation. Capsule crops alone are too tight and too
 occluded; the same detector on a retained keyframe recovers objects that are
@@ -1196,6 +1250,13 @@ objects are sensitive to its smoothing.
 - The fixed-label COCO comparison is post hoc, uses different operating points,
   and covers 20 of 26 probes; it is a diagnostic pointing at class competition,
   not a second calibrated benchmark.
+- The opt-in state path is one clip and 19 questions, annotated with
+  vision-assistant assistance rather than independent human labelling.  Its
+  0/6 false-presence result is a bounded safety check on that clip, not an
+  absence guarantee.  The competing bank is a household/office prior, the
+  context scan covers 32 of 47 frames, and the support-under rule uses 2-D
+  geometry, not depth or hand contact, so a "held" state is still not
+  represented.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 
@@ -1260,7 +1321,12 @@ long-video evidence storage still needs an explicit budget.
 `support_crop_margin=.75` (local crop for support re-measurement),
 `scene_recall=False`, `scene_recall_top_k=3`, `scene_recall_min_score=.15`,
 `scene_prompt_templates` = six generic variants (opt-in; absolute scores are
-not calibrated for absence).
+not calibrated for absence),
+`state_queries=False` (opt-in grounded presence/still/moved answers),
+`state_contexts=32`, `state_time_window=2.5`, `state_still_window=1.5`,
+`state_min_confidence=.30`, `state_min_observations=2`,
+`state_verify_labels=()` (the eval harness supplies the generic 43-label bank;
+the engine default leaves verification off), `state_verify_margin=.05`.
 
 ## Appendix B: What not to claim
 
@@ -1268,3 +1334,8 @@ not calibrated for absence).
 - Do not claim human-level object naming.
 - Do not claim fine-object recall from the current detector.
 - Do not claim the pseudo-GT is exhaustive.
+- Do not claim verified absence. A `not_observed` verdict means the query
+  detector found no supported instance in the scanned contexts; it is not a
+  fact about the world.
+- Do not claim general state tracking. The opt-in path is one clip, 19
+  questions, and lacks a "held" state.

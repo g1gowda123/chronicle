@@ -110,6 +110,7 @@ _SUPPORT_QUERY_ALIASES = {
     "work table": ("work table", "desk", "table"),
     "desk": ("desk", "work table", "table"),
     "countertop": ("countertop", "counter top", "table"),
+    "counter": ("counter", "countertop", "counter top", "table"),
 }
 
 # Conservative lexical bridges between common query nouns and the labels an
@@ -314,6 +315,26 @@ class SporeConfig:
     inventory_persistent_confidence: float = 0.5
     inventory_nms_iou: float = 0.7
     inventory_max_items: int = 4
+    # Grounded state/absence queries.  These reuse the inventory detector but
+    # ask a different question: is the named object supported by the named
+    # surface at this time, did it move, and what can be said when it is not
+    # observed?  A negative verdict is always "not observed", never proof of
+    # absence: the detector may simply have missed the object.  Opt-in until
+    # the calibration experiment is complete; the default answer path is
+    # unchanged.
+    state_queries: bool = False
+    state_contexts: int = 32
+    state_time_window: float = 2.5
+    state_still_window: float = 1.5
+    state_min_confidence: float = 0.30
+    state_min_observations: int = 2
+    # Competing labels for a query-time prompt-competition check.  YOLO-World's
+    # text-conditioned features let a target-only prompt inflate a label that a
+    # richer vocabulary would reject (a rice cooker scored as a kettle).  When
+    # this bank is non-empty, a positive state answer is re-checked on the same
+    # crop and downgraded if another label wins by ``state_verify_margin``.
+    state_verify_labels: tuple[str, ...] = ()
+    state_verify_margin: float = 0.05
     view_binding: bool = False
     # Detector vocabularies disagree on names for the same household object
     # (a rice cooker may only fire as ``instant pot``).  Synonym binding is an
@@ -511,6 +532,7 @@ class SporeAnswer:
     answer: str = ""
     abstained: bool = True
     count: int | None = None
+    verdict: str | None = None
     detector_calls: int = 0
     capsules_considered: int = 0
     evidence_bytes: int = 0
@@ -533,6 +555,7 @@ class SporeAnswer:
             "answer": self.answer,
             "abstained": self.abstained,
             "count": self.count,
+            "verdict": self.verdict,
             "bindings": [binding.as_dict() for binding in self.bindings],
             "detector_calls": self.detector_calls,
             "capsules_considered": self.capsules_considered,
@@ -540,6 +563,21 @@ class SporeAnswer:
             "elapsed_s": round(float(self.elapsed_s), 3),
             "stats": self.stats,
         }
+
+
+@dataclass(slots=True)
+class StateQuery:
+    """A parsed presence/absence or state-change question.
+
+    ``kind`` is ``presence`` ("is there an X on Y"), ``still`` ("is X still on
+    Y"), or ``moved`` ("did X move").  ``place`` is only set for a known support
+    surface; an unknown place falls back to the ordinary binding path.
+    """
+
+    kind: str
+    term: str
+    place: str | None = None
+    at_time: float | None = None
 
 
 @dataclass(slots=True)
@@ -2931,6 +2969,442 @@ class SporeQueryEngine:
         answer.elapsed_s = time.perf_counter() - start
         return answer
 
+    # -- grounded state / absence -----------------------------------------
+
+    def _placements(
+        self,
+        term: str,
+        *,
+        at_time: float | None = None,
+        window: float | None = None,
+        limit: int | None = None,
+    ) -> tuple[list[Binding], int]:
+        """Find supported detections of *term* in retained keyframes.
+
+        A placement is a detector hit for the queried noun plus the surface it
+        rests on.  The same pass supplies presence and state-change evidence;
+        it does not change the store or the ordinary binding path.  When
+        ``at_time``/``window`` are given only that temporal slice is scanned;
+        otherwise contexts are sampled evenly across the clip.
+        """
+        if not self.store.contexts:
+            return [], 0
+        if self._detector is None:
+            if not self.config.late_binding:
+                return [], 0
+            self._detector = build_detector(self.perception)
+        contexts = list(self.store.contexts)
+        if at_time is not None and window is not None:
+            nearby = [
+                context
+                for context in contexts
+                if abs(context.timestamp - at_time) <= max(0.0, window)
+            ]
+            if not nearby:
+                nearby = [min(contexts, key=lambda c: abs(c.timestamp - at_time))]
+            contexts = nearby
+        else:
+            sampled = max(1, int(limit or self.config.state_contexts))
+            if len(contexts) > sampled:
+                indices = np.linspace(0, len(contexts) - 1, sampled, dtype=int)
+                contexts = [contexts[int(index)] for index in indices]
+        vocabulary = tuple(dict.fromkeys((term, *self.config.support_labels)))
+        support_set = {label.strip().lower() for label in self.config.support_labels}
+        variants = _term_variants(term)
+        min_confidence = float(self.config.state_min_confidence)
+        placements: list[Binding] = []
+        scanned = 0
+        for context in contexts:
+            frame = context.image()
+            if frame is None:
+                continue
+            detections = self._detect_cached(
+                frame,
+                vocabulary,
+                frame_index=context.frame_index,
+                timestamp=context.timestamp,
+                cache_tag=context.frame_index,
+            )
+            scanned += 1
+            for detection in detections:
+                if detection.confidence < min_confidence:
+                    continue
+                if not any(
+                    _label_matches(detection.label, variant) for variant in variants
+                ):
+                    continue
+                support = self._support_under(
+                    detections, detection.bbox, support_set
+                )
+                placements.append(
+                    Binding(
+                        term=term,
+                        label=detection.label,
+                        capsule_id="",
+                        confidence=float(detection.confidence),
+                        timestamp=float(context.timestamp),
+                        bbox=detection.bbox,
+                        support=support[0] if support is not None else None,
+                        detector_confidence=float(detection.confidence),
+                        provenance="state",
+                    )
+                )
+        return placements, scanned
+
+    def _supported_placement(
+        self, placements: Sequence[Binding]
+    ) -> Binding | None:
+        """Pick the strongest placement, rejecting a one-frame low-confidence hit."""
+        if not placements:
+            return None
+        strongest = max(placements, key=lambda item: item.confidence)
+        if strongest.confidence >= self.config.inventory_persistent_confidence:
+            return strongest
+        stamps = {round(item.timestamp, 2) for item in placements}
+        if len(stamps) >= max(1, int(self.config.state_min_observations)):
+            return strongest
+        return None
+
+    def _verify_placement(self, placement: Binding, term: str) -> dict[str, Any] | None:
+        """Re-check a positive state placement against competing labels.
+
+        A target-only prompt is poorly calibrated: YOLO-World can score a
+        rice cooker as a kettle when only those two words differ in the prompt
+        set.  Re-running the same crop with a generic label bank makes the
+        labels compete directly.  If a different label beats the target in
+        that pass, the positive answer is downgraded rather than silently
+        trusted.
+        """
+        labels = tuple(
+            str(label).strip().lower()
+            for label in self.config.state_verify_labels
+            if str(label).strip()
+        )
+        if not labels:
+            return None
+        context = self.store.context_at(placement.timestamp, max_gap=0.35)
+        if context is None:
+            return None
+        frame = context.image()
+        if frame is None:
+            return None
+        vocabulary = tuple(
+            dict.fromkeys((*labels, term, *self.config.support_labels))
+        )
+        detections = self._detect_cached(
+            frame,
+            vocabulary,
+            frame_index=context.frame_index,
+            timestamp=context.timestamp,
+            cache_tag=(context.frame_index, "state-verify"),
+        )
+        support_set = {
+            label.strip().lower() for label in self.config.support_labels
+        }
+        variants = _term_variants(term)
+        target_score = 0.0
+        competitor: Detection | None = None
+        for detection in detections:
+            label = detection.label.strip().lower()
+            if label in support_set:
+                continue
+            if detection.bbox.iou(placement.bbox) < 0.30:
+                continue
+            if any(_label_matches(detection.label, variant) for variant in variants):
+                target_score = max(target_score, float(detection.confidence))
+            elif competitor is None or detection.confidence > competitor.confidence:
+                competitor = detection
+        if competitor is None:
+            return None
+        margin = max(0.0, float(self.config.state_verify_margin))
+        if competitor.confidence >= target_score + margin:
+            return {
+                "label": competitor.label,
+                "confidence": round(float(competitor.confidence), 4),
+                "target_confidence": round(float(target_score), 4),
+            }
+        return None
+
+    def _state_answer(
+        self, question: str, query: StateQuery, at_time: float | None
+    ) -> SporeAnswer:
+        """Answer an explicit presence, persistence, or movement question.
+
+        The answer separates three cases that a detector-only system usually
+        conflates: positive evidence, positive evidence *elsewhere*, and no
+        evidence.  A negative verdict is always ``not_observed``; it never
+        claims the object is absent from the world, only from the retained
+        record.
+        """
+        started = time.perf_counter()
+        calls_before = self.detector_calls
+        answer = SporeAnswer(question=question, terms=[query.term])
+        effective_time = query.at_time if query.at_time is not None else at_time
+        info: dict[str, Any] = {
+            "kind": query.kind,
+            "term": query.term,
+            "place": query.place,
+            "at_time": (
+                round(float(effective_time), 2)
+                if effective_time is not None
+                else None
+            ),
+        }
+        window = max(0.0, float(self.config.state_time_window))
+        scanned = 0
+        contexts = self.store.contexts
+
+        if query.kind == "presence":
+            # An existence question ("is there a toaster on the countertop?")
+            # is a clip-level question.  Only an explicit time in the question
+            # ("... at 22 seconds?") narrows the scan; the harness's evaluation
+            # timestamp is not a state constraint.
+            explicit_time = query.at_time is not None
+            placements, scanned = self._placements(
+                query.term,
+                at_time=query.at_time if explicit_time else None,
+                window=window if explicit_time else None,
+            )
+            info["scan"] = "window" if explicit_time else "clip"
+            matching = [
+                item
+                for item in placements
+                if query.place is None
+                or _binding_matches_support(item, query.place)
+            ]
+            verified = self._supported_placement(matching)
+            conflict = (
+                self._verify_placement(verified, query.term)
+                if verified is not None
+                else None
+            )
+            if verified is not None and conflict is None:
+                answer.bindings = matching
+                answer.verdict = "present"
+                answer.abstained = False
+                answer.answer = (
+                    f"yes — {verified.label} on the {verified.support}"
+                    f" at {verified.timestamp:.1f}s"
+                )
+            elif verified is not None and conflict is not None:
+                answer.bindings = matching
+                answer.verdict = "not_observed"
+                answer.abstained = True
+                info["conflict"] = conflict
+                answer.answer = (
+                    f"ambiguous evidence: {conflict['label']} outscores"
+                    f" {query.term} on the {verified.support}"
+                    f" at {verified.timestamp:.1f}s"
+                )
+            else:
+                answer.verdict = "not_observed"
+                answer.abstained = True
+                answer.answer = (
+                    f"no supported evidence of {query.term} on the {query.place}"
+                )
+
+        elif query.kind == "still":
+            end_time = effective_time
+            if end_time is None and contexts:
+                end_time = max(context.timestamp for context in contexts)
+            if end_time is None:
+                answer.verdict = "unknown"
+                answer.abstained = True
+                answer.answer = "not enough evidence"
+            else:
+                info["at_time"] = round(float(end_time), 2)
+                late, scanned = self._placements(
+                    query.term,
+                    at_time=end_time,
+                    window=max(0.0, float(self.config.state_still_window)),
+                )
+                matching_late = [
+                    item
+                    for item in late
+                    if query.place is None
+                    or _binding_matches_support(item, query.place)
+                ]
+                verified = self._supported_placement(matching_late)
+                if verified is None and matching_late and query.place is not None:
+                    # A single low-confidence hit near the end is not enough on
+                    # its own, but it is credible when the same object/surface
+                    # pair recurs across the clip.  This recovers a state answer
+                    # when the detector's confidence dips at the final frame
+                    # without accepting an isolated spurious detection.
+                    nearest = min(
+                        matching_late,
+                        key=lambda item: abs(item.timestamp - end_time),
+                    )
+                    if nearest.support is not None:
+                        whole, scanned_whole = self._placements(query.term)
+                        scanned += scanned_whole
+                        canonical = _canonical_support(nearest.support)
+                        corroborating = [
+                            item
+                            for item in whole
+                            if item.support is not None
+                            and _canonical_support(item.support) == canonical
+                        ]
+                        observations = {
+                            round(item.timestamp, 2) for item in corroborating
+                        }
+                        if len(observations) >= max(
+                            1, int(self.config.state_min_observations)
+                        ):
+                            verified = nearest
+                            info["corroborated"] = len(observations)
+                conflict = (
+                    self._verify_placement(verified, query.term)
+                    if verified is not None
+                    else None
+                )
+                if verified is not None and conflict is None:
+                    answer.bindings = matching_late
+                    answer.verdict = "present"
+                    answer.abstained = False
+                    answer.answer = (
+                        f"yes — {verified.label} still on the {verified.support}"
+                        f" at {verified.timestamp:.1f}s"
+                    )
+                elif verified is not None and conflict is not None:
+                    answer.bindings = matching_late
+                    answer.verdict = "not_observed"
+                    answer.abstained = True
+                    info["conflict"] = conflict
+                    answer.answer = (
+                        f"ambiguous evidence: {conflict['label']} outscores"
+                        f" {query.term} on the {verified.support}"
+                        f" at {verified.timestamp:.1f}s"
+                    )
+                else:
+                    other = self._supported_placement(
+                        [item for item in late if item.support]
+                    )
+                    if (
+                        query.place is not None
+                        and other is not None
+                        and other.support is not None
+                    ):
+                        answer.bindings = [other]
+                        answer.verdict = "moved"
+                        answer.abstained = False
+                        answer.answer = (
+                            f"no — {other.label} is on the {other.support}"
+                            f" at {other.timestamp:.1f}s, not the {query.place}"
+                        )
+                    else:
+                        whole, scanned_whole = self._placements(query.term)
+                        scanned += scanned_whole
+                        matching_whole = [
+                            item
+                            for item in whole
+                            if query.place is not None
+                            and _binding_matches_support(item, query.place)
+                        ]
+                        earlier = self._supported_placement(matching_whole)
+                        answer.verdict = "not_observed"
+                        answer.abstained = True
+                        if query.place is None:
+                            answer.answer = (
+                                f"{query.term} not observed at {end_time:.1f}s"
+                            )
+                        elif earlier is not None:
+                            answer.bindings = matching_whole
+                            answer.answer = (
+                                f"{query.term} not observed on the {query.place}"
+                                f" at {end_time:.1f}s; last supported on the"
+                                f" {query.place} at {earlier.timestamp:.1f}s"
+                            )
+                        else:
+                            answer.answer = (
+                                f"no supported evidence of {query.term}"
+                                f" on the {query.place}"
+                            )
+
+        elif query.kind == "moved":
+            placements, scanned = self._placements(query.term)
+            grounded = [item for item in placements if item.support]
+            if not grounded:
+                answer.verdict = "unknown"
+                answer.abstained = True
+                answer.answer = (
+                    f"not enough evidence to tell whether {query.term} moved"
+                )
+            else:
+                stamps = [item.timestamp for item in grounded]
+                midpoint = (min(stamps) + max(stamps)) / 2.0
+                early = [item for item in grounded if item.timestamp <= midpoint]
+                late = [item for item in grounded if item.timestamp > midpoint]
+                early_support, early_count = _dominant_support(early)
+                late_support, late_count = _dominant_support(late)
+                min_observations = max(1, int(self.config.state_min_observations))
+                info.update(
+                    {
+                        "early_support": early_support,
+                        "early_observations": early_count,
+                        "late_support": late_support,
+                        "late_observations": late_count,
+                    }
+                )
+                answer.bindings = grounded
+                if (
+                    early_support is None
+                    or late_support is None
+                    or early_count < min_observations
+                    or late_count < min_observations
+                ):
+                    answer.verdict = "unknown"
+                    answer.abstained = True
+                    answer.answer = (
+                        f"not enough evidence to tell whether {query.term} moved"
+                    )
+                else:
+                    changed = _canonical_support(early_support) != _canonical_support(
+                        late_support
+                    )
+                    if query.place is not None:
+                        source = _canonical_support(query.place)
+                        starts_here = _canonical_support(early_support) == source
+                        ends_here = _canonical_support(late_support) == source
+                        if ends_here:
+                            changed = False
+                        elif starts_here:
+                            changed = True
+                    if changed:
+                        answer.verdict = "moved"
+                        answer.abstained = False
+                        answer.answer = (
+                            f"yes — {query.term} moved from the {early_support}"
+                            f" to the {late_support}"
+                            f" (last at {late[-1].timestamp:.1f}s)"
+                        )
+                    else:
+                        answer.verdict = "stayed"
+                        answer.abstained = False
+                        answer.answer = (
+                            f"no — {query.term} stayed on the {late_support}"
+                            f" across {early_count + late_count} observations"
+                        )
+
+        info["verdict"] = answer.verdict
+        info["scanned_contexts"] = scanned
+        if answer.bindings and answer.verdict in {"present", "moved", "stayed"}:
+            supporting = _dominant_support(answer.bindings)
+            if supporting[0] is not None:
+                info["support"] = supporting[0]
+                info["support_observations"] = supporting[1]
+        elif answer.bindings and answer.verdict == "not_observed":
+            supporting = _dominant_support(answer.bindings)
+            if supporting[0] is not None:
+                info["rejected_support"] = supporting[0]
+                info["rejected_support_observations"] = supporting[1]
+        answer.stats["state"] = info
+        answer.capsules_considered = scanned
+        answer.detector_calls = self.detector_calls - calls_before
+        answer.evidence_bytes = self._evidence_bytes(answer.bindings)
+        answer.elapsed_s = time.perf_counter() - started
+        return answer
+
     def _inventory(
         self,
         place: str,
@@ -3271,6 +3745,51 @@ class SporeQueryEngine:
             if score > 0 and (best is None or score > best[0]):
                 best = (score, label, detection.bbox)
         return (best[1], best[2]) if best is not None else None
+
+    @staticmethod
+    def _support_under(
+        detections: Sequence[Any], object_box: BBox, support_set: set[str]
+    ) -> tuple[str, BBox] | None:
+        """Choose the surface an object rests on, rejecting supports above it.
+
+        A detector can return a shelf/cabinet box above a counter but miss the
+        counter itself.  Distance-only assignment then labels a toaster as
+        "on the shelf".  The object's centre must either be inside a support
+        box or the support must be below that centre; a purely above object
+        support is rejected.  This is a geometric constraint, not a
+        clip-specific rule.
+        """
+        candidates = [
+            detection
+            for detection in detections
+            if detection.label.strip().lower() in support_set
+        ]
+        if not candidates:
+            return None
+        pad = 0.02 * max(object_box.width, object_box.height)
+        containing = [
+            detection
+            for detection in candidates
+            if detection.bbox.contains_point(object_box.centroid, pad=pad)
+        ]
+        if containing:
+            best = max(
+                containing,
+                key=lambda detection: (
+                    detection.bbox.iou(object_box),
+                    detection.confidence,
+                ),
+            )
+            return best.label, best.bbox
+        below = [
+            detection
+            for detection in candidates
+            if detection.bbox.centroid[1]
+            >= object_box.centroid[1] - 0.05 * object_box.height
+        ]
+        if not below:
+            return None
+        return SporeQueryEngine._support_with_box(below, object_box, support_set)
 
     @staticmethod
     def _support_is_distant(support_box: BBox | None, object_box: BBox) -> bool:
@@ -3971,6 +4490,11 @@ class SporeQueryEngine:
         scene_term = self._scene_question(question)
         if scene_term and self.config.scene_recall and self.store.scenes:
             return self._answer_scene(question, scene_term)
+        state_query = (
+            extract_state_query(question) if self.config.state_queries else None
+        )
+        if state_query is not None:
+            return self._state_answer(question, state_query, at_time)
         resolved = list(terms) if terms else extract_terms(question)
         answer = SporeAnswer(question=question, terms=resolved)
         if not resolved:
@@ -4182,6 +4706,118 @@ def extract_support_qualifier(question: str) -> str | None:
     surface = match.group(1).strip()
     known = set(_SUPPORT_LABELS) | set(_SUPPORT_QUERY_ALIASES)
     return surface if surface in known else None
+
+
+_STATE_TIME_RE = re.compile(
+    r"\b(?:at|around|near)\s+(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\b"
+)
+
+
+def _known_place(phrase: str | None) -> str | None:
+    """Normalise a place phrase and accept it only if the detector knows it."""
+    if not phrase:
+        return None
+    place = phrase.strip().strip(" ?.!,")
+    place = re.sub(r"^(?:the|a|an)\s+", "", place)
+    known = set(_SUPPORT_LABELS) | set(_SUPPORT_QUERY_ALIASES)
+    return place if place in known else None
+
+
+def extract_state_query(question: str) -> StateQuery | None:
+    """Parse a grounded presence/absence or state-change question.
+
+    This deliberately covers a small, explicit set of yes/no forms so ordinary
+    location, counting, and temporal questions keep their existing path.  A
+    place that is not in the support ontology returns ``None`` rather than
+    guessing: an unfiltered "is X everywhere" answer would be misleading.
+    """
+    text = re.sub(r"\s+", " ", question.strip().lower())
+    if not text:
+        return None
+    at_time: float | None = None
+    time_match = _STATE_TIME_RE.search(text)
+    if time_match:
+        at_time = float(time_match.group(1))
+        text = (text[: time_match.start()] + " " + text[time_match.end() :]).strip()
+    text = text.strip(" ?.!")
+    if not text:
+        return None
+
+    moved = re.match(
+        r"^(?:did|does|has|had)\s+(?:the\s+|a\s+|an\s+)?(.+?)\s+"
+        r"(?:move|moved|shift|shifted)\b"
+        r"(?:\s+(?:from|off)\s+(?:the\s+|a\s+|an\s+)?(.+))?$",
+        text,
+    )
+    if moved is not None:
+        term = _clean_phrase(moved.group(1))
+        raw_place = moved.group(2)
+        place = _known_place(raw_place) if raw_place else None
+        if term and (raw_place is None or place is not None):
+            return StateQuery("moved", term, place, at_time)
+
+    still = re.match(
+        r"^(?:is|are|was|were)\s+(?:the\s+|a\s+|an\s+)?(.+?)\s+still\s+"
+        r"(?:(?:on|at|in)\s+(?:the\s+|a\s+|an\s+)?(.+)|there)$",
+        text,
+    )
+    if still is not None:
+        term = _clean_phrase(still.group(1))
+        raw_place = still.group(2)
+        place = _known_place(raw_place) if raw_place else None
+        if term and (raw_place is None or place is not None):
+            return StateQuery("still", term, place, at_time)
+
+    presence = re.match(
+        r"^(?:is|are|was|were)\s+(?:there\s+)?"
+        r"(?:a\s+|an\s+|the\s+|any\s+)?(.+?)\s+"
+        r"(?:on|at|in)\s+(?:the\s+|a\s+|an\s+)?(.+)$",
+        text,
+    )
+    if presence is not None:
+        term = _clean_phrase(presence.group(1))
+        place = _known_place(presence.group(2))
+        if term and place is not None:
+            return StateQuery("presence", term, place, at_time)
+
+    return None
+
+
+def _term_variants(term: str) -> tuple[str, ...]:
+    """Singular/plural variants used when matching a query noun to a label."""
+    lowered = term.strip().lower()
+    variants = [lowered]
+    if len(lowered) > 3 and lowered.endswith("s") and not lowered.endswith("ss"):
+        variants.append(lowered[:-1])
+    return tuple(dict.fromkeys(variants))
+
+
+def _canonical_support(label: str) -> str:
+    """Collapse detector surface aliases to one comparison key."""
+    normalised = _normalise_surface(label)
+    for canonical, aliases in _SUPPORT_QUERY_ALIASES.items():
+        if normalised in {_normalise_surface(alias) for alias in aliases}:
+            return canonical
+    return normalised
+
+
+def _dominant_support(bindings: Sequence[Binding]) -> tuple[str | None, int]:
+    """Return the most frequent support label and its observation count."""
+    counts: dict[str, int] = {}
+    raw_labels: dict[str, dict[str, int]] = {}
+    for binding in bindings:
+        if not binding.support:
+            continue
+        canonical = _canonical_support(binding.support)
+        counts[canonical] = counts.get(canonical, 0) + 1
+        bucket = raw_labels.setdefault(canonical, {})
+        raw = binding.support.strip().lower()
+        bucket[raw] = bucket.get(raw, 0) + 1
+    if not counts:
+        return None, 0
+    canonical, count = max(counts.items(), key=lambda item: item[1])
+    raw = max(raw_labels[canonical].items(), key=lambda item: item[1])[0]
+    return raw, count
 
 
 _RELATION_RE = re.compile(

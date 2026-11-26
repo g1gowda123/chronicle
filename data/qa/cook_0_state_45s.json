@@ -1,0 +1,183 @@
+{
+  "clip": "data/footage/aria_cook_0_45s.mp4",
+  "domain": "cooking",
+  "source_sequence": "cook_0",
+  "window": {
+    "start_s": 50.0,
+    "duration_s": 45.0
+  },
+  "protocol": "Questions and labels were written from human inspection of sampled frames (contact sheets at 1-2 fps plus full frames at 2, 10, 20, 30, 40 and 44 s) before the first SPORE run on this clip. The clip was not used to tune any default. A 'no' label means the object is not visible anywhere in this 45 s window, not that it is physically absent from the kitchen. The kitchen also contains a sink, a window, upper glass cabinets, a stove and a microwave in the early wide shot; these are outside the support ontology and are not queried.",
+  "questions": [
+    {
+      "id": "presence_toaster",
+      "query": "Is there a toaster on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "yes",
+      "expected_support": "countertop",
+      "human_evidence": "White 4-slice toaster on the right side of the sink counter, visible in every sampled frame."
+    },
+    {
+      "id": "presence_rice_cooker",
+      "query": "Is there a rice cooker on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "yes",
+      "expected_support": "countertop",
+      "human_evidence": "Silver/black rice cooker with a lit display at the centre of the sink counter, visible in every sampled frame."
+    },
+    {
+      "id": "presence_plate",
+      "query": "Is there a plate on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "yes",
+      "expected_support": "countertop",
+      "human_evidence": "Two white plates on the left of the counter, one holding tomato and avocado slices."
+    },
+    {
+      "id": "presence_knife",
+      "query": "Is there a knife on the countertop?",
+      "kind": "presence",
+      "timestamp": 10.0,
+      "expected": "yes",
+      "expected_support": "countertop",
+      "human_evidence": "At 10 s the knife is resting on the wooden cutting board on the counter; it is held over the same board later in the clip."
+    },
+    {
+      "id": "presence_cutting_board",
+      "query": "Is there a cutting board on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "yes",
+      "expected_support": "countertop",
+      "human_evidence": "Wooden cutting board with bread and avocado at the right of the counter."
+    },
+    {
+      "id": "presence_mug",
+      "query": "Is there a mug on the shelf?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "yes",
+      "expected_support": "shelf",
+      "human_evidence": "Several white mugs are visible on the shelves inside the glass-front upper cabinet behind the counter. This is the hardest positive: the cabinet may not be labelled 'shelf'."
+    },
+    {
+      "id": "absence_kettle",
+      "query": "Is there a kettle on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No kettle anywhere in the 42-frame 1 fps scan or the six full frames examined."
+    },
+    {
+      "id": "absence_blender",
+      "query": "Is there a blender on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No blender. A rice cooker and a toaster are present; neither is a blender."
+    },
+    {
+      "id": "absence_laptop",
+      "query": "Is there a laptop on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No laptop in any sampled frame."
+    },
+    {
+      "id": "absence_hammer",
+      "query": "Is there a hammer on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No hammer in any sampled frame."
+    },
+    {
+      "id": "absence_toothbrush",
+      "query": "Is there a toothbrush on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No toothbrush in any sampled frame."
+    },
+    {
+      "id": "absence_basketball",
+      "query": "Is there a basketball on the countertop?",
+      "kind": "presence",
+      "timestamp": 22.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No basketball in any sampled frame."
+    },
+    {
+      "id": "still_toaster",
+      "query": "Is the toaster still on the countertop?",
+      "kind": "still",
+      "timestamp": 43.0,
+      "expected": "yes",
+      "expected_support": "countertop",
+      "human_evidence": "Toaster remains on the right counter through the final sampled frame."
+    },
+    {
+      "id": "still_rice_cooker",
+      "query": "Is the rice cooker still on the countertop?",
+      "kind": "still",
+      "timestamp": 43.0,
+      "expected": "yes",
+      "expected_support": "countertop",
+      "human_evidence": "Rice cooker remains at the centre of the sink counter."
+    },
+    {
+      "id": "still_plate",
+      "query": "Is the plate still on the countertop?",
+      "kind": "still",
+      "timestamp": 43.0,
+      "expected": "yes",
+      "expected_support": "countertop",
+      "human_evidence": "The plate with tomato/avocado remains on the counter; the person moves food from it but does not move it to another surface."
+    },
+    {
+      "id": "still_mug",
+      "query": "Is the mug still on the shelf?",
+      "kind": "still",
+      "timestamp": 43.0,
+      "expected": "yes",
+      "expected_support": "shelf",
+      "human_evidence": "Mugs remain in the glass cabinet at the end of the clip."
+    },
+    {
+      "id": "moved_toaster",
+      "query": "Did the toaster move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "stayed",
+      "expected_support": "countertop",
+      "human_evidence": "Toaster is static for the whole window."
+    },
+    {
+      "id": "moved_plate",
+      "query": "Did the plate move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "stayed",
+      "expected_support": "countertop",
+      "human_evidence": "The plate is used in place on the counter; at the support level it does not move to another surface."
+    },
+    {
+      "id": "moved_kettle",
+      "query": "Did the kettle move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "unknown",
+      "expected_support": null,
+      "human_evidence": "No kettle is visible, so there is no movement evidence to report."
+    }
+  ]
+}

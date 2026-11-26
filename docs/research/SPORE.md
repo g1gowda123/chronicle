@@ -191,6 +191,24 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   this points to a two-detector design (fixed-label negatives, open-vocabulary
   exploration), not threshold tuning. Do not claim absence, and do not use
   hybrid answers for state questions. See [`ABSENCE.md`](ABSENCE.md).
+- An opt-in state path (`state_queries=True`) answers explicit yes/no and
+  state questions with a verdict (`present` / `moved` / `stayed` /
+  `not_observed` / `unknown`) instead of forcing every question through
+  "where is X?" binding. On a sixth unseen Aria window (`cook_0`, 50-95 s) and
+  19 questions committed before the first run, it scores **16/19** with
+  **0/6 false presences** on absent-object probes; the default binding path
+  cannot represent "still"/"moved" at all and its presence answers are not a
+  negative test. The competing-label check is the safety mechanism: a
+  target-only prompt called a toaster a `kettle` at .51, while a generic
+  43-label bank puts `toaster` at .50 and `kettle` at .35, downgrading the
+  answer to "ambiguous evidence" (15/19 and 1/6 false presences without the
+  check). Support is assigned by `_support_under`, which rejects a support
+  above the object's centre unless it contains the object; this fixes a shelf
+  above a toaster but cannot recover a frame where the correct surface is not
+  detected. The three remaining misses are detector-bound (rice cooker,
+  cutting board, still rice cooker). Cost is 27.6 detector calls/query versus
+  3.7 for the default path; the path is opt-in and does not change any shipped
+  benchmark. See [`STATE.md`](STATE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object
