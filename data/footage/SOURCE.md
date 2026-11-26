@@ -48,5 +48,14 @@ license links and fetch commands are in:
 - [`play/SOURCE.md`](play/SOURCE.md)
 - [`walking/SOURCE.md`](walking/SOURCE.md)
 
-Like the walking clip, they are locally trimmed research windows and are not
+An additional dining window (`eat_1`, 30 s + 45 s) was added to
+`data/aria_gen2pilot.json` for the independent presence/absence calibration.
+The window and vocabulary were fixed before the first download or ingest; see
+`data/qa/eat_1_absence.json`. It is fetched with:
+
+```bash
+python scripts/fetch_aria_clip.py --sequence eat_1
+```
+
+Like the walking clip, these are locally trimmed research windows and are not
 redistributed. The full source datasets remain with Meta.

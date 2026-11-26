@@ -172,6 +172,21 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   still cannot verify absence. z-score/margin/centering probes did not help
   (z-score AUC .438), and a 3x3 tile variant cost 9x scene embeddings for no
   top-1 gain. The path is opt-in and only ranks a term assumed present.
+- Presence/absence was calibrated on an unseen fifth Aria window (`eat_1`,
+  30-75 s) with a 26-term human probe set committed before the first ingest.
+  At the .22 query floor, 10/14 human-present terms are found somewhere and
+  7/12 human-absent terms stay clean (max-confidence AUC .685). The absent-term
+  detections are category substitutions (a glass as `mug` .77 and `bottle`
+  .62, a plate of chips as `bowl` .60), not noise. Scanning 4 vs 48 contexts
+  moves term-level false negatives only .351->.286 and leaves false positives
+  at .33-.42, so the limit is detector grounding, not the sampling budget: 47
+  contexts x 26 terms (1,222 calls) takes 13.5 s. The shipped query path is not
+  a negative test: detector-only abstains on 5/14 present terms and answers
+  4/12 absent terms; the hybrid CLIP fallback answers 8/12 absent terms.
+  Support attribution is degenerate on this clip (eight of nine supported
+  detector answers say `shelf`, including `person`), because background
+  cabinets overlap subjects in 2-D. Do not claim absence, and do not use hybrid
+  answers for state questions. See [`ABSENCE.md`](ABSENCE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

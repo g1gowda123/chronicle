@@ -1045,6 +1045,74 @@ a post-hoc diagnostic, not a general capability.  The fallback and surface head
 are opt-in (`--context-fallback`, `--surface-support`) and are not part of the
 headline table.
 
+### 5.17 Presence, absence, and state-at-time calibration
+
+The system has no absence verifier: a zero count and a failed scan are both
+reported as "not enough evidence".  The scene-recall probe already showed that
+absolute CLIP scores do not separate present from absent terms.  This experiment
+measures the detector-side version of the same gap on a fifth, unseen Aria
+window (`eat_1`, 30--75 s), with a 26-term probe set committed before the first
+ingest.  Fourteen terms were annotated present (with coarse visibility
+intervals) and twelve absent by inspecting frames without consulting the
+detector; the scan then covered every one of the 47 retained contexts at a .05
+detector floor, applying .22/.30/.40/.50 post hoc.  One label error (a
+wall-mounted TV marked absent) was found afterwards and is audited separately.
+
+At the query-time floor (.22), **10/14 present terms are found somewhere and
+7/12 absent terms are clean**; max-confidence AUC is **.685**.  The split by
+scale is 6/7 for background appliances and 5/8 for tabletop objects.  The four
+missed present terms are `glass` (the human name for the `cup` detections),
+`window` (max .08), `pitcher` and `fork` (max .05/.14, the latter visible for
+only 2.5 s).  The five absent terms that receive detections are not noise: the
+best boxes are a `mug` at .77 on a drinking glass, a `bottle` at .62 on the same
+kind of glass, a `bowl` at .60 on a plate of chips, and a `television` at .91 on
+a real TV (the label error).  The dominant absence failure is category
+substitution by a prompt-conditioned detector, not random hallucination.
+
+More contexts do not fix it.  Averaging over evenly spaced phases:
+
+| contexts sampled | false negative (present, no hit) | false positive (absent, hit) | per-context sensitivity |
+|---:|---:|---:|---:|
+| 4 | .351 | .364 | .666 |
+| 12 | .333 | .361 | .663 |
+| 24 | .286 | .333 | .658 |
+| 48 (all) | .286 | .417 | .667 |
+
+A 12x larger scan moves false negatives from .351 to .286 and leaves false
+positives at .33--.42; per-context sensitivity is flat at .66.  Exhaustive
+scanning is cheap -- 1,222 detector calls in 13.5 s -- but the limiting factor
+is whether the detector grounds the term at all, not how many contexts are
+inspected.
+
+The shipped query path is not a negative test.  On the same 26 terms,
+detector-only mode abstains on 5/14 present terms (including the table) and
+answers 4/12 absent terms; hybrid mode abstains on only 2/14 present terms but
+answers **8/12** absent terms, with the CLIP fallback supplying confident
+locations such as `laptop on the shelf`.  Support attribution on this clip is
+degenerate: of the 13 detector-mode answers, nine carry a support label and
+eight say `shelf`, including `person on the shelf`, `refrigerator on the shelf`
+and `microwave on the shelf`.  The kitchen cabinets behind the subjects overlap
+them in 2-D, so `_support_with_box` prefers the background surface; the dining
+table is detected in the raw scan (34/47 contexts, max .57) but `where is the
+table?` abstains because the term is routed as a support target.  This
+replicates the clean-clip table ambiguity on a second unseen clip.
+
+State-at-time questions follow from the same weakness.  `where is the cup at
+24 s?` finds the cup but reports `shelf` instead of `table`; `where is the
+pitcher at 8 s?` and `where is the fork at 0 s?` abstain although both are
+visibly held in hand.  Found/abstained matches 3/5, and the only non-trivial
+support check is wrong.  A "held" state is not represented in the answer path,
+so state questions cannot be answered reliably yet.
+
+The annotation audit changes one absent label to present: 11/15 present terms
+found, 7/11 absent terms clean (false-negative .267, detector mode 3/11 absent
+answered, hybrid 7/11).  The pre-registered numbers remain the headline; the
+audited numbers are a diagnostic.  The practical conclusion is that a negative
+answer must be expressed as "the query detector found no X in N retained
+contexts", with the measured error rates attached, not as a fact about the
+world.  Full protocol, tables and threats are in
+[`ABSENCE.md`](ABSENCE.md).
+
 SPORE shows that **retained full context**, not better crops, is the dominant
 factor for late-binding localisation. Capsule crops alone are too tight and too
 occluded; the same detector on a retained keyframe recovers objects that are
@@ -1098,6 +1166,17 @@ objects are sensitive to its smoothing.
   improves wall/floor relations but can override a media-console TV at a frame
   edge, and it does not ground a game box on a low-table-fraction crop; it is
   not a general support-relation model.
+- Absence is unverified.  On the unseen `eat_1` calibration, "not found by the
+  detector in all retained contexts" was wrong for 4/15 present terms, and
+  "found" was wrong for 4/11 absent terms; scanning 4 to 48 contexts did not
+  move either error materially.  The hybrid path answers 7--8 of 11--12 absent
+  terms.  These rates are from one clip and one detector, and one human absent
+  label was corrected after the run; they bound the claim, not the world.
+- Support attribution can be degenerate, not just noisy.  On `eat_1` eight of
+  nine supported detector answers say `shelf` (including `person` and
+  `refrigerator`), because background cabinets overlap the subject in 2-D.
+  State-at-time answers inherit this failure and a "held" state does not exist
+  in the answer path.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 

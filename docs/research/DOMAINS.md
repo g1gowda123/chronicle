@@ -16,7 +16,7 @@ manifest, fetch/trim helper, and derived reports are committed.
 
 ## Manifest
 
-`data/aria_gen2pilot.json` records the four held-out windows:
+`data/aria_gen2pilot.json` records the held-out windows:
 
 | name | domain | window | why |
 |---|---|---|---|
@@ -24,10 +24,14 @@ manifest, fetch/trim helper, and derived reports are committed.
 | `clean_0` | cleaning | 40–85 s | living room sorting/cleaning, cluttered coffee table |
 | `play_3` | social | 40–85 s | two people talking over a board game |
 | `walk_0` | outdoor | 40–85 s | campus path, building, hedges, hydrant, strong sun |
+| `eat_1` | eating | 30–75 s | second dining window, kept unseen for the presence/absence calibration |
 
 The windows were chosen from sampled frames before any SPORE run. Scene
 metadata (2D/3D boxes, object categories, hand-object interactions) is
 available from the same API and can provide provenance for future questions.
+`eat_1` was added after the first four experiments; its window and probe terms
+were fixed before the first download or ingest and it is used only for the
+absence experiment, not for tuning a default.
 
 ## Fetch
 
