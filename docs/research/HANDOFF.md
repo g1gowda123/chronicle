@@ -28,7 +28,7 @@ Hard requirements:
 | Path | Branch | HEAD | State |
 |---|---|---|---|
 | `/home/g1/projects/chronicle` | `main` | `b86f5aa` | clean, pushed |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `0ea49e8` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + local-crop support remeasure + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + post-hoc audited Cook QA + LFS fetch + unseen `eat_1` presence/absence calibration (detector-bound; no absence verifier) |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `cc7a1fc` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + local-crop support remeasure + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + post-hoc audited Cook QA + LFS fetch + unseen `eat_1` presence/absence calibration (detector-bound; no absence verifier) + post-hoc fixed-label COCO comparison |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 
 `research/high-res-longvideo`, `research/long-video-qa`, `research/vfm-merged`,
@@ -307,12 +307,12 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   `research/high-res-longvideo`/`research/long-video-qa`, and
   `experiment/egotempo-benchmark`; `task/nb-08-real-calibration` was
   superseded and dropped.
-- `research/spore-perception`: based on `1200f84`, tip `0ea49e8` at the last
+- `research/spore-perception`: based on `1200f84`, tip `cc7a1fc` at the last
   research commit; perceiver, query engine, benchmarks, context frames, fused
   tracks, counting, inventory, compact stores, temporal scans,
   detector-free scene recall, support-surface query targets, and an optional
   semantic surface head. The latest additions are the unseen-`eat_1`
-  presence/absence calibration (`0ea49e8`, `ABSENCE.md`), local-crop support
+  presence/absence calibration (`cc7a1fc`, `ABSENCE.md`), local-crop support
   remeasurement (`7bb43ca`) and a post-hoc audited Cook QA set
   (`.90` diagnostic; original `.70` headline). Spatial support qualifiers,
   portable citations, and support-qualified counting are also on the branch.
