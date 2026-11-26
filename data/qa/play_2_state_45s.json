@@ -1,0 +1,138 @@
+{
+  "clip": "data/footage/aria_play_2_45s.mp4",
+  "domain": "social",
+  "source_sequence": "play_2",
+  "window": {
+    "start_s": 144.0,
+    "duration_s": 45.0
+  },
+  "protocol": "Pre-registered before the first SPORE ingest or detector call on this clip: this probe file, the play_2 manifest entry, the state eval script and its metric tests are committed together. Labels come from visual inspection of a 1 fps contact sheet plus full frames at 5, 15, 20, 30, 40 and 44 s; the query detector was not consulted. The window was selected from preview frames because it is a stable seated card-game scene. A 'no' label means the object is not visible anywhere in the window, not that it is absent from the room. Support labels are the ones in the state ontology (table, floor, shelf, ...).",
+  "questions": [
+    {
+      "id": "presence_box",
+      "query": "Is there a box on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "Orange board-game box on the round coffee table, visible in every sampled frame and still present at 44 s."
+    },
+    {
+      "id": "presence_book",
+      "query": "Is there a book on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "A dark book/magazine lies on the table beside the orange box at 15-20 s."
+    },
+    {
+      "id": "presence_sofa",
+      "query": "Is there a sofa on the floor?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "Gray fabric sofa on the right side of the room, standing on the rug/floor."
+    },
+    {
+      "id": "presence_chair",
+      "query": "Is there a chair on the floor?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "Brown leather armchair on the center-left, standing on the rug/floor."
+    },
+    {
+      "id": "presence_basket",
+      "query": "Is there a basket on the floor?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "Tan woven pouf/basket in the bottom-right corner on the floor."
+    },
+    {
+      "id": "absence_plate",
+      "query": "Is there a plate on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No plate anywhere in the window; this is a card game, not a meal."
+    },
+    {
+      "id": "absence_cup",
+      "query": "Is there a cup on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No cup or glass anywhere in the window."
+    },
+    {
+      "id": "absence_bottle",
+      "query": "Is there a bottle on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No bottle anywhere in the window."
+    },
+    {
+      "id": "absence_laptop",
+      "query": "Is there a laptop on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No laptop anywhere in the window."
+    },
+    {
+      "id": "absence_hammer",
+      "query": "Is there a hammer on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No hammer anywhere in the window."
+    },
+    {
+      "id": "still_box",
+      "query": "Is the box still on the table?",
+      "kind": "still",
+      "timestamp": 40.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "The orange box remains on the coffee table at 40-44 s; nobody removes it."
+    },
+    {
+      "id": "still_basket",
+      "query": "Is the basket still on the floor?",
+      "kind": "still",
+      "timestamp": 40.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "The woven basket/pouf stays in the bottom-right floor area."
+    },
+    {
+      "id": "moved_box",
+      "query": "Did the box move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "stayed",
+      "expected_support": "table",
+      "human_evidence": "The box is not carried away from the table in this window."
+    },
+    {
+      "id": "moved_basket",
+      "query": "Did the basket move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "stayed",
+      "expected_support": "floor",
+      "human_evidence": "The basket/pouf does not move to another surface in this window."
+    }
+  ]
+}

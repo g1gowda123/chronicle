@@ -42,6 +42,18 @@
       "notes": "Two people talking and playing a board game at a coffee table."
     },
     {
+      "name": "play_2",
+      "domain": "social",
+      "sequence": "play_2",
+      "start_s": 144.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_play_2_45s.mp4",
+      "zone": "Living Room",
+      "main_stream": "214-1",
+      "vocabulary": "table,sofa,chair,basket,box,book,card,plate,cup,bottle,laptop,hammer,toothbrush",
+      "notes": "Pre-registered state replication: second social/living-room window, 144-189 s. Round coffee table with an orange game box and a book; gray sofa, leather armchair and woven basket on the floor. Probe set committed before the first ingest."
+    },
+    {
       "name": "cook_0",
       "domain": "cooking",
       "sequence": "cook_0",
