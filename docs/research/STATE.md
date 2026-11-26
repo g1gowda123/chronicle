@@ -51,12 +51,16 @@ This is the same epistemic rule as `ABSENCE.md`, made operational.
 
 | item | value |
 |---|---|
-| Ingest | `SporeConfig` defaults, 4 fps, 640 px, 24.1 s |
-| Store | 47 contexts, 220 capsules, 3.91 MB split store |
+| Ingest | `SporeConfig` defaults, 4 fps, 640 px, 29–31 s (real hand landmarks) |
+| Store | 47 contexts, 249 capsules, 3.3 MB split store on disk (1.2 MB index + 2.1 MB evidence) |
 | Scan | 32 of 47 contexts per clip-level presence term, 1 detector call each |
 | State path | `state_queries=True`, `state_contexts=32`, floor .30, 2 observations |
 | Verification | generic 43-label bank, margin .05, one extra call per positive answer |
 | Peak VRAM | 1.34 GB (state run), 0.73 GB on the reused-store ablation |
+
+A parallel run with the colour-fallback hands (the MediaPipe landmarker was
+temporarily missing; 220 capsules, 24.1 s ingest) produced the identical 16/19
+and 0/6, so the verdicts here are not sensitive to the hand backend.
 
 Presence is a clip-level question unless the question itself names a time; the
 harness's evaluation timestamp is not a state constraint. "Still" uses a 1.5 s
