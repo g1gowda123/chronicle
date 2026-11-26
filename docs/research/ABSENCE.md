@@ -75,15 +75,15 @@ box for each was inspected visually:
 - `mug` .77 on a tall pink-drink **glass**;
 - `bottle` .62 on the same kind of **glass**;
 - `bowl` .60 on a **plate** piled with chips;
-- `spoon` .32 on an unidentified table region (4/47 contexts);
+- `spoon` .32 on a low-confidence, unaudited box (4/47 contexts);
 - `television` .91 on a **wall-mounted TV** that the human annotation missed
   (see audit).
 
 So the dominant absence failure is *category substitution*: the prompt-
 conditioned detector finds a nearby object of a confusable category and scores
-it highly. Three absent terms are clean because the scene contains nothing
-close (`laptop`, `bicycle`, `umbrella`), not because the detector verifies
-absence.
+it highly. Terms such as `laptop`, `bicycle`, `umbrella` and `book` are clean
+because the scene contains nothing close to them, not because the detector
+verifies absence.
 
 ## Result 2: more contexts do not fix it
 

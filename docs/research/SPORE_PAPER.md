@@ -1066,8 +1066,10 @@ missed present terms are `glass` (the human name for the `cup` detections),
 only 2.5 s).  The five absent terms that receive detections are not noise: the
 best boxes are a `mug` at .77 on a drinking glass, a `bottle` at .62 on the same
 kind of glass, a `bowl` at .60 on a plate of chips, and a `television` at .91 on
-a real TV (the label error).  The dominant absence failure is category
-substitution by a prompt-conditioned detector, not random hallucination.
+a real TV (the label error); the fifth is a low-confidence `spoon` box.  The
+dominant absence failure is category substitution by a prompt-conditioned
+detector, not random hallucination; the clean terms are those with no
+confusable object in the scene, not terms the detector verified as absent.
 
 More contexts do not fix it.  Averaging over evenly spaced phases:
 
