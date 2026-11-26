@@ -148,7 +148,9 @@ This is an evidence-coverage limit, not a selection bug.
   lower bound on this clip, not a calibrated absence guarantee.
 - Annotation was vision-assistant-assisted, not by an independent human
   annotator. It is independent of YOLO-World but shares the usual
-  image-understanding biases of the assistant.
+  image-understanding biases of the assistant. The probe file was written
+  before the first run but committed with the analysis, so it is not a
+  pre-registration commit.
 - The clip-level scan samples 32 of 47 retained contexts. `ABSENCE.md` shows
   that more contexts do not fix the detector's category substitutions; the same
   limit applies here.

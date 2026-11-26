@@ -195,7 +195,7 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   state questions with a verdict (`present` / `moved` / `stayed` /
   `not_observed` / `unknown`) instead of forcing every question through
   "where is X?" binding. On a sixth unseen Aria window (`cook_0`, 50-95 s) and
-  19 questions committed before the first run, it scores **16/19** with
+  19 questions written before the first run, it scores **16/19** with
   **0/6 false presences** on absent-object probes; the default binding path
   cannot represent "still"/"moved" at all and its presence answers are not a
   negative test. The competing-label check is the safety mechanism: a

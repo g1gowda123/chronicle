@@ -59,7 +59,7 @@ python scripts/fetch_aria_clip.py --sequence eat_1
 
 A second cooking window (`cook_0`, 50 s + 45 s) was added for the opt-in state
 probe. The window was chosen from sampled frames of the full preview, then the
-19-question set (`data/qa/cook_0_state_45s.json`) was committed before the first
+19-question set (`data/qa/cook_0_state_45s.json`) was written before the first
 SPORE ingest. It is fetched with:
 
 ```bash

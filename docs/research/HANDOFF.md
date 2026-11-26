@@ -428,7 +428,7 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   on its own classes, not a calibrated benchmark.
 - Grounded state answers are now opt-in (`state_queries=True`; `STATE.md`) and
   were tested on a sixth unseen Aria window (`cook_0`, 50–95 s) with 19
-  questions committed before the first run. The path returns `present` /
+  questions written before the first run. The path returns `present` /
   `moved` / `stayed` / `not_observed` / `unknown` and scores **16/19** with
   **0/6 false presences**; the default binding path cannot represent
   still/moved and is not a negative test. A competing-label check removes the
