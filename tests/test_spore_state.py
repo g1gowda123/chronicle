@@ -243,6 +243,19 @@ def test_fixed_label_unsupported_term_is_not_downgraded() -> None:
     assert answer.verdict == "present"
 
 
+def test_support_under_excludes_object_class() -> None:
+    box = BBox(20, 40, 40, 75)
+    detections = [
+        Detection("box", box, 0.8),
+        Detection("table", BBox(0, 55, 200, 100), 0.9),
+    ]
+    support = SporeQueryEngine._support_under(
+        detections, box, {"box", "table"}, exclude_label="box"
+    )
+    assert support is not None
+    assert support[0] == "table"
+
+
 class _ConfusedDetector(_SceneDetector):
     """Returns a competing label over the cup when the bank is present."""
 

@@ -230,7 +230,10 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   surface head + fixed-label COCO veto at .50 scores **7/13 with 0/5 false
   presences**, but the veto downgrades a true chair because COCO misses it;
   box/blanket misses and the false move remain. The veto is a precision layer
-  paid for in recall, not a general fix. See [`STATE.md`](STATE.md).
+  paid for in recall, not a general fix. Excluding the queried object's own
+  class from support candidates (`box`/`basket` are also support labels)
+  recovers `presence_basket` on `play_2` (7/14->8/14 with the surface head) but
+  leaves box/book and all other clips unchanged. See [`STATE.md`](STATE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

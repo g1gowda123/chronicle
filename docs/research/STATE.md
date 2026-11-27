@@ -317,6 +317,24 @@ flips across contexts.  The pre-registered result therefore supports only a
 narrow claim: a fixed-label veto can remove a false presence, but it can also
 remove a true one, and positive recall remains support- and detector-bound.
 
+## Result 9: excluding an object as its own support recovers the basket
+
+`box` and `basket` are both object terms and support labels.  `_support_under`
+now excludes the queried object's own class from its support candidates, so a
+basket cannot be "on the basket".  This is a correctness fix, not a threshold
+change.
+
+Post-hoc on the existing stores, with the surface head enabled:
+
+- `play_2`: **7/14 -> 8/14**; `presence_basket` becomes present on `floor`
+  (the self-support artifact was the only reason it was missed).  Box/book and
+  the still/moved basket questions remain wrong, and false presence stays 0/5.
+- `play_1`: unchanged at 7/13; the box has no non-self support in this clip.
+- `cook_0`/`eat_0`: unchanged (no queried term is also a support label).
+
+The fix removes a real bug, but it does not create support evidence where the
+detector has none; positive recall is still detector- and surface-bound.
+
 ## Cost
 
 - 525 detector calls for 19 questions (27.6/query) versus 71 (3.7/query) for the

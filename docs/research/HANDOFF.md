@@ -494,7 +494,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   pre-registered `play_1` test is the clean evaluation. It scores **7/13 with
   0/5 false presences**, but the veto downgrades a true chair because COCO
   misses it; box/blanket misses and the false move remain. The veto is a
-  precision layer paid for in recall, not a general state fix.
+  precision layer paid for in recall, not a general state fix. A separate
+  correctness fix excludes the queried object's own class from support
+  candidates (`box`/`basket` are also support labels): `presence_basket` on
+  `play_2` recovers (7/14->8/14 with the surface head) while box/book and all
+  other clips are unchanged.
 - Next: the two blocking gaps are (a) an absence path that uses a fixed-label
   detector for covered classes and reserves the open-vocabulary detector for
   exploration. YOLOv8-L at .50 is now validated across two held-out windows

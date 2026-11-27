@@ -1144,14 +1144,24 @@ absent terms the verifier at .50 scores **TP 6, FP 2, FN 0, TN 12**: perfect
 recall on covered terms, with two confident look-alike false presences (a plate
 of chips as `bowl` at .73; the dark panel between window blinds as `television`
 at .70).  The world detector on the same terms scores 5/6 present and 9/14
-clean at .22.  Aggregated over the two held-out windows on the 20 covered
-terms, YOLOv8-L at .50 reaches precision **.889**, recall **.941** and a
-false-presence rate **.087**, against .682/.882/.304 for YOLO-World-S at .22.
-Fixed-label detection is therefore the stronger negative substrate on the
-classes it covers, but it still cannot certify absence (two confident false
-presences in 23 absent-term checks) and it cannot represent `plate` at all.
-The honest product rule remains "not observed by <detector> in N contexts",
-with the per-class error rate attached.
+clean at .22.
+
+An outdoor window (`walk_1`) tests a new domain with **26/26 COCO coverage**:
+four terms are present (`person`, `car`, `fire hydrant`, `cup`) and 22 are
+absent.  The verifier at .50 scores **TP 4, FP 1, FN 0, TN 21** (precision
+.80, recall 1.0, false-presence .045) and 5/5 at-time; its only false presence
+is a `motorcycle` at .54 on the companion's plaid forearm and cup at the
+frame edge.  The world detector finds all four present terms but makes four
+false presences (`bicycle` .55 on a signpost, `bottle` .57 on the cup,
+`motorcycle` .27, `backpack` .40).  Pooled over the three held-out windows
+(21 present / 45 absent term checks), YOLOv8-L at .50 reaches precision
+**.870**, recall **.952** and a false-presence rate **.067**, against
+.633/.905/.244 for YOLO-World-S at .22.  Fixed-label detection is therefore
+the stronger negative substrate across domains, but the remaining errors are
+confident look-alikes (plate->`bowl`, window->`television`) and a frame-edge
+fragment (`motorcycle`), and the eat banks still cannot represent `plate` at
+all.  The honest product rule remains "not observed by <detector> in N
+contexts", with the per-class error rate attached.
 
 A post-hoc crop check asked whether CLIP similarity can veto the confident
 look-alikes: crop the box, score it against the term and confusable
@@ -1267,6 +1277,14 @@ layer, not a free one: its recall is bounded by the fixed-label detector's
 class recall, just as the open-vocabulary path's recall is bounded by its
 prompts.  A two-detector design is viable for **negative** claims, but it does
 not by itself make positive state answers general.
+
+One correctness fix did add recall without changing a threshold: `box` and
+`basket` are both object terms and support labels, so the engine could place a
+basket "on the basket".  Excluding the queried object's own class from its
+support candidates recovers `presence_basket` on `play_2` (7/14 -> 8/14 with
+the surface head) and leaves `play_1`, `cook_0` and `eat_0` unchanged; the box
+still has no non-self support, so this is a bug fix rather than a recall
+mechanism.
 
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same

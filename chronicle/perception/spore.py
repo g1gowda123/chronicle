@@ -3049,7 +3049,10 @@ class SporeQueryEngine:
                 ):
                     continue
                 support = self._support_under(
-                    detections, detection.bbox, support_set
+                    detections,
+                    detection.bbox,
+                    support_set,
+                    exclude_label=detection.label,
                 )
                 support_label = support[0] if support is not None else None
                 if self.config.state_surface_support:
@@ -3819,7 +3822,11 @@ class SporeQueryEngine:
 
     @staticmethod
     def _support_under(
-        detections: Sequence[Any], object_box: BBox, support_set: set[str]
+        detections: Sequence[Any],
+        object_box: BBox,
+        support_set: set[str],
+        *,
+        exclude_label: str | None = None,
     ) -> tuple[str, BBox] | None:
         """Choose the surface an object rests on, rejecting supports above it.
 
@@ -3829,11 +3836,19 @@ class SporeQueryEngine:
         box or the support must be below that centre; a purely above object
         support is rejected.  This is a geometric constraint, not a
         clip-specific rule.
+
+        ``exclude_label`` prevents an object whose class is also a support
+        label (``box``, ``basket``) from being used as its own support.
         """
+        excluded = (exclude_label or "").strip().lower()
         candidates = [
             detection
             for detection in detections
             if detection.label.strip().lower() in support_set
+            and (
+                not excluded
+                or detection.label.strip().lower() != excluded
+            )
         ]
         if not candidates:
             return None
