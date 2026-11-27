@@ -1237,6 +1237,7 @@ questions) reproduces the verdict behaviour but not the support attribution:
 | `play_2` (pre-registered) | 14 | 5/14 (.357) | 5/14 (.357) | 0/5 |
 | `play_0` (pre-registered, surface head) | 12 | 5/12 (.417) | 5/12 (.417) | **1/5** |
 | `play_1` (pre-registered, surface + veto) | 13 | 7/13 (.538) | 7/13 (.538) | 0/5 |
+| `play_1` (post-hoc veto ablation) | 13 | 8/13 (.615) | 8/13 (.615) | 0/5 |
 
 The state path correctly withholds every absent object on the table (laptop,
 hammer, fork, bottle), while the default binding path answers the bottle
@@ -1283,15 +1284,16 @@ false move remains, because the veto checks object presence, not surface
 consistency.  This is a post-hoc mechanism check; the pre-registered `play_1`
 test is the clean evaluation.
 
-That test confirms the safety effect but exposes the cost.  On `play_1` the
-combined surface-head + veto configuration scores 7/13 with **0/5 false
-presence**, and the sofa passes on floor.  But `presence_chair` was present on
-floor and was downgraded because COCO YOLOv8-S found no chair at .50; the box
-and blanket misses and the sofa false move remain.  The veto is a precision
-layer, not a free one: its recall is bounded by the fixed-label detector's
-class recall, just as the open-vocabulary path's recall is bounded by its
-prompts.  A two-detector design is viable for **negative** claims, but it does
-not by itself make positive state answers general.
+The pre-registered test does **not** replicate the gain.  On `play_1` the
+surface-head + veto configuration scores 7/13 with 0/5 false presence, while the
+same configuration without the veto scores 8/13 with 0/5: the open-vocabulary
+path already withholds all five absent probes, so the veto has no false
+presence to remove and its only measurable effect is to downgrade a true
+`chair` because COCO YOLOv8-S misses it.  The `play_0` cup removal is therefore a single
+post-hoc observation, not a validated safety layer.  The veto is a precision
+prior whose recall is bounded by the fixed-label detector, and it remains off
+by default; a two-detector design may still be viable for **negative** claims,
+but this test does not establish it.
 
 One correctness fix did add recall without changing a threshold: `box` and
 `basket` are both object terms and support labels, so the engine could place a
@@ -1400,12 +1402,13 @@ objects are sensitive to its smoothing.
   because the living room's floor is never a detected support.  The second,
   with the surface head enabled, is 5/12 with **1/5 false presence** and a
   false move.  The third, with the surface head and a fixed-label veto, is 7/13
-  with 0/5 false presence but downgrades a true chair because COCO misses it.
-  The 0/5 false-presence results are therefore clip-specific and paid for in
-  recall, not a safety guarantee.  The competing bank is a household/office
-  prior, the context scan covers 32 of 47 frames, and the support-under rule
-  uses 2-D geometry, not depth or hand contact, so a "held" state is still not
-  represented.
+  with 0/5 false presence but downgrades a true chair because COCO misses it;
+  without the veto the same clip is 8/13 with 0/5, so the veto did not
+  replicate the `play_0` gain.  The 0/5 false-presence results are therefore
+  clip-specific and paid for in recall, not a safety guarantee.  The competing
+  bank is a household/office prior, the context scan covers 32 of 47 frames,
+  and the support-under rule uses 2-D geometry, not depth or hand contact, so a
+  "held" state is still not represented.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 

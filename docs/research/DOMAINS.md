@@ -49,7 +49,8 @@ the pre-registered surface-head state test: its 12-question probe and run config
 negative (5/12) with one false presence, so the surface head is not a validated
 fix. `play_1` is the pre-registered fixed-label veto test (13 questions,
 `state_fixed_verify=true` at .50); it is 7/13 with 0/5 false presences, but the
-veto also downgrades a true chair because COCO misses it. `eat_2`
+same clip without the veto is 8/13 with 0/5, so the veto caught no false
+positive and downgraded a true chair because COCO misses it. `eat_2`
 reuses the 26-term `eat_1` bank for a held-out test of the fixed-label absence
 verifier; its probe set was committed before the first ingest, and the
 verifier threshold and aliases were fixed on `eat_1`. `eat_3` is a further

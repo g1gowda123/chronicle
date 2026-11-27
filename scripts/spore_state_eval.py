@@ -247,6 +247,11 @@ def main() -> None:
     )
     parser.add_argument("--state-fixed-threshold", type=float, default=0.50)
     parser.add_argument(
+        "--no-state-fixed-verify",
+        action="store_true",
+        help="Disable the fixed-label veto even if the QA run config enables it.",
+    )
+    parser.add_argument(
         "--no-verify",
         action="store_true",
         help="Disable the competing-label check for positive state answers.",
@@ -265,6 +270,8 @@ def main() -> None:
         args.state_surface_support = True
     if run.get("state_fixed_verify"):
         args.state_fixed_verify = True
+    if args.no_state_fixed_verify:
+        args.state_fixed_verify = False
     if "state_fixed_threshold" in run:
         args.state_fixed_threshold = float(run["state_fixed_threshold"])
     if "state_contexts" in run:

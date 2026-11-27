@@ -289,9 +289,10 @@ presence on `play_0`: the score becomes **6/12 with 0/5 false presence**, and
 questions.  `cook_0` stays 16/19 and `eat_0` stays 9/9.  The false move
 (`moved_sofa`) remains; the veto checks object presence, not surface
 consistency.  This is a post-hoc mechanism check, not a re-run of the
-pre-registered result; `play_1` is the pre-registered test.
+pre-registered result; `play_1` is the pre-registered test, and it does **not**
+replicate the gain (Result 8).
 
-## Result 8: pre-registered fixed-label veto on `play_1` trades recall for safety
+## Result 8: the pre-registered fixed-label veto does not replicate the `play_0` gain
 
 The `play_1` probe (13 questions, committed as `13ca794` before the first
 ingest, with `state_surface_support=true` and `state_fixed_verify=true` at .50)
@@ -300,22 +301,23 @@ cards, gray sofa, gray armchair, tan pouf, navy blanket on the rug.
 
 | mode | scored | correct | strict support | false presence | missed presence |
 |---|---:|---:|---:|---:|---:|
-| state + surface head + fixed veto | 13 | **7/13 (0.538)** | 7/13 | **0/5** | 4/6 |
+| state + surface head + fixed veto (pre-registered) | 13 | **7/13 (0.538)** | 7/13 | **0/5** | 4/6 |
+| state + surface head, veto off (post-hoc ablation) | 13 | **8/13 (0.615)** | 8/13 | **0/5** | 3/6 |
 | default binding | 9 | 5/9 (0.556) | 5/9 | 0/5 | 4/4 |
 
-The veto keeps the absent probes clean (`cup`, `bottle`, `laptop` are
-COCO-covered and not observed; `plate`/`hammer` are outside COCO and also
-clean), and `presence_sofa`/`still_sofa` pass on `floor`.  But the trade-off is
-visible: `presence_chair` was **present on floor** and was downgraded because
-COCO YOLOv8-S found no chair at .50.  The veto is a precision layer, not a free
-one; its recall depends on the fixed-label detector's class recall.
+The pre-registered run does **not** reproduce the post-hoc `play_0` benefit.
+On `play_1` the open-vocabulary path already withholds every absent probe
+(`cup`, `bottle`, `laptop`, `plate`, `hammer`), so the veto has no false
+presence to remove; its only measurable effect is to downgrade the true
+`presence_chair` at `floor`, because COCO YOLOv8-S finds no chair at .50.  The
+post-hoc ablation on the same store scores **8/13 with 0/5 false presence**.
+The `play_0` cup removal therefore remains a single post-hoc observation, not a
+replicated safety mechanism, and the veto is off by default.
 
 The remaining misses are the same artifacts as `play_0`: `box` is supported by
 its own `box` label (3 hits at .36-.51), `blanket` is supported as `desk`/`shelf`
 (34 hits, no floor), and the sofa is reported as moved because its support
-flips across contexts.  The pre-registered result therefore supports only a
-narrow claim: a fixed-label veto can remove a false presence, but it can also
-remove a true one, and positive recall remains support- and detector-bound.
+flips across contexts.  Positive recall remains support- and detector-bound.
 
 ## Result 9: excluding an object as its own support recovers the basket
 
