@@ -1424,7 +1424,10 @@ objects are sensitive to its smoothing.
   clip-specific and paid for in recall, not a safety guarantee.  The competing
   bank is a household/office prior, the context scan covers 32 of 47 frames,
   and the support-under rule uses 2-D geometry, not depth or hand contact, so a
-  "held" state is still not represented.
+  "held" state is still not represented.  A naive landmark-in-object-box held
+  check over-calls on the plate (61/80 detections) and misses the knife (0/6),
+  confirming that grasp needs keypoint geometry or depth, not another
+  containment rule.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 

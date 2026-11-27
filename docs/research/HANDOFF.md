@@ -540,4 +540,6 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   and cost a chair), and the `play_0` cup removal is a single post-hoc
   observation. Do not lower either threshold on the same clips and report a
   gain; a fresh pre-registered window is required. A real `held` state needs
-  hand contact or depth, not another support label.
+  hand contact or depth, not another support label: a naive landmark-in-object-
+  box check over-calls on the plate (61/80 detections) and misses the knife
+  (0/6), so do not ship it without grasp geometry or a trained classifier.

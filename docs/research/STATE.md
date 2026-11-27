@@ -365,6 +365,19 @@ the veto removes a cup false positive (after the post-hoc `play_0` rerun), but
 it did not replicate on the pre-registered `play_1` test (Result 8), so the
 evidence remains clip-dependent.
 
+## Held state: a naive contact test is not enough
+
+A `held` verdict was prototyped as "any hand landmark falls inside the object
+box (5% pad)".  On the `cook_0` store this over-calls badly: the plate is
+"in contact" in **61 of 80** detections because hands rest near or over it on
+the counter, the mug in 8 of 73, while the knife has **0 contacts in 6 hits**
+(the blade is under the hand and the detector box misses it) and the bread is
+never detected.  Hand proximity is not grasp: the test cannot separate resting
+near, reaching over, and holding.  A real held state needs hand-object
+keypoint geometry or depth and a grasp classifier, not another box containment
+rule, so no `held` verdict is shipped and no held probe is scored.  This is a
+negative feasibility check, not a result about the recorded interactions.
+
 ## Cost
 
 - 525 detector calls for 19 questions (27.6/query) versus 71 (3.7/query) for the
