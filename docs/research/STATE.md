@@ -14,7 +14,7 @@ present object that is not there, and what does it miss?
 
 ## Answer semantics
 
-The opt-in path adds a three-way verdict instead of forcing every question
+The opt-in path adds a verdict vocabulary instead of forcing every question
 through "where is X?" binding:
 
 - **present** - the noun was detected on the asked surface, with a timestamp
