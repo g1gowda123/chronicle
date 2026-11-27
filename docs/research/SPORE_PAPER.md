@@ -1138,6 +1138,21 @@ recall on unambiguous classes (`sandwich` 30/47 vs 5/47, `table` 47/47 vs
 direction is therefore a wider fixed label bank with per-class calibration or a
 two-band verdict, not a global threshold on an 80-class detector.
 
+A second held-out window (`eat_3`, a living/dining area with a sofa and hutch)
+validates the L backbone.  On its six covered present and fourteen covered
+absent terms the verifier at .50 scores **TP 6, FP 2, FN 0, TN 12**: perfect
+recall on covered terms, with two confident look-alike false presences (a plate
+of chips as `bowl` at .73; the dark panel between window blinds as `television`
+at .70).  The world detector on the same terms scores 5/6 present and 9/14
+clean at .22.  Aggregated over the two held-out windows on the 20 covered
+terms, YOLOv8-L at .50 reaches precision **.889**, recall **.941** and a
+false-presence rate **.087**, against .682/.882/.304 for YOLO-World-S at .22.
+Fixed-label detection is therefore the stronger negative substrate on the
+classes it covers, but it still cannot certify absence (two confident false
+presences in 23 absent-term checks) and it cannot represent `plate` at all.
+The honest product rule remains "not observed by <detector> in N contexts",
+with the per-class error rate attached.
+
 The practical conclusion is that a negative
 answer must be expressed as "the query detector found no X in N retained
 contexts", with the measured error rates attached, not as a fact about the

@@ -299,9 +299,49 @@ zero false presences. The remaining miss is `oven` (zero detections at every
 scale) -- the object is a range under a hood, and COCO has no `stove`/`range`
 class. The score shifts confirm that per-class confidence is model-dependent,
 so a threshold calibrated on one backbone does not transfer unchanged to
-another. L at .50 is the best fixed-label operating point seen so far; it is
-**post hoc** on `eat_2` and is being validated on a new window before it is
-called a default.
+another. L at .50 was the best fixed-label operating point seen on `eat_2`, so
+it was fixed as the validation model and run on the next unseen window below.
+
+### Cross-clip validation: eat_3
+
+A further unseen window, `eat_3` (30--75 s, probe set committed as `dbb5c56`
+before ingest), moves to a living/dining area: sofa, wooden hutch and windows,
+no kitchen appliances, and a pitcher held only around 27--35 s. The world
+detector does worse here: **8/11 present found, 9/15 absent clean** (AUC .715;
+misses `glass`, `window`, `pitcher`; false positives `bowl`, `mug`, `bottle`,
+`spoon`, `television`, `book`). The verifier covers the same 20 terms (6
+present, 14 absent) and at .50 with YOLOv8-L gives **TP 6, FP 2, FN 0, TN 12**
+-- precision .75, recall 1.0, false-presence rate .143.
+
+The two false presences are confident and instructive:
+
+- `bowl` .73 at 24.6 s: a plate piled with chips, the same look-alike that the
+  world detector substitutes;
+- `television` .70 at 5.4 s: the dark rectangle between the window blinds. The
+  human annotation inspected it at full resolution and called it a
+  window/opening, not a TV. A closed label set still chooses the plausible
+  class on an ambiguous dark panel.
+
+At-time questions score 4/5; the one non-match is `pitcher` at 28 s, which is
+**unsupported** because COCO has no pitcher class -- a coverage gap, not a
+wrong verdict. On the same covered terms the world detector finds 5/6 present
+and leaves 9/14 absent clean at .22 (4/6 and 11/14 at .50), so L at .50
+dominates the world model on both axes on this clip.
+
+Aggregating the two held-out windows (`eat_2` + `eat_3`, same 20 covered
+terms):
+
+| detector (.50 unless noted) | TP | FP | FN | TN | precision | recall | false-presence rate |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| YOLO-World-S, .22 | 15 | 7 | 2 | 16 | .682 | .882 | .304 |
+| YOLOv8-L fixed-label, .50 | **16** | **2** | **1** | **21** | **.889** | **.941** | **.087** |
+
+This is the strongest evidence for the two-detector design so far: on the
+classes it covers, a fixed-label detector at a fixed .50 threshold is both more
+complete and much less likely to claim a false presence than the
+open-vocabulary path. It is still not an absence verifier in the strict sense:
+two confident false presences remain, 6/26 terms are unsupported, and both
+windows come from the same household/domain.
 
 ## Interpretation
 
@@ -321,16 +361,17 @@ called a default.
    current 2-D containment heuristic collapses to the background surface behind
    the object. An explicit "held / on <surface>" state, backed by hand contact
    and depth, is the missing capstone; it cannot be recovered by prompt tuning.
-5. **Fixed-label detection is the right shape for negative claims, but this
-   detector is not a drop-in absence verifier.** On `eat_1` the post-hoc COCO
-   check reached zero false presences on 10/10 covered absent terms at .50; the
-   held-out `eat_2` run repeats the zero-false-presence result (9/9) but misses
-   3/11 present terms, and lowering the floor to .25 recovers all 11 at the cost
-   of two false presences. It does not dominate YOLO-World at matched
-   precision on `eat_2` (both reach 9/9 clean at .50), and it cannot represent
-   `plate`, `napkin`, `cabinet`, `window`, `mug` or `pitcher` at all. The next
+5. **A fixed-label detector is the right substrate for negative claims, but a
+   negative verdict is still bounded.** Across two held-out windows and the 20
+   COCO-covered terms, YOLOv8-L at .50 is both more complete and much safer
+   than YOLO-World-S at .22 (precision .889 vs .682, recall .941 vs .882,
+   false-presence .087 vs .304). It still makes two confident look-alike
+   errors (a plate as `bowl`, a dark window as `television`), covers only 20/26
+   terms (`plate` has no class), and both windows are the same
+   household/domain. The design is validated; the verifier is not. The next
    step is a wider fixed label bank plus per-class calibration or a two-band
-   verdict, not a global threshold.
+   verdict (confident present / weak evidence / not observed), not a global
+   threshold on an 80-class detector.
 6. **What would still change the conclusion:** a fixed-label detector with a
    tableware/appliance class list and per-class calibration, independent human
    labels per context (rather than intervals), or a prompt-free
@@ -366,6 +407,18 @@ python scripts/spore_absence_verify.py \
   --store research/spore/results/eat2_absence/store.json \
   --probes data/qa/eat_2_absence.json \
   --out research/spore/results/eat2_absence/verify.json
+
+# Cross-clip validation of the L verifier on eat_3
+python scripts/spore_absence.py \
+  --clip data/footage/aria_eat_3_45s.mp4 \
+  --probes data/qa/eat_3_absence.json \
+  --dump research/spore/results/eat3_absence/store.json \
+  --out research/spore/results/eat3_absence/report.json
+python scripts/spore_absence_verify.py \
+  --store research/spore/results/eat3_absence/store.json \
+  --probes data/qa/eat_3_absence.json \
+  --model yolov8l.pt \
+  --out research/spore/results/eat3_absence/verify_l.json
 ```
 
 The first script writes a JSON report and a markdown summary; the second adds
