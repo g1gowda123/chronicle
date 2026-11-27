@@ -95,6 +95,18 @@ def choose_support(
             return "floor"
         if tabletop and current in {"desk", "shelf"} and table >= 0.35:
             return "table"
+        # A soft object lying on the floor (a blanket or rug) is often boxed
+        # against a desk/shelf that is not beneath it.  A strong floor fraction
+        # in the contact band is direct evidence; tabletop and wall-mounted
+        # objects are excluded because their bands can include the floor beyond
+        # a table edge or below a wall.
+        if (
+            not tabletop
+            and not wallish
+            and current in {"desk", "shelf"}
+            and floor >= 0.35
+        ):
+            return "floor"
         return None
     if current == "wall":
         return None

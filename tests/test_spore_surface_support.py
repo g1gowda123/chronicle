@@ -14,6 +14,14 @@ def test_tabletop_object_on_desk_gets_table() -> None:
     assert choose_support("plate", "desk", {"table": 0.58}) == "table"
 
 
+def test_soft_object_on_floor_gets_floor() -> None:
+    assert choose_support("blanket", "desk", {"floor": 0.36}) == "floor"
+    assert choose_support("blanket", "desk", {"floor": 0.09}) is None
+    # Tabletop objects keep their support even when floor is visible beyond
+    # the table edge; the rule is not a generic "any floor" override.
+    assert choose_support("plate", "desk", {"floor": 0.80}) is None
+
+
 def test_specific_horizontal_support_is_not_replaced() -> None:
     assert choose_support("toaster", "countertop", {"shelf": 0.92}) is None
     assert choose_support("switch console", "work table", {"floor": 0.92}) is None
