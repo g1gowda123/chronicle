@@ -402,6 +402,28 @@ while a true `person` is .221 and a true `glass` .071; the TV sliver is .004,
 below true small objects such as `sandwich` (.007) and `hydrant` (.005). A
 fragment/edge guard needs pose or segmentation evidence, not box geometry.
 
+## Post-hoc: dense-frame scan (mixed)
+
+Every retained context is ~0.75--1 s apart. To separate detector misses from
+sampling misses, the same YOLOv8-L model was run at 5 fps over the source video
+(every second frame, 225 frames per clip) at the same .05 floor, and hits were
+thresholded at .50 post hoc:
+
+| clip | recovered present term | new false presences |
+|---|---|---|
+| `eat_2` | `oven` .35 -> **.65** (4 frames) | `fork` .494 -> .589 (3 frames) |
+| `eat_3` | none (all covered positives already found) | `fork` .558 (1), `phone` .68 (3) |
+| `walk_1` | none (all four found) | `bench` .697 (2), `bottle` .586 (1) |
+
+The `eat_2` oven was a **sampling** miss, not a detector miss: it becomes
+detectable at 5 fps. But dense scanning also converts one-frame looks-alikes
+into confident false presences in every clip, so the 47-context spacing is
+acting as a temporal persistence filter. Requiring at least three dense-frame
+hits recovers the oven but keeps the `eat_2` fork and `eat_3` phone; requiring
+two still keeps both. There is no persistence rule that separates them with
+this sample. Dense scanning is therefore not a free recall gain, and it is not
+adopted.
+
 ## Interpretation
 
 1. **Absence is bounded by detector semantics, not by memory size or sampling
@@ -431,7 +453,10 @@ fragment/edge guard needs pose or segmentation evidence, not box geometry.
    still cover only 20/26 terms (`plate` has no class), and a CLIP crop check
    does not separate the look-alikes (post-hoc, negative). The design is
    validated; a user-facing negative verdict still needs a wider label bank,
-   per-class calibration and a frame-edge/fragment guard.
+   per-class calibration and a frame-edge/fragment guard. Context spacing is
+   also doing real work: a 5 fps dense scan recovers the `eat_2` oven but adds
+   transient `fork`/`phone`/`bench` false presences, and no persistence rule in
+   this sample separates them.
 6. **What would still change the conclusion:** a fixed-label detector with a
    tableware/appliance class list and per-class calibration, independent human
    labels per context (rather than intervals), or a prompt-free

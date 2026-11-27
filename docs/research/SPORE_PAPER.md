@@ -1179,6 +1179,15 @@ true positives across the three windows, and no box-area or confidence
 threshold separates them.  Fragment rejection needs pose or segmentation
 evidence, not box geometry.
 
+A 5 fps scan over the source video separates the two miss types.  It recovers
+the `eat_2` `oven` (max .35 over 47 contexts, .65 in 4 dense frames), so that
+miss was sampling, not detector capability.  But it also turns one-frame
+look-alikes into confident false presences in every clip (`fork` .59 on
+`eat_2`, `phone` .68 on `eat_3`, `bench` .70 on `walk_1`), and no persistence
+rule (two or three dense-frame hits) separates the recovered oven from them.
+Context spacing is thus a useful temporal persistence filter, not only a
+compute saving.
+
 The practical conclusion is that a negative
 answer must be expressed as "the query detector found no X in N retained
 contexts", with the measured error rates attached, not as a fact about the

@@ -461,7 +461,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   look-alikes: on `eat_3` the lowest true-positive margin (.012) is below the
   highest false-positive margin (.046, the TV still preferred over
   `window`/`picture frame`), and three `eat_2` true positives prefer a
-  competitor prompt. Text-image similarity is not a calibrated veto.
+  competitor prompt. Text-image similarity is not a calibrated veto. A 5 fps
+  dense scan separates miss types: it recovers the `eat_2` `oven` (.35->.65 in
+  4 frames) but adds transient `fork`/`phone`/`bench` false presences, and no
+  two/three-frame persistence rule separates them. Context spacing is a
+  persistence filter, not only a compute saving.
 - Grounded state answers are now opt-in (`state_queries=True`; `STATE.md`) and
   were tested on a sixth unseen Aria window (`cook_0`, 50–95 s) with 19
   questions written before the first run. The path returns `present` /
@@ -497,10 +501,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   presence: `play_0` becomes 6/12 with 0/5 false presence, `still_sofa` is
   preserved, and `cook_0`/`eat_0` are unchanged; the false move remains. The
   pre-registered `play_1` test is the clean evaluation. It scores **7/13 with
-  0/5 false presences**, but the veto downgrades a true chair because COCO
-  misses it; box/blanket misses and the false move remain. The veto is a
-  precision layer paid for in recall, not a general state fix. A separate
-  correctness fix excludes the queried object's own class from support
+  0/5 false presences**, but the same clip without the veto is **8/13 with
+  0/5**: the veto caught no false positive and downgraded a true chair because
+  COCO misses it. The `play_0` cup removal did not replicate, so the veto is
+  not a validated state fix; box/blanket misses and the false move remain. A
+  separate correctness fix excludes the queried object's own class from support
   candidates (`box`/`basket` are also support labels): `presence_basket` on
   `play_2` recovers (7/14->8/14 with the surface head) while box/book and all
   other clips are unchanged.
