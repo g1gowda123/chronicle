@@ -291,6 +291,32 @@ questions.  `cook_0` stays 16/19 and `eat_0` stays 9/9.  The false move
 consistency.  This is a post-hoc mechanism check, not a re-run of the
 pre-registered result; `play_1` is the pre-registered test.
 
+## Result 8: pre-registered fixed-label veto on `play_1` trades recall for safety
+
+The `play_1` probe (13 questions, committed as `13ca794` before the first
+ingest, with `state_surface_support=true` and `state_fixed_verify=true` at .50)
+is a fourth living-room scene: round coffee table with an orange game box and
+cards, gray sofa, gray armchair, tan pouf, navy blanket on the rug.
+
+| mode | scored | correct | strict support | false presence | missed presence |
+|---|---:|---:|---:|---:|---:|
+| state + surface head + fixed veto | 13 | **7/13 (0.538)** | 7/13 | **0/5** | 4/6 |
+| default binding | 9 | 5/9 (0.556) | 5/9 | 0/5 | 4/4 |
+
+The veto keeps the absent probes clean (`cup`, `bottle`, `laptop` are
+COCO-covered and not observed; `plate`/`hammer` are outside COCO and also
+clean), and `presence_sofa`/`still_sofa` pass on `floor`.  But the trade-off is
+visible: `presence_chair` was **present on floor** and was downgraded because
+COCO YOLOv8-S found no chair at .50.  The veto is a precision layer, not a free
+one; its recall depends on the fixed-label detector's class recall.
+
+The remaining misses are the same artifacts as `play_0`: `box` is supported by
+its own `box` label (3 hits at .36-.51), `blanket` is supported as `desk`/`shelf`
+(34 hits, no floor), and the sofa is reported as moved because its support
+flips across contexts.  The pre-registered result therefore supports only a
+narrow claim: a fixed-label veto can remove a false presence, but it can also
+remove a true one, and positive recall remains support- and detector-bound.
+
 ## Cost
 
 - 525 detector calls for 19 questions (27.6/query) versus 71 (3.7/query) for the

@@ -226,7 +226,11 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   `floor`), `cook_0` is unchanged; the box/book/basket misses remain object
   side. The pre-registered `play_0` test with the head enabled is **5/12 with
   1/5 false presence** (a cup on the desk) and a false move (sofa), so the head
-  is a diagnostic, not a validated fix. See [`STATE.md`](STATE.md).
+  is a diagnostic, not a validated fix. A pre-registered `play_1` test with the
+  surface head + fixed-label COCO veto at .50 scores **7/13 with 0/5 false
+  presences**, but the veto downgrades a true chair because COCO misses it;
+  box/blanket misses and the false move remain. The veto is a precision layer
+  paid for in recall, not a general fix. See [`STATE.md`](STATE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

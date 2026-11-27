@@ -491,7 +491,10 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   (`state_fixed_verify=True`, presence questions only) removes that false
   presence: `play_0` becomes 6/12 with 0/5 false presence, `still_sofa` is
   preserved, and `cook_0`/`eat_0` are unchanged; the false move remains. The
-  pre-registered `play_1` test is the clean evaluation.
+  pre-registered `play_1` test is the clean evaluation. It scores **7/13 with
+  0/5 false presences**, but the veto downgrades a true chair because COCO
+  misses it; box/blanket misses and the false move remain. The veto is a
+  precision layer paid for in recall, not a general state fix.
 - Next: the two blocking gaps are (a) an absence path that uses a fixed-label
   detector for covered classes and reserves the open-vocabulary detector for
   exploration. YOLOv8-L at .50 is now validated across two held-out windows

@@ -1211,6 +1211,7 @@ questions) reproduces the verdict behaviour but not the support attribution:
 | `eat_0` (post-hoc) | 9 | 9/9 (1.000) | 6/9 (.667) | 0/4 |
 | `play_2` (pre-registered) | 14 | 5/14 (.357) | 5/14 (.357) | 0/5 |
 | `play_0` (pre-registered, surface head) | 12 | 5/12 (.417) | 5/12 (.417) | **1/5** |
+| `play_1` (pre-registered, surface + veto) | 13 | 7/13 (.538) | 7/13 (.538) | 0/5 |
 
 The state path correctly withholds every absent object on the table (laptop,
 hammer, fork, bottle), while the default binding path answers the bottle
@@ -1256,6 +1257,16 @@ presence**, `still_sofa` is preserved, and `cook_0`/`eat_0` are unchanged.  The
 false move remains, because the veto checks object presence, not surface
 consistency.  This is a post-hoc mechanism check; the pre-registered `play_1`
 test is the clean evaluation.
+
+That test confirms the safety effect but exposes the cost.  On `play_1` the
+combined surface-head + veto configuration scores 7/13 with **0/5 false
+presence**, and the sofa passes on floor.  But `presence_chair` was present on
+floor and was downgraded because COCO YOLOv8-S found no chair at .50; the box
+and blanket misses and the sofa false move remain.  The veto is a precision
+layer, not a free one: its recall is bounded by the fixed-label detector's
+class recall, just as the open-vocabulary path's recall is bounded by its
+prompts.  A two-detector design is viable for **negative** claims, but it does
+not by itself make positive state answers general.
 
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same
@@ -1349,16 +1360,18 @@ objects are sensitive to its smoothing.
   and covers 20 of 26 probes; it is a diagnostic pointing at class competition,
   not a second calibrated benchmark.
 - The opt-in state path is one protocol-defined clip (19 questions), one
-  post-hoc transfer clip (9 questions) and two pre-registered replications
-  (14 and 12 questions), annotated with vision-assistant assistance rather than
-  independent human labelling.  The first pre-registered replication answers all
-  five absent probes correctly but misses all seven positives, because the
-  living room's floor is never a detected support.  The second, with the surface
-  head enabled, is 5/12 with **1/5 false presence** and a false move.  The 0/5
-  false-presence result is therefore clip-specific conservative silence, not a
-  safety guarantee.  The competing bank is a household/office prior, the
-  context scan covers 32 of 47 frames, and the support-under rule uses 2-D
-  geometry, not depth or hand contact, so a "held" state is still not
+  post-hoc transfer clip (9 questions) and three pre-registered replications
+  (14, 12 and 13 questions), annotated with vision-assistant assistance rather
+  than independent human labelling.  The first pre-registered replication
+  answers all five absent probes correctly but misses all seven positives,
+  because the living room's floor is never a detected support.  The second,
+  with the surface head enabled, is 5/12 with **1/5 false presence** and a
+  false move.  The third, with the surface head and a fixed-label veto, is 7/13
+  with 0/5 false presence but downgrades a true chair because COCO misses it.
+  The 0/5 false-presence results are therefore clip-specific and paid for in
+  recall, not a safety guarantee.  The competing bank is a household/office
+  prior, the context scan covers 32 of 47 frames, and the support-under rule
+  uses 2-D geometry, not depth or hand contact, so a "held" state is still not
   represented.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.

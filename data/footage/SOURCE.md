@@ -90,5 +90,14 @@ It is fetched with:
 python scripts/fetch_aria_clip.py --sequence play_0
 ```
 
+A fourth living-room window (`play_1`, 228 s + 45 s) is the pre-registered
+fixed-label veto test. Its manifest entry, 13-question probe and
+`state_fixed_verify=true` run config were committed before the first ingest. It
+is fetched with:
+
+```bash
+python scripts/fetch_aria_clip.py --sequence play_1
+```
+
 Like the walking clip, these are locally trimmed research windows and are not
 redistributed. The full source datasets remain with Meta.

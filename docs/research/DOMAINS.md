@@ -28,6 +28,7 @@ manifest, fetch/trim helper, and derived reports are committed.
 | `cook_0` | cooking | 50–95 s | second cooking window, stable sink counter, kept unseen for the state/absence probe |
 | `play_2` | social | 144–189 s | second living-room window, pre-registered state replication |
 | `play_0` | social | 288–333 s | third living-room window, pre-registered surface-head state test |
+| `play_1` | social | 228–273 s | fourth living-room window, pre-registered fixed-label veto state test |
 | `eat_2` | eating | 30–75 s | third dining window, held out for the fixed-label absence verifier |
 | `eat_3` | eating | 30–75 s | living/dining window, held out for the YOLOv8-L verifier |
 | `walk_1` | outdoor | 30–75 s | outdoor campus walk, cross-domain verifier check (26/26 COCO coverage) |
@@ -46,7 +47,9 @@ questions because the room's floor is never detected as a support. `play_0` is
 the pre-registered surface-head state test: its 12-question probe and run config
 (`state_surface_support=true`) were committed before the first ingest, and it is
 negative (5/12) with one false presence, so the surface head is not a validated
-fix. `eat_2`
+fix. `play_1` is the pre-registered fixed-label veto test (13 questions,
+`state_fixed_verify=true` at .50); it is 7/13 with 0/5 false presences, but the
+veto also downgrades a true chair because COCO misses it. `eat_2`
 reuses the 26-term `eat_1` bank for a held-out test of the fixed-label absence
 verifier; its probe set was committed before the first ingest, and the
 verifier threshold and aliases were fixed on `eat_1`. `eat_3` is a further
