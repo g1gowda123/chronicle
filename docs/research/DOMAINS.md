@@ -271,6 +271,15 @@ and window still abstained. It also regressed Cook **.70→.60**, IoU
 **.826→.792**, and cup count **2→1**. Reverted. This is evidence that support
 selection, not just the support vocabulary, is the bottleneck.
 
+`clean_0` is also the pre-registered soft-floor state replication (13
+questions, committed as `37295c7` before the first state ingest). It is the
+strongest living-room state result: **11/13 lenient, 10/13 strict, 0/5 false
+presence**. The rug, sofa and armchair are on `floor`, the blue book is on the
+coffee table (called `desk`, accepted leniently), and `still_sofa` passes.
+`still_rug` has no late detection and `moved_rug` is a false move from support
+flipping. The same .35 rule did not fire on `play_3`'s rug, so it is
+scene-dependent rather than universal.
+
 ## Comparison with the original `main` perception path
 
 The same human-written QA sets were run with SPORE on the real clips recovered

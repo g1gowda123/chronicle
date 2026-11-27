@@ -1240,6 +1240,7 @@ questions) reproduces the verdict behaviour but not the support attribution:
 | `play_1` (post-hoc, veto off) | 13 | 8/13 (.615) | 8/13 (.615) | 0/5 |
 | `play_3` (pre-registered, surface) | 13 | 8/13 (.615) | 8/13 (.615) | **1/5** |
 | `play_3` (post-hoc veto) | 13 | 9/13 (.692) | 9/13 (.692) | 0/5 |
+| `clean_0` (pre-registered, surface) | 13 | 11/13 (.846) | 10/13 (.769) | 0/5 |
 
 The state path correctly withholds every absent object on the table (laptop,
 hammer, fork, bottle), while the default binding path answers the bottle
@@ -1315,6 +1316,16 @@ support.  Post hoc, the fixed veto removes the cup false presence on `play_3`
 (9/13, 0/5) without losing a positive, but the pre-registered `play_1` test
 remains negative, so the veto's benefit is clip-dependent rather than a
 replicated mechanism.
+
+The same soft-floor rule did fire on a second, different living room.  The
+pre-registered `clean_0` test scores **11/13 with 0/5 false presence**
+(**10/13 strict**): the rug, sofa and armchair are on `floor`, the blue book is
+on the coffee table (called `desk`, accepted leniently), and `still_sofa`
+passes.  The rule is therefore scene-dependent rather than wrong: the floor
+fraction in the contact bands is high enough here, but not on `play_3`'s rug.
+The remaining failures are temporal: `still_rug` has no late detection and
+`moved_rug` is a false move from support flipping.  Presence is the strongest
+part of the state path; persistence and motion are not.
 
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same
@@ -1408,8 +1419,8 @@ objects are sensitive to its smoothing.
   and covers 20 of 26 probes; it is a diagnostic pointing at class competition,
   not a second calibrated benchmark.
 - The opt-in state path is one protocol-defined clip (19 questions), one
-  post-hoc transfer clip (9 questions) and four pre-registered replications
-  (14, 12, 13 and 13 questions), annotated with vision-assistant assistance
+  post-hoc transfer clip (9 questions) and five pre-registered replications
+  (14, 12, 13, 13 and 13 questions), annotated with vision-assistant assistance
   rather than independent human labelling.  The first pre-registered
   replication answers all five absent probes correctly but misses all seven
   positives, because the living room's floor is never a detected support.  The
@@ -1420,12 +1431,14 @@ objects are sensitive to its smoothing.
   replicate the `play_0` gain.  The fourth, testing the soft-object floor rule
   on an area rug, is 8/13 with **1/5 false presence**; the rug's floor fraction
   stays below the override, so the rule never fires, and a post-hoc veto
-  removes the cup (9/13, 0/5).  The 0/5 false-presence results are therefore
-  clip-specific and paid for in recall, not a safety guarantee.  The competing
-  bank is a household/office prior, the context scan covers 32 of 47 frames,
-  and the support-under rule uses 2-D geometry, not depth or hand contact, so a
-  "held" state is still not represented.  A naive landmark-in-object-box held
-  check over-calls on the plate (61/80 detections) and misses the knife (0/6),
+  removes the cup (9/13, 0/5).  The fifth, a second living room with a different
+  rug, is 11/13 with 0/5 (10/13 strict), so the rule is scene-dependent rather
+  than universal.  The 0/5 false-presence results are therefore clip-specific
+  and paid for in recall, not a safety guarantee.  The competing bank is a
+  household/office prior, the context scan covers 32 of 47 frames, and the
+  support-under rule uses 2-D geometry, not depth or hand contact, so a "held"
+  state is still not represented.  A naive landmark-in-object-box held check
+  over-calls on the plate (61/80 detections) and misses the knife (0/6),
   confirming that grasp needs keypoint geometry or depth, not another
   containment rule.
 - No human study, no comparison to a full VLM baseline, and no multi-seed

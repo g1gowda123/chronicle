@@ -513,7 +513,10 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   is detected 14 times but its floor fraction stays below the .35 override, so
   the rule never fires; a post-hoc veto removes the cup (9/13, 0/5), but the
   `play_1` pre-registration remains negative, so the veto benefit is
-  clip-dependent.
+  clip-dependent. A pre-registered `clean_0` replication of the same soft-floor
+  rule is positive (11/13, 0/5, 10/13 strict): the rug, sofa and armchair are on
+  `floor`, so the rule is scene-dependent rather than universal; still/moved
+  remain unreliable.
 - Next: the two blocking gaps are (a) an absence path that uses a fixed-label
   detector for covered classes and reserves the open-vocabulary detector for
   exploration. YOLOv8-L at .50 is now validated across three held-out windows

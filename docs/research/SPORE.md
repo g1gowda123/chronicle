@@ -239,7 +239,10 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   is negative: 8/13 with **1/5 false presence**, because the rug's floor
   fraction stays below the override and the rule never fires; a post-hoc veto
   removes the cup (9/13, 0/5), but the `play_1` pre-registration remains
-  negative, so the veto benefit is clip-dependent. See [`STATE.md`](STATE.md).
+  negative, so the veto benefit is clip-dependent. A pre-registered `clean_0`
+  replication of the same soft-floor rule is positive: **11/13, 0/5** (10/13
+  strict), with the rug, sofa and armchair on `floor`, so the rule is
+  scene-dependent rather than universal. See [`STATE.md`](STATE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

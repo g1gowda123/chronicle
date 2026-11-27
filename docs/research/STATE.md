@@ -365,6 +365,32 @@ the veto removes a cup false positive (after the post-hoc `play_0` rerun), but
 it did not replicate on the pre-registered `play_1` test (Result 8), so the
 evidence remains clip-dependent.
 
+## Result 11: the soft-floor rule replicates on a different rug
+
+The `clean_0` probe (13 questions, committed as `37295c7` before the first
+state ingest, surface head on and fixed veto off) is a second tidying living
+room: a large blue-and-cream area rug, round coffee table with a tray and blue
+book, gray sofa and tan leather armchair.  The gray blanket in this clip is on
+the sofa, never on the floor.
+
+| mode | scored | correct | strict support | false presence | missed presence |
+|---|---:|---:|---:|---:|---:|
+| state + surface head (pre-registered) | 13 | **11/13 (0.846)** | 10/13 (0.769) | **0/5** | 1/6 |
+| default binding | 9 | 6/9 (0.667) | 6/9 | 0/5 | 3/4 |
+
+This is the first living-room replication with strong positive recall:
+`presence_rug`, `presence_sofa`, `presence_chair`, `presence_book` and
+`still_sofa` all pass, and every absent probe is withheld.  The one strict
+support error is the coffee table called `desk` for the book, which the lenient
+matcher accepts.  The soft-floor rule therefore does fire here, unlike
+`play_3`: the rug's floor fraction in this room is high enough to override the
+desk/shelf support.  The rule is scene-dependent, not universally reliable.
+
+The remaining failures are temporal: `still_rug` has no evidence at 40 s (the
+rug is not detected late enough), and `moved_rug` is reported as moved because
+the support flips even though the rug is static.  Presence is now the strongest
+part of the state path; persistence and motion are not.
+
 ## Held state: a naive contact test is not enough
 
 A `held` verdict was prototyped as "any hand landmark falls inside the object
@@ -485,5 +511,13 @@ python scripts/spore_state_eval.py \
   --qa data/qa/play_3_state_45s.json \
   --dump research/spore/results/play3_state/store.json \
   --out research/spore/results/play3_state/report.json \
+  --compare
+
+# Pre-registered soft-floor replication on a second rug
+python scripts/spore_state_eval.py \
+  --clip data/footage/aria_clean_0_45s.mp4 \
+  --qa data/qa/clean_0_state_45s.json \
+  --dump research/spore/results/clean0_state/store.json \
+  --out research/spore/results/clean0_state/report.json \
   --compare
 ```
