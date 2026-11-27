@@ -281,6 +281,28 @@ with a wider class list. The honest conclusion is that fixed-label detection is
 the right *shape* for negative claims, but this particular detector and
 threshold are not yet a deployable absence verifier.
 
+### Model scale on the same held-out clip
+
+The verifier accepts any fixed-label model, so the same `eat_2` store was
+re-scanned with YOLOv8-S/M/L at the pre-registered .50 threshold (models
+downloaded on demand; 47 calls each, 2-12 s):
+
+| model (.50) | TP | FP | FN | TN | precision | recall | at-time |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| YOLOv8-S | 8 | 0 | 3 | 9 | 1.00 | .727 | 4/5 |
+| YOLOv8-M | 8 | 1 | 3 | 8 | .889 | .727 | 5/5 |
+| YOLOv8-L | **10** | **0** | **1** | **9** | **1.00** | **.909** | **5/5** |
+
+Scale is not monotonic: M gains `bottle` and `television` but loses `bowl` and
+`glass` and adds a `fork` false presence at .56; L recovers all four and keeps
+zero false presences. The remaining miss is `oven` (zero detections at every
+scale) -- the object is a range under a hood, and COCO has no `stove`/`range`
+class. The score shifts confirm that per-class confidence is model-dependent,
+so a threshold calibrated on one backbone does not transfer unchanged to
+another. L at .50 is the best fixed-label operating point seen so far; it is
+**post hoc** on `eat_2` and is being validated on a new window before it is
+called a default.
+
 ## Interpretation
 
 1. **Absence is bounded by detector semantics, not by memory size or sampling
