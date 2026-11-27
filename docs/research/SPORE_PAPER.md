@@ -1153,6 +1153,16 @@ presences in 23 absent-term checks) and it cannot represent `plate` at all.
 The honest product rule remains "not observed by <detector> in N contexts",
 with the per-class error rate attached.
 
+A post-hoc crop check asked whether CLIP similarity can veto the confident
+look-alikes: crop the box, score it against the term and confusable
+competitors, and treat a negative margin as a veto.  It fails.  On `eat_3` the
+lowest true-positive margin (.012) is below the highest false-positive margin
+(.046, the dark window still preferred over `window`/`picture frame`), and on
+`eat_2` three true positives (`sandwich`, `refrigerator`, `microwave`) prefer a
+competitor prompt.  Absolute CLIP similarity is not calibrated for presence
+even on a tight crop, so the veto needs a geometric cue (screen bezel,
+blinds) or a classifier trained for the specific confusion.
+
 The practical conclusion is that a negative
 answer must be expressed as "the query detector found no X in N retained
 contexts", with the measured error rates attached, not as a fact about the

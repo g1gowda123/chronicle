@@ -451,7 +451,12 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   windows on the same 20 covered terms: **YOLOv8-L .50 precision .889 / recall
   .941 / false-presence .087** versus YOLO-World-S .22 .682/.882/.304.
   Fixed-label is the stronger negative substrate, but 2/23 absent-term checks
-  are still false and `plate` has no class; do not certify absence.
+  are still false and `plate` has no class; do not certify absence. A post-hoc
+  CLIP crop-check (`scripts/spore_absence_crop_check.py`) does **not** fix the
+  look-alikes: on `eat_3` the lowest true-positive margin (.012) is below the
+  highest false-positive margin (.046, the TV still preferred over
+  `window`/`picture frame`), and three `eat_2` true positives prefer a
+  competitor prompt. Text-image similarity is not a calibrated veto.
 - Grounded state answers are now opt-in (`state_queries=True`; `STATE.md`) and
   were tested on a sixth unseen Aria window (`cook_0`, 50–95 s) with 19
   questions written before the first run. The path returns `present` /

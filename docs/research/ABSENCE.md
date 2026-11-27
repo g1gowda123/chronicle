@@ -343,6 +343,31 @@ open-vocabulary path. It is still not an absence verifier in the strict sense:
 two confident false presences remain, 6/26 terms are unsupported, and both
 windows come from the same household/domain.
 
+## Post-hoc: crop-level CLIP verification (negative)
+
+The two confident false presences on `eat_3` are visual look-alikes, so a cheap
+second opinion is to crop the detector box and CLIP-score the crop against the
+queried term and a few confusable competitors (`bowl` vs `plate`, `television`
+vs `window`/`picture frame`/`monitor`, and so on). The probe is
+`scripts/spore_absence_crop_check.py`; it uses the same OpenCLIP ViT-B/32
+embedder as SPORE and the same `yolov8l.pt` verdicts at .50.
+
+| clip | true-positive margins | false-positive margins | single veto threshold? |
+|---|---|---|---|
+| `eat_2` | -0.024 to 1.225 (n=10) | none | no |
+| `eat_3` | 0.012 to 1.236 (n=6) | -0.003 (`bowl`), +0.046 (`television`) | no |
+
+The margin does not separate the errors. Three `eat_2` true positives
+(`sandwich`, `refrigerator`, `microwave`) actually prefer a competitor prompt;
+the `eat_3` TV false positive still prefers `television` over `window` and
+`picture frame` (+.046). The lowest true-positive margin on `eat_3` (.012) is
+below the highest false-positive margin (.046), so any threshold that vetoes
+the TV also vetoes at least half of the correct positives. This is the same
+failure mode as the scene-recall absence probe: absolute CLIP similarity is not
+calibrated for presence, even on a tight crop. A usable veto needs a
+segmentation/geometry cue (screen bezel, window blinds) or a classifier trained
+for the specific confusion, not text-image similarity.
+
 ## Interpretation
 
 1. **Absence is bounded by detector semantics, not by memory size or sampling
@@ -368,10 +393,11 @@ windows come from the same household/domain.
    false-presence .087 vs .304). It still makes two confident look-alike
    errors (a plate as `bowl`, a dark window as `television`), covers only 20/26
    terms (`plate` has no class), and both windows are the same
-   household/domain. The design is validated; the verifier is not. The next
-   step is a wider fixed label bank plus per-class calibration or a two-band
-   verdict (confident present / weak evidence / not observed), not a global
-   threshold on an 80-class detector.
+   household/domain. The design is validated; the verifier is not. A CLIP
+   crop check does not separate the look-alikes (post-hoc, negative), so the
+   next step is a wider fixed label bank plus per-class calibration, a two-band
+   verdict, or a segmentation/geometry cue for the high-stakes classes -- not a
+   global threshold on an 80-class detector.
 6. **What would still change the conclusion:** a fixed-label detector with a
    tableware/appliance class list and per-class calibration, independent human
    labels per context (rather than intervals), or a prompt-free
@@ -419,6 +445,12 @@ python scripts/spore_absence_verify.py \
   --probes data/qa/eat_3_absence.json \
   --model yolov8l.pt \
   --out research/spore/results/eat3_absence/verify_l.json
+
+# Crop-level CLIP verification probe (negative)
+python scripts/spore_absence_crop_check.py \
+  --store research/spore/results/eat3_absence/store.json \
+  --probes data/qa/eat_3_absence.json \
+  --out research/spore/results/eat3_absence/crop_check.json
 ```
 
 The first script writes a JSON report and a markdown summary; the second adds
