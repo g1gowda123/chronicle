@@ -328,20 +328,40 @@ wrong verdict. On the same covered terms the world detector finds 5/6 present
 and leaves 9/14 absent clean at .22 (4/6 and 11/14 at .50), so L at .50
 dominates the world model on both axes on this clip.
 
-Aggregating the two held-out windows (`eat_2` + `eat_3`, same 20 covered
-terms):
+Aggregating the held-out windows on their covered terms (the `eat_2` and
+`eat_3` banks share 20 terms; `walk_1` covers 26, see below):
 
-| detector (.50 unless noted) | TP | FP | FN | TN | precision | recall | false-presence rate |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| YOLO-World-S, .22 | 15 | 7 | 2 | 16 | .682 | .882 | .304 |
-| YOLOv8-L fixed-label, .50 | **16** | **2** | **1** | **21** | **.889** | **.941** | **.087** |
+| window | covered present/absent | YOLOv8-L .50 TP/FP/FN/TN | YOLO-World-S .22 TP/FP/FN/TN |
+|---|---|---|---|
+| `eat_2` | 11 / 9 | 10 / 0 / 1 / 9 | 10 / 2 / 1 / 7 |
+| `eat_3` | 6 / 14 | 6 / 2 / 0 / 12 | 5 / 5 / 1 / 9 |
+| `walk_1` | 4 / 22 | 4 / 1 / 0 / 21 | 4 / 4 / 0 / 18 |
+| **pooled** | **21 / 45** | **20 / 3 / 1 / 42** | **19 / 11 / 2 / 34** |
+| pooled precision / recall / false-presence | | **.870 / .952 / .067** | .633 / .905 / .244 |
 
-This is the strongest evidence for the two-detector design so far: on the
-classes it covers, a fixed-label detector at a fixed .50 threshold is both more
-complete and much less likely to claim a false presence than the
-open-vocabulary path. It is still not an absence verifier in the strict sense:
-two confident false presences remain, 6/26 terms are unsupported, and both
-windows come from the same household/domain.
+## Cross-domain validation: walk_1
+
+The outdoor window is the first non-indoor test and the only one with full
+label coverage: its 24-term bank (14 street objects, 12 indoor objects) is
+entirely inside COCO, so the verifier can answer every term. Four are present
+(`person`, `car` around 4--16 s, `fire hydrant` around 23--31 s, and a `cup`
+held from ~17 s); 22 are absent.
+
+The world detector finds all four present terms (AUC 1.0) but makes four false
+presences: `bicycle` .55 on a signpost by the parked cars, `motorcycle` .27,
+`backpack` .40, and `bottle` .57 on the coffee cup -- all inspected at full
+resolution and confirmed wrong. The fixed-label verifier at .50 scores
+**TP 4, FP 1, FN 0, TN 21** (precision .80, recall 1.0, false-presence .045)
+and **5/5** on at-time questions (car at 8/40 s, hydrant at 26/5 s, cup at
+40 s). Its single false presence is `motorcycle` .538 at 31.8 s on the
+companion's plaid forearm and cup at the bottom-right frame edge -- a
+partial-person-as-vehicle error, not a hallucinated scene object.
+
+This is the strongest transfer result: on a new domain, a fixed .50 threshold
+that was never tuned on outdoor footage removes three of four world-detector
+false presences, keeps all positives, and stays correct at time queries. It
+does not remove the frame-edge fragment error; the pooled false-presence rate
+across the three windows is .067, not zero.
 
 ## Post-hoc: crop-level CLIP verification (negative)
 
@@ -386,18 +406,18 @@ for the specific confusion, not text-image similarity.
    current 2-D containment heuristic collapses to the background surface behind
    the object. An explicit "held / on <surface>" state, backed by hand contact
    and depth, is the missing capstone; it cannot be recovered by prompt tuning.
-5. **A fixed-label detector is the right substrate for negative claims, but a
-   negative verdict is still bounded.** Across two held-out windows and the 20
-   COCO-covered terms, YOLOv8-L at .50 is both more complete and much safer
-   than YOLO-World-S at .22 (precision .889 vs .682, recall .941 vs .882,
-   false-presence .087 vs .304). It still makes two confident look-alike
-   errors (a plate as `bowl`, a dark window as `television`), covers only 20/26
-   terms (`plate` has no class), and both windows are the same
-   household/domain. The design is validated; the verifier is not. A CLIP
-   crop check does not separate the look-alikes (post-hoc, negative), so the
-   next step is a wider fixed label bank plus per-class calibration, a two-band
-   verdict, or a segmentation/geometry cue for the high-stakes classes -- not a
-   global threshold on an 80-class detector.
+5. **A fixed-label detector is the right substrate for negative claims, and it
+   transfers across domains.** Pooled over three held-out windows and their
+   covered terms (21 present / 45 absent), YOLOv8-L at .50 reaches precision
+   **.870**, recall **.952** and a false-presence rate **.067**, against
+   .633/.905/.244 for YOLO-World-S at .22. The outdoor window is the cleanest
+   result: 21/22 absent terms correctly silent, all positives found, 5/5
+   at-time. But the three false presences are real (a plate as `bowl`, a dark
+   window as `television`, a plaid forearm as `motorcycle`), the eat banks
+   still cover only 20/26 terms (`plate` has no class), and a CLIP crop check
+   does not separate the look-alikes (post-hoc, negative). The design is
+   validated; a user-facing negative verdict still needs a wider label bank,
+   per-class calibration and a frame-edge/fragment guard.
 6. **What would still change the conclusion:** a fixed-label detector with a
    tableware/appliance class list and per-class calibration, independent human
    labels per context (rather than intervals), or a prompt-free
@@ -451,6 +471,18 @@ python scripts/spore_absence_crop_check.py \
   --store research/spore/results/eat3_absence/store.json \
   --probes data/qa/eat_3_absence.json \
   --out research/spore/results/eat3_absence/crop_check.json
+
+# Cross-domain validation on walk_1
+python scripts/spore_absence.py \
+  --clip data/footage/aria_walk_1_45s.mp4 \
+  --probes data/qa/walk_1_absence.json \
+  --dump research/spore/results/walk1_absence/store.json \
+  --out research/spore/results/walk1_absence/report.json
+python scripts/spore_absence_verify.py \
+  --store research/spore/results/walk1_absence/store.json \
+  --probes data/qa/walk_1_absence.json \
+  --model yolov8l.pt \
+  --out research/spore/results/walk1_absence/verify_l.json
 ```
 
 The first script writes a JSON report and a markdown summary; the second adds
