@@ -307,12 +307,13 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   `research/high-res-longvideo`/`research/long-video-qa`, and
   `experiment/egotempo-benchmark`; `task/nb-08-real-calibration` was
   superseded and dropped.
-- `research/spore-perception`: based on `1200f84`, tip `9cfc005` at the last
+- `research/spore-perception`: based on `1200f84`, tip `32bc6bc` at the last
   research commit; perceiver, query engine, benchmarks, context frames, fused
   tracks, counting, inventory, compact stores, temporal scans,
   detector-free scene recall, support-surface query targets, and an optional
   semantic surface head. The latest additions are the opt-in grounded state
-  answers (`9cfc005`, `STATE.md`), the unseen-`eat_1` presence/absence
+  answers (`STATE.md`; five living-room replications, best `clean_0` 11/13),
+  the unseen-`eat_1` presence/absence
   calibration (`cc7a1fc`, `ABSENCE.md`), local-crop support
   remeasurement (`7bb43ca`) and a post-hoc audited Cook QA set
   (`.90` diagnostic; original `.70` headline). Spatial support qualifiers,
