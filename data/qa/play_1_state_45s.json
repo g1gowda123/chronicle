@@ -1,0 +1,135 @@
+{
+  "clip": "data/footage/aria_play_1_45s.mp4",
+  "domain": "social",
+  "source_sequence": "play_1",
+  "window": {
+    "start_s": 228.0,
+    "duration_s": 45.0
+  },
+  "run": {
+    "state_surface_support": true,
+    "state_fixed_verify": true,
+    "state_fixed_threshold": 0.50,
+    "state_contexts": 32
+  },
+  "protocol": "Pre-registered before the first SPORE ingest or detector call on this clip: this probe file, the play_1 manifest entry, the run configuration (surface head + fixed-label veto at .50) and the registration test are committed together. Labels come from visual inspection of a 1 fps contact sheet plus full frames at 10, 20, 30 and 40 s; the query detector was not consulted. The window is a living-room seating area: a round coffee table with an orange game box and playing cards, a gray sofa, a gray armchair, a tan pouf, and a navy blanket on the rug. A 'no' label means the object is not visible anywhere in the window. COCO-covered absence terms (cup, bottle, laptop) test the fixed-label veto; plate and hammer are outside COCO and test its coverage limit.",
+  "questions": [
+    {
+      "id": "presence_box",
+      "query": "Is there a box on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "Orange Scrabble-style game box on the round coffee table throughout the window."
+    },
+    {
+      "id": "presence_sofa",
+      "query": "Is there a sofa on the floor?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "Gray fabric sofa along the left wall, standing on the rug/floor."
+    },
+    {
+      "id": "presence_chair",
+      "query": "Is there a chair on the floor?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "Gray armchair near the sofa, standing on the rug/floor."
+    },
+    {
+      "id": "presence_blanket",
+      "query": "Is there a blanket on the floor?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "Navy throw blanket spread on the rug/floor throughout the window."
+    },
+    {
+      "id": "absence_cup",
+      "query": "Is there a cup on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No cup or glass anywhere in the window. COCO-covered, so the fixed-label veto applies."
+    },
+    {
+      "id": "absence_bottle",
+      "query": "Is there a bottle on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No bottle anywhere in the window. COCO-covered, so the fixed-label veto applies."
+    },
+    {
+      "id": "absence_laptop",
+      "query": "Is there a laptop on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No laptop anywhere in the window. COCO-covered, so the fixed-label veto applies."
+    },
+    {
+      "id": "absence_plate",
+      "query": "Is there a plate on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No plate anywhere in the window. COCO has no plate class, so the veto cannot cover this term."
+    },
+    {
+      "id": "absence_hammer",
+      "query": "Is there a hammer on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No hammer anywhere in the window. COCO has no hammer class, so the veto cannot cover this term."
+    },
+    {
+      "id": "still_box",
+      "query": "Is the box still on the table?",
+      "kind": "still",
+      "timestamp": 40.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "The game box remains on the coffee table at 40 s."
+    },
+    {
+      "id": "still_sofa",
+      "query": "Is the sofa still on the floor?",
+      "kind": "still",
+      "timestamp": 40.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "The sofa does not leave the seating area."
+    },
+    {
+      "id": "moved_box",
+      "query": "Did the box move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "stayed",
+      "expected_support": "table",
+      "human_evidence": "The box stays on the coffee table for the whole window."
+    },
+    {
+      "id": "moved_sofa",
+      "query": "Did the sofa move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "stayed",
+      "expected_support": "floor",
+      "human_evidence": "The sofa is static in the seating area."
+    }
+  ]
+}
