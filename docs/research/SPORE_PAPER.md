@@ -1335,10 +1335,10 @@ detected somewhere nearby.
 The cost is explicit: 525 detector calls for 19 questions (27.6/query) versus
 71 (3.7/query) for the default binding path, mean latency 0.43 s versus 0.19 s,
 plus one verification call per positive answer.  The path is opt-in and does
-not change any existing benchmark.  The result is one clip and 19 questions,
-annotated with vision-assistant assistance, so the 0/6 false-presence figure is
-a bounded safety result on this clip, not an absence guarantee.  Full protocol
-and threats are in [`STATE.md`](STATE.md).
+not change any existing benchmark.  The `cook_0` result is one clip and 19
+questions, annotated with vision-assistant assistance, so its 0/6
+false-presence figure is a bounded safety result on that clip, not an absence
+guarantee.  Full protocol and threats are in [`STATE.md`](STATE.md).
 
 SPORE shows that **retained full context**, not better crops, is the dominant
 factor for late-binding localisation. Capsule crops alone are too tight and too

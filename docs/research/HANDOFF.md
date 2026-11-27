@@ -28,7 +28,7 @@ Hard requirements:
 | Path | Branch | HEAD | State |
 |---|---|---|---|
 | `/home/g1/projects/chronicle` | `main` | `b86f5aa` | clean, pushed |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `9cfc005` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + local-crop support remeasure + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + post-hoc audited Cook QA + LFS fetch + unseen `eat_1` presence/absence calibration (detector-bound; no absence verifier) + post-hoc fixed-label COCO comparison + opt-in grounded state answers (`cook_0`, 16/19, 0/6 false presence) + fixed-label absence verifier (L across `eat_2`/`eat_3`/`walk_1`: precision .870, recall .952 on 21 present/45 absent checks) |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `c70faf7` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + local-crop support remeasure + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + post-hoc audited Cook QA + LFS fetch + unseen `eat_1` presence/absence calibration (detector-bound; no absence verifier) + post-hoc fixed-label COCO comparison + opt-in grounded state answers (`cook_0` 16/19, 0/6 false presence; four living-room replications 5/14, 5/12, 7/13, 8/13, with the surface head, fixed veto and soft-floor rule not validated; self-support exclusion recovers the `play_2` basket) + fixed-label absence verifier (L across `eat_2`/`eat_3`/`walk_1`: precision .870, recall .952 on 21 present/45 absent checks) |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 
 `research/high-res-longvideo`, `research/long-video-qa`, `research/vfm-merged`,
@@ -534,4 +534,10 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   finds the object, but object detection (box/book) and held state remain. Do
   not tune the `eat_1`/`cook_0`/`play_2` terms or thresholds, re-run the
   absence scan with another k to chase a headline, or tune Cook-specific
-  failures.
+  failures. The same applies to the state mechanisms: the `.35` soft-floor
+  override is a negative pre-registered result on `play_3`, the `.50` fixed veto
+  is a negative pre-registered result on `play_1` (it caught no false positive
+  and cost a chair), and the `play_0` cup removal is a single post-hoc
+  observation. Do not lower either threshold on the same clips and report a
+  gain; a fresh pre-registered window is required. A real `held` state needs
+  hand contact or depth, not another support label.
