@@ -60,6 +60,7 @@ validates the YOLOv8-L verifier at .50. They are fetched with:
 python scripts/fetch_aria_clip.py --sequence eat_1
 python scripts/fetch_aria_clip.py --sequence eat_2
 python scripts/fetch_aria_clip.py --sequence eat_3
+python scripts/fetch_aria_clip.py --sequence walk_1
 ```
 
 A second cooking window (`cook_0`, 50 s + 45 s) was added for the opt-in state

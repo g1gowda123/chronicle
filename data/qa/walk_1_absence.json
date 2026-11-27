@@ -1,0 +1,45 @@
+{
+  "clip": "data/footage/aria_walk_1_45s.mp4",
+  "sequence": "walk_1",
+  "window": {"start_s": 30.0, "duration_s": 45.0},
+  "annotation": {
+    "annotator": "human visual inspection (agent) of a 2 s contact sheet plus full-resolution frames at 4, 8, 12, 26 and 40 s",
+    "tolerance_s": 2.0,
+    "notes": "Outdoor-campus window with a 24-term open-vocabulary bank: 14 street/outdoor terms and 12 indoor terms. The parking lot is empty at 4 s but three or four white SUVs are visible along the building at 8 s, so car is present with a coarse interval. The hydrant appears only in the middle segment and the cup is held from ~17 s. All 26 terms are COCO classes, so this is a 26/26 coverage clip and the main question is false-presence rate. This file was committed before the first ingest or detector call."
+  },
+  "probes": [
+    {"term": "person", "present": true, "intervals": [[0.0, 45.0]], "note": "Companion in plaid plus a distant person near the building."},
+    {"term": "car", "present": true, "intervals": [[4.0, 16.0]], "note": "Three or four white SUVs parked along the building, visible from ~8 s."},
+    {"term": "fire hydrant", "present": true, "intervals": [[23.0, 31.0]], "note": "Yellow hydrant on the grass island, mid-distance."},
+    {"term": "cup", "present": true, "intervals": [[17.0, 45.0]], "note": "White disposable coffee cup held by the companion."},
+    {"term": "bicycle", "present": false, "intervals": [], "note": "No bicycle."},
+    {"term": "motorcycle", "present": false, "intervals": [], "note": "No motorcycle."},
+    {"term": "bus", "present": false, "intervals": [], "note": "No bus."},
+    {"term": "bench", "present": false, "intervals": [], "note": "No bench."},
+    {"term": "dog", "present": false, "intervals": [], "note": "No dog."},
+    {"term": "backpack", "present": false, "intervals": [], "note": "No backpack."},
+    {"term": "umbrella", "present": false, "intervals": [], "note": "No umbrella."},
+    {"term": "handbag", "present": false, "intervals": [], "note": "No handbag."},
+    {"term": "traffic light", "present": false, "intervals": [], "note": "No traffic light."},
+    {"term": "stop sign", "present": false, "intervals": [], "note": "The white signs are parking signs, not stop signs."},
+    {"term": "potted plant", "present": false, "intervals": [], "note": "Vegetation is in-ground landscaping."},
+    {"term": "laptop", "present": false, "intervals": [], "note": "No laptop outdoors."},
+    {"term": "television", "present": false, "intervals": [], "note": "No TV."},
+    {"term": "microwave", "present": false, "intervals": [], "note": "No microwave."},
+    {"term": "refrigerator", "present": false, "intervals": [], "note": "No refrigerator."},
+    {"term": "bowl", "present": false, "intervals": [], "note": "No bowl."},
+    {"term": "bottle", "present": false, "intervals": [], "note": "No bottle."},
+    {"term": "book", "present": false, "intervals": [], "note": "No book."},
+    {"term": "dining table", "present": false, "intervals": [], "note": "No dining table outdoors."},
+    {"term": "sofa", "present": false, "intervals": [], "note": "No sofa."},
+    {"term": "bed", "present": false, "intervals": [], "note": "No bed."},
+    {"term": "toilet", "present": false, "intervals": [], "note": "No toilet."}
+  ],
+  "time_questions": [
+    {"question": "is the car visible at 8 seconds?", "term": "car", "at_time": 8.0, "expected_present": true},
+    {"question": "is the car visible at 40 seconds?", "term": "car", "at_time": 40.0, "expected_present": false},
+    {"question": "is the fire hydrant visible at 26 seconds?", "term": "fire hydrant", "at_time": 26.0, "expected_present": true},
+    {"question": "is the fire hydrant visible at 5 seconds?", "term": "fire hydrant", "at_time": 5.0, "expected_present": false},
+    {"question": "is the cup visible at 40 seconds?", "term": "cup", "at_time": 40.0, "expected_present": true}
+  ]
+}
