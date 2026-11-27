@@ -23,7 +23,11 @@ objects at loc@.3 with 5-8 detector calls per query versus 128-150 for dense
 sampling; a compact 300-capsule store cuts the 257 s HoloAssist z210 store
 from 44.2 MB to 7.55 MB while preserving localisation, and an answer touches
 only 35-66 KB of evidence (0.5-2.1% of the store). Fine-object counting remains source-resolution-bound
-as well as detector-bound.
+as well as detector-bound. An opt-in grounded-state extension answers explicit
+presence, persistence and movement questions; it reaches 16/19 and 11/13 with
+zero false presences on two clips, but its living-room persistence and motion
+answers follow 2-D support labels rather than object motion and are not yet
+reliable.
 
 ## 1. Introduction
 
