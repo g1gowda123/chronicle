@@ -1,0 +1,45 @@
+{
+  "clip": "data/footage/aria_eat_2_45s.mp4",
+  "sequence": "eat_2",
+  "window": {"start_s": 30.0, "duration_s": 45.0},
+  "annotation": {
+    "annotator": "human visual inspection (agent) of a 2 s contact sheet, full-resolution frames at 0, 12, 24, 36 and 44 s, and left-region crops at 0, 8, 16, 20, 22, 24, 26, 28, 30, 32, 36 and 44 s",
+    "tolerance_s": 2.0,
+    "notes": "Same 26-term bank as eat_1 so the two clips are comparable. The background island holds a bottle and bowl; they are visible whenever the counter is in frame, which the coarse [0,45] interval encodes. The wall-mounted TV is only visible around 22-27 s; the interval is coarse. This file and the fixed-label verifier code were committed before the first ingest or detector call on this clip."
+  },
+  "probes": [
+    {"term": "plate", "present": true, "intervals": [[0.0, 45.0]], "note": "White plates on the table throughout."},
+    {"term": "cup", "present": true, "intervals": [[0.0, 45.0]], "note": "Tall pink-drink vessels; detector term 'cup'."},
+    {"term": "glass", "present": true, "intervals": [[0.0, 45.0]], "note": "Same vessels named as glasses; tests label synonymy."},
+    {"term": "napkin", "present": true, "intervals": [[0.0, 45.0]], "note": "White paper napkins on the table."},
+    {"term": "sandwich", "present": true, "intervals": [[0.0, 45.0]], "note": "Sandwiches and bread on plates."},
+    {"term": "table", "present": true, "intervals": [[0.0, 45.0]], "note": "Wooden dining table fills the foreground."},
+    {"term": "person", "present": true, "intervals": [[0.0, 45.0]], "note": "Two diners plus the camera wearer's hands."},
+    {"term": "refrigerator", "present": true, "intervals": [[0.0, 45.0]], "note": "Stainless refrigerator in the kitchen background."},
+    {"term": "microwave", "present": true, "intervals": [[0.0, 45.0]], "note": "Mounted above the range."},
+    {"term": "oven", "present": true, "intervals": [[0.0, 45.0]], "note": "Range/oven below the microwave."},
+    {"term": "cabinet", "present": true, "intervals": [[0.0, 45.0]], "note": "White kitchen cabinets throughout."},
+    {"term": "window", "present": true, "intervals": [[0.0, 45.0]], "note": "Window with white blinds, right wall."},
+    {"term": "bowl", "present": true, "intervals": [[0.0, 45.0]], "note": "Small white bowl on the table from ~22 s and a fruit/bowl on the island earlier; coarse interval."},
+    {"term": "bottle", "present": true, "intervals": [[0.0, 45.0]], "note": "Tall bottle on the kitchen island; visible whenever the counter is in frame."},
+    {"term": "television", "present": true, "intervals": [[22.0, 27.0]], "note": "Dark wall-mounted TV on the left wall, visible only while the camera pans left around 24 s."},
+    {"term": "mug", "present": false, "intervals": [], "note": "Drinks are tall glasses; the white object at the right table edge is a napkin."},
+    {"term": "fork", "present": false, "intervals": [], "note": "No fork visible in any sampled frame."},
+    {"term": "knife", "present": false, "intervals": [], "note": "No knife visible."},
+    {"term": "spoon", "present": false, "intervals": [], "note": "No spoon visible."},
+    {"term": "pitcher", "present": false, "intervals": [], "note": "No pitcher visible."},
+    {"term": "laptop", "present": false, "intervals": [], "note": "No laptop."},
+    {"term": "phone", "present": false, "intervals": [], "note": "No phone."},
+    {"term": "book", "present": false, "intervals": [], "note": "No book (the tray on the ottoman is too small to confirm)."},
+    {"term": "sofa", "present": false, "intervals": [], "note": "Living area has ottomans, no sofa."},
+    {"term": "bicycle", "present": false, "intervals": [], "note": "Indoor scene, no bicycle."},
+    {"term": "umbrella", "present": false, "intervals": [], "note": "No umbrella."}
+  ],
+  "time_questions": [
+    {"question": "is the cup visible at 24 seconds?", "term": "cup", "at_time": 24.0, "expected_present": true},
+    {"question": "is the television visible at 24 seconds?", "term": "television", "at_time": 24.0, "expected_present": true},
+    {"question": "is the television visible at 36 seconds?", "term": "television", "at_time": 36.0, "expected_present": false},
+    {"question": "is the television visible at 8 seconds?", "term": "television", "at_time": 8.0, "expected_present": false},
+    {"question": "is the fork visible at 12 seconds?", "term": "fork", "at_time": 12.0, "expected_present": false}
+  ]
+}

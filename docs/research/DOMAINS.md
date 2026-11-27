@@ -27,6 +27,7 @@ manifest, fetch/trim helper, and derived reports are committed.
 | `eat_1` | eating | 30–75 s | second dining window, kept unseen for the presence/absence calibration |
 | `cook_0` | cooking | 50–95 s | second cooking window, stable sink counter, kept unseen for the state/absence probe |
 | `play_2` | social | 144–189 s | second living-room window, pre-registered state replication |
+| `eat_2` | eating | 30–75 s | third dining window, held out for the fixed-label absence verifier |
 
 The windows were chosen from sampled frames before any SPORE run. Scene
 metadata (2D/3D boxes, object categories, hand-object interactions) is
@@ -38,7 +39,10 @@ window used only for the opt-in state probe in [`STATE.md`](STATE.md); its 19
 questions were written before the first ingest. `play_2` is the pre-registered
 state replication: its manifest entry, 14-question probe, and metric tests were
 committed before the first ingest, and it is negative on positive state
-questions because the room's floor is never detected as a support.
+questions because the room's floor is never detected as a support. `eat_2`
+reuses the 26-term `eat_1` bank for a held-out test of the fixed-label absence
+verifier; its probe set was committed before the first ingest, and the
+verifier threshold and aliases were fixed on `eat_1`.
 
 ## Fetch
 

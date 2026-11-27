@@ -88,6 +88,18 @@
       "main_stream": "214-1",
       "vocabulary": "plate,bowl,cup,mug,bottle,sandwich,fork,knife,spoon,table,chair,napkin,food",
       "notes": "Fifth unseen window, added for the independent presence/absence calibration. Window (30 s + 45 s) and vocabulary were fixed before the first download or ingest; the clip was not used to develop SPORE defaults."
+    },
+    {
+      "name": "eat_2",
+      "domain": "eating",
+      "sequence": "eat_2",
+      "start_s": 30.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_eat_2_45s.mp4",
+      "zone": "Dining Room",
+      "main_stream": "214-1",
+      "vocabulary": "plate,bowl,cup,mug,bottle,sandwich,fork,knife,spoon,table,chair,napkin,food",
+      "notes": "Sixth unseen window, added for the held-out validation of the fixed-label absence verifier. Window (30 s + 45 s) and probe terms were fixed before the first download or ingest; the clip was not used to choose the verifier threshold or aliases."
     }
   ]
 }

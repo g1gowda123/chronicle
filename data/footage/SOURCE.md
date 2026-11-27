@@ -51,10 +51,13 @@ license links and fetch commands are in:
 An additional dining window (`eat_1`, 30 s + 45 s) was added to
 `data/aria_gen2pilot.json` for the independent presence/absence calibration.
 The window and vocabulary were fixed before the first download or ingest; see
-`data/qa/eat_1_absence.json`. It is fetched with:
+`data/qa/eat_1_absence.json`. A third dining window (`eat_2`, 30 s + 45 s) is
+the held-out validation for the fixed-label absence verifier; its probe bank
+was committed before the first ingest. They are fetched with:
 
 ```bash
 python scripts/fetch_aria_clip.py --sequence eat_1
+python scripts/fetch_aria_clip.py --sequence eat_2
 ```
 
 A second cooking window (`cook_0`, 50 s + 45 s) was added for the opt-in state
