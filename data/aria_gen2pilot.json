@@ -111,7 +111,19 @@
       "zone": "Dining Room",
       "main_stream": "214-1",
       "vocabulary": "plate,bowl,cup,mug,bottle,sandwich,fork,knife,spoon,table,chair,napkin,food",
-      "notes": "Sixth unseen window, added for the held-out validation of the fixed-label absence verifier. Window (30 s + 45 s) and probe terms were fixed before the first download or ingest; the clip was not used to choose the verifier threshold or aliases."
+      "notes": "Further unseen window, added for the held-out validation of the fixed-label absence verifier. Window (30 s + 45 s) and probe terms were fixed before the first download or ingest; the clip was not used to choose the verifier threshold or aliases."
+    },
+    {
+      "name": "eat_3",
+      "domain": "eating",
+      "sequence": "eat_3",
+      "start_s": 30.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_eat_3_45s.mp4",
+      "zone": "Dining Room",
+      "main_stream": "214-1",
+      "vocabulary": "plate,bowl,cup,mug,bottle,sandwich,fork,knife,spoon,table,chair,napkin,food",
+      "notes": "Further unseen window, added to validate the YOLOv8-L fixed-label absence verifier at threshold .50. Window, probe terms and model choice were fixed before the first download or ingest; the clip was not used to choose anything."
     }
   ]
 }

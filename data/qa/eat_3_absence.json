@@ -1,0 +1,45 @@
+{
+  "clip": "data/footage/aria_eat_3_45s.mp4",
+  "sequence": "eat_3",
+  "window": {"start_s": 30.0, "duration_s": 45.0},
+  "annotation": {
+    "annotator": "human visual inspection (agent) of a 2 s contact sheet plus full-resolution frames at 10, 14, 28 and 36 s",
+    "tolerance_s": 2.0,
+    "notes": "Same 26-term bank as eat_1/eat_2. This window looks into a living/dining area: sofa, wooden hutch and windows, but no kitchen appliances. The dark rectangle between the windows was inspected at full resolution and is a window/dark wall opening, not a TV. Pitcher is held only around 27-35 s. This file was committed before the first ingest or detector call."
+  },
+  "probes": [
+    {"term": "plate", "present": true, "intervals": [[0.0, 45.0]], "note": "Plates with sandwiches and chips throughout."},
+    {"term": "cup", "present": true, "intervals": [[0.0, 45.0]], "note": "Tall pink-drink glasses; detector term 'cup'."},
+    {"term": "glass", "present": true, "intervals": [[0.0, 45.0]], "note": "Same vessels named as glasses; tests label synonymy."},
+    {"term": "napkin", "present": true, "intervals": [[0.0, 45.0]], "note": "White paper napkins on the table."},
+    {"term": "sandwich", "present": true, "intervals": [[0.0, 45.0]], "note": "Sandwiches on plates and in hands."},
+    {"term": "table", "present": true, "intervals": [[0.0, 45.0]], "note": "Large wooden dining table."},
+    {"term": "person", "present": true, "intervals": [[0.0, 45.0]], "note": "Three people at the table."},
+    {"term": "cabinet", "present": true, "intervals": [[0.0, 45.0]], "note": "Wooden hutch/cabinet against the back wall."},
+    {"term": "window", "present": true, "intervals": [[0.0, 45.0]], "note": "Multiple windows with white blinds."},
+    {"term": "sofa", "present": true, "intervals": [[0.0, 45.0]], "note": "Gray sofa with pillows, right background."},
+    {"term": "pitcher", "present": true, "intervals": [[27.0, 35.0]], "note": "Large glass pitcher of pink drink, held and poured."},
+    {"term": "bowl", "present": false, "intervals": [], "note": "No bowl visible."},
+    {"term": "mug", "present": false, "intervals": [], "note": "Drinks are tall glasses."},
+    {"term": "bottle", "present": false, "intervals": [], "note": "No bottle visible."},
+    {"term": "fork", "present": false, "intervals": [], "note": "No fork visible; the wire caddy may hold utensils but none is resolvable."},
+    {"term": "knife", "present": false, "intervals": [], "note": "No knife visible."},
+    {"term": "spoon", "present": false, "intervals": [], "note": "No spoon visible."},
+    {"term": "refrigerator", "present": false, "intervals": [], "note": "Kitchen is not in this window."},
+    {"term": "microwave", "present": false, "intervals": [], "note": "Kitchen is not in this window."},
+    {"term": "oven", "present": false, "intervals": [], "note": "Kitchen is not in this window."},
+    {"term": "television", "present": false, "intervals": [], "note": "The dark rectangle between windows is a window/opening, not a TV."},
+    {"term": "laptop", "present": false, "intervals": [], "note": "No laptop."},
+    {"term": "phone", "present": false, "intervals": [], "note": "No phone."},
+    {"term": "book", "present": false, "intervals": [], "note": "Hutch contents too small to confirm; no book at table."},
+    {"term": "bicycle", "present": false, "intervals": [], "note": "Indoor scene, no bicycle."},
+    {"term": "umbrella", "present": false, "intervals": [], "note": "No umbrella."}
+  ],
+  "time_questions": [
+    {"question": "is the pitcher visible at 28 seconds?", "term": "pitcher", "at_time": 28.0, "expected_present": true},
+    {"question": "is the pitcher visible at 10 seconds?", "term": "pitcher", "at_time": 10.0, "expected_present": false},
+    {"question": "is the sofa visible at 20 seconds?", "term": "sofa", "at_time": 20.0, "expected_present": true},
+    {"question": "is the television visible at 12 seconds?", "term": "television", "at_time": 12.0, "expected_present": false},
+    {"question": "is the fork visible at 20 seconds?", "term": "fork", "at_time": 20.0, "expected_present": false}
+  ]
+}

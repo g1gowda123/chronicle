@@ -29,6 +29,7 @@ manifest, fetch/trim helper, and derived reports are committed.
 | `play_2` | social | 144–189 s | second living-room window, pre-registered state replication |
 | `play_0` | social | 288–333 s | third living-room window, pre-registered surface-head state test |
 | `eat_2` | eating | 30–75 s | third dining window, held out for the fixed-label absence verifier |
+| `eat_3` | eating | 30–75 s | living/dining window, held out for the YOLOv8-L verifier |
 
 The windows were chosen from sampled frames before any SPORE run. Scene
 metadata (2D/3D boxes, object categories, hand-object interactions) is
@@ -47,7 +48,10 @@ negative (5/12) with one false presence, so the surface head is not a validated
 fix. `eat_2`
 reuses the 26-term `eat_1` bank for a held-out test of the fixed-label absence
 verifier; its probe set was committed before the first ingest, and the
-verifier threshold and aliases were fixed on `eat_1`.
+verifier threshold and aliases were fixed on `eat_1`. `eat_3` is a further
+held-out window (sofa/hutch/windows, no kitchen appliances) used to validate
+the YOLOv8-L verifier at .50; model, threshold and probes were fixed before its
+first ingest.
 
 ## Fetch
 
