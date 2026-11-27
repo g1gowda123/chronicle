@@ -66,6 +66,18 @@
       "notes": "Pre-registered surface-head test: third social/living-room window, 288-333 s. Round coffee table with a red/white game box, gray sofa, beige pouf and navy blanket on the rug. Probe set and state_surface_support=true committed before the first ingest."
     },
     {
+      "name": "play_1",
+      "domain": "social",
+      "sequence": "play_1",
+      "start_s": 228.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_play_1_45s.mp4",
+      "zone": "Living Room",
+      "main_stream": "214-1",
+      "vocabulary": "table,sofa,chair,box,blanket,plate,cup,bottle,laptop,hammer",
+      "notes": "Pre-registered fixed-label veto test: fourth social/living-room window, 228-273 s. Round coffee table with an orange game box and cards, gray sofa and armchair, navy blanket on the rug. Probe set and state_fixed_verify=true (plus surface head) committed before the first ingest."
+    },
+    {
       "name": "cook_0",
       "domain": "cooking",
       "sequence": "cook_0",
@@ -124,6 +136,18 @@
       "main_stream": "214-1",
       "vocabulary": "plate,bowl,cup,mug,bottle,sandwich,fork,knife,spoon,table,chair,napkin,food",
       "notes": "Further unseen window, added to validate the YOLOv8-L fixed-label absence verifier at threshold .50. Window, probe terms and model choice were fixed before the first download or ingest; the clip was not used to choose anything."
+    },
+    {
+      "name": "walk_1",
+      "domain": "outdoor",
+      "sequence": "walk_1",
+      "start_s": 30.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_walk_1_45s.mp4",
+      "zone": "Outdoor",
+      "main_stream": "214-1",
+      "vocabulary": "person,bicycle,car,motorcycle,bus,bench,dog,backpack,umbrella,handbag,traffic light,fire hydrant,stop sign,potted plant,laptop,television,microwave,refrigerator,cup,bowl,bottle,book,dining table,sofa,bed,toilet",
+      "notes": "Unseen outdoor window, added for the cross-domain validation of the fixed-label absence verifier. Window (30 s + 45 s) and the 24-term bank were fixed before the first download or ingest."
     }
   ]
 }
