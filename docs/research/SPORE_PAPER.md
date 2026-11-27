@@ -1325,7 +1325,10 @@ passes.  The rule is therefore scene-dependent rather than wrong: the floor
 fraction in the contact bands is high enough here, but not on `play_3`'s rug.
 The remaining failures are temporal: `still_rug` has no late detection and
 `moved_rug` is a false move from support flipping.  Presence is the strongest
-part of the state path; persistence and motion are not.
+part of the state path; persistence and motion are not.  Post hoc, the fixed
+veto is neutral on `clean_0` (11/13, 0/5): no false presence to remove and no
+covered true positive lost, reinforcing that the veto is a clip-dependent
+precision prior, not a safety layer.
 
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same

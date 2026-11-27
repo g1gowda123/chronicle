@@ -410,6 +410,11 @@ rug is not detected late enough), and `moved_rug` is reported as moved because
 the support flips even though the rug is static.  Presence is now the strongest
 part of the state path; persistence and motion are not.
 
+Post hoc, the fixed veto is **neutral** on `clean_0` (11/13, 0/5): there is no
+false presence to remove and no covered true positive is lost.  Combined with
+`play_0`/`play_3` (helps), `play_1` (costs a chair) and `cook_0`/`eat_0`
+(unchanged), the veto is a clip-dependent precision prior, not a safety layer.
+
 ## Held state: a naive contact test is not enough
 
 A `held` verdict was prototyped as "any hand landmark falls inside the object
