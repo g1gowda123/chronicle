@@ -1123,6 +1123,21 @@ and `glass`/`fork` are still missed.  This suggests a two-detector design --
 fixed-label for negative claims, open-vocabulary for exploration -- rather than
 tuning the world model's prompt thresholds.
 
+A held-out test tempers that design.  The same verifier (threshold .50 fixed
+before the run) and 26-term bank were run on a seventh unseen dining window,
+`eat_2`.  On the 20 covered terms it makes **0 false presences on 9/9 absent
+terms** but recalls only 8/11 present terms (`oven` .36, `bottle` .48,
+`television` .33).  Lowering the floor to .25 recovers all 11 present terms but
+introduces two false presences (`fork` .41, `knife` .32).  On the same terms
+YOLO-World-S finds 10/11 present and 7/9 absent clean at .22, and 8/11 and 9/9
+at .50: the fixed-label path does not dominate at matched precision.  What
+transfers is the existence of a clean high-precision point and much stronger
+recall on unambiguous classes (`sandwich` 30/47 vs 5/47, `table` 47/47 vs
+42/47); what does not is calibrated confidence across classes, and coverage --
+`plate`, the most common object, has no COCO class at all.  The practical
+direction is therefore a wider fixed label bank with per-class calibration or a
+two-band verdict, not a global threshold on an 80-class detector.
+
 The practical conclusion is that a negative
 answer must be expressed as "the query detector found no X in N retained
 contexts", with the measured error rates attached, not as a fact about the

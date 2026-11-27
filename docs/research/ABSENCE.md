@@ -216,6 +216,71 @@ allow absence claims only from a fixed-label detector on covered classes, and
 use the open-vocabulary path for presence/exploration -- the opposite of the
 current single-model design.
 
+## Held-out validation: fixed-label verifier on eat_2
+
+The fixed-label check above was post hoc on the same clip that motivated it, so
+the verifier (`chronicle/perception/absence.py`, default threshold .50) and the
+same 26-term bank were run on a fully unseen seventh window, `eat_2`
+(30--75 s). The probe set was committed as `3653fbd` before the first ingest;
+the verifier threshold and aliases were fixed on `eat_1`. The scene is another
+dining room with a different layout: `bowl` and `bottle` are genuinely present
+(on the table and kitchen island), `television` is visible only around 22--27 s,
+and `mug`, utensils, `pitcher`, electronics and outdoor objects are absent.
+
+World detector on this clip (all 26 terms, floor .22): **13/15 present found,
+8/11 absent clean**, AUC .864 -- noticeably better than on `eat_1` (10/14,
+7/12, .685), so clip-to-clip variance is large. The misses are `glass` (the
+vocabulary mismatch again) and `window` (.085); the false positives are `mug`
+(.79, the dining glasses), `spoon` (.31) and `sofa` (.45). The shipped query
+path abstains on 3/15 present terms and answers 1/11 absent terms in
+detector-only mode; hybrid abstains on 0/15 and answers 4/11.
+
+Fixed-label verifier on the 20 COCO-covered terms:
+
+| operating point | TP | FP | FN | TN | positive precision | positive recall | false-presence rate |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| verifier, threshold .50 (pre-registered) | 8 | **0** | 3 | 9 | **1.00** | .727 | **0.00** |
+| verifier, threshold .25 (post hoc) | 11 | 2 | 0 | 7 | .846 | **1.00** | .222 |
+
+At .50 the verifier makes no false-presence claim on any of the nine covered
+absent terms, but it misses `oven` (max .36), `bottle` (.48) and `television`
+(.33) -- all genuinely present, all below threshold. The world detector found
+all three (`.47`/.55/.77). Lowering the verifier to .25 recovers every present
+term, but `fork` (.41) and `knife` (.32) become false presences; the at-time
+questions stay at 4/5 either way (`tv at 24 s` is threshold-sensitive, `fork
+at 12 s` flips to a false present at .25).
+
+The fair comparison is on the same 20 covered terms:
+
+| detector (floor) | present found (of 11) | absent clean (of 9) |
+|---|---:|---:|
+| YOLO-World-S, .22 | 10/11 | 7/9 |
+| YOLO-World-S, .50 | 8/11 | 9/9 |
+| COCO YOLOv8-S, .25 | **11/11** | 7/9 |
+| COCO YOLOv8-S, .50 | 8/11 | **9/9** |
+
+The held-out result is more mixed than the post-hoc `eat_1` check. Fixed-label
+detection does not dominate the world detector at matched precision here: at
+.50 both reach 9/9 clean, and at the permissive end COCO trades two false
+presences for one extra true positive over YOLO-World. What transfers is the
+**existence of a clean high-precision point** and the much better recall on
+unambiguous classes (`sandwich` 30/47, `table` 47/47, `cup` 47/47 versus
+5/47, 42/47, 45/47 for the world model). What does not transfer is calibrated
+confidence across classes: `television` .33, `oven` .36 and `bottle` .48 are
+clearly visible yet score below the same .50 that a `sandwich` clears at .81.
+A single global threshold leaves recall on the table; per-class calibration or
+a two-band verdict (confident present / weak evidence / not observed) is the
+next step.
+
+Coverage is the other blocker: 6/26 terms have no COCO class, and they include
+`plate` -- the most common object in this scene, which the world detector finds
+in 47/47 contexts and COCO cannot represent at all -- plus `napkin`, `cabinet`,
+`window`, `mug` and `pitcher`. A practical absence operator cannot be built on
+COCO alone; it needs a tableware/appliance label bank or a fixed-label detector
+with a wider class list. The honest conclusion is that fixed-label detection is
+the right *shape* for negative claims, but this particular detector and
+threshold are not yet a deployable absence verifier.
+
 ## Interpretation
 
 1. **Absence is bounded by detector semantics, not by memory size or sampling
@@ -234,18 +299,23 @@ current single-model design.
    current 2-D containment heuristic collapses to the background surface behind
    the object. An explicit "held / on <surface>" state, backed by hand contact
    and depth, is the missing capstone; it cannot be recovered by prompt tuning.
-5. **A fixed-label detector is a viable absence substrate on its own classes.**
-   The post-hoc COCO check reaches zero false positives on 10/10 covered absent
-   terms at .50 while finding 8/10 present terms, and it fixes the `sandwich`
-   and `table` recall holes. It cannot answer the six probes outside its 80
-   classes. This points to a two-detector design -- fixed-label for negative
-   claims, open-vocabulary for exploration -- rather than a single model.
-6. **What would still change the conclusion:** independent human labels per
-   context (rather than intervals), a second fixed-label detector with a
-   different class list, or a prompt-free objectness/verifier model evaluated
-   on the full 26-term bank. Until then, the honest claim is "SPORE stores
-   evidence that can confirm presence, but cannot certify absence with its
-   open-vocabulary detector".
+5. **Fixed-label detection is the right shape for negative claims, but this
+   detector is not a drop-in absence verifier.** On `eat_1` the post-hoc COCO
+   check reached zero false presences on 10/10 covered absent terms at .50; the
+   held-out `eat_2` run repeats the zero-false-presence result (9/9) but misses
+   3/11 present terms, and lowering the floor to .25 recovers all 11 at the cost
+   of two false presences. It does not dominate YOLO-World at matched
+   precision on `eat_2` (both reach 9/9 clean at .50), and it cannot represent
+   `plate`, `napkin`, `cabinet`, `window`, `mug` or `pitcher` at all. The next
+   step is a wider fixed label bank plus per-class calibration or a two-band
+   verdict, not a global threshold.
+6. **What would still change the conclusion:** a fixed-label detector with a
+   tableware/appliance class list and per-class calibration, independent human
+   labels per context (rather than intervals), or a prompt-free
+   objectness/verifier model evaluated on the full 26-term bank. Until then,
+   the honest claim is "SPORE stores evidence that can confirm presence, but its
+   open-vocabulary detector cannot certify absence, and its fixed-label
+   fallback covers only 20/26 terms".
 
 ## Reproduce
 
@@ -263,11 +333,23 @@ python scripts/spore_absence_fixed.py \
   --probes data/qa/eat_1_absence.json \
   --world-report research/spore/results/eat1_absence/report.json \
   --out research/spore/results/eat1_absence/fixed_label.json
+
+# Held-out fixed-label verifier on eat_2
+python scripts/spore_absence.py \
+  --clip data/footage/aria_eat_2_45s.mp4 \
+  --probes data/qa/eat_2_absence.json \
+  --dump research/spore/results/eat2_absence/store.json \
+  --out research/spore/results/eat2_absence/report.json
+python scripts/spore_absence_verify.py \
+  --store research/spore/results/eat2_absence/store.json \
+  --probes data/qa/eat_2_absence.json \
+  --out research/spore/results/eat2_absence/verify.json
 ```
 
 The first script writes a JSON report and a markdown summary; the second adds
-the fixed-label comparison. Store dumps and run artifacts are gitignored; only
-this note and the probe file are committed.
+the fixed-label comparison; the third evaluates the fixed-label verifier. Store
+dumps and run artifacts are gitignored; only this note and the probe files are
+committed.
 
 ## Threats to validity
 
@@ -282,10 +364,16 @@ this note and the probe file are committed.
   genuinely absent at a context even if present elsewhere. Per-context
   sensitivity/specificity use the annotated intervals, which are coarse
   (±2 s).
-- The COCO check is post hoc, uses a different label space and operating
-  points, and covers only 20 of the 26 probes; the `glass -> wine glass`
-  mapping is loose. It is evidence that class competition matters, not a
-  calibrated second benchmark.
+- The COCO check is post hoc on `eat_1`, uses a different label space and
+  operating points, and covers only 20 of the 26 probes; the `glass -> wine
+  glass` mapping is loose. The held-out `eat_2` verifier run repeats the clean
+  high-precision point but misses 3/11 present terms and shows per-class score
+  miscalibration; it is evidence for the shape of a negative path, not a
+  calibrated benchmark.
+- `eat_1` and `eat_2` are both dining scenes, likely from the same household
+  and capture setup. The verifier result is a within-domain held-out check, not
+  evidence of transfer to a new room or activity; the state work already shows
+  that a living-room replication can fail on support detection.
 - Pseudo-GT is not used here: ground truth is human presence labels, not
   YOLO-World. That is the point of the experiment, but it is still a small
   human sample.
