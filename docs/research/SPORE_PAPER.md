@@ -1238,6 +1238,8 @@ questions) reproduces the verdict behaviour but not the support attribution:
 | `play_0` (pre-registered, surface head) | 12 | 5/12 (.417) | 5/12 (.417) | **1/5** |
 | `play_1` (pre-registered, surface + veto) | 13 | 7/13 (.538) | 7/13 (.538) | 0/5 |
 | `play_1` (post-hoc veto ablation) | 13 | 8/13 (.615) | 8/13 (.615) | 0/5 |
+| `play_3` (pre-registered, surface) | 13 | 8/13 (.615) | 8/13 (.615) | **1/5** |
+| `play_3` (post-hoc veto) | 13 | 9/13 (.692) | 9/13 (.692) | 0/5 |
 
 The state path correctly withholds every absent object on the table (laptop,
 hammer, fork, bottle), while the default binding path answers the bottle
@@ -1302,6 +1304,17 @@ support candidates recovers `presence_basket` on `play_2` (7/14 -> 8/14 with
 the surface head) and leaves `play_1`, `cook_0` and `eat_0` unchanged; the box
 still has no non-self support, so this is a bug fix rather than a recall
 mechanism.
+
+Nor did the soft-object floor override generalise to a large area rug.  The
+pre-registered `play_3` test (surface head, no veto) scores 8/13 with **1/5
+false presence**: the detector finds the rug 14 times at .31-.48, but the
+surface head's floor fraction in the bands around the rug box is only .15-.30,
+below the .35 override, because the bands include the surrounding furniture and
+walls; `still_rug` has no evidence at 40 s and the box is detected twice without
+support.  Post hoc, the fixed veto removes the cup false presence on `play_3`
+(9/13, 0/5) without losing a positive, but the pre-registered `play_1` test
+remains negative, so the veto's benefit is clip-dependent rather than a
+replicated mechanism.
 
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same
@@ -1395,16 +1408,19 @@ objects are sensitive to its smoothing.
   and covers 20 of 26 probes; it is a diagnostic pointing at class competition,
   not a second calibrated benchmark.
 - The opt-in state path is one protocol-defined clip (19 questions), one
-  post-hoc transfer clip (9 questions) and three pre-registered replications
-  (14, 12 and 13 questions), annotated with vision-assistant assistance rather
-  than independent human labelling.  The first pre-registered replication
-  answers all five absent probes correctly but misses all seven positives,
-  because the living room's floor is never a detected support.  The second,
-  with the surface head enabled, is 5/12 with **1/5 false presence** and a
-  false move.  The third, with the surface head and a fixed-label veto, is 7/13
-  with 0/5 false presence but downgrades a true chair because COCO misses it;
-  without the veto the same clip is 8/13 with 0/5, so the veto did not
-  replicate the `play_0` gain.  The 0/5 false-presence results are therefore
+  post-hoc transfer clip (9 questions) and four pre-registered replications
+  (14, 12, 13 and 13 questions), annotated with vision-assistant assistance
+  rather than independent human labelling.  The first pre-registered
+  replication answers all five absent probes correctly but misses all seven
+  positives, because the living room's floor is never a detected support.  The
+  second, with the surface head enabled, is 5/12 with **1/5 false presence** and
+  a false move.  The third, with the surface head and a fixed-label veto, is
+  7/13 with 0/5 false presence but downgrades a true chair because COCO misses
+  it; without the veto the same clip is 8/13 with 0/5, so the veto did not
+  replicate the `play_0` gain.  The fourth, testing the soft-object floor rule
+  on an area rug, is 8/13 with **1/5 false presence**; the rug's floor fraction
+  stays below the override, so the rule never fires, and a post-hoc veto
+  removes the cup (9/13, 0/5).  The 0/5 false-presence results are therefore
   clip-specific and paid for in recall, not a safety guarantee.  The competing
   bank is a household/office prior, the context scan covers 32 of 47 frames,
   and the support-under rule uses 2-D geometry, not depth or hand contact, so a

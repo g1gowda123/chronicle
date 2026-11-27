@@ -337,6 +337,34 @@ Post-hoc on the existing stores, with the surface head enabled:
 The fix removes a real bug, but it does not create support evidence where the
 detector has none; positive recall is still detector- and surface-bound.
 
+## Result 10: the soft-floor rule does not fire on a large area rug
+
+The `play_3` probe (13 questions, committed as `a550347` before the first state
+ingest, surface head on and fixed veto off) is a held-out board-game living
+room: a large patterned area rug, round coffee table with an orange box, gray
+sofa and brown armchair.
+
+| mode | scored | correct | strict support | false presence | missed presence |
+|---|---:|---:|---:|---:|---:|
+| state + surface head (pre-registered) | 13 | **8/13 (0.615)** | 8/13 | **1/5** | 3/6 |
+| state + surface head + fixed veto (post-hoc) | 13 | **9/13 (0.692)** | 9/13 | **0/5** | 3/6 |
+| default binding | 9 | 5/9 (0.556) | 5/9 | 0/5 | 4/4 |
+
+The soft-floor rule did **not** fire. The open-vocabulary detector finds the rug
+(14 hits at .31-.48), but the surface head's floor fraction in the bands around
+the rug box is only .15-.30, below the .35 override, because the bands include
+the surrounding furniture and walls; the rug therefore stays supported by
+`desk` or is unsupported. The box is detected only twice with no support, and
+`still_rug` has no evidence at 40 s. This is a threshold/band-layout limit, not
+evidence that the rule is wrong; it is a negative pre-registered test and the
+rule is not validated.
+
+Post hoc, the fixed veto removes the one false presence (`cup` on `desk` at
+.31-.54) and changes nothing else: 9/13 with 0/5. This is the second clip where
+the veto removes a cup false positive (after the post-hoc `play_0` rerun), but
+it did not replicate on the pre-registered `play_1` test (Result 8), so the
+evidence remains clip-dependent.
+
 ## Cost
 
 - 525 detector calls for 19 questions (27.6/query) versus 71 (3.7/query) for the

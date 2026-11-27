@@ -508,7 +508,12 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   separate correctness fix excludes the queried object's own class from support
   candidates (`box`/`basket` are also support labels): `presence_basket` on
   `play_2` recovers (7/14->8/14 with the surface head) while box/book and all
-  other clips are unchanged.
+  other clips are unchanged. A pre-registered `play_3` test of the soft-object
+  floor rule on a large area rug is negative (8/13, 1/5 false presence): the rug
+  is detected 14 times but its floor fraction stays below the .35 override, so
+  the rule never fires; a post-hoc veto removes the cup (9/13, 0/5), but the
+  `play_1` pre-registration remains negative, so the veto benefit is
+  clip-dependent.
 - Next: the two blocking gaps are (a) an absence path that uses a fixed-label
   detector for covered classes and reserves the open-vocabulary detector for
   exploration. YOLOv8-L at .50 is now validated across three held-out windows

@@ -203,6 +203,14 @@ dominates; the game box’s table fraction is only .045. These are limits of the
 dense surface head, not rows to tune. The original four-question Play clip is
 unchanged by the head.
 
+`play_3` is also the pre-registered soft-object floor state test (13 questions,
+committed as `a550347` before the first state ingest). It is negative: 8/13 with
+1/5 false presence. The rug is detected 14 times, but its floor fraction in the
+contact bands is only .15-.30, below the .35 override, so the rule never fires;
+the box is detected twice without support. A post-hoc fixed veto removes the cup
+false presence (9/13, 0/5), but the pre-registered `play_1` veto test remains
+negative, so the veto benefit is clip-dependent.
+
 ### Human QA check (walk_0)
 
 A five-question set was written for the held-out outdoor `aria_walk_0_45s`

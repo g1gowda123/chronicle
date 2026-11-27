@@ -234,8 +234,12 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   validated fix. Box/blanket misses and the false move remain. Excluding the
   queried object's own class from support candidates (`box`/`basket` are also
   support labels) recovers `presence_basket` on `play_2` (7/14->8/14 with the
-  surface head) but leaves box/book and all other clips unchanged. See
-  [`STATE.md`](STATE.md).
+  surface head) but leaves box/book and all other clips unchanged. A
+  pre-registered `play_3` test of the soft-object floor rule on a large area rug
+  is negative: 8/13 with **1/5 false presence**, because the rug's floor
+  fraction stays below the override and the rule never fires; a post-hoc veto
+  removes the cup (9/13, 0/5), but the `play_1` pre-registration remains
+  negative, so the veto benefit is clip-dependent. See [`STATE.md`](STATE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object
