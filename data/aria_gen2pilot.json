@@ -54,6 +54,18 @@
       "notes": "Pre-registered state replication: second social/living-room window, 144-189 s. Round coffee table with an orange game box and a book; gray sofa, leather armchair and woven basket on the floor. Probe set committed before the first ingest."
     },
     {
+      "name": "play_0",
+      "domain": "social",
+      "sequence": "play_0",
+      "start_s": 288.0,
+      "duration_s": 45.0,
+      "clip": "data/footage/aria_play_0_45s.mp4",
+      "zone": "Living Room",
+      "main_stream": "214-1",
+      "vocabulary": "table,sofa,pouf,box,blanket,plate,cup,bottle,laptop,hammer",
+      "notes": "Pre-registered surface-head test: third social/living-room window, 288-333 s. Round coffee table with a red/white game box, gray sofa, beige pouf and navy blanket on the rug. Probe set and state_surface_support=true committed before the first ingest."
+    },
+    {
       "name": "cook_0",
       "domain": "cooking",
       "sequence": "cook_0",

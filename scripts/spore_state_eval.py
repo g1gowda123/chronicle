@@ -254,6 +254,11 @@ def main() -> None:
 
     payload = json.loads(Path(args.qa).read_text())
     questions = payload["questions"]
+    run = payload.get("run") or {}
+    if run.get("state_surface_support"):
+        args.state_surface_support = True
+    if "state_contexts" in run:
+        args.state_contexts = int(run["state_contexts"])
     perception = PerceptionConfig(model_dir=ROOT / "models")
     config = SporeConfig(
         sample_fps=args.sample_fps,
