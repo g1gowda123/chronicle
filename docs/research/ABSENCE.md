@@ -388,6 +388,20 @@ calibrated for presence, even on a tight crop. A usable veto needs a
 segmentation/geometry cue (screen bezel, window blinds) or a classifier trained
 for the specific confusion, not text-image similarity.
 
+## Post-hoc: border/fragment guard (negative)
+
+The `walk_1` false presence is a partial person at the bottom-right frame edge,
+so a border-contact guard is an obvious candidate. For all 23 present verdicts
+across the three windows (20 TP, 3 FP), the verifier box was checked for
+contact with a 2% image border. All three false presences touch a border
+(`bowl` bottom, `television` right sliver, `motorcycle` right+bottom), but so do
+**7 of the 20 true positives** (`table`, `person`, `glass`, and the real
+`television`). No area, width/height fraction, or confidence threshold
+separates them either: the motorcycle FP has area .075 and confidence .538,
+while a true `person` is .221 and a true `glass` .071; the TV sliver is .004,
+below true small objects such as `sandwich` (.007) and `hydrant` (.005). A
+fragment/edge guard needs pose or segmentation evidence, not box geometry.
+
 ## Interpretation
 
 1. **Absence is bounded by detector semantics, not by memory size or sampling

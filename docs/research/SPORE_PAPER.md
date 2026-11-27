@@ -1173,6 +1173,12 @@ competitor prompt.  Absolute CLIP similarity is not calibrated for presence
 even on a tight crop, so the veto needs a geometric cue (screen bezel,
 blinds) or a classifier trained for the specific confusion.
 
+A border-contact guard for the `walk_1` partial-person false presence also
+fails: all three false presences touch a frame border, but so do 7 of the 20
+true positives across the three windows, and no box-area or confidence
+threshold separates them.  Fragment rejection needs pose or segmentation
+evidence, not box geometry.
+
 The practical conclusion is that a negative
 answer must be expressed as "the query detector found no X in N retained
 contexts", with the measured error rates attached, not as a fact about the

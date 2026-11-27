@@ -513,9 +513,10 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   look-alike and frame-edge errors (plate->`bowl` .73, dark
   window->`television` .70, forearm->`motorcycle` .54), and its scores are not
   comparable across classes. Widen the fixed label bank to
-  tableware/appliances and add per-class calibration, a two-band verdict
-  (confident present / weak evidence / not observed), and a fragment/edge guard
-  before exposing a negative answer.
+  tableware/appliances and add per-class calibration and a two-band verdict
+  (confident present / weak evidence / not observed) before exposing a negative
+  answer; a frame-edge guard needs pose/segmentation, because border contact
+  alone does not separate the three FPs from seven border-touching TPs.
   (b) a real "held / on-surface" state. The opt-in state path answers grounded
   yes/no/still/moved questions in tabletop scenes, but it still cannot represent
   "held", and its support comes from a detected 2-D surface, not depth or hand
