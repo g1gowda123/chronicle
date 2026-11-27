@@ -28,7 +28,7 @@ Hard requirements:
 | Path | Branch | HEAD | State |
 |---|---|---|---|
 | `/home/g1/projects/chronicle` | `main` | `b86f5aa` | clean, pushed |
-| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `dd3f68b` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + local-crop support remeasure + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + post-hoc audited Cook QA + LFS fetch + unseen `eat_1` presence/absence calibration (detector-bound; no absence verifier) + post-hoc fixed-label COCO comparison + opt-in grounded state answers (`cook_0`, 16/19, 0/6 false presence) + fixed-label absence verifier (held-out `eat_2`, 0/9 false presence, 8/11 recall) |
+| `/home/g1/projects/chronicle-spore` | `research/spore-perception` | `461300b` | SPORE perceiver + benchmarks + split store + auto-eval + action consolidation + evidence-byte metric + held-out domains + human QA + optional surface head + outdoor road support (walk_0 post-hoc only; walk_60 negative) + opt-in synonym recall at .22 detector floor (post-hoc Cook probe) + six-prompt scene recall (opt-in; no absence verifier) + opt-in support remeasurement + local-crop support remeasure + capsule trajectory metadata + spatial support qualifiers + portable citations + support-qualified counting + post-hoc audited Cook QA + LFS fetch + unseen `eat_1` presence/absence calibration (detector-bound; no absence verifier) + post-hoc fixed-label COCO comparison + opt-in grounded state answers (`cook_0`, 16/19, 0/6 false presence) + fixed-label absence verifier (L across `eat_2`+`eat_3`: precision .889, recall .941 on 20 covered terms) |
 | `/home/g1/projects/chronicle-vfm` | `experiment/egotempo-benchmark` | `aab86b4` | uncommitted belief work by another agent |
 
 `research/high-res-longvideo`, `research/long-video-qa`, `research/vfm-merged`,
@@ -307,12 +307,12 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   `research/high-res-longvideo`/`research/long-video-qa`, and
   `experiment/egotempo-benchmark`; `task/nb-08-real-calibration` was
   superseded and dropped.
-- `research/spore-perception`: based on `1200f84`, tip `dd3f68b` at the last
+- `research/spore-perception`: based on `1200f84`, tip `461300b` at the last
   research commit; perceiver, query engine, benchmarks, context frames, fused
   tracks, counting, inventory, compact stores, temporal scans,
   detector-free scene recall, support-surface query targets, and an optional
   semantic surface head. The latest additions are the opt-in grounded state
-  answers (`dd3f68b`, `STATE.md`), the unseen-`eat_1` presence/absence
+  answers (`461300b`, `STATE.md`), the unseen-`eat_1` presence/absence
   calibration (`cc7a1fc`, `ABSENCE.md`), local-crop support
   remeasurement (`7bb43ca`) and a post-hoc audited Cook QA set
   (`.90` diagnostic; original `.70` headline). Spatial support qualifiers,
@@ -427,7 +427,7 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   the first evidence that a fixed-label detector is a usable absence substrate
   on its own classes, not a calibrated benchmark.
 - Held-out fixed-label verifier (`chronicle/perception/absence.py`, threshold
-  .50 fixed before the run; `scripts/spore_absence_verify.py`) on a seventh
+  .50 fixed before the run; `scripts/spore_absence_verify.py`) on a further
   unseen window (`eat_2`, 30–75 s, same 26-term bank, probe committed as
   `3653fbd`): **0 false presences on 9/9 covered absent terms, but only 8/11
   present recall** (`oven` .36, `bottle` .48, `television` .33 are below
@@ -438,6 +438,20 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   this clip. Coverage is the blocker: `plate` (found 47/47 by the world model),
   `napkin`, `cabinet`, `window`, `mug` and `pitcher` have no COCO class. This
   is a within-domain held-out check, not a new-room transfer.
+- Model scale on the same store: S gives 8/0/3/9 (TP/FP/FN/TN); M is worse
+  (8/1/3/8, a `fork` false presence); **L gives 10/0/1/9** and recovers
+  `bottle`/`television`/`bowl`/`glass`, missing only `oven` (no range class).
+  L at .50 was then validated on a further unseen window (`eat_3`, 30–75 s,
+  probe committed as `dbb5c56`; living/dining with sofa/hutch, no appliances):
+  coverage 6 present + 14 absent terms, **TP 6, FP 2, FN 0, TN 12**. The two
+  false presences are confident look-alikes (`bowl` .73 on a plate of chips,
+  `television` .70 on the dark panel between window blinds); at-time is 4/5,
+  the miss being `pitcher` unsupported. The world detector on the same covered
+  terms is 5/6 present and 9/14 clean at .22. Aggregated over both held-out
+  windows on the same 20 covered terms: **YOLOv8-L .50 precision .889 / recall
+  .941 / false-presence .087** versus YOLO-World-S .22 .682/.882/.304.
+  Fixed-label is the stronger negative substrate, but 2/23 absent-term checks
+  are still false and `plate` has no class; do not certify absence.
 - Grounded state answers are now opt-in (`state_queries=True`; `STATE.md`) and
   were tested on a sixth unseen Aria window (`cook_0`, 50–95 s) with 19
   questions written before the first run. The path returns `present` /
@@ -475,11 +489,14 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   pre-registered `play_1` test is the clean evaluation.
 - Next: the two blocking gaps are (a) an absence path that uses a fixed-label
   detector for covered classes and reserves the open-vocabulary detector for
-  exploration. The verifier module exists, but 80-class COCO covers only 20/26
-  probes (no `plate`) and its scores are not comparable across classes
-  (`television` .33 vs `sandwich` .81). Widen the fixed label bank to
-  tableware/appliances and add per-class calibration or a two-band verdict
-  (confident present / weak evidence / not observed) before exposing it.
+  exploration. YOLOv8-L at .50 is now validated across two held-out windows
+  (precision .889 / recall .941 / false-presence .087 on 20 covered terms), but
+  it covers only 20/26 probes (no `plate`), still makes confident look-alike
+  errors (plate->`bowl` .73, dark window->`television` .70), and its scores are
+  not comparable across classes. Widen the fixed label bank to
+  tableware/appliances and add per-class calibration, a two-band verdict
+  (confident present / weak evidence / not observed), or a visual check for the
+  high-stakes classes before exposing a negative answer.
   (b) a real "held / on-surface" state. The opt-in state path answers grounded
   yes/no/still/moved questions in tabletop scenes, but it still cannot represent
   "held", and its support comes from a detected 2-D surface, not depth or hand
