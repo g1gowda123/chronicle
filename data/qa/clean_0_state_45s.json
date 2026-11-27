@@ -1,0 +1,134 @@
+{
+  "clip": "data/footage/aria_clean_0_45s.mp4",
+  "domain": "cleaning",
+  "source_sequence": "clean_0",
+  "window": {
+    "start_s": 40.0,
+    "duration_s": 45.0
+  },
+  "run": {
+    "state_surface_support": true,
+    "state_fixed_verify": false,
+    "state_contexts": 32
+  },
+  "protocol": "Pre-registered before the first SPORE state ingest or detector call on this clip: this probe file, its registration test and the run configuration (surface head on, fixed-label veto off) are committed together. Labels come from visual inspection of a 1 fps contact sheet plus the full frame at 40 s; the query detector was not consulted. The window is a living-room tidying scene with a large blue-and-cream area rug, a round coffee table with a dark tray and a blue book, a gray sofa, and a tan leather armchair; a gray blanket is on the sofa, never on the floor. A 'no' label means the object is not visible anywhere in the window. This is a second held-out test of the same .35 soft-object floor rule used on play_3, on a different living room and a different rug.",
+  "questions": [
+    {
+      "id": "presence_rug",
+      "query": "Is there a rug on the floor?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "Large blue/cream patterned area rug covers the living-room floor."
+    },
+    {
+      "id": "presence_sofa",
+      "query": "Is there a sofa on the floor?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "Gray sofa on the right, standing on the rug/floor."
+    },
+    {
+      "id": "presence_chair",
+      "query": "Is there a chair on the floor?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "Tan leather armchair on the left, standing on the rug/floor."
+    },
+    {
+      "id": "presence_book",
+      "query": "Is there a book on the table?",
+      "kind": "presence",
+      "timestamp": 40.0,
+      "expected": "yes",
+      "expected_support": "table",
+      "human_evidence": "Dark blue book on the round coffee table at 40 s."
+    },
+    {
+      "id": "absence_cup",
+      "query": "Is there a cup on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No cup or glass anywhere in the window."
+    },
+    {
+      "id": "absence_bottle",
+      "query": "Is there a bottle on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No bottle anywhere in the window."
+    },
+    {
+      "id": "absence_laptop",
+      "query": "Is there a laptop on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No laptop anywhere in the window."
+    },
+    {
+      "id": "absence_plate",
+      "query": "Is there a plate on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No plate anywhere in the window."
+    },
+    {
+      "id": "absence_hammer",
+      "query": "Is there a hammer on the table?",
+      "kind": "presence",
+      "timestamp": 20.0,
+      "expected": "no",
+      "expected_support": null,
+      "human_evidence": "No hammer anywhere in the window."
+    },
+    {
+      "id": "still_rug",
+      "query": "Is the rug still on the floor?",
+      "kind": "still",
+      "timestamp": 40.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "The area rug stays on the floor for the whole window."
+    },
+    {
+      "id": "still_sofa",
+      "query": "Is the sofa still on the floor?",
+      "kind": "still",
+      "timestamp": 40.0,
+      "expected": "yes",
+      "expected_support": "floor",
+      "human_evidence": "The sofa does not leave the seating area."
+    },
+    {
+      "id": "moved_rug",
+      "query": "Did the rug move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "stayed",
+      "expected_support": "floor",
+      "human_evidence": "The rug is static for the whole window."
+    },
+    {
+      "id": "moved_sofa",
+      "query": "Did the sofa move?",
+      "kind": "moved",
+      "timestamp": 45.0,
+      "expected": "stayed",
+      "expected_support": "floor",
+      "human_evidence": "The sofa is static in the seating area."
+    }
+  ]
+}
