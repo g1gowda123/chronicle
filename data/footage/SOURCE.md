@@ -78,5 +78,14 @@ fetched with:
 python scripts/fetch_aria_clip.py --sequence play_2
 ```
 
+A third living-room window (`play_0`, 288 s + 45 s) is the pre-registered
+surface-head state test. Its manifest entry, 12-question probe and
+`state_surface_support=true` run config were committed before the first ingest.
+It is fetched with:
+
+```bash
+python scripts/fetch_aria_clip.py --sequence play_0
+```
+
 Like the walking clip, these are locally trimmed research windows and are not
 redistributed. The full source datasets remain with Meta.

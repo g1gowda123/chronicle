@@ -1185,6 +1185,7 @@ questions) reproduces the verdict behaviour but not the support attribution:
 | `cook_0` (protocol-defined) | 19 | 16/19 (.842) | 16/19 (.842) | 0/6 |
 | `eat_0` (post-hoc) | 9 | 9/9 (1.000) | 6/9 (.667) | 0/4 |
 | `play_2` (pre-registered) | 14 | 5/14 (.357) | 5/14 (.357) | 0/5 |
+| `play_0` (pre-registered, surface head) | 12 | 5/12 (.417) | 5/12 (.417) | **1/5** |
 
 The state path correctly withholds every absent object on the table (laptop,
 hammer, fork, bottle), while the default binding path answers the bottle
@@ -1215,6 +1216,14 @@ orange box is never detected, the book has one low-confidence hit, and the
 basket supports itself.  The head adds one cached segmentation per scanned
 context (about +0.2--0.3 s/query and +0.18 GB peak VRAM), so it is not a
 default and does not change the pre-registered number.
+
+Those gains did **not** replicate in the pre-registered `play_0` test, where
+the surface head was part of the committed run configuration.  The result is
+5/12 with **1/5 false presence** (a low-confidence cup hallucination on the
+desk) and a false move (sofa); the box and blanket are never detected, and the
+sofa's support flips between `desk` and `floor` across frames.  The head is not
+a validated fix for living-room state answers; it is a diagnostic that can
+repair a support label when the object detector is already correct.
 
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same
@@ -1308,15 +1317,17 @@ objects are sensitive to its smoothing.
   and covers 20 of 26 probes; it is a diagnostic pointing at class competition,
   not a second calibrated benchmark.
 - The opt-in state path is one protocol-defined clip (19 questions), one
-  post-hoc transfer clip (9 questions) and one pre-registered replication
-  (14 questions), annotated with vision-assistant assistance rather than
-  independent human labelling.  The pre-registered replication answers all five
-  absent probes correctly but misses all seven positives, because the living
-  room's floor is never a detected support; its 0/5 false-presence result is
-  therefore conservative silence, not recall.  The competing bank is a
-  household/office prior, the context scan covers 32 of 47 frames, and the
-  support-under rule uses 2-D geometry, not depth or hand contact, so a "held"
-  state is still not represented.
+  post-hoc transfer clip (9 questions) and two pre-registered replications
+  (14 and 12 questions), annotated with vision-assistant assistance rather than
+  independent human labelling.  The first pre-registered replication answers all
+  five absent probes correctly but misses all seven positives, because the
+  living room's floor is never a detected support.  The second, with the surface
+  head enabled, is 5/12 with **1/5 false presence** and a false move.  The 0/5
+  false-presence result is therefore clip-specific conservative silence, not a
+  safety guarantee.  The competing bank is a household/office prior, the
+  context scan covers 32 of 47 frames, and the support-under rule uses 2-D
+  geometry, not depth or hand contact, so a "held" state is still not
+  represented.
 - No human study, no comparison to a full VLM baseline, and no multi-seed
   variance are reported yet.
 

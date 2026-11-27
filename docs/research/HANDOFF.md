@@ -464,7 +464,11 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   head (`state_surface_support=True`) repairs the support label: `eat_0` goes
   9/9 strict (`desk`->`table`), `play_2` 5/14->7/14 (sofa/chair get `floor`),
   `cook_0` unchanged; box/book/basket misses remain object-side. Cost is about
-  +0.2–0.3 s/query and +0.18 GB peak VRAM, so it is not a default.
+  +0.2–0.3 s/query and +0.18 GB peak VRAM, so it is not a default. The
+  pre-registered `play_0` test with the head enabled (`aa9c72b`) is **5/12
+  with 1/5 false presence** (a cup on the desk) and a false move (sofa), so the
+  surface head is a diagnostic, not a validated fix; do not generalise the
+  earlier 0/5 safety results.
 - Next: the two blocking gaps are (a) an absence path that uses a fixed-label
   detector for covered classes and reserves the open-vocabulary detector for
   exploration. The verifier module exists, but 80-class COCO covers only 20/26

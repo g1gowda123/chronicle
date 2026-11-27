@@ -35,7 +35,9 @@ before the first ingest); by that standard the `cook_0` result is post-hoc and
 the 19-question number is a protocol-defined diagnostic, not a held-out
 pre-registered estimate. The `play_2` replication was committed before its
 first run and is the clean pre-registered check; it fails (**5/14**), which
-bounds every positive claim below.
+bounds every positive claim below. The `play_0` surface-head replication was
+also committed before its first run; it fails (**5/12**, **1/5 false
+presence**) and is the reason the surface head is not presented as a fix.
 
 - Clip: Aria Gen 2 Pilot `cook_0`, window 50--95 s, 640x480, 10 fps after trim.
   This is the fifth Aria window after the four in `DOMAINS.md`; it was not used
@@ -213,8 +215,9 @@ This is an evidence-coverage limit, not a selection bug.
 
 `state_surface_support=True` reuses the existing ADE20K SegFormer-B0 head when
 the box detector cannot name the surface under a state placement.  It is a
-post-hoc diagnostic: the pre-registered `play_2` number (5/14) stands, and the
-flag is off by default.
+post-hoc diagnostic: the pre-registered `play_2` number (5/14) stands, the flag
+is off by default, and the pre-registered `play_0` test below **does not
+replicate** the gains shown here.
 
 | clip | without head | with head | strict support | false presence |
 |---|---:|---:|---:|---:|
@@ -239,6 +242,46 @@ Cost is one cached segmentation per scanned context: roughly +0.2–0.3 s per
 query (play_2 0.72 s vs 0.39 s; eat_0 0.88 s vs 0.61 s; cook_0 0.63 s vs
 0.43 s) and about +0.18 GB peak VRAM (0.91 GB on play_2).  It stays opt-in.
 
+## Result 7: pre-registered surface-head test on `play_0` is negative
+
+The `play_0` probe (12 questions, committed as `aa9c72b` before the first
+ingest, with `state_surface_support=true` in the run config) was the clean test
+of the surface-head idea: a stable living-room seating area with a round coffee
+table and a red/white game box, a gray sofa, a beige pouf and a navy blanket on
+the rug.
+
+| mode | scored | correct | strict support | false presence | missed presence |
+|---|---:|---:|---:|---:|---:|
+| state + surface head (pre-registered) | 12 | **5/12 (0.417)** | 5/12 | **1/5** | 4/5 |
+| default binding | 8 | 5/8 (0.625) | 5/8 | 0/5 | 3/3 |
+
+The surface-head gain did **not** replicate.  The only correct positives are
+`still_sofa` (floor at 40 s); `presence_box`, `presence_sofa`,
+`presence_blanket`, `still_box`, `moved_box` and `moved_sofa` are wrong.  The
+false presence is a cup at .31-.44 on `desk`/`shelf` (five observations, so the
+persistence rule accepts it), and the sofa is reported as moved because the
+surface head assigns different supports across the clip.
+
+Post-hoc diagnosis (no default or probe changed):
+
+- Raw term hits across 48 contexts at floor .30: `box` 0, `blanket` 0, `sofa`
+  96 (78 supported, mostly `desk`), `cup` 6 (5 supported, a false positive),
+  `laptop` 1 (rejected by persistence), and 0 for plate/bottle/hammer.
+- The box and blanket are never detected, so no support head can recover them.
+- The sofa is detected and supported, but the box detector says `desk`; the
+  surface head only sometimes overrides it to `floor`, and the disagreement
+  between frames creates the false "moved" verdict.
+- The cup false positive is object-side: YOLO-World hallucinates a cup at low
+  confidence across several frames, and the competing-label bank does not
+  outscore it.
+
+This is the pre-registered boundary result: the surface head repairs an
+individual support label in `eat_0` and a post-hoc rerun in `play_2`, but it
+does **not** make state answers safe or accurate in a new living room.  The
+state path remains an experimental tabletop operator, not a general state
+tracker, and the 0/5 false-presence results on earlier clips should not be
+generalised.
+
 ## Cost
 
 - 525 detector calls for 19 questions (27.6/query) versus 71 (3.7/query) for the
@@ -259,6 +302,11 @@ query (play_2 0.72 s vs 0.39 s; eat_0 0.88 s vs 0.61 s; cook_0 0.63 s vs
   stays silent when it cannot ground a support, not that it can answer state
   questions in a new room. Positive recall depends on the support detector
   emitting the scene's surfaces; the living room's floor is never detected.
+- The pre-registered `play_0` surface-head test is also negative, and it breaks
+  the safety claim: 5/12 with **1/5 false presence** (a low-confidence cup
+  hallucination on the desk) and a false move (sofa).  The surface head only
+  sometimes overrides `desk` to `floor`, so the state path is neither accurate
+  nor safe in this room.  Do not generalise the earlier 0/5 results.
 - Annotation was vision-assistant-assisted, not by an independent human
   annotator. It is independent of YOLO-World but shares the usual
   image-understanding biases of the assistant. The probe file was written

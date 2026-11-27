@@ -224,7 +224,9 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   support label without changing detection: `eat_0` becomes 9/9 strict
   (dining table `desk`->`table`), `play_2` rises 5/14->7/14 (sofa/chair get
   `floor`), `cook_0` is unchanged; the box/book/basket misses remain object
-  side. See [`STATE.md`](STATE.md).
+  side. The pre-registered `play_0` test with the head enabled is **5/12 with
+  1/5 false presence** (a cup on the desk) and a false move (sofa), so the head
+  is a diagnostic, not a validated fix. See [`STATE.md`](STATE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object
