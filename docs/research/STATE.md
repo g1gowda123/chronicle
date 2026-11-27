@@ -2,7 +2,8 @@
 
 Status: experiment complete (2026-11-27), branch `research/spore-perception`.
 Code: `chronicle/perception/spore.py` (`SporeConfig.state_queries`, opt-in) and
-`scripts/spore_state_eval.py`. Probe set: `data/qa/cook_0_state_45s.json`.
+`scripts/spore_state_eval.py`. Probe sets:
+`data/qa/{cook_0,eat_0,play_2,play_0,play_1,play_3,clean_0}_state_45s.json`.
 Raw report (gitignored): `research/spore/results/cook0_state/report.{json,md}`.
 
 This experiment is the query-path complement to [`ABSENCE.md`](ABSENCE.md).
@@ -26,6 +27,21 @@ through "where is X?" binding:
 A negative verdict is always **not observed**, never "absent from the world".
 This is the same epistemic rule as `ABSENCE.md`, made operational.
 
+## Current verdict
+
+Presence is the strongest part of the state path: `cook_0` is **16/19** with
+0/6 false presences, and the pre-registered `clean_0` replication is **11/13**
+(10/13 strict) with 0/5.  The weak cases are honest: `play_2` **5/14** (all
+positives missed because the floor is never a support), `play_0` **5/12** with
+**1/5** false presence, `play_1` **7/13** with the fixed veto (8/13 without it,
+because the veto costs a true chair), and `play_3` **8/13** with **1/5** false
+presence (post-hoc veto 9/13, 0/5).  The surface head repairs a missing floor
+only when the object is already detected; the fixed veto removes some cup
+confusables but did not replicate as a safety layer; the soft-floor rule is
+scene-dependent (positive on `clean_0`, negative on `play_3`).  Still and moved
+answers remain unreliable because they follow a 2-D support label, not object
+motion, and a held verdict is not shipped (a naive hand-in-box test over-calls).
+
 ## Protocol and provenance
 
 **This is not a strict pre-registration.** The 19-question file was written and
@@ -38,6 +54,9 @@ first run and is the clean pre-registered check; it fails (**5/14**), which
 bounds every positive claim below. The `play_0` surface-head replication was
 also committed before its first run; it fails (**5/12**, **1/5 false
 presence**) and is the reason the surface head is not presented as a fix.
+`play_1` (fixed veto), `play_3` (area rug) and `clean_0` (second rug) were also
+pre-registered before their first ingests; see Results 8, 10 and 11.  These are
+single-run tests, not repeated seeds.
 
 - Clip: Aria Gen 2 Pilot `cook_0`, window 50--95 s, 640x480, 10 fps after trim.
   This is the fifth Aria window after the four in `DOMAINS.md`; it was not used
