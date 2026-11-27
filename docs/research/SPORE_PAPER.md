@@ -1237,7 +1237,7 @@ questions) reproduces the verdict behaviour but not the support attribution:
 | `play_2` (pre-registered) | 14 | 5/14 (.357) | 5/14 (.357) | 0/5 |
 | `play_0` (pre-registered, surface head) | 12 | 5/12 (.417) | 5/12 (.417) | **1/5** |
 | `play_1` (pre-registered, surface + veto) | 13 | 7/13 (.538) | 7/13 (.538) | 0/5 |
-| `play_1` (post-hoc veto ablation) | 13 | 8/13 (.615) | 8/13 (.615) | 0/5 |
+| `play_1` (post-hoc, veto off) | 13 | 8/13 (.615) | 8/13 (.615) | 0/5 |
 | `play_3` (pre-registered, surface) | 13 | 8/13 (.615) | 8/13 (.615) | **1/5** |
 | `play_3` (post-hoc veto) | 13 | 9/13 (.692) | 9/13 (.692) | 0/5 |
 

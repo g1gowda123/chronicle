@@ -441,4 +441,36 @@ python scripts/spore_state_eval.py \
   --dump research/spore/results/play2_state/store.json \
   --out research/spore/results/play2_state/report.json \
   --compare
+
+# Pre-registered surface-head test (living room; 1/5 false presence)
+python scripts/fetch_aria_clip.py --sequence play_0
+python scripts/spore_state_eval.py \
+  --clip data/footage/aria_play_0_45s.mp4 \
+  --qa data/qa/play_0_state_45s.json \
+  --dump research/spore/results/play0_state/store.json \
+  --out research/spore/results/play0_state/report.json \
+  --compare
+
+# Pre-registered fixed-veto test, and its post-hoc veto-off ablation
+python scripts/fetch_aria_clip.py --sequence play_1
+python scripts/spore_state_eval.py \
+  --clip data/footage/aria_play_1_45s.mp4 \
+  --qa data/qa/play_1_state_45s.json \
+  --dump research/spore/results/play1_state/store.json \
+  --out research/spore/results/play1_state/report.json \
+  --compare
+python scripts/spore_state_eval.py \
+  --clip data/footage/aria_play_1_45s.mp4 \
+  --qa data/qa/play_1_state_45s.json \
+  --store research/spore/results/play1_state/store.json \
+  --out research/spore/results/play1_state/report_no_fixed.json \
+  --state-surface-support --no-state-fixed-verify --no-verify
+
+# Pre-registered soft-floor test on an area rug
+python scripts/spore_state_eval.py \
+  --clip data/footage/aria_play_3_45s.mp4 \
+  --qa data/qa/play_3_state_45s.json \
+  --dump research/spore/results/play3_state/store.json \
+  --out research/spore/results/play3_state/report.json \
+  --compare
 ```
