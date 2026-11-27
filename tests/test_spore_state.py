@@ -180,6 +180,31 @@ def test_moved_and_stayed_verdicts() -> None:
     assert unknown.abstained
 
 
+class _FakeSurface:
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self.calls = 0
+
+    def support(self, image, bbox, label, current=None, *, key=None):
+        self.calls += 1
+        return self.label
+
+    def close(self):
+        pass
+
+
+def test_state_surface_fallback_can_fill_missing_support() -> None:
+    engine = _engine()
+    engine.config.state_surface_support = True
+    fake = _FakeSurface("floor")
+    engine._surface = fake  # type: ignore[assignment]
+
+    placements, _ = engine._placements("cup")
+    assert placements
+    assert {placement.support for placement in placements} == {"floor"}
+    assert fake.calls == len(placements)
+
+
 class _ConfusedDetector(_SceneDetector):
     """Returns a competing label over the cup when the bank is present."""
 

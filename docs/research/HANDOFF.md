@@ -448,15 +448,19 @@ On `/home/g1/projects/chronicle-spore`, branch `research/spore-perception`:
   positives**. The room's floor is never detected as a support, the coffee
   table is usually `desk`, the basket self-supports, and the orange box is
   never detected. Positive state recall is tabletop-specific; do not present
-  the safety result as general state tracking.
+  the safety result as general state tracking. A post-hoc opt-in ADE20K surface
+  head (`state_surface_support=True`) repairs the support label: `eat_0` goes
+  9/9 strict (`desk`->`table`), `play_2` 5/14->7/14 (sofa/chair get `floor`),
+  `cook_0` unchanged; box/book/basket misses remain object-side. Cost is about
+  +0.2–0.3 s/query and +0.18 GB peak VRAM, so it is not a default.
 - Next: the two blocking gaps are (a) an absence path that uses a fixed-label
   detector for covered classes and reserves the open-vocabulary detector for
   exploration (the post-hoc COCO result is the starting evidence), and (b) a
   real "held / on-surface" state. The opt-in state path answers grounded
   yes/no/still/moved questions in tabletop scenes, but it still cannot represent
   "held", and its support comes from a detected 2-D surface, not depth or hand
-  contact. The `play_2` replication makes support detection the binding
-  constraint: the floor is never emitted and the coffee table is called `desk`.
-  Do not tune the `eat_1`/`cook_0`/`play_2` terms or thresholds, re-run the
+  contact. The opt-in surface head repairs the support label when the detector
+  finds the object, but object detection (box/book) and held state remain. Do
+  not tune the `eat_1`/`cook_0`/`play_2` terms or thresholds, re-run the
   absence scan with another k to chase a headline, or tune Cook-specific
   failures.

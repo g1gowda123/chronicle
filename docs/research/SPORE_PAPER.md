@@ -1190,6 +1190,17 @@ support detector emitting the scene's surfaces, not just on the object
 detector.  The state path is a tabletop/kitchen operator, not a general state
 tracker, until the support ontology and detector cover the room.
 
+Post hoc, an opt-in ADE20K surface head (`state_surface_support=True`) fills a
+missing support when the box detector cannot name it.  It repairs *where*, not
+*what*: on `eat_0` the dining table changes from `desk` to `table` and the
+state result becomes 9/9 strict (from 6/9); on `play_2` the sofa and chair get
+`floor` and the score rises from 5/14 to 7/14 with 0/5 false presences; `cook_0`
+is unchanged at 16/19.  The remaining `play_2` misses are object-side: the
+orange box is never detected, the book has one low-confidence hit, and the
+basket supports itself.  The head adds one cached segmentation per scanned
+context (about +0.2--0.3 s/query and +0.18 GB peak VRAM), so it is not a
+default and does not change the pre-registered number.
+
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same
 crop with a generic 43-label bank puts `toaster` at .50 and `kettle` at .35, so
@@ -1364,7 +1375,8 @@ not calibrated for absence),
 `state_contexts=32`, `state_time_window=2.5`, `state_still_window=1.5`,
 `state_min_confidence=.30`, `state_min_observations=2`,
 `state_verify_labels=()` (the eval harness supplies the generic 43-label bank;
-the engine default leaves verification off), `state_verify_margin=.05`.
+the engine default leaves verification off), `state_verify_margin=.05`,
+`state_surface_support=False` (opt-in ADE20K surface fallback for state).
 
 ## Appendix B: What not to claim
 

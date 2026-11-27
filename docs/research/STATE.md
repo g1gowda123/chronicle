@@ -209,6 +209,36 @@ At 43.2 s the detector finds `shelf` and `toaster` but **no countertop** at all
 frame. The ±1.5 s still window is what recovers the 44.2 s countertop detection.
 This is an evidence-coverage limit, not a selection bug.
 
+## Result 6: post-hoc surface-head fallback repairs support, not detection
+
+`state_surface_support=True` reuses the existing ADE20K SegFormer-B0 head when
+the box detector cannot name the surface under a state placement.  It is a
+post-hoc diagnostic: the pre-registered `play_2` number (5/14) stands, and the
+flag is off by default.
+
+| clip | without head | with head | strict support | false presence |
+|---|---:|---:|---:|---:|
+| `cook_0` | 16/19 | 16/19 | 16/19 | 0/6 |
+| `eat_0` | 9/9 (6/9 strict) | **9/9 (9/9 strict)** | 9/9 | 0/4 |
+| `play_2` | 5/14 | **7/14** | 7/14 | 0/5 |
+
+The head fixes exactly the support-label failures it should:
+
+- `eat_0`: the dining table changes from `desk` to `table`, so the plate, cup
+  and moved-plate answers become strict passes.
+- `play_2`: the sofa and chair receive `floor` (the box detector never emitted
+  a floor box), recovering 2 of the 7 positives.
+- `cook_0`: no change, no regression.
+
+It does **not** fix the remaining `play_2` misses: the orange box is never
+detected as an object, the book has one low-confidence hit, the basket is
+supported by its own label, and the living-room table is segmented as
+`rug`/`floor` rather than `table`.  The head repairs *where*, not *what*.
+
+Cost is one cached segmentation per scanned context: roughly +0.2–0.3 s per
+query (play_2 0.72 s vs 0.39 s; eat_0 0.88 s vs 0.61 s; cook_0 0.63 s vs
+0.43 s) and about +0.18 GB peak VRAM (0.91 GB on play_2).  It stays opt-in.
+
 ## Cost
 
 - 525 detector calls for 19 questions (27.6/query) versus 71 (3.7/query) for the

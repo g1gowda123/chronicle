@@ -219,8 +219,12 @@ The novelty is **deferred semantic binding**, not MoE or foveation alone.
   The room's floor is never detected as a support, the coffee table is usually
   `desk`, the basket is supported by its own label, and the orange box is never
   detected. Positive state recall is therefore tabletop-specific; the safety
-  result is conservative silence, not general state tracking. See
-  [`STATE.md`](STATE.md).
+  result is conservative silence, not general state tracking. Post hoc, an
+  opt-in ADE20K surface head (`state_surface_support=True`) repairs the
+  support label without changing detection: `eat_0` becomes 9/9 strict
+  (dining table `desk`->`table`), `play_2` rises 5/14->7/14 (sofa/chair get
+  `floor`), `cook_0` is unchanged; the box/book/basket misses remain object
+  side. See [`STATE.md`](STATE.md).
 
 Closest work: SmartRes (dynamic resolution routing), Q-Gate (query-modulated
 keyframe selection), EgoP2C (plan-perceive-compose), WISH/EgoLoc (hand-object

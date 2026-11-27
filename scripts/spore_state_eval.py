@@ -236,6 +236,11 @@ def main() -> None:
     parser.add_argument("--state-min-confidence", type=float, default=0.30)
     parser.add_argument("--state-min-observations", type=int, default=2)
     parser.add_argument(
+        "--state-surface-support",
+        action="store_true",
+        help="Use the ADE20K surface head when the box detector cannot name a surface.",
+    )
+    parser.add_argument(
         "--no-verify",
         action="store_true",
         help="Disable the competing-label check for positive state answers.",
@@ -261,6 +266,7 @@ def main() -> None:
         state_still_window=args.state_still_window,
         state_min_confidence=args.state_min_confidence,
         state_min_observations=args.state_min_observations,
+        state_surface_support=args.state_surface_support,
         state_verify_labels=() if args.no_verify else GENERAL_INVENTORY_LABELS,
     )
 
@@ -313,6 +319,7 @@ def main() -> None:
             state_still_window=config.state_still_window,
             state_min_confidence=config.state_min_confidence,
             state_min_observations=config.state_min_observations,
+            state_surface_support=config.state_surface_support,
             state_verify_labels=config.state_verify_labels,
         )
         engine = SporeQueryEngine(
@@ -362,6 +369,7 @@ def main() -> None:
             "state_still_window": args.state_still_window,
             "state_min_confidence": args.state_min_confidence,
             "state_min_observations": args.state_min_observations,
+            "state_surface_support": args.state_surface_support,
             "state_verify": not args.no_verify,
         },
         "summaries": reports,

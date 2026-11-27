@@ -335,6 +335,11 @@ class SporeConfig:
     # crop and downgraded if another label wins by ``state_verify_margin``.
     state_verify_labels: tuple[str, ...] = ()
     state_verify_margin: float = 0.05
+    # Optional ADE20K surface fallback for state placements.  When the box
+    # detector cannot name the surface under an object, the segmentation head
+    # supplies floor/table/shelf/wall.  Off by default; it adds a forward pass
+    # per scanned context and is validated post hoc.
+    state_surface_support: bool = False
     view_binding: bool = False
     # Detector vocabularies disagree on names for the same household object
     # (a rice cooker may only fire as ``instant pot``).  Synonym binding is an
@@ -3036,6 +3041,19 @@ class SporeQueryEngine:
                 support = self._support_under(
                     detections, detection.bbox, support_set
                 )
+                support_label = support[0] if support is not None else None
+                if self.config.state_surface_support:
+                    if self._surface is None:
+                        self._surface = SurfaceSegmenter(self.config.surface_model)
+                    override = self._surface.support(
+                        frame,
+                        detection.bbox,
+                        detection.label,
+                        support_label,
+                        key=(context.frame_index, 1),
+                    )
+                    if override is not None:
+                        support_label = override
                 placements.append(
                     Binding(
                         term=term,
@@ -3044,7 +3062,7 @@ class SporeQueryEngine:
                         confidence=float(detection.confidence),
                         timestamp=float(context.timestamp),
                         bbox=detection.bbox,
-                        support=support[0] if support is not None else None,
+                        support=support_label,
                         detector_confidence=float(detection.confidence),
                         provenance="state",
                     )
