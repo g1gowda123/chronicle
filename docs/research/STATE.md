@@ -282,6 +282,15 @@ state path remains an experimental tabletop operator, not a general state
 tracker, and the 0/5 false-presence results on earlier clips should not be
 generalised.
 
+A post-hoc fixed-label veto (`state_fixed_verify=True`, COCO YOLOv8-S at .50,
+using `chronicle.perception.absence.FixedLabelVerifier`) removes the cup false
+presence on `play_0`: the score becomes **6/12 with 0/5 false presence**, and
+`still_sofa` is preserved because the veto is applied only to presence
+questions.  `cook_0` stays 16/19 and `eat_0` stays 9/9.  The false move
+(`moved_sofa`) remains; the veto checks object presence, not surface
+consistency.  This is a post-hoc mechanism check, not a re-run of the
+pre-registered result; `play_1` is the pre-registered test.
+
 ## Cost
 
 - 525 detector calls for 19 questions (27.6/query) versus 71 (3.7/query) for the

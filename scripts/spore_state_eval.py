@@ -241,6 +241,12 @@ def main() -> None:
         help="Use the ADE20K surface head when the box detector cannot name a surface.",
     )
     parser.add_argument(
+        "--state-fixed-verify",
+        action="store_true",
+        help="Veto positive state answers with a fixed-label COCO detector.",
+    )
+    parser.add_argument("--state-fixed-threshold", type=float, default=0.50)
+    parser.add_argument(
         "--no-verify",
         action="store_true",
         help="Disable the competing-label check for positive state answers.",
@@ -257,6 +263,10 @@ def main() -> None:
     run = payload.get("run") or {}
     if run.get("state_surface_support"):
         args.state_surface_support = True
+    if run.get("state_fixed_verify"):
+        args.state_fixed_verify = True
+    if "state_fixed_threshold" in run:
+        args.state_fixed_threshold = float(run["state_fixed_threshold"])
     if "state_contexts" in run:
         args.state_contexts = int(run["state_contexts"])
     perception = PerceptionConfig(model_dir=ROOT / "models")
@@ -272,6 +282,8 @@ def main() -> None:
         state_min_confidence=args.state_min_confidence,
         state_min_observations=args.state_min_observations,
         state_surface_support=args.state_surface_support,
+        state_fixed_verify=args.state_fixed_verify,
+        state_fixed_threshold=args.state_fixed_threshold,
         state_verify_labels=() if args.no_verify else GENERAL_INVENTORY_LABELS,
     )
 
@@ -325,6 +337,8 @@ def main() -> None:
             state_min_confidence=config.state_min_confidence,
             state_min_observations=config.state_min_observations,
             state_surface_support=config.state_surface_support,
+            state_fixed_verify=config.state_fixed_verify,
+            state_fixed_threshold=config.state_fixed_threshold,
             state_verify_labels=config.state_verify_labels,
         )
         engine = SporeQueryEngine(
@@ -375,6 +389,8 @@ def main() -> None:
             "state_min_confidence": args.state_min_confidence,
             "state_min_observations": args.state_min_observations,
             "state_surface_support": args.state_surface_support,
+            "state_fixed_verify": args.state_fixed_verify,
+            "state_fixed_threshold": args.state_fixed_threshold,
             "state_verify": not args.no_verify,
         },
         "summaries": reports,

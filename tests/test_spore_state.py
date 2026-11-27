@@ -205,6 +205,44 @@ def test_state_surface_fallback_can_fill_missing_support() -> None:
     assert fake.calls == len(placements)
 
 
+class _FakeFixedVerifier:
+    def __init__(self, verdict: str, supported: bool = True) -> None:
+        self.verdict = verdict
+        self.supported = supported
+        self.threshold = 0.5
+
+    def check(self, term, at_time=None, window=2.5):
+        return self
+
+    def as_dict(self):
+        return {
+            "term": "cup",
+            "verdict": self.verdict,
+            "supported": self.supported,
+            "threshold": self.threshold,
+        }
+
+
+def test_fixed_label_veto_downgrades_positive_presence() -> None:
+    engine = _engine()
+    engine.config.state_fixed_verify = True
+    engine._fixed_verifier = _FakeFixedVerifier("not_observed")
+
+    answer = engine.answer("Is there a cup on the table?")
+    assert answer.verdict == "not_observed"
+    assert answer.abstained
+    assert "fixed-label verifier" in answer.answer
+
+
+def test_fixed_label_unsupported_term_is_not_downgraded() -> None:
+    engine = _engine()
+    engine.config.state_fixed_verify = True
+    engine._fixed_verifier = _FakeFixedVerifier("unsupported", supported=False)
+
+    answer = engine.answer("Is there a cup on the table?")
+    assert answer.verdict == "present"
+
+
 class _ConfusedDetector(_SceneDetector):
     """Returns a competing label over the cup when the bank is present."""
 

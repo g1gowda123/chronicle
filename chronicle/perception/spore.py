@@ -340,6 +340,15 @@ class SporeConfig:
     # supplies floor/table/shelf/wall.  Off by default; it adds a forward pass
     # per scanned context and is validated post hoc.
     state_surface_support: bool = False
+    # Optional fixed-label (COCO) veto for positive state answers.  An
+    # open-vocabulary prompt can hallucinate a confusable object across several
+    # frames; a fixed-label detector on its own classes does not.  When the
+    # verifier covers the term and finds nothing above its high-precision
+    # threshold, the positive answer is downgraded to not_observed.
+    state_fixed_verify: bool = False
+    state_fixed_model: str = "yolov8s.pt"
+    state_fixed_threshold: float = 0.50
+    state_fixed_floor: float = 0.05
     view_binding: bool = False
     # Detector vocabularies disagree on names for the same household object
     # (a rice cooker may only fire as ``instant pot``).  Synonym binding is an
@@ -1625,6 +1634,7 @@ class SporeQueryEngine:
         self._owns_embedder = embedder is None
         self._owns_detector = detector is None
         self._surface: SurfaceSegmenter | None = None
+        self._fixed_verifier: Any = None
         self._text_cache: dict[str, np.ndarray | None] = {}
         self._detection_cache: dict[tuple[Any, tuple[str, ...]], list[Detection]] = {}
         self._prefetch: dict[tuple[Any, tuple[str, ...]], list[Detection]] = {}
@@ -3083,6 +3093,31 @@ class SporeQueryEngine:
             return strongest
         return None
 
+    def _fixed_label_check(
+        self, term: str, at_time: float | None
+    ) -> Any | None:
+        """Lazy fixed-label (COCO) check for a state term.
+
+        The verifier is constructed on first use so the default state path does
+        not import or load a second detector.  ``None`` means the check is off.
+        """
+        if not self.config.state_fixed_verify:
+            return None
+        if self._fixed_verifier is None:
+            from chronicle.perception.absence import FixedLabelVerifier
+
+            self._fixed_verifier = FixedLabelVerifier(
+                self.store,
+                model=self.config.state_fixed_model,
+                threshold=self.config.state_fixed_threshold,
+                floor=self.config.state_fixed_floor,
+            )
+        return self._fixed_verifier.check(
+            term,
+            at_time=at_time,
+            window=max(0.0, float(self.config.state_time_window)),
+        )
+
     def _verify_placement(self, placement: Binding, term: str) -> dict[str, Any] | None:
         """Re-check a positive state placement against competing labels.
 
@@ -3170,6 +3205,7 @@ class SporeQueryEngine:
         }
         window = max(0.0, float(self.config.state_time_window))
         scanned = 0
+        verifier_time: float | None = None
         contexts = self.store.contexts
 
         if query.kind == "presence":
@@ -3184,6 +3220,7 @@ class SporeQueryEngine:
                 window=window if explicit_time else None,
             )
             info["scan"] = "window" if explicit_time else "clip"
+            verifier_time = query.at_time if explicit_time else None
             matching = [
                 item
                 for item in placements
@@ -3231,6 +3268,7 @@ class SporeQueryEngine:
                 answer.answer = "not enough evidence"
             else:
                 info["at_time"] = round(float(end_time), 2)
+                verifier_time = end_time
                 late, scanned = self._placements(
                     query.term,
                     at_time=end_time,
@@ -3404,6 +3442,21 @@ class SporeQueryEngine:
                             f" across {early_count + late_count} observations"
                         )
 
+        if query.kind == "presence" and answer.verdict in {
+            "present",
+            "moved",
+            "stayed",
+        }:
+            fixed = self._fixed_label_check(query.term, verifier_time)
+            if fixed is not None:
+                info["fixed_label"] = fixed.as_dict()
+                if fixed.supported and fixed.verdict != "present":
+                    answer.verdict = "not_observed"
+                    answer.abstained = True
+                    answer.answer = (
+                        f"{answer.answer}; fixed-label verifier found no"
+                        f" {query.term} at {fixed.threshold:.2f}"
+                    )
         info["verdict"] = answer.verdict
         info["scanned_contexts"] = scanned
         if answer.bindings and answer.verdict in {"present", "moved", "stayed"}:

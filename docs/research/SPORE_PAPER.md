@@ -1225,6 +1225,13 @@ sofa's support flips between `desk` and `floor` across frames.  The head is not
 a validated fix for living-room state answers; it is a diagnostic that can
 repair a support label when the object detector is already correct.
 
+Post hoc, a fixed-label COCO veto (`.50`, applied only to presence questions)
+removes that cup false presence: `play_0` becomes 6/12 with **0/5 false
+presence**, `still_sofa` is preserved, and `cook_0`/`eat_0` are unchanged.  The
+false move remains, because the veto checks object presence, not surface
+consistency.  This is a post-hoc mechanism check; the pre-registered `play_1`
+test is the clean evaluation.
+
 Two mechanisms are doing the work.  First, a **competing-label check**: the
 target-only prompt scored a toaster as a `kettle` at .51; re-running the same
 crop with a generic 43-label bank puts `toaster` at .50 and `kettle` at .35, so
@@ -1402,7 +1409,10 @@ not calibrated for absence),
 `state_min_confidence=.30`, `state_min_observations=2`,
 `state_verify_labels=()` (the eval harness supplies the generic 43-label bank;
 the engine default leaves verification off), `state_verify_margin=.05`,
-`state_surface_support=False` (opt-in ADE20K surface fallback for state).
+`state_surface_support=False` (opt-in ADE20K surface fallback for state),
+`state_fixed_verify=False` (opt-in COCO veto for positive presence answers),
+`state_fixed_model="yolov8s.pt"`, `state_fixed_threshold=.50`,
+`state_fixed_floor=.05`.
 
 ## Appendix B: What not to claim
 
